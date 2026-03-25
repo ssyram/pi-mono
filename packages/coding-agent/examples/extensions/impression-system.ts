@@ -67,11 +67,6 @@ function buildImpressionText(id: string, note: string): string {
 	].join("\n");
 }
 
-function buildPassThroughText(id: string, content: (TextContent | ImageContent)[]): string {
-	const summary = serializeContent(content);
-	return [`<impression id="${id}" mode="passthrough">`, summary, "</impression>"].join("\n");
-}
-
 function resolveModel(model: Model<Api> | undefined): Model<Api> | undefined {
 	if (!model) return undefined;
 	return model;
@@ -98,6 +93,7 @@ async function distillWithSameModel(
 		"Otherwise return concise notes that capture what matters for future reasoning and the current active request.",
 		"If the active request needs exact values and they are present in tool output, include those exact values explicitly.",
 		"Do not include markdown fences.",
+		"After your notes, append a brief line listing significant content sections present in the tool output that you did NOT capture above, prefixed with 'Also contains:'. Omit this line if everything significant is already captured.",
 		"",
 		"<original_system_prompt>",
 		originalSystemPrompt || "[none]",
@@ -209,23 +205,7 @@ export default function (pi: ExtensionAPI) {
 		);
 
 		if (distillation.passthrough) {
-			const passthroughId = randomUUID();
-			const passthroughEntry: ImpressionEntry = {
-				id: passthroughId,
-				toolName: event.toolName,
-				toolCallId: event.toolCallId,
-				fullContent: event.content,
-				fullText,
-				recallCount: MAX_RECALL_BEFORE_PASSTHROUGH,
-				createdAt: Date.now(),
-				modelProvider: model.provider,
-				modelId: model.id,
-			};
-			impressions.set(passthroughId, passthroughEntry);
-			pi.appendEntry(IMPRESSION_ENTRY_TYPE, passthroughEntry);
-			return {
-				content: [{ type: "text", text: buildPassThroughText(passthroughId, event.content) }],
-			};
+			return { content: event.content };
 		}
 
 		const id = randomUUID();
