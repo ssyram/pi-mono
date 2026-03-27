@@ -1,0 +1,12 @@
+{
+  "name": "@pi-extensions/web-tools",
+  "private": true,
+  "pi": {
+    "extensions": [
+      "./web-fetch",
+      "./web-search.ts",
+      "./playwright-mcp.ts",
+      "./impression-system.ts"
+    ]
+  }
+}

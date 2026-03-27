@@ -1,0 +1,245 @@
+/**
+ * Decision Path — records key decision paths for each turn.
+ *
+ * At turn boundaries, logHistorian() uses the checkModel to analyze the turn
+ * and extract key decisions, unexplored paths, and reasoning.
+ * Session-level storage via `pi.appendEntry(CUSTOM_TYPE, snapshot)`.
+ */
+
+import { complete } from "@mariozechner/pi-ai";
+import type { Model } from "@mariozechner/pi-ai";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface DecisionPathEntry {
+	turnIndex: number;
+	keyDecisions: string[];
+	unexploredPaths: string[];
+	reasoning: string;
+	timestamp: number;
+}
+
+export interface DecisionPathSnapshot {
+	entries: DecisionPathEntry[];
+	nextTurnIndex: number;
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const LOG_TIMEOUT_MS = 6000;
+const MAX_TURN_CONTENT_CHARS = 5000;
+const MAX_ENTRIES = 30;
+
+/** appendEntry type key — exported for index.ts to use in appendEntry and session_start restore. */
+export const CUSTOM_TYPE = "historian-decision-path";
+
+// ---------------------------------------------------------------------------
+// DecisionPathStore
+// ---------------------------------------------------------------------------
+
+export class DecisionPathStore {
+	private entries: DecisionPathEntry[] = [];
+	private nextTurnIndex = 0;
+	private dirty = false;
+
+	/** 从 session snapshot 恢复 */
+	restoreFrom(snapshot: DecisionPathSnapshot): void {
+		const rawEntries = Array.isArray(snapshot.entries) ? snapshot.entries : [];
+		this.entries = rawEntries.filter(isValidEntry);
+
+		if (this.entries.length > MAX_ENTRIES) {
+			this.entries = this.entries.slice(-MAX_ENTRIES);
+		}
+
+		const filtered = rawEntries.length - this.entries.length;
+		if (filtered > 0) {
+			this.dirty = true;
+		}
+
+		this.nextTurnIndex = typeof snapshot.nextTurnIndex === "number" ? snapshot.nextTurnIndex : this.entries.length;
+	}
+
+	/** 添加新 turn 的决策路径 */
+	addEntry(entry: Omit<DecisionPathEntry, "turnIndex" | "timestamp">): void {
+		const fullEntry: DecisionPathEntry = {
+			...entry,
+			turnIndex: this.nextTurnIndex++,
+			timestamp: Date.now(),
+		};
+		this.entries.push(fullEntry);
+		if (this.entries.length > MAX_ENTRIES) {
+			this.entries = this.entries.slice(-MAX_ENTRIES);
+		}
+		this.dirty = true;
+	}
+
+	/** 获取最近一个 entry（给 log 史官作为上下文）*/
+	getLastEntry(): DecisionPathEntry | null {
+		return this.entries.length > 0 ? this.entries[this.entries.length - 1] : null;
+	}
+
+	/** 获取格式化的路径摘要（给 log 史官 prompt 用）*/
+	getLastEntrySummary(): string {
+		const last = this.getLastEntry();
+		if (!last) {
+			return "No previous decision path.";
+		}
+		return `Turn ${last.turnIndex}:
+Key Decisions: ${last.keyDecisions.join("; ")}
+Unexplored: ${last.unexploredPaths.join("; ")}
+Reasoning: ${last.reasoning}`;
+	}
+
+	toSnapshot(): DecisionPathSnapshot {
+		return {
+			entries: [...this.entries],
+			nextTurnIndex: this.nextTurnIndex,
+		};
+	}
+
+	isDirty(): boolean {
+		return this.dirty;
+	}
+
+	markClean(): void {
+		this.dirty = false;
+	}
+
+	isEmpty(): boolean {
+		return this.entries.length === 0;
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Log Historian
+// ---------------------------------------------------------------------------
+
+/**
+ * Log historian — records decision path for this turn.
+ *
+ * @param turnContent - this turn's content (messages + tool calls)
+ * @param lastPathSummary - formatted summary of last turn's decision path
+ * @param logModel - model to use (typically checkModel)
+ * @param apiKey - API key
+ */
+export async function logHistorian(
+	turnContent: string,
+	lastPathSummary: string,
+	logModel: Model<any>,
+	apiKey: string,
+): Promise<Omit<DecisionPathEntry, "turnIndex" | "timestamp"> | null> {
+	const systemPrompt = `You are the Log Historian for a coding agent. Record the decision path for this turn.
+
+Output a JSON object:
+{
+  "keyDecisions": ["decision 1", "decision 2", ...],
+  "unexploredPaths": ["path 1", "path 2", ...],
+  "reasoning": "overall reasoning for this turn's decisions"
+}
+
+Rules:
+- keyDecisions: critical choices made (tool calls, strategy changes, etc.)
+- unexploredPaths: alternatives NOT taken (and why, if agent mentioned)
+- reasoning: brief summary of agent's thought process
+- If nothing notable happened, return empty arrays and brief reasoning`;
+
+	const truncated = turnContent.slice(0, MAX_TURN_CONTENT_CHARS);
+	const userMessage = `## Previous Turn Decision Path
+${lastPathSummary}
+
+## This Turn Content
+${truncated}`;
+
+	const abort = new AbortController();
+
+	try {
+		const response = await complete(
+			logModel,
+			{
+				systemPrompt,
+				messages: [{ role: "user", content: [{ type: "text", text: userMessage }], timestamp: Date.now() }],
+			},
+			{ apiKey, signal: abort.signal },
+		);
+
+
+		const text = response.content
+			.filter((c): c is { type: "text"; text: string } => c.type === "text")
+			.map((c) => c.text)
+			.join("");
+		if (!text) return null;
+
+		const parsed = parseLogResponse(text);
+		return isValidEntry(parsed) ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function isValidEntry(e: unknown): e is Omit<DecisionPathEntry, "turnIndex" | "timestamp"> {
+	if (!e || typeof e !== "object") return false;
+	const obj = e as Record<string, unknown>;
+	return (
+		Array.isArray(obj.keyDecisions) &&
+		obj.keyDecisions.every((d) => typeof d === "string" && d.trim() !== "") &&
+		Array.isArray(obj.unexploredPaths) &&
+		obj.unexploredPaths.every((p) => typeof p === "string" && p.trim() !== "") &&
+		typeof obj.reasoning === "string"
+	);
+}
+
+function parseLogResponse(text: string): unknown {
+	const strategies = [
+		// Strategy 1: strip fences
+		() => {
+			const stripped = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
+			return JSON.parse(stripped);
+		},
+		// Strategy 2: regex extract (non-greedy)
+		() => {
+			const match = text.match(/\{[\s\S]*?\}/);
+			if (!match) throw new Error("no JSON found");
+			return JSON.parse(match[0]);
+		},
+	];
+
+	for (const extract of strategies) {
+		try {
+			const json = extract();
+			if (!json) continue;
+			return validateLogResult(json as Record<string, unknown>);
+		} catch {
+			// try next strategy
+		}
+	}
+
+	return null;
+}
+
+function validateLogResult(parsed: Record<string, unknown>): Omit<DecisionPathEntry, "turnIndex" | "timestamp"> | null {
+	const rawDecisions = Array.isArray(parsed.keyDecisions) ? parsed.keyDecisions : [];
+	const rawPaths = Array.isArray(parsed.unexploredPaths) ? parsed.unexploredPaths : [];
+	const reasoning = typeof parsed.reasoning === "string" ? parsed.reasoning : "";
+
+	const keyDecisions = rawDecisions
+		.filter((d): d is string => typeof d === "string" && d.trim() !== "")
+		.map((d) => d.trim());
+
+	const unexploredPaths = rawPaths
+		.filter((p): p is string => typeof p === "string" && p.trim() !== "")
+		.map((p) => p.trim());
+
+	return {
+		keyDecisions,
+		unexploredPaths,
+		reasoning: reasoning.trim(),
+	};
+}
