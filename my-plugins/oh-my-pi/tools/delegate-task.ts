@@ -219,7 +219,7 @@ export function registerDelegateTask(
 						});
 						session = result.session;
 						const categoryPrompt = categoryConfig.promptAppend ?? "";
-						session.agent.setSystemPrompt(systemPrompt + (categoryPrompt ? "\n\n" + categoryPrompt : ""));
+						session.agent.setSystemPrompt(`[AGENT:${agentName}]\n\n` + systemPrompt + (categoryPrompt ? "\n\n" + categoryPrompt : ""));
 
 						// Store in cache for future continuation
 						sessionCache.set(sessionKey, session);

@@ -170,7 +170,7 @@ Approach:
 </Category_Context>
 
 <Caller_Warning>
-THIS CATEGORY USES A SMALLER/FASTER MODEL (haiku-4-5).
+THIS CATEGORY USES A SMALLER/FASTER MODEL (claude-haiku-4-5-20251001).
 
 The model executing this task is optimized for speed over depth. Your prompt MUST be:
 
@@ -220,7 +220,7 @@ This is NOT a default choice - it's for genuinely unclassifiable moderate-effort
 </Category_Context>
 
 <Caller_Warning>
-THIS CATEGORY USES A MID-TIER MODEL (sonnet-4-6).
+THIS CATEGORY USES A MID-TIER MODEL (claude-sonnet-4-6).
 
 **PROVIDE CLEAR STRUCTURE:**
 1. MUST DO: Enumerate required actions explicitly
@@ -308,59 +308,59 @@ You are NOT an interactive assistant. You are an autonomous problem-solver.
 
 export const DEFAULT_CATEGORIES: Record<string, CategoryConfig> = {
 	"visual-engineering": {
-		model: "sonnet-4-6",
+		model: "claude-sonnet-4-6",
 		agent: "sisyphus-junior",
 		description: "Frontend/UI",
-		fallbackModels: ["haiku-4-5"],
+		fallbackModels: ["claude-haiku-4-5-20251001"],
 		promptAppend: VISUAL_CATEGORY_PROMPT_APPEND,
 	},
 	ultrabrain: {
-		model: "opus-4-6",
+		model: "claude-opus-4-6",
 		agent: "sisyphus-junior",
 		description: "Hard logic",
-		fallbackModels: ["sonnet-4-6"],
+		fallbackModels: ["claude-sonnet-4-6"],
 		promptAppend: ULTRABRAIN_CATEGORY_PROMPT_APPEND,
 	},
 	deep: {
-		model: "sonnet-4-6",
+		model: "claude-sonnet-4-6",
 		agent: "hephaestus",
 		description: "Autonomous deep work",
-		fallbackModels: ["haiku-4-5"],
+		fallbackModels: ["claude-haiku-4-5-20251001"],
 		promptAppend: DEEP_CATEGORY_PROMPT_APPEND,
 	},
 	artistry: {
-		model: "sonnet-4-6",
+		model: "claude-sonnet-4-6",
 		agent: "sisyphus-junior",
 		description: "Creative design",
-		fallbackModels: ["haiku-4-5"],
+		fallbackModels: ["claude-haiku-4-5-20251001"],
 		promptAppend: ARTISTRY_CATEGORY_PROMPT_APPEND,
 	},
 	quick: {
-		model: "haiku-4-5",
+		model: "claude-haiku-4-5-20251001",
 		agent: "sisyphus-junior",
 		description: "Trivial tasks",
-		fallbackModels: ["sonnet-4-6"],
+		fallbackModels: ["claude-sonnet-4-6"],
 		promptAppend: QUICK_CATEGORY_PROMPT_APPEND,
 	},
 	"unspecified-low": {
-		model: "sonnet-4-6",
+		model: "claude-sonnet-4-6",
 		agent: "sisyphus-junior",
 		description: "Medium effort",
-		fallbackModels: ["haiku-4-5"],
+		fallbackModels: ["claude-haiku-4-5-20251001"],
 		promptAppend: UNSPECIFIED_LOW_CATEGORY_PROMPT_APPEND,
 	},
 	"unspecified-high": {
-		model: "opus-4-6",
+		model: "claude-opus-4-6",
 		agent: "sisyphus-junior",
 		description: "High effort",
-		fallbackModels: ["sonnet-4-6"],
+		fallbackModels: ["claude-sonnet-4-6"],
 		promptAppend: UNSPECIFIED_HIGH_CATEGORY_PROMPT_APPEND,
 	},
 	writing: {
-		model: "sonnet-4-6",
+		model: "claude-sonnet-4-6",
 		agent: "sisyphus-junior",
 		description: "Documentation",
-		fallbackModels: ["haiku-4-5"],
+		fallbackModels: ["claude-haiku-4-5-20251001"],
 		promptAppend: WRITING_CATEGORY_PROMPT_APPEND,
 	},
 };
@@ -505,7 +505,7 @@ export function getCategory(config: OhMyPiConfig, name: string): CategoryConfig 
 
 	// Merge: override fields win over builtin (or fallback to sensible defaults)
 	return {
-		model: override.model ?? builtin?.model ?? "sonnet-4-6",
+		model: override.model ?? builtin?.model ?? "claude-sonnet-4-6",
 		agent: override.agent ?? builtin?.agent ?? "sisyphus-junior",
 		description: override.description ?? builtin?.description ?? name,
 		fallbackModels: override.fallbackModels ?? builtin?.fallbackModels,

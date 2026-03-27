@@ -521,7 +521,7 @@ export const sisyphusJunior: AgentDef = {
 	name: "sisyphus-junior",
 	displayName: "Sisyphus Junior",
 	description: "Category execution agent for delegated subtasks",
-	model: "sonnet-4-6",
+	model: "claude-sonnet-4-6",
 	temperature: 0.1,
 	toolPreset: "all",
 	mode: "all",

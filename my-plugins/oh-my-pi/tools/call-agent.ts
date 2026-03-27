@@ -178,7 +178,7 @@ export function registerCallAgent(
 							tools,
 						});
 						session = result.session;
-						session.agent.setSystemPrompt(systemPrompt);
+						session.agent.setSystemPrompt(`[AGENT:${params.agent}]\n\n` + systemPrompt);
 
 						// Store in cache for future continuation
 						sessionCache.set(sessionKey, session);

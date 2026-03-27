@@ -710,7 +710,7 @@ export const hephaestus: AgentDef = {
 	name: "hephaestus",
 	displayName: "Hephaestus",
 	description: "Deep autonomous worker for complex, long-running implementation tasks",
-	model: "sonnet-4-6",
+	model: "claude-sonnet-4-6",
 	temperature: 0.1,
 	toolPreset: "all",
 	mode: "all",

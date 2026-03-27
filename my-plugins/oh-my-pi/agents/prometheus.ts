@@ -1575,7 +1575,7 @@ export const prometheus: AgentDef = {
   displayName: "Prometheus",
   description:
     "Strategic planner with multi-round interview capability",
-  model: "opus-4-6",
+  model: "claude-opus-4-6",
   temperature: 0.1,
   toolPreset: "read-only",
   mode: "internal",

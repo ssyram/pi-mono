@@ -4,7 +4,7 @@ export const oracle: AgentDef = {
   name: "oracle",
   displayName: "Oracle",
   description: "Read-only architecture consultant for debugging hard problems and high-difficulty design.",
-  model: "opus-4-6",
+  model: "claude-opus-4-6",
   temperature: 0.1,
   toolPreset: "read-only",
   mode: "subagent",

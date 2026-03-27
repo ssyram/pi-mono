@@ -4,7 +4,7 @@ export const momus: AgentDef = {
   name: "momus",
   displayName: "Momus",
   description: "Practical plan reviewer that verifies executability and catches blocking issues only.",
-  model: "opus-4-6",
+  model: "claude-opus-4-6",
   temperature: 0.1,
   toolPreset: "read-only",
   mode: "subagent",

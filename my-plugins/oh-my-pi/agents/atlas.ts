@@ -4,7 +4,7 @@ export const atlas: AgentDef = {
   name: "atlas",
   displayName: "Atlas",
   description: "Master todo coordinator that delegates all implementation and verifies every result.",
-  model: "sonnet-4-6",
+  model: "claude-sonnet-4-6",
   temperature: 0.1,
   toolPreset: "coding",
   mode: "primary",

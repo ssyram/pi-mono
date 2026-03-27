@@ -4,7 +4,7 @@ export const sisyphus: AgentDef = {
   name: "sisyphus",
   displayName: "Sisyphus",
   description: "Main orchestrator with intent detection, delegation routing, and parallel execution.",
-  model: "opus-4-6",
+  model: "claude-opus-4-6",
   temperature: 0.1,
   toolPreset: "all",
   mode: "primary",

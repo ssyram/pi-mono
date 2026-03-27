@@ -4,7 +4,7 @@ export const metis: AgentDef = {
   name: "metis",
   displayName: "Metis",
   description: "Pre-planning consultant that analyzes requests to identify hidden intentions, ambiguities, and AI failure points.",
-  model: "opus-4-6",
+  model: "claude-opus-4-6",
   temperature: 0.3,
   toolPreset: "read-only",
   mode: "subagent",

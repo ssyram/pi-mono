@@ -33,6 +33,7 @@ import { ConcurrencyManager } from "./tools/concurrency.js";
 import { registerDelegateTask, disposeDelegateTaskSessions } from "./tools/delegate-task.js";
 import { registerCallAgent, disposeCallAgentSessions } from "./tools/call-agent.js";
 import { registerTaskTool } from "./tools/task.js";
+import { isUnblocked, statusTag } from "./tools/task-helpers.js";
 import { registerBackgroundTask } from "./tools/background-task.js";
 import { registerBackgroundOutput } from "./tools/background-output.js";
 
@@ -45,6 +46,7 @@ import { registerContextRecovery } from "./hooks/context-recovery.js";
 import { registerRulesInjector } from "./hooks/rules-injector.js";
 import { registerEditErrorRecovery } from "./hooks/edit-error-recovery.js";
 import { registerToolOutputTruncator } from "./hooks/tool-output-truncator.js";
+import { registerCustomCompaction } from "./hooks/custom-compaction.js";
 
 // Commands
 import { registerStartWork } from "./commands/start-work.js";
@@ -115,7 +117,55 @@ export default async function ohMyPi(pi: ExtensionAPI) {
 	});
 
 	// 4. Register task tool (returns getTaskState for boulder & sisyphus-prompt)
-	const getTaskState = registerTaskTool(pi);
+	const { getTaskState, setOnTaskChange } = registerTaskTool(pi);
+
+	// 4b. Wire task changes to TUI widget
+	setOnTaskChange((tasks) => {
+		if (!latestCtx) return;
+		if (tasks.length === 0) {
+			latestCtx.ui.setWidget("omp-tasks", undefined);
+			return;
+		}
+		const hasActive = tasks.some((t) => t.status === "in_progress" || (t.status === "pending" && isUnblocked(t, tasks)));
+		if (!hasActive) {
+			const done = tasks.filter((t) => t.status === "done").length;
+			const expired = tasks.filter((t) => t.status === "expired").length;
+			const blocked = tasks.filter((t) => t.status === "pending").length;
+			const parts = [];
+			if (done > 0) parts.push(`✓ ${done} done`);
+			if (expired > 0) parts.push(`✗ ${expired} expired`);
+			if (blocked > 0) parts.push(`○ ${blocked} blocked`);
+			latestCtx.ui.notify(`Tasks complete: ${parts.join(", ")}`, "info");
+			latestCtx.ui.setWidget("omp-tasks", undefined);
+			return;
+		}
+		const priorityOrder = { in_progress: 0, pending: 1, done: 3, expired: 4 };
+		const sorted = [...tasks].sort((a, b) => {
+			const aBlocked = a.status === "pending" && !isUnblocked(a, tasks);
+			const bBlocked = b.status === "pending" && !isUnblocked(b, tasks);
+			const aPri = a.status === "pending" ? (aBlocked ? 2 : 1) : (priorityOrder[a.status] ?? 5);
+			const bPri = b.status === "pending" ? (bBlocked ? 2 : 1) : (priorityOrder[b.status] ?? 5);
+			return aPri - bPri || a.id - b.id;
+		});
+		const display = sorted.slice(0, 10);
+		const active = tasks.filter((t) => t.status === "pending" || t.status === "in_progress").length;
+		const done = tasks.filter((t) => t.status === "done").length;
+		const lines = [`Tasks (${active} active, ${done}/${tasks.length} done)`];
+		for (const t of display) {
+			const tag = statusTag(t, tasks);
+			const icon = t.status === "done" ? "✓"
+				: t.status === "expired" ? "✗"
+				: t.status === "in_progress" ? "➤"
+				: tag === "[blocked]" ? "○"
+				: "⚡";
+			const deps = tag === "[blocked]"
+				? ` ← ${t.blockedBy.filter((bid) => { const d = tasks.find((x) => x.id === bid); return d && d.status !== "done" && d.status !== "expired"; }).map((b) => `#${b}`).join(",")}`
+				: "";
+			lines.push(`  ${icon} #${t.id} ${t.text}${deps}`);
+		}
+		if (sorted.length > 10) lines.push(`  ... ${sorted.length - 10} more`);
+		latestCtx.ui.setWidget("omp-tasks", lines);
+	});
 
 	// 5. Register delegation tools
 	registerDelegateTask(pi, agents, config, concurrency);
@@ -131,6 +181,7 @@ export default async function ohMyPi(pi: ExtensionAPI) {
 	registerKeywordDetector(pi);
 	registerCommentChecker(pi);
 	registerContextRecovery(pi, getTaskState);
+	registerCustomCompaction(pi, getTaskState, concurrency);
 	registerRulesInjector(pi, config);
 	registerEditErrorRecovery(pi);
 	registerToolOutputTruncator(pi);
@@ -174,8 +225,9 @@ export default async function ohMyPi(pi: ExtensionAPI) {
 				concurrency.cancel(job.id);
 			}
 		}
-		// Clear status bar
+		// Clear status bar and widget
 		ctx.ui.setStatus("omp-jobs", undefined);
+		ctx.ui.setWidget("omp-tasks", undefined);
 		latestCtx = undefined;
 		// M7: Dispose all cached sub-agent sessions
 		disposeDelegateTaskSessions();

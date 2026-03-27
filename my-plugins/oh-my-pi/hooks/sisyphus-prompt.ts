@@ -1,28 +1,29 @@
 /**
- * Sisyphus Prompt Hook - Injects supplementary rules into the system prompt.
+ * Sisyphus Prompt Hook - Injects the Sisyphus agent prompt into the main session.
  *
- * Adds (only to the primary Sisyphus agent, not sub-agents):
+ * Detection logic:
+ * - If systemPrompt starts with "[AGENT:" → this is a sub-agent session → skip
+ * - Otherwise → this is the main session → inject Sisyphus core prompt + supplements
+ *
+ * Supplements (appended after core prompt):
  * 1. Code enforcement rules (4 rules)
  * 2. Available agents list (dynamic from agents map)
  *
  * NOTE: Pending task injection is handled exclusively by task.ts to avoid
  * double injection into the system prompt.
- *
- * Phase 0-3 orchestration instructions are defined in the agent's own systemPrompt
- * (sisyphus.ts) and are NOT duplicated here.
  */
 
 import type {
-  BeforeAgentStartEvent,
-  ExtensionAPI,
+	BeforeAgentStartEvent,
+	ExtensionAPI,
 } from "@mariozechner/pi-coding-agent";
 import type { AgentDef } from "../agents/types.js";
+import { resolvePrompt } from "../agents/types.js";
 
-// Phase 0-3 and Category Routing Table are defined in sisyphus.ts systemPrompt.
-// This hook only adds code enforcement rules and available agents.
+// ─── Supplement builders ─────────────────────────────────────────────────────
 
 function buildCodeEnforcementRules(): string {
-  return `
+	return `
 ## Code Enforcement Rules (Mandatory)
 
 These rules are NON-NEGOTIABLE. Violations must be fixed immediately.
@@ -47,46 +48,56 @@ If a file approaches this limit, decompose it into smaller, focused modules.`;
 }
 
 function buildAgentList(agents: Map<string, AgentDef>): string {
-  if (agents.size === 0) return "";
+	if (agents.size === 0) return "";
 
-  const lines = ["\n## Available Agents\n"];
-  agents.forEach((agent, name) => {
-    lines.push(
-      `- **${name}** (${agent.toolPreset}): ${agent.description}`,
-    );
-  });
-  return lines.join("\n");
+	const lines = ["\n## Available Agents\n"];
+	agents.forEach((agent, name) => {
+		lines.push(
+			`- **${name}** (${agent.toolPreset}): ${agent.description}`,
+		);
+	});
+	return lines.join("\n");
 }
 
+// ─── Hook registration ──────────────────────────────────────────────────────
+
 export function registerSisyphusPrompt(
-  pi: ExtensionAPI,
-  agents: Map<string, AgentDef>,
+	pi: ExtensionAPI,
+	agents: Map<string, AgentDef>,
 ): void {
-  pi.on(
-    "before_agent_start",
-    async (event: BeforeAgentStartEvent, _ctx) => {
-      try {
-        // Skip injection for sub-agents that don't need orchestration
-        if (!event.systemPrompt.includes("Phase 0") &&
-            !event.systemPrompt.includes("Intent Gate") &&
-            !event.systemPrompt.includes("Sisyphus")) {
-          return undefined;
-        }
+	// Resolve the primary agent definition once at registration time
+	const sisyphusDef = agents.get("sisyphus");
 
-        const injection = [
-          buildCodeEnforcementRules(),
-          buildAgentList(agents),
-        ]
-          .filter(Boolean)
-          .join("\n");
+	pi.on(
+		"before_agent_start",
+		async (event: BeforeAgentStartEvent, ctx) => {
+			try {
+				// Sub-agent sessions are prefixed with [AGENT:xxx] → skip injection
+				if (ctx.getSystemPrompt().startsWith("[AGENT:")) return undefined;
 
-        return {
-          systemPrompt: event.systemPrompt + injection,
-        };
-      } catch {
-        // Hooks must never throw
-        return undefined;
-      }
-    },
-  );
+				// No Sisyphus agent definition available → skip
+				if (!sisyphusDef) return undefined;
+
+				// Resolve model-appropriate prompt variant
+				const corePrompt = ctx.model
+					? resolvePrompt(sisyphusDef, ctx.model)
+					: sisyphusDef.systemPrompt;
+
+				// Build supplements
+				const supplements = [
+					buildCodeEnforcementRules(),
+					buildAgentList(agents),
+				]
+					.filter(Boolean)
+					.join("\n");
+
+				return {
+					systemPrompt: event.systemPrompt + "\n\n" + corePrompt + supplements,
+				};
+			} catch {
+				// Hooks must never throw
+				return undefined;
+			}
+		},
+	);
 }

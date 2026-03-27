@@ -4,7 +4,7 @@ export const multimodalLooker: AgentDef = {
   name: "multimodal-looker",
   displayName: "Multimodal Looker",
   description: "Analyzes media files (PDFs, images, diagrams) that require interpretation beyond raw text.",
-  model: "sonnet-4-6",
+  model: "claude-sonnet-4-6",
   temperature: 0.1,
   toolPreset: "read-only",
   mode: "subagent",

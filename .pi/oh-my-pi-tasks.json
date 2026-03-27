@@ -1,0 +1,131 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "text": "修改 delegate-task.ts: setSystemPrompt 加 [AGENT:${agentName}] 前缀",
+      "status": "expired",
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1774635672214,
+      "updatedAt": 1774636071871
+    },
+    {
+      "id": 2,
+      "text": "修改 call-agent.ts: setSystemPrompt 加 [AGENT:${agentName}] 前缀",
+      "status": "expired",
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1774635680335,
+      "updatedAt": 1774636077582
+    },
+    {
+      "id": 3,
+      "text": "修改 sisyphus-prompt.ts: 改为检测 [AGENT:] 前缀反向守卫 + 注入 Sisyphus 基础提示词",
+      "status": "expired",
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1774635688155,
+      "updatedAt": 1774636083360
+    },
+    {
+      "id": 4,
+      "text": "确认 index.ts 钩子注册顺序正确: Sisyphus 注入 → sisyphus-prompt 补充 → keyword-detector",
+      "status": "expired",
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1774635694801,
+      "updatedAt": 1774636089279
+    },
+    {
+      "id": 5,
+      "text": "npm run check 确认无报错",
+      "status": "expired",
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1774635701853,
+      "updatedAt": 1774636097838
+    },
+    {
+      "id": 6,
+      "text": "task.ts: 添加 UI callback 机制 + setWidget 显示任务列表",
+      "status": "expired",
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1774636107394,
+      "updatedAt": 1774636259927
+    },
+    {
+      "id": 7,
+      "text": "task.ts: tool execute 返回极简内容，减少 LLM token 浪费",
+      "status": "expired",
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1774636118055,
+      "updatedAt": 1774636265873
+    },
+    {
+      "id": 8,
+      "text": "index.ts: 连接 task widget 到 latestCtx.ui.setWidget",
+      "status": "expired",
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1774636124289,
+      "updatedAt": 1774636271725
+    },
+    {
+      "id": 9,
+      "text": "npm run check 确认无报错",
+      "status": "expired",
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1774636132850,
+      "updatedAt": 1774636277600
+    },
+    {
+      "id": 10,
+      "text": "task.ts: per-session 隔离 — 用 sessionFile 做 key，切换 session 时重建正确的 task state",
+      "status": "done",
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1774636284533,
+      "updatedAt": 1774636596269
+    },
+    {
+      "id": 11,
+      "text": "task.ts: 添加 UI callback (setOnTaskChange) + setWidget 显示任务列表",
+      "status": "done",
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1774636291030,
+      "updatedAt": 1774636602470
+    },
+    {
+      "id": 12,
+      "text": "task.ts: tool execute 返回极简内容，减少 LLM token 浪费",
+      "status": "done",
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1774636297282,
+      "updatedAt": 1774636609013
+    },
+    {
+      "id": 13,
+      "text": "index.ts: 连接 task widget 到 latestCtx.ui.setWidget + 适配新的 registerTaskTool 返回值",
+      "status": "done",
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1774636303480,
+      "updatedAt": 1774636729547
+    },
+    {
+      "id": 14,
+      "text": "npm run check 确认无报错",
+      "status": "done",
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1774636311123,
+      "updatedAt": 1774637137758
+    }
+  ],
+  "nextId": 15
+}

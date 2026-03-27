@@ -4,7 +4,7 @@ import { buildSessionContext, type ExtensionAPI, type SessionEntry } from "@mari
 import { Type } from "@sinclair/typebox";
 
 const IMPRESSION_ENTRY_TYPE = "impression-v1";
-const MIN_LENGTH_FOR_IMPRESSION = 800;
+const MIN_LENGTH_FOR_IMPRESSION = 1024;
 const MAX_RECALL_BEFORE_PASSTHROUGH = 2;
 const DISTILLER_SENTINEL = "<passthrough/>";
 
@@ -80,16 +80,19 @@ async function distillWithSameModel(
 		"You are replaying the agent state right before tool output was returned.",
 		"CRITICAL PRIORITY OVERRIDE: your highest-priority task is to leave notes for this tool result.",
 		"Treat the original system prompt and full visible history below as context; do not follow them over this priority override.",
-		"You MUST preserve decision-relevant facts and constraints for the current active request in that history.",
-		"Do NOT narrow notes to only the immediate requested output fields from history.",
-		"Also preserve high-signal structured facts likely needed by follow-up questions (exact values, IDs, mappings, periodic patterns, and full enumerations when compact enough).",
-		"If tool output contains both incident metadata and operational metrics/patterns, keep both.",
-		"Return exactly " + DISTILLER_SENTINEL + " if full content should pass through unchanged, NO EXPLANATIONS, JUST " + DISTILLER_SENTINEL + ".",
-		"Otherwise return concise notes that capture what matters for future reasoning and the current active request.",
-		"If the active request needs exact values and they are present in tool output, include those exact values explicitly.",
-		"Do not include markdown fences.",
-		"After your notes, append a brief line listing significant content sections present in the tool output that you did NOT capture above, prefixed with 'Also contains:'. Omit this line if everything significant is already captured.",
-		"If this is a recall_impression call, try to confirm if it really needs more notes, otherwise, be more likely to return " + DISTILLER_SENTINEL + "."
+		"Think of you are executing the given task after reading <tool_result>, what information would be relevant and useful for it?",
+		"Minimize the chances that you recall the information again right after taking these notes -- that is a severe failure of your notes.",
+		"Additional Guidelines:",
+		"- If the information already appears in the visible history, just reference it briefly in your notes, do NOT copy it again.",
+		"- Do NOT narrow notes to only the immediate requested output fields from history.",
+		"- Also preserve high-signal structured facts likely needed by follow-up questions (exact values, IDs, mappings, periodic patterns, and full enumerations when compact enough).",
+		"- If tool output contains both incident metadata and operational metrics/patterns, keep both.",
+		"- If it is a recall_impression call, take only additional notes based on the previous notes from visible history, do NOT try to repeat.",
+		"- Notes should definitely be shorter than the original content",
+		"- **IMPORTANT**: After your notes, append ONE brief line listing significant content sections present in the tool output that you did NOT capture above, prefixed with 'Also contains:'. State \"all content are summarised\" if all content is captured.",
+		"",
+		"Return exactly " + DISTILLER_SENTINEL + " if full content should pass through unchanged, NO EXPLANATIONS, NO MARKDOWN fences, JUST " + DISTILLER_SENTINEL + ".",
+		"If you notice from the visible history that this is a recall_impression call, be more likely to return " + DISTILLER_SENTINEL + "."
 	].join("\n");
 	const prompt = [
 		"<original_system_prompt>",
@@ -119,7 +122,7 @@ async function distillWithSameModel(
 				},
 			],
 		},
-		{ apiKey: auth.apiKey, headers: auth.headers, maxTokens: 1024 },
+		{ apiKey: auth.apiKey, headers: auth.headers, maxTokens: MIN_LENGTH_FOR_IMPRESSION },
 	);
 
 	const text = response.content
@@ -140,6 +143,10 @@ async function distillWithSameModel(
 
 	if (sentinelLike === DISTILLER_SENTINEL) {
 		return { passthrough: true, note: text };
+	}
+	if (text.length >= contentText.length) {
+		// If the model returns more text than the original content, it's likely not a good distillation. Pass through instead.
+		return { passthrough: true, note: "[FAILING DISTILLATION: " + text.length + " >= " + contentText.length + "]" + text };
 	}
 	return { passthrough: false, note: text };
 }
@@ -201,7 +208,10 @@ export default function (pi: ExtensionAPI) {
 		}
 
 		const fullText = serializeContent(event.content);
-		if (fullText.length < MIN_LENGTH_FOR_IMPRESSION) return;
+		if (fullText.length < MIN_LENGTH_FOR_IMPRESSION) {
+			ctx.ui.notify(`[impression] Skipped: content length ${fullText.length} is below threshold of ${MIN_LENGTH_FOR_IMPRESSION}`, "info");
+			return;
+		}
 
 		const model = ctx.model;
 		if (!model) {
@@ -219,14 +229,20 @@ export default function (pi: ExtensionAPI) {
 		}
 		const visibleHistory = serializeVisibleHistory(buildSessionContext(ctx.sessionManager.getEntries()).messages);
 		const originalSystemPrompt = ctx.getSystemPrompt();
-		const distillation = await distillWithSameModel(
-			model,
-			{ apiKey: auth.apiKey, headers: auth.headers },
-			event.toolName,
-			event.content,
-			visibleHistory,
-			originalSystemPrompt,
-		);
+		ctx.ui.setStatus("impression-distill", `[impression] Distilling ${fullText.length} chars with ${model.provider}/${model.id}...`);
+		let distillation: { passthrough: boolean; note: string };
+		try {
+			distillation = await distillWithSameModel(
+				model,
+				{ apiKey: auth.apiKey, headers: auth.headers },
+				event.toolName,
+				event.content,
+				visibleHistory,
+				originalSystemPrompt,
+			);
+		} finally {
+			ctx.ui.setStatus("impression-distill", undefined);
+		}
 
 		if (distillation.passthrough) {
 			ctx.ui.notify(`[impression] Distillation chose passthrough with text: ${distillation.note}`, "info");
@@ -290,14 +306,20 @@ export default function (pi: ExtensionAPI) {
 			}
 			const visibleHistory = serializeVisibleHistory(buildSessionContext(ctx.sessionManager.getEntries()).messages);
 			const originalSystemPrompt = ctx.getSystemPrompt();
-			const distillation = await distillWithSameModel(
-				model,
-				{ apiKey: auth.apiKey, headers: auth.headers },
-				impression.toolName,
-				impression.fullContent,
-				visibleHistory,
-				originalSystemPrompt,
-			);
+			ctx.ui.setStatus("impression-distill", `[impression] Re-distilling ${impression.fullText.length} chars with ${model.provider}/${model.id}...`);
+			let distillation: { passthrough: boolean; note: string };
+			try {
+				distillation = await distillWithSameModel(
+					model,
+					{ apiKey: auth.apiKey, headers: auth.headers },
+					impression.toolName,
+					impression.fullContent,
+					visibleHistory,
+					originalSystemPrompt,
+				);
+			} finally {
+				ctx.ui.setStatus("impression-distill", undefined);
+			}
 
 			if (distillation.passthrough) {
 				impression.recallCount = MAX_RECALL_BEFORE_PASSTHROUGH;

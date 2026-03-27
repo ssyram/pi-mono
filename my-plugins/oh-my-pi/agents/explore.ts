@@ -4,7 +4,7 @@ export const explore: AgentDef = {
   name: "explore",
   displayName: "Explore",
   description: "Codebase search specialist that finds files, patterns, and implementations across the project.",
-  model: "haiku-4-5",
+  model: "claude-haiku-4-5-20251001",
   temperature: 0.1,
   toolPreset: "read-only",
   mode: "subagent",
