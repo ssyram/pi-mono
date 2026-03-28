@@ -90,6 +90,8 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 			"update_deps (id, blocks?, blockedBy?) — set dependency edges. " +
 			"Tasks can have dependencies: a [blocked] task cannot start until its blockers are done/expired. " +
 			"The loop will restart automatically if any tasks remain pending/in_progress when you stop.",
+		promptSnippet:
+			"Manage the tracked task list.",
 		parameters: TaskParams,
 		async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
 			const mutating = params.action !== "list";

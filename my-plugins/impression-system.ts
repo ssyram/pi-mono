@@ -164,13 +164,14 @@ async function distillWithSameModel(
 	visibleHistory: string,
 	originalSystemPrompt: string,
 	maxTokens: number,
+	signal?: AbortSignal,
 ): Promise<{ passthrough: boolean; note: string; thinking?: string }> {
 	const contentText = serializeContent(content);
 	const systemPrompt = [
 		"You are the same agent as the one in the visible history — the same identity, the same mind.",
 		"You are about to receive a tool result. Your outer self (the main thread) will only see what you write here, not the original content.",
 		"Think of this as choosing what to remember: you are compressing your own memory, not summarizing for someone else.",
-		"You have exactly the full context of your outer self, including the original system prompt and the visible history up to this point.",
+		"You can see the visible history, but ONLY to understand what your outer self is working on and what level of detail they need. Your notes must be grounded ONLY in the <tool_result> content — history provides intent context, not reasoning material. NEVER synthesize conclusions by combining tool output with conversation history.",
 		"Your goal: with your notes, your outer self should be able to continue working without needing to recall the original immediately — immediate recall is a **failure** of your compression.",
 		"",
 		"Thinking:",
@@ -179,15 +180,16 @@ async function distillWithSameModel(
 		"- NEVER write reasoning, self-reflection, or intent analysis outside <thinking> tags. No 'The outer self wants to...', no 'I should...'. Only tool result content and action guidance.",
 		"",
 		"Action-awareness:",
-		"- Inside <thinking>, reason about what your outer self will do NEXT with this tool result.",
+		"- Inside <thinking>, reason about what kind of information your outer self needs from this tool result (verbatim text? structural overview? specific values?).",
 		"- If the next action needs precise original text (e.g., file editing, code writing, command execution):",
 		"  (a) For long output: give navigation guidance so your outer self can re-read only what's needed — e.g., 'Function signature to edit is at lines 153-160. Use read(offset=153, limit=10) to get the exact text.' Do NOT attempt to quote verbatim — your reproduction may have errors. Always direct your outer self to read the original.",
 		"  (b) For short output or when the entire content is operationally needed: return " + DISTILLER_SENTINEL + " to pass through unchanged.",
-		"- If the file/content was already read or passed through earlier in visible history, be MORE aggressive — only note what changed or what's newly relevant.",
+		"- If the same file/content was read earlier in visible history, focus on what is NEW or DIFFERENT in this tool result compared to the earlier read. Do NOT synthesize or advise.",
 		"- If the next action is analytical (understanding, answering, planning): compress aggressively — semantic notes suffice.",
+		"- Action guidance must focus SOLELY on navigating or using the <tool_result> content (e.g., 'key logic at lines X-Y', 'recall needed for editing'). Do NOT answer questions from the conversation history, do NOT diagnose problems by combining tool output with history context, and do NOT draw conclusions that require information beyond what the tool result contains.",
 		"",
 		"Compression guidelines:",
-		"- If the information already appears in the visible history, just reference it briefly — do NOT copy it again.",
+		"- If specific data from the tool output is identical to something already in visible history, you may write 'already seen in history' instead of repeating — but NEVER add new analysis or conclusions based on history.",
 		"- On a recall_impression call, take only additional notes on top of what is already in your visible history — do NOT repeat.",
 		"- Your notes must be shorter than the original content.",
 		"- After your notes, append ONE brief line prefixed with 'Also contains:' listing significant sections you did NOT capture. State \"all content are summarised\" if nothing was omitted.",
@@ -222,7 +224,7 @@ async function distillWithSameModel(
 				},
 			],
 		},
-		{ apiKey: auth.apiKey, headers: auth.headers, maxTokens },
+		{ apiKey: auth.apiKey, headers: auth.headers, maxTokens, signal },
 	);
 
 	const text = response.content
@@ -394,7 +396,7 @@ export default function (pi: ExtensionAPI) {
 		description:
 			"Recall a stored impression by ID. Before " + cfg.maxRecall + " recalls it returns distilled notes; after that it returns full passthrough content.",
 		parameters: RecallImpressionParams,
-		async execute(_toolCallId, args, _signal, _onUpdate, ctx) {
+		async execute(_toolCallId, args, signal, _onUpdate, ctx) {
 			const impression = impressions.get(args.id);
 			if (!impression) {
 				throw new Error(`Impression not found: ${args.id}`);
@@ -436,6 +438,7 @@ export default function (pi: ExtensionAPI) {
 					visibleHistory,
 					originalSystemPrompt,
 					Math.max(Math.ceil(cfg.minLength / 2), 1024),
+					signal,
 				);
 			} finally {
 				ctx.ui.setStatus("impression-distill", undefined);
