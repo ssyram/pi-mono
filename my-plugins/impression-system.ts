@@ -158,7 +158,7 @@ async function distillWithSameModel(
 	visibleHistory: string,
 	originalSystemPrompt: string,
 	maxTokens: number,
-): Promise<{ passthrough: boolean; note: string }> {
+): Promise<{ passthrough: boolean; note: string; thinking?: string }> {
 	const contentText = serializeContent(content);
 	const systemPrompt = [
 		"You are the same agent as the one in the visible history — the same identity, the same mind.",
@@ -167,19 +167,24 @@ async function distillWithSameModel(
 		"You have exactly the full context of your outer self, including the original system prompt and the visible history up to this point.",
 		"Your goal: with your notes, your outer self should be able to continue working without needing to recall the original immediately — immediate recall is a **failure** of your compression.",
 		"",
+		"Thinking:",
+		"- You MAY reason freely inside <thinking>...</thinking> tags. These will be stripped from the final impression and shown separately — use them as much as you need.",
+		"- Everything OUTSIDE <thinking> tags is the impression your outer self will see. It must be clean, actionable, and free of meta-commentary.",
+		"- NEVER write reasoning, self-reflection, or intent analysis outside <thinking> tags. No 'The outer self wants to...', no 'I should...'. Only tool result content and action guidance.",
+		"",
 		"Action-awareness:",
-		"- Review the visible history and the original system prompt to infer what your outer self will do NEXT with this tool result.",
-		"- If the next action requires precise original text (e.g., editing a file needs exact oldText matches, writing code needs exact signatures/types, executing a command needs exact paths/values), you have two choices:",
-		"  (a) If the output is long, tend to provide smarter actionable guidance to your outer self -- e.g., 'lines 42-58 contain the function to edit' so that your outer self can act without reading the whole file again.",
-		"  (b) If the tool output is of reasonable length or ALL text MUST be provided, return " + DISTILLER_SENTINEL + " to pass through the full content unchanged.",
-		"- If the next action is analytical (understanding architecture, answering questions, planning), compress aggressively — semantic notes are sufficient.",
+		"- Inside <thinking>, reason about what your outer self will do NEXT with this tool result.",
+		"- If the next action needs precise original text (e.g., file editing, code writing, command execution):",
+		"  (a) For long output: give navigation guidance so your outer self can re-read only what's needed — e.g., 'Function signature to edit is at lines 153-160. Use read(offset=153, limit=10) to get the exact text.' Do NOT attempt to quote verbatim — your reproduction may have errors. Always direct your outer self to read the original.",
+		"  (b) For short output or when the entire content is operationally needed: return " + DISTILLER_SENTINEL + " to pass through unchanged.",
+		"- If the file/content was already read or passed through earlier in visible history, be MORE aggressive — only note what changed or what's newly relevant.",
+		"- If the next action is analytical (understanding, answering, planning): compress aggressively — semantic notes suffice.",
 		"",
 		"Compression guidelines:",
-		"- You MUST NOT summarise or restate the visible history or the system prompt, just summarise the tool result and provide actionable notes — e.g., do NOT summarise like 'The outer self is intended to... So I should ...' These are irrelevant and your outer self must already knows it. The tokens you write are highly valuable, use them ONLY to capture the essence of the tool result and guide your outer self's next steps.",
 		"- If the information already appears in the visible history, just reference it briefly — do NOT copy it again.",
 		"- On a recall_impression call, take only additional notes on top of what is already in your visible history — do NOT repeat.",
 		"- Your notes must be shorter than the original content.",
-		"- **IMPORTANT**: After your notes, append ONE brief line prefixed with 'Also contains:' listing significant sections you did NOT capture. State \"all content are summarised\" if nothing was omitted.",
+		"- After your notes, append ONE brief line prefixed with 'Also contains:' listing significant sections you did NOT capture. State \"all content are summarised\" if nothing was omitted.",
 		"",
 		"Return exactly " + DISTILLER_SENTINEL + " if full content are very much relevant for further actions and should pass through unchanged. NO EXPLANATIONS, NO MARKDOWN fences, JUST " + DISTILLER_SENTINEL + ".",
 	].join("\n");
@@ -220,9 +225,17 @@ async function distillWithSameModel(
 		.join("\n")
 		.trim();
 
-	const normalized = text.trim();
+	// Extract and strip <thinking> blocks
+	const thinkingBlocks: string[] = [];
+	const strippedText = text.replace(/<thinking>([\s\S]*?)<\/thinking>/g, (_match, content) => {
+		thinkingBlocks.push(content.trim());
+		return "";
+	}).trim();
+	const thinking = thinkingBlocks.length > 0 ? thinkingBlocks.join("\n") : undefined;
+
+	const normalized = strippedText.trim();
 	if (!normalized) {
-		return { passthrough: true, note: DISTILLER_SENTINEL };
+		return { passthrough: true, note: DISTILLER_SENTINEL, thinking };
 	}
 
 	const sentinelLike = normalized
@@ -231,13 +244,13 @@ async function distillWithSameModel(
 		.trim();
 
 	if (sentinelLike === DISTILLER_SENTINEL) {
-		return { passthrough: true, note: text };
+		return { passthrough: true, note: strippedText, thinking };
 	}
-	if (text.length >= contentText.length) {
+	if (strippedText.length >= contentText.length) {
 		// If the model returns more text than the original content, it's likely not a good distillation. Pass through instead.
-		return { passthrough: true, note: "[FAILING DISTILLATION: " + text.length + " >= " + contentText.length + "]" + text };
+		return { passthrough: true, note: "[FAILING DISTILLATION: " + strippedText.length + " >= " + contentText.length + "]" + strippedText, thinking };
 	}
-	return { passthrough: false, note: text };
+	return { passthrough: false, note: strippedText, thinking };
 }
 
 function createRecallToolResult(id: string, note: string): { content: TextContent[]; details: undefined } {
@@ -325,7 +338,7 @@ export default function (pi: ExtensionAPI) {
 		const visibleHistory = serializeVisibleHistory(buildSessionContext(ctx.sessionManager.getEntries()).messages);
 		const originalSystemPrompt = ctx.getSystemPrompt();
 		ctx.ui.setStatus("impression-distill", `[impression] Distilling ${fullText.length} chars with ${model.provider}/${model.id}...`);
-		let distillation: { passthrough: boolean; note: string };
+		let distillation: { passthrough: boolean; note: string; thinking?: string };
 		try {
 			distillation = await distillWithSameModel(
 				model,
@@ -338,6 +351,10 @@ export default function (pi: ExtensionAPI) {
 			);
 		} finally {
 			ctx.ui.setStatus("impression-distill", undefined);
+		}
+
+		if (distillation.thinking) {
+			ctx.ui.notify(`[impression] Thinking: ${distillation.thinking}`, "info");
 		}
 
 		if (distillation.passthrough) {
@@ -403,7 +420,7 @@ export default function (pi: ExtensionAPI) {
 			const visibleHistory = serializeVisibleHistory(buildSessionContext(ctx.sessionManager.getEntries()).messages);
 			const originalSystemPrompt = ctx.getSystemPrompt();
 			ctx.ui.setStatus("impression-distill", `[impression] Re-distilling ${impression.fullText.length} chars with ${model.provider}/${model.id}...`);
-			let distillation: { passthrough: boolean; note: string };
+			let distillation: { passthrough: boolean; note: string; thinking?: string };
 			try {
 				distillation = await distillWithSameModel(
 					model,
@@ -416,6 +433,10 @@ export default function (pi: ExtensionAPI) {
 				);
 			} finally {
 				ctx.ui.setStatus("impression-distill", undefined);
+			}
+
+			if (distillation.thinking) {
+				ctx.ui.notify(`[impression] Recall thinking: ${distillation.thinking}`, "info");
 			}
 
 			if (distillation.passthrough) {
