@@ -138,6 +138,10 @@ export function registerBackgroundTask(
 						};
 					}
 
+					if (job.status === "completed" || job.status === "error") {
+						concurrency.markViewed(params.jobId);
+					}
+
 					return {
 						content: [{ type: "text", text: formatJobDetail(job) }],
 						details: { action: "status", job } as BackgroundTaskDetails,

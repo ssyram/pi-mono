@@ -1,12 +1,75 @@
+/**
+ * Impression System — pi extension that distills long tool results into
+ * compact notes, storing the originals for on-demand recall.
+ *
+ * How it works:
+ *   1. Intercepts every tool_result whose text length >= MIN_LENGTH_FOR_IMPRESSION.
+ *   2. Calls the active model to produce a shorter "impression" (distilled note).
+ *   3. Replaces the tool result with the impression; the full content is stored
+ *      in session entries and can be retrieved via the `recall_impression` tool.
+ *   4. On the first recall, the model re-distills with updated context.
+ *      After MAX_RECALL_BEFORE_PASSTHROUGH recalls, full content is returned as-is.
+ *
+ * Configuration — .pi/impression.json
+ *
+ *   Optional. If the file is missing or invalid the extension uses defaults.
+ *   The config is reloaded on every session_start.
+ *
+ *   {
+ *     "skipDistillation": string[]   // tool names whose results should never be distilled
+ *   }
+ *
+ *   skipDistillation patterns:
+ *     - Exact match:  "bash"          — skips only the tool named "bash"
+ *     - Glob suffix:  "background_*"  — skips any tool whose name starts with "background_"
+ *
+ *   Example .pi/impression.json:
+ *
+ *   {
+ *     "skipDistillation": ["bash", "background_output", "my_custom_tool*"]
+ *   }
+ */
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { type Api, complete, type ImageContent, type Model, type TextContent } from "@mariozechner/pi-ai";
 import { buildSessionContext, type ExtensionAPI, type SessionEntry } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 
 const IMPRESSION_ENTRY_TYPE = "impression-v1";
-const MIN_LENGTH_FOR_IMPRESSION = 1024;
-const MAX_RECALL_BEFORE_PASSTHROUGH = 2;
+const MIN_LENGTH_FOR_IMPRESSION = 2048;
+const MAX_RECALL_BEFORE_PASSTHROUGH = 1;
 const DISTILLER_SENTINEL = "<passthrough/>";
+const CONFIG_FILE_NAME = "impression.json";
+
+interface ImpressionConfig {
+	skipDistillation?: string[];
+}
+
+function loadConfig(): ImpressionConfig {
+	try {
+		const configPath = join(process.cwd(), ".pi", CONFIG_FILE_NAME);
+		const raw = readFileSync(configPath, "utf-8");
+		const parsed = JSON.parse(raw);
+		if (parsed && typeof parsed === "object") {
+			return parsed as ImpressionConfig;
+		}
+	} catch {
+		// Config file missing or invalid — use defaults
+	}
+	return {};
+}
+
+function shouldSkipDistillation(toolName: string, config: ImpressionConfig): boolean {
+	const patterns = config.skipDistillation;
+	if (!patterns || patterns.length === 0) return false;
+	for (const pattern of patterns) {
+		if (pattern === toolName) return true;
+		// Support simple glob: "prefix*" matches any tool starting with prefix
+		if (pattern.endsWith("*") && toolName.startsWith(pattern.slice(0, -1))) return true;
+	}
+	return false;
+}
 
 interface ImpressionEntry {
 	id: string;
@@ -92,7 +155,8 @@ async function distillWithSameModel(
 		"- **IMPORTANT**: After your notes, append ONE brief line listing significant content sections present in the tool output that you did NOT capture above, prefixed with 'Also contains:'. State \"all content are summarised\" if all content is captured.",
 		"",
 		"Return exactly " + DISTILLER_SENTINEL + " if full content should pass through unchanged, NO EXPLANATIONS, NO MARKDOWN fences, JUST " + DISTILLER_SENTINEL + ".",
-		"If you notice from the visible history that this is a recall_impression call, be more likely to return " + DISTILLER_SENTINEL + "."
+		"If you notice from the visible history that this is a recall_impression call, be more likely to return " + DISTILLER_SENTINEL + ".",
+		"If the latest part of the visible history tells you that it needs `raw` file or `full content` etc, just return " + DISTILLER_SENTINEL + ".",
 	].join("\n");
 	const prompt = [
 		"<original_system_prompt>",
@@ -122,7 +186,7 @@ async function distillWithSameModel(
 				},
 			],
 		},
-		{ apiKey: auth.apiKey, headers: auth.headers, maxTokens: MIN_LENGTH_FOR_IMPRESSION },
+		{ apiKey: auth.apiKey, headers: auth.headers, maxTokens: MIN_LENGTH_FOR_IMPRESSION / 2 },
 	);
 
 	const text = response.content
@@ -190,8 +254,10 @@ function notifyImpressionSkip(
 
 export default function (pi: ExtensionAPI) {
 	const impressions = new Map<string, ImpressionEntry>();
+	let config: ImpressionConfig = loadConfig();
 
 	pi.on("session_start", async (_event, ctx) => {
+		config = loadConfig();
 		impressions.clear();
 		for (const entry of ctx.sessionManager.getEntries()) {
 			const data = getEntryData(entry);
@@ -202,6 +268,10 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("tool_result", async (event, ctx) => {
 		if (event.toolName === "recall_impression") return;
+		if (shouldSkipDistillation(event.toolName, config)) {
+			ctx.ui.notify(`[impression] Skipped distillation for "${event.toolName}" (configured in ${CONFIG_FILE_NAME})`, "info");
+			return;
+		}
 		if (event.isError) {
 			notifyImpressionSkip(ctx, "tool result is an error");
 			return;
@@ -245,7 +315,7 @@ export default function (pi: ExtensionAPI) {
 		}
 
 		if (distillation.passthrough) {
-			ctx.ui.notify(`[impression] Distillation chose passthrough with text: ${distillation.note}`, "info");
+			ctx.ui.notify(`[impression] Distillation passthrough with text: ${distillation.note}`, "info");
 			return { content: event.content };
 		}
 
@@ -273,7 +343,7 @@ export default function (pi: ExtensionAPI) {
 		name: "recall_impression",
 		label: "Recall Impression",
 		description:
-			"Recall a stored impression by ID. Before 2 recalls it returns distilled notes; after that it returns full passthrough content.",
+			"Recall a stored impression by ID. Before " + MAX_RECALL_BEFORE_PASSTHROUGH + " recalls it returns distilled notes; after that it returns full passthrough content.",
 		parameters: RecallImpressionParams,
 		async execute(_toolCallId, args, _signal, _onUpdate, ctx) {
 			const impression = impressions.get(args.id);

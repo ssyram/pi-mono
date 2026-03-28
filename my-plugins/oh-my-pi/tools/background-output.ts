@@ -184,6 +184,9 @@ export function registerBackgroundOutput(
 			let job: Job | undefined;
 
 			if (shouldBlock) {
+				// Agent is actively requesting this result — mark viewed so the
+				// agent_end hook skips the redundant completion notification.
+				concurrency.markViewed(params.jobId);
 				job = concurrency.getStatus(params.jobId);
 				if (job && (job.status === "running" || job.status === "queued")) {
 					// Wait up to 60s, but respect abort signal.
@@ -244,6 +247,10 @@ export function registerBackgroundOutput(
 				case "latest":
 					text = buildLatest(job, limit);
 					break;
+			}
+
+			if (job.status === "completed" || job.status === "error") {
+				concurrency.markViewed(job.id);
 			}
 
 			return {

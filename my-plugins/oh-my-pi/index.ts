@@ -29,7 +29,7 @@ import { prometheus } from "./agents/prometheus.js";
 import { loadConfig } from "./config.js";
 
 // Tools
-import { ConcurrencyManager } from "./tools/concurrency.js";
+import { ConcurrencyManager, type Job } from "./tools/concurrency.js";
 import { registerDelegateTask, disposeDelegateTaskSessions } from "./tools/delegate-task.js";
 import { registerCallAgent, disposeCallAgentSessions } from "./tools/call-agent.js";
 import { registerTaskTool } from "./tools/task.js";
@@ -89,19 +89,14 @@ export default async function ohMyPi(pi: ExtensionAPI) {
 		}
 	}
 
-	// 3. Create concurrency manager with completion notification
+	// 3. Create concurrency manager.
+	//    Completed/errored jobs are buffered; follow-ups are sent from the
+	//    agent_end hook so that markViewed() calls during the turn can suppress
+	//    notifications for jobs whose output was already consumed.
+	const pendingNotifications: Job[] = [];
 	const concurrency = new ConcurrencyManager({ defaultConcurrency: config.max_concurrent_tasks ?? 5 }, (job) => {
-		if (job.status === "completed") {
-			const preview = job.result?.slice(0, 500) ?? "(no output)";
-			pi.sendUserMessage(
-				`Background task completed: [${job.agent}] finished job ${job.id}\n\nResult preview: ${preview}`,
-				{ deliverAs: "followUp" },
-			);
-		} else if (job.status === "error") {
-			pi.sendUserMessage(
-				`Background task failed: [${job.agent}] job ${job.id} errored: ${job.error}`,
-				{ deliverAs: "followUp" },
-			);
+		if (job.status === "completed" || job.status === "error") {
+			pendingNotifications.push(job);
 		}
 	});
 
@@ -215,6 +210,27 @@ export default async function ohMyPi(pi: ExtensionAPI) {
 		latestCtx = ctx;
 		if (continuationStopped) {
 			continuationStopped = false;
+		}
+	});
+
+	// 7c-2. Deliver pending background-task completion notifications, skipping
+	//       any whose output was already consumed via background_output / background_task.
+	pi.on("agent_end", async () => {
+		const jobs = pendingNotifications.splice(0);
+		for (const job of jobs) {
+			if (concurrency.isViewed(job.id)) continue;
+			if (job.status === "completed") {
+				const preview = job.result?.slice(0, 500) ?? "(no output)";
+				pi.sendUserMessage(
+					`Background task completed: [${job.agent}] finished job ${job.id}\n\nResult preview: ${preview}`,
+					{ deliverAs: "followUp" },
+				);
+			} else if (job.status === "error") {
+				pi.sendUserMessage(
+					`Background task failed: [${job.agent}] job ${job.id} errored: ${job.error}`,
+					{ deliverAs: "followUp" },
+				);
+			}
 		}
 	});
 

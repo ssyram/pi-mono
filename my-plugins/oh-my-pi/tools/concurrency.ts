@@ -63,6 +63,7 @@ export class ConcurrencyManager {
 	private staleTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 	private onJobDone?: (job: Job) => void;
 	private onStatusChange?: (counts: { running: number; queued: number }) => void;
+	private viewedJobs = new Set<string>();
 
 	constructor(config?: Partial<ConcurrencyConfig>, onJobDone?: (job: Job) => void) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
@@ -75,6 +76,16 @@ export class ConcurrencyManager {
 	 */
 	setOnStatusChange(handler: (counts: { running: number; queued: number }) => void): void {
 		this.onStatusChange = handler;
+	}
+
+	/** Mark a job as viewed (its output was read by the agent). */
+	markViewed(jobId: string): void {
+		this.viewedJobs.add(jobId);
+	}
+
+	/** Check whether a job's output has been viewed by the agent. */
+	isViewed(jobId: string): boolean {
+		return this.viewedJobs.has(jobId);
 	}
 
 	/**
