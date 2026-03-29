@@ -13,11 +13,14 @@ import {
 	type ExtensionAPI,
 	SessionManager,
 } from "@mariozechner/pi-coding-agent";
+import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 
 import type { AgentDef } from "../agents/types.js";
 import { resolvePrompt } from "../agents/types.js";
+import { createStreamingAccumulator, type StreamingDetails } from "./streaming-accumulator.js";
+import { renderStreamingResult } from "./streaming-renderer.js";
 import type { OhMyPiConfig } from "../config.js";
 import { getCategory } from "../config.js";
 import type { ConcurrencyManager } from "./concurrency.js";
@@ -114,7 +117,7 @@ export function registerDelegateTask(
 		],
 		parameters: DelegateTaskParams,
 
-		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			// 0. Validate session_id + background mutual exclusivity
 			if (params.session_id && params.background !== false) {
 				return {
@@ -198,6 +201,7 @@ export function registerDelegateTask(
 				: `${agentName}-${randomUUID().slice(0, 8)}`;
 
 			// 7. Build runner with retry
+			const isForeground = params.background === false;
 			const runner = async (signal: AbortSignal): Promise<string> => {
 				return runWithRetry(async () => {
 					// Look up cached session inside retry loop (may have been invalidated on previous attempt)
@@ -241,6 +245,11 @@ export function registerDelegateTask(
 					// M9: Circuit breaker aborts produce the same AbortError path
 					const circuitBreaker = wireCircuitBreaker(session);
 
+					// Wire streaming accumulator for foreground execution
+					const accumulator = isForeground && onUpdate
+						? createStreamingAccumulator(session, onUpdate, agentName, resolvedModel.id, sessionKey)
+						: undefined;
+
 					try {
 						await session.prompt(params.task, {
 							expandPromptTemplates: false,
@@ -260,6 +269,7 @@ export function registerDelegateTask(
 						const lastAssistant = finalMessages.at(-1);
 						return lastAssistant ? extractText(lastAssistant) : "(no output)";
 					} catch (err) {
+						accumulator?.dispose();
 						// On error, invalidate the cached session so retries create fresh ones
 						sessionCache.deleteIfMatch(sessionKey, session);
 						// Always dispose on error — either we just created it or we removed it from cache
@@ -274,6 +284,7 @@ export function registerDelegateTask(
 						}
 						throw err;
 					} finally {
+						accumulator?.dispose();
 						circuitBreaker.unsubscribe();
 						signal.removeEventListener("abort", handleAbort);
 					}
@@ -318,17 +329,20 @@ export function registerDelegateTask(
 			// Foreground execution
 			try {
 				const result = await runner(signal ?? new AbortController().signal);
-				const warningPrefix = modelWarning ? `⚠️ ${modelWarning}\n\n` : "";
+				const warningPrefix = modelWarning ? `\u26A0\uFE0F ${modelWarning}\n\n` : "";
+				const finalDetails: StreamingDetails = {
+					agent: agentName,
+					model: resolvedModel.id,
+					sessionId: sessionKey,
+					status: "completed",
+					items: [{ type: "text", text: result }],
+					usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
+					currentText: "",
+					inline: true,
+				};
 				return {
 					content: [{ type: "text", text: sessionMissWarning + warningPrefix + result }],
-					details: {
-						agent: agentName,
-						model: resolvedModel.id,
-						category: categoryName,
-						sessionId: sessionKey,
-						inline: true,
-						modelWarning,
-					},
+					details: finalDetails,
 				};
 			} catch (err: unknown) {
 				const message = err instanceof Error ? err.message : String(err);
@@ -342,11 +356,14 @@ export function registerDelegateTask(
 					details: {
 						agent: agentName,
 						model: resolvedModel.id,
-						category: categoryName,
 						sessionId: sessionKey,
+						status: "error" as const,
+						items: [],
+						usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
+						currentText: "",
 						error: message,
-						modelWarning,
-					},
+						inline: true,
+					} satisfies StreamingDetails,
 				};
 			}
 		},
@@ -367,24 +384,14 @@ export function registerDelegateTask(
 			return new Text(text, 0, 0);
 		},
 
-		renderResult(result, _options, theme, _context) {
+		renderResult(result, options, theme, _context) {
 			const details = result.details as
-				| {
-						jobId?: string;
-						agent?: string;
-						model?: string;
-						category?: string;
-						sessionId?: string;
-						inline?: boolean;
-						error?: string;
-				  }
+				| (StreamingDetails & { jobId?: string })
+				| { jobId: string; agent: string; model: string; category: string; sessionId: string; modelWarning?: string }
 				| undefined;
 
-			if (details?.error) {
-				return new Text(theme.fg("error", `Error: ${details.error}`), 0, 0);
-			}
-
-			if (details?.jobId) {
+			// Background job result -- no streaming
+			if (details && "jobId" in details && details.jobId) {
 				return new Text(
 					theme.fg("success", "Queued ") +
 						theme.fg("accent", details.jobId.slice(0, 8)) +
@@ -394,7 +401,16 @@ export function registerDelegateTask(
 				);
 			}
 
-			// Inline result
+			// Streaming/completed inline result
+			if (details && "status" in details) {
+				return renderStreamingResult(
+					result as AgentToolResult<StreamingDetails>,
+					{ expanded: options.expanded, isPartial: options.isPartial },
+					theme,
+				);
+			}
+
+			// Fallback
 			const t = result.content[0];
 			const text = t?.type === "text" ? t.text : "";
 			const preview = text.length > 120 ? text.slice(0, 117) + "..." : text;

@@ -37,7 +37,8 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type Api, complete, type ImageContent, type Model, type TextContent } from "@mariozechner/pi-ai";
-import { buildSessionContext, type ExtensionAPI, type SessionEntry } from "@mariozechner/pi-coding-agent";
+import { buildSessionContext, type ExtensionAPI, type SessionEntry, Theme } from "@mariozechner/pi-coding-agent";
+import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 
 const IMPRESSION_ENTRY_TYPE = "impression-v1";
@@ -95,6 +96,7 @@ interface ImpressionEntry {
 	id: string;
 	toolName: string;
 	toolCallId: string;
+	toolInput?: Record<string, unknown>;
 	fullContent: (TextContent | ImageContent)[];
 	fullText: string;
 	recallCount: number;
@@ -152,7 +154,8 @@ function buildImpressionText(id: string, note: string): string {
          "",
          "🛑 CRITICAL INSTRUCTION FOR MYSELF:",
          "- I MUST NOT call `recall_impression` just to 'verify' or 'get more context'.",
-         "- However, I should NOT hesitate to use `recall_impression` when precise, verbatim information is required for the next action (e.g., `edit`, `write`), or new information is needed and additional information should be extracted in the FUTURE."
+		 "- If my notes above contain specific read instructions (e.g., `read(offset=X, limit=Y)`), for `edit`/`write`, I MUST use those (or a slightly larger range) to get exact text — NOT `recall_impression`.",
+         "- I should ONLY use `recall_impression` when my notes lack the information I need OR no read instructions are provided for the relevant section."
 	].join("\n");
 }
 
@@ -173,6 +176,7 @@ async function distillWithSameModel(
 		"Think of this as choosing what to remember: you are compressing your own memory, not summarizing for someone else.",
 		"You can see the visible history, but ONLY to understand what your outer self is working on and what level of detail they need. Your notes must be grounded ONLY in the <tool_result> content — history provides intent context, not reasoning material. NEVER synthesize conclusions by combining tool output with conversation history.",
 		"Your goal: with your notes, your outer self should be able to continue working without needing to recall the original immediately — immediate recall is a **failure** of your compression.",
+		"New content length: " + contentText.length + " characters" + (contentText.length > maxTokens * 10 ? " (considered very long, more aggressive compression expected)" : contentText.length < maxTokens * 4 ? " (considered relatively short)" : "") +
 		"",
 		"Thinking:",
 		"- You MAY reason freely inside <thinking>...</thinking> tags. These will be stripped from the final impression and shown separately — use them as much as you need.",
@@ -183,7 +187,7 @@ async function distillWithSameModel(
 		"- Inside <thinking>, reason about what kind of information your outer self needs from this tool result (verbatim text? structural overview? specific values?).",
 		"- If the next action needs precise original text (e.g., file editing, code writing, command execution):",
 		"  (a) For long output: give navigation guidance so your outer self can re-read only what's needed — e.g., 'Function signature to edit is at lines 153-160. Use read(offset=153, limit=10) to get the exact text.' Do NOT attempt to quote verbatim — your reproduction may have errors. Always direct your outer self to read the original.",
-		"  (b) For short output or when the entire content is operationally needed: return " + DISTILLER_SENTINEL + " to pass through unchanged.",
+		"  (b) For short output or when the entire content is operationally needed, especially when already in more precise reading as per your guidance in (a): return " + DISTILLER_SENTINEL + " to pass through unchanged.",
 		"- If the same file/content was read earlier in visible history, focus on what is NEW or DIFFERENT in this tool result compared to the earlier read. Do NOT synthesize or advise.",
 		"- If the next action is analytical (understanding, answering, planning): compress aggressively — semantic notes suffice.",
 		"- Action guidance must focus SOLELY on navigating or using the <tool_result> content (e.g., 'key logic at lines X-Y', 'recall needed for editing'). Do NOT answer questions from the conversation history, do NOT diagnose problems by combining tool output with history context, and do NOT draw conclusions that require information beyond what the tool result contains.",
@@ -289,6 +293,51 @@ function serializeVisibleHistory(messages: ReturnType<typeof buildSessionContext
 	return messages.map((m) => JSON.stringify(m)).join("\n");
 }
 
+function formatOriginalCall(entry: ImpressionEntry, theme: Theme): string {
+	const input = entry.toolInput;
+	const name = theme.fg("toolTitle", theme.bold(entry.toolName));
+	if (!input || Object.keys(input).length === 0) return name;
+
+	switch (entry.toolName) {
+		case "read": {
+			const path = (input.file_path ?? input.path) as string | undefined;
+			if (!path) return name;
+			const offset = input.offset as number | undefined;
+			const limit = input.limit as number | undefined;
+			let range = "";
+			if (offset !== undefined || limit !== undefined) {
+				const start = offset ?? 1;
+				const end = limit !== undefined ? start + limit - 1 : "";
+				range = theme.fg("warning", `:${start}${end ? `-${end}` : ""}`);
+			}
+			return `${name} ${theme.fg("accent", path)}${range}`;
+		}
+		case "bash": {
+			const command = input.command as string | undefined;
+			if (!command) return name;
+			const display = command.length > 80 ? command.slice(0, 77) + "..." : command;
+			return `${name} ${display}`;
+		}
+		case "write":
+		case "edit": {
+			const path = (input.file_path ?? input.path) as string | undefined;
+			if (!path) return name;
+			return `${name} ${theme.fg("accent", path)}`;
+		}
+		case "grep":
+		case "find": {
+			const pattern = (input.pattern ?? input.glob) as string | undefined;
+			if (!pattern) return name;
+			return `${name} ${pattern}`;
+		}
+		default: {
+			const summary = JSON.stringify(input);
+			const display = summary.length > 80 ? summary.slice(0, 77) + "..." : summary;
+			return `${name} ${theme.fg("muted", display)}`;
+		}
+	}
+}
+
 function notifyImpressionSkip(
 	ctx: {
 		ui: { notify(message: string, type?: "info" | "warning" | "error"): void };
@@ -376,6 +425,7 @@ export default function (pi: ExtensionAPI) {
 			id,
 			toolName: event.toolName,
 			toolCallId: event.toolCallId,
+			toolInput: event.input,
 			fullContent: event.content,
 			fullText,
 			recallCount: 0,
@@ -397,6 +447,20 @@ export default function (pi: ExtensionAPI) {
 		description:
 			"Recall a stored impression by ID. Before " + cfg.maxRecall + " recalls it returns distilled notes; after that it returns full passthrough content.",
 		parameters: RecallImpressionParams,
+		renderCall(args, theme, context) {
+			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
+			const entry = impressions.get(args.id);
+			const title = theme.fg("toolTitle", theme.bold("Recall Impression"));
+			const idDisplay = theme.fg("muted", args.id);
+			const line1 = `${title} ${idDisplay}`;
+			if (entry) {
+				const originalCall = formatOriginalCall(entry, theme);
+				text.setText(`${line1}\n${theme.fg("muted", "> ")}${originalCall}`);
+			} else {
+				text.setText(line1);
+			}
+			return text;
+		},
 		async execute(_toolCallId, args, signal, _onUpdate, ctx) {
 			const impression = impressions.get(args.id);
 			if (!impression) {

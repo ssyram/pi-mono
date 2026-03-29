@@ -1,15 +1,16 @@
 /**
  * task tool — LLM-managed task list with agentic loop enforcement.
  *
- * Per-session state via message history reconstruction (no shared file).
+ * State persisted as CustomEntry in session JSONL, orthogonal to LLM context.
+ * CustomEntry is never deleted by compaction and never sent to LLM.
  * UI change callback for persistent TUI widget.
  */
 
 import { StringEnum } from "@mariozechner/pi-ai";
-import type { BeforeAgentStartEvent, ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { BeforeAgentStartEvent, ExtensionAPI, ExtensionContext, SessionEntry } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { executeAdd, executeClear, executeDoneOrExpire, executeList, executeStart, executeUpdateDeps } from "./task-actions.js";
-import type { Task, TaskChangeCallback, TaskDetails } from "./task-helpers.js";
+import type { Task, TaskChangeCallback } from "./task-helpers.js";
 import { isUnblocked, statusTag } from "./task-helpers.js";
 import { renderTaskCall, renderTaskResult } from "./task-renderers.js";
 
@@ -30,31 +31,59 @@ const TaskParams = Type.Object({
 	blockedBy: Type.Optional(Type.Array(Type.Number(), { description: "Task IDs that block this task (for: update_deps)" })),
 });
 
+/**
+ * Build a compact numbered list of actionable tasks (in_progress + ready pending)
+ * for appending at the very end of the system prompt.
+ */
+function buildActionableTaskList(allTasks: Task[]): string {
+	const inProgress = allTasks.filter((t) => t.status === "in_progress");
+	const ready = allTasks.filter((t) => t.status === "pending" && isUnblocked(t, allTasks));
+	const items = [...inProgress, ...ready];
+	if (items.length === 0) return "";
+	const lines = items.map((t, i) => {
+		const tag = t.status === "in_progress" ? "[in_progress]" : "[ready]";
+		return `${i + 1}. ${tag} #${t.id}: ${t.text}`;
+	});
+	return ["\n\n## Current Actionable Tasks", ...lines].join("\n");
+}
+
 export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 	let tasks: Task[] = [];
 	let nextId = 1;
 	let onTaskChange: TaskChangeCallback | undefined;
 	const notifyChange = () => onTaskChange?.([...tasks]);
 
-	// ── State reconstruction (per-session, from message history) ──────────
+	// ── State persistence (CustomEntry, orthogonal to LLM context) ──────
 
-	const reconstructState = async (ctx: ExtensionContext) => {
+	const TASK_ENTRY_TYPE = "omp-task-state";
+
+	interface TaskStateEntry { tasks: Task[]; nextId: number }
+
+	function getTaskStateFromEntry(entry: SessionEntry): TaskStateEntry | undefined {
+		if (entry.type !== "custom" || entry.customType !== TASK_ENTRY_TYPE) return undefined;
+		const data = entry.data as TaskStateEntry | undefined;
+		if (data && Array.isArray(data.tasks) && typeof data.nextId === "number") return data;
+		return undefined;
+	}
+
+	const reloadState = async (ctx: ExtensionContext) => {
 		tasks = [];
 		nextId = 1;
-		for (const entry of ctx.sessionManager.getBranch()) {
-			if (entry.type !== "message") continue;
-			const msg = entry.message;
-			if (msg.role !== "toolResult" || msg.toolName !== "task") continue;
-			const details = msg.details as TaskDetails | undefined;
-			if (details) { tasks = details.tasks; nextId = details.nextId; }
+		for (const entry of ctx.sessionManager.getEntries()) {
+			const state = getTaskStateFromEntry(entry);
+			if (state) { tasks = state.tasks; nextId = state.nextId; }
 		}
 		notifyChange();
 	};
 
-	pi.on("session_start", async (_event, ctx) => reconstructState(ctx));
-	pi.on("session_switch", async (_event, ctx) => reconstructState(ctx));
-	pi.on("session_fork", async (_event, ctx) => reconstructState(ctx));
-	pi.on("session_tree", async (_event, ctx) => reconstructState(ctx));
+	const persistState = () => {
+		pi.appendEntry(TASK_ENTRY_TYPE, { tasks: [...tasks], nextId } satisfies TaskStateEntry);
+	};
+
+	pi.on("session_start", async (_event, ctx) => reloadState(ctx));
+	pi.on("session_switch", async (_event, ctx) => reloadState(ctx));
+	pi.on("session_fork", async (_event, ctx) => reloadState(ctx));
+	pi.on("session_tree", async (_event, ctx) => reloadState(ctx));
 
 	// ── System prompt injection ──────────────────────────────────────────────
 
@@ -75,7 +104,9 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 			"Exception: if you genuinely cannot continue right now (e.g. waiting for user input, blocked on external state),",
 			`output the exact tag ${CONFIRM_STOP_TAG} anywhere in your final message to acknowledge and suppress the restart.`,
 		].join("\n");
-		return { systemPrompt: event.systemPrompt + injection };
+
+		const actionable = buildActionableTaskList(tasks);
+		return { systemPrompt: event.systemPrompt + injection + actionable };
 	});
 
 	// ── Tool registration ────────────────────────────────────────────────────
@@ -109,7 +140,10 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 				case "update_deps": result = executeUpdateDeps(params, tasks, nextId); break;
 				case "clear": tasks = []; nextId = 1; result = executeClear(); break;
 			}
-			if (mutating) notifyChange();
+			if (mutating) {
+				notifyChange();
+				persistState();
+			}
 			return result;
 		},
 		renderCall: renderTaskCall,

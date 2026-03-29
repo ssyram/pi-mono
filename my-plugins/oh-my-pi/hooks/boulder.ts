@@ -6,20 +6,24 @@
  * the outstanding tasks.
  *
  * Safety mechanisms:
- * - Injection failure backoff: cooldown increases from 5s to 160s on sendUserMessage failures
- * - Normal restart cooldown: fixed 10s with countdown toast notification
- * - Stagnation detection: stops after 3 restarts with no progress (same pending count)
- * - Abort awareness: delays restart 3s after detecting an aborted message
+ * - Confirm-to-stop tag in the LAST assistant message suppresses restart
+ * - User abort (Esc during generation) suppresses restart
+ * - Countdown with Esc cancellation before restart fires
+ * - Injection failure backoff (exponential 5s-160s)
+ * - Stagnation detection: stops after 3 restarts with no progress
  * - Pending question detection: skips restart if agent is asking a question
  * - Compaction guard: skips restart within 60s after context compaction
+ * - Background task awareness: skips restart while background tasks are running
  * - External stop: respects `isStopped()` callback from /omp-stop command
  *
  * Named after Sisyphus' boulder — it keeps rolling back.
  */
 
-import type { AssistantMessage } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
+import type { CountdownHandle } from "./boulder-countdown.js";
+import { startCountdown, startSilentCountdown } from "./boulder-countdown.js";
+import { hasConfirmStop, isAskingQuestion, looksAborted, wasAborted } from "./boulder-helpers.js";
 import { CONFIRM_STOP_TAG } from "../tools/task.js";
 
 interface TaskState {
@@ -27,92 +31,29 @@ interface TaskState {
   pendingCount: number;
 }
 
-// ─── Module-level state for backoff / stagnation / abort detection ──────────
+// ─── Constants ───────────────────────────────────────────────────────────────
 
-/** Number of consecutive sendUserMessage injection failures */
-let injectionFailures = 0;
-
-/** Maximum injection failures before giving up */
 const MAX_INJECTION_FAILURES = 5;
-
-/** Normal cooldown between restarts (ms) */
 const NORMAL_COOLDOWN_MS = 10000;
-
-/** Pending count at the time of the last restart — used to detect progress */
-let lastPendingCount = Infinity;
-
-/** Number of consecutive restarts where pending count stayed the same */
-let stagnationCount = 0;
-
-/** Timestamp of the last detected abort — used to delay restart */
-let lastAbortTime = 0;
-
-/** Timestamp of the last context compaction — used for compaction guard */
-let lastCompactionTime = 0;
-
-/** Grace period after compaction before allowing restart (ms) */
 const COMPACTION_GUARD_MS = 60000;
 
-/** Minimum length for an assistant message to NOT be considered aborted */
-const ABORT_TEXT_MIN_LENGTH = 20;
+// ─── Module-level state ─────────────────────────────────────────────────────
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+let injectionFailures = 0;
+let lastPendingCount = Infinity;
+let stagnationCount = 0;
+let lastAbortTime = 0;
+let lastCompactionTime = 0;
+let activeCountdown: CountdownHandle | undefined;
 
-/**
- * Heuristic: detect if the last assistant message was likely aborted.
- * An aborted turn typically ends with an extremely short assistant message
- * or an error content block.
- */
-function looksAborted(messages: readonly { role: string; content?: unknown }[]): boolean {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i] as AssistantMessage;
-    if (m.role !== "assistant") continue;
-
-    // Check for error content blocks
-    const hasError = m.content.some(
-      (c) => c.type === "text" && /\berror\b/i.test(c.text) && c.text.length < ABORT_TEXT_MIN_LENGTH,
-    );
-    if (hasError) return true;
-
-    // Very short final assistant message suggests an abort mid-generation
-    const totalText = m.content
-      .filter((c): c is Extract<typeof c, { type: "text" }> => c.type === "text")
-      .map((c) => c.text)
-      .join("");
-    if (totalText.length < ABORT_TEXT_MIN_LENGTH && totalText.length > 0) return true;
-
-    // Only inspect the last assistant message
-    break;
-  }
-  return false;
-}
-
-/**
- * Detect if the last assistant message ends with a question or uses a question tool.
- * If so, the agent is waiting for user input and should not be auto-restarted.
- */
-function isAskingQuestion(messages: readonly { role: string; content?: unknown }[]): boolean {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i] as AssistantMessage;
-    if (m.role !== "assistant") continue;
-
-    // Check if text ends with a question mark
-    const text = m.content
-      .filter((c): c is Extract<typeof c, { type: "text" }> => c.type === "text")
-      .map((c) => c.text)
-      .join("");
-    if (text.trim().endsWith("?")) return true;
-
-    // Check for question tool use
-    const hasQuestionTool = m.content.some(
-      (c) => c.type === "toolCall" && c.name === "question",
-    );
-    if (hasQuestionTool) return true;
-
-    // Only inspect the last assistant message
-    break;
-  }
-  return false;
+function resetBoulderState(): void {
+  injectionFailures = 0;
+  stagnationCount = 0;
+  lastPendingCount = Infinity;
+  lastAbortTime = 0;
+  lastCompactionTime = 0;
+  activeCountdown?.cancel();
+  activeCountdown = undefined;
 }
 
 // ─── Registration ────────────────────────────────────────────────────────────
@@ -121,172 +62,166 @@ export function registerBoulder(
   pi: ExtensionAPI,
   getTaskState: () => TaskState,
   isStopped?: () => boolean,
+  hasRunningTasks?: () => boolean,
 ): void {
-  // ── Compaction guard: track when compaction occurs ──────────────────────
-  pi.on("session_compact", async () => {
-    lastCompactionTime = Date.now();
-  });
-
-  // ── Reset module-level state on session switch/fork ───────────────────
-  // These counters are session-specific; carrying them across sessions
-  // would cause incorrect backoff/stagnation behaviour for the new session.
-  const resetBoulderState = () => {
-    injectionFailures = 0;
-    stagnationCount = 0;
-    lastPendingCount = Infinity;
-    lastAbortTime = 0;
-    lastCompactionTime = 0;
-  };
+  pi.on("session_compact", async () => { lastCompactionTime = Date.now(); });
   pi.on("session_switch", async () => { resetBoulderState(); });
   pi.on("session_fork", async () => { resetBoulderState(); });
   pi.on("session_tree", async () => { resetBoulderState(); });
 
   pi.on("agent_end", async (event, ctx) => {
     try {
-      // Respect /omp-stop command
+      // Cancel any in-flight countdown from a previous agent_end
+      activeCountdown?.cancel();
+      activeCountdown = undefined;
+
       if (isStopped?.()) return;
 
       const { tasks, pendingCount } = getTaskState();
       if (pendingCount === 0) {
-        // All tasks cleared — reset state
         injectionFailures = 0;
         lastPendingCount = Infinity;
         stagnationCount = 0;
         return;
       }
 
-      // Check if the agent explicitly acknowledged it cannot continue right now.
-      const confirmedStop = event.messages.some((m) => {
-        const assistant = m as AssistantMessage;
-        if (assistant.role !== "assistant") return false;
-        return assistant.content.some(
-          (c) => c.type === "text" && c.text.includes(CONFIRM_STOP_TAG),
-        );
-      });
-      if (confirmedStop) return;
+      // ── Suppress restart: confirm-to-stop tag (last message only) ──────
+      if (hasConfirmStop(event.messages)) return;
 
-      // ── Pending question detection ──────────────────────────────────────
-      // If the agent is asking a question, don't auto-restart — wait for user input.
+      // ── Suppress restart: user aborted (Esc during generation) ─────────
+      if (wasAborted(event.messages)) return;
+
+      // ── Suppress restart: agent is asking a question ───────────────────
       if (isAskingQuestion(event.messages)) return;
 
-      // ── Compaction guard ───────────────────────────────────────────────
-      // Skip restart if compaction happened recently — context may be unstable.
+      // ── Suppress restart: compaction guard ─────────────────────────────
       if (Date.now() - lastCompactionTime < COMPACTION_GUARD_MS) return;
 
-      // ── Abort awareness ──────────────────────────────────────────────────
-      // If the last message looks aborted, record the time and add a 3s delay.
+      // ── Suppress restart: background tasks still running ───────────────
+      if (hasRunningTasks?.()) return;
+
+      // ── Abort heuristic delay (for non-stopReason aborts) ──────────────
       if (looksAborted(event.messages)) {
         lastAbortTime = Date.now();
       }
       const timeSinceAbort = Date.now() - lastAbortTime;
       const abortDelay = timeSinceAbort < 3000 ? 3000 - timeSinceAbort : 0;
 
-      // ── Stagnation detection ─────────────────────────────────────────────
-      // If pending count hasn't changed across restarts, increment stagnation.
+      // ── Stagnation detection ───────────────────────────────────────────
       if (pendingCount === lastPendingCount) {
         stagnationCount++;
       } else {
         stagnationCount = 0;
       }
-
-      // ── Progress detection for failure reset ──────────────────────────
-      if (pendingCount < lastPendingCount) {
-        // Progress was made — reset injection failure counter
-        injectionFailures = 0;
-      }
+      if (pendingCount < lastPendingCount) injectionFailures = 0;
       lastPendingCount = pendingCount;
 
-      // ── Stagnation hard stop ─────────────────────────────────────────────
       if (stagnationCount >= 3) {
-        const stagnationMessage = [
-          `Agent appears stuck after ${stagnationCount} restarts with no progress (${pendingCount} tasks still pending).`,
-          "Stopping auto-continuation.",
-          "",
-          "Use the task tool to expire stale tasks, or output " + CONFIRM_STOP_TAG + " if blocked.",
-        ].join("\n");
-
-        try {
-          if (ctx.isIdle()) {
-            pi.sendUserMessage(stagnationMessage);
-          } else {
-            pi.sendUserMessage(stagnationMessage, { deliverAs: "followUp" });
-          }
-          injectionFailures = 0;
-        } catch {
-          injectionFailures++;
-        }
-        // Reset stagnation so that if the agent responds and still has pending,
-        // it gets another 3 chances before stopping again
-        stagnationCount = 0;
+        handleStagnation(pi, ctx, pendingCount);
         return;
       }
 
-      // ── Build restart message ────────────────────────────────────────────
-      const pending = tasks.filter((t) => t.status === "pending" || t.status === "in_progress");
-      const taskLines = pending
-        .map((t) => `  - [#${t.id}] ${t.text}`)
-        .join("\n");
+      // ── Build restart message ──────────────────────────────────────────
+      const message = buildRestartMessage(tasks, pendingCount);
 
-      const restartNote =
-        injectionFailures > 0
-          ? `\n\n(Auto-restart after ${injectionFailures} injection failure(s). Backoff active.)`
-          : "";
-
-      const message = [
-        "You have pending tasks that are not complete:",
-        taskLines,
-        "",
-        "Please continue working on them. For each task, either:",
-        "  - Complete the work and mark it done",
-        "  - Expire it if no longer relevant",
-        "",
-        `If you genuinely cannot continue right now, output ${CONFIRM_STOP_TAG} to acknowledge and stop.`,
-        restartNote,
-      ].join("\n");
-
-      // ── Cooldown calculation ───────────────────────────────────────────
-      // Injection failures: exponential backoff 5s * 2^failures (5s → 160s)
-      // Normal restarts: fixed 10s cooldown (matches countdown toast)
+      // ── Cooldown ───────────────────────────────────────────────────────
       const cooldownMs = injectionFailures > 0
         ? NORMAL_COOLDOWN_MS / 2 * Math.pow(2, Math.min(injectionFailures, 5))
         : NORMAL_COOLDOWN_MS;
       const totalDelay = Math.max(cooldownMs, abortDelay);
 
-      // ── Countdown toast notification ───────────────────────────────────
-      if (ctx.hasUI) {
-        ctx.ui.notify(`Restarting in ${Math.ceil(totalDelay / 1000)}s... (${pendingCount} tasks remaining)`, "info");
-      }
-
-      // Use setTimeout to delay the restart message (non-blocking)
-      setTimeout(() => {
-        // Re-check stop flag after delay
+      // ── Start countdown (with Esc cancellation if UI available) ────────
+      const fire = () => {
         if (isStopped?.()) return;
-
-        // Re-check compaction guard after delay
         if (Date.now() - lastCompactionTime < COMPACTION_GUARD_MS) return;
+        if (hasRunningTasks?.()) return;
 
-        try {
-          if (ctx.isIdle()) {
-            pi.sendUserMessage(message);
-          } else {
-            pi.sendUserMessage(message, { deliverAs: "followUp" });
-          }
-          injectionFailures = 0; // Success — reset failure counter
-        } catch {
-          injectionFailures++;
-          if (injectionFailures >= MAX_INJECTION_FAILURES) {
-            // Too many consecutive injection failures — stop trying
-            if (ctx.hasUI) {
-              ctx.ui.notify(
-                `Boulder: gave up after ${MAX_INJECTION_FAILURES} injection failures. Use /omp-continue to retry.`,
-                "warning",
-              );
-            }
-          }
-        }
-      }, totalDelay);
+        // Re-fetch task state — it may have changed during the countdown
+        const fresh = getTaskState();
+        if (fresh.pendingCount === 0) return;
+
+        const freshMessage = buildRestartMessage(fresh.tasks, fresh.pendingCount);
+        sendRestart(pi, ctx, freshMessage);
+      };
+
+      activeCountdown = ctx.hasUI
+        ? startCountdown(ctx, totalDelay, pendingCount, fire)
+        : startSilentCountdown(totalDelay, fire);
     } catch {
-      // Hooks must never throw — silently continue
+      // Hooks must never throw
     }
   });
+}
+
+// ─── Internal helpers ────────────────────────────────────────────────────────
+
+function handleStagnation(
+  pi: ExtensionAPI,
+  ctx: { isIdle: () => boolean; hasUI: boolean; ui: { notify: (m: string, t: string) => void } },
+  pendingCount: number,
+): void {
+  const msg = [
+    `Agent appears stuck after ${stagnationCount} restarts with no progress (${pendingCount} tasks still pending).`,
+    "Stopping auto-continuation.",
+    "",
+    "Use the task tool to expire stale tasks, or output " + CONFIRM_STOP_TAG + " if blocked.",
+  ].join("\n");
+
+  try {
+    if (ctx.isIdle()) {
+      pi.sendUserMessage(msg);
+    } else {
+      pi.sendUserMessage(msg, { deliverAs: "followUp" });
+    }
+    injectionFailures = 0;
+  } catch {
+    injectionFailures++;
+  }
+  stagnationCount = 0;
+}
+
+function buildRestartMessage(
+  tasks: { id: number; text: string; status: string }[],
+  pendingCount: number,
+): string {
+  const pending = tasks.filter((t) => t.status === "pending" || t.status === "in_progress");
+  const taskLines = pending.map((t) => `  - [#${t.id}] ${t.text}`).join("\n");
+  const restartNote = injectionFailures > 0
+    ? `\n\n(Auto-restart after ${injectionFailures} injection failure(s). Backoff active.)`
+    : "";
+
+  return [
+    "You have pending tasks that are not complete:",
+    taskLines,
+    "",
+    "Please continue working on them. For each task, either:",
+    "  - Complete the work and mark it done",
+    "  - Expire it if no longer relevant",
+    "",
+    `If you genuinely cannot continue right now, output ${CONFIRM_STOP_TAG} to acknowledge and stop.`,
+    restartNote,
+  ].join("\n");
+}
+
+function sendRestart(
+  pi: ExtensionAPI,
+  ctx: { isIdle: () => boolean; hasUI: boolean; ui: { notify: (m: string, t: string) => void } },
+  message: string,
+): void {
+  try {
+    if (ctx.isIdle()) {
+      pi.sendUserMessage(message);
+    } else {
+      pi.sendUserMessage(message, { deliverAs: "followUp" });
+    }
+    injectionFailures = 0;
+  } catch {
+    injectionFailures++;
+    if (injectionFailures >= MAX_INJECTION_FAILURES && ctx.hasUI) {
+      ctx.ui.notify(
+        `Boulder: gave up after ${MAX_INJECTION_FAILURES} injection failures. Use /omp-continue to retry.`,
+        "warning",
+      );
+    }
+  }
 }

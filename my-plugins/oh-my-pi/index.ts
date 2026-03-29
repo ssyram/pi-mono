@@ -170,7 +170,10 @@ export default async function ohMyPi(pi: ExtensionAPI) {
 
 	// 6. Register hooks
 	if (config.boulder_enabled !== false) {
-		registerBoulder(pi, getTaskState, () => continuationStopped);
+		registerBoulder(pi, getTaskState, () => continuationStopped, () => {
+			const { running, queued } = concurrency.getActiveCounts();
+			return running > 0 || queued > 0;
+		});
 	}
 	registerSisyphusPrompt(pi, agents);
 	registerKeywordDetector(pi);
