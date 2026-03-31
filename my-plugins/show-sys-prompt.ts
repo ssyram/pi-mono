@@ -1,17 +1,13 @@
 /**
- * show-sys-prompt — Display the full system prompt in the chat UI for transparency,
- * and show a real-time char breakdown of context composition in the footer status line.
+ * show-sys-prompt — Display system prompt info via notify and show context char breakdown in status.
  *
- * - Shows the complete system prompt above the first user message.
- * - If the system prompt changes mid-conversation, shows the new version
- *   above the next user message with a separator.
+ * - On first LLM call: notifies a summary of the system prompt (line count + preview).
+ * - On system prompt changes: notifies a compact diff (added/removed lines).
  * - Displays per-role char counts in the footer: sys:XXk usr:XXk ast:XXk tool:XXk ...
- * - Updates the breakdown before every LLM call and after each turn/compaction.
  * - Purely visual — does NOT affect model behavior or conversation context.
  */
 import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@mariozechner/pi-coding-agent";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import { Box, Text } from "@mariozechner/pi-tui";
 
 const ENTRY_TYPE = "sys-prompt-last";
 const STATUS_KEY = "ctx-chars";
@@ -24,6 +20,47 @@ function restoreLastPrompt(entries: SessionEntry[]): string | undefined {
 		}
 	}
 	return undefined;
+}
+
+/** Compute a compact diff between old and new prompt text. */
+function computePromptDiff(oldPrompt: string, newPrompt: string): string {
+	const oldLines = oldPrompt.split("\n");
+	const newLines = newPrompt.split("\n");
+	const oldSet = new Set(oldLines);
+	const newSet = new Set(newLines);
+
+	const added = newLines.filter((l) => !oldSet.has(l));
+	const removed = oldLines.filter((l) => !newSet.has(l));
+
+	const parts: string[] = [];
+	if (removed.length > 0) {
+		parts.push(`- ${removed.length} lines removed`);
+		for (const line of removed.slice(0, 5)) {
+			const trimmed = line.trim();
+			if (trimmed) parts.push(`  - ${trimmed.slice(0, 80)}`);
+		}
+		if (removed.length > 5) parts.push(`  ... and ${removed.length - 5} more`);
+	}
+	if (added.length > 0) {
+		parts.push(`+ ${added.length} lines added`);
+		for (const line of added.slice(0, 5)) {
+			const trimmed = line.trim();
+			if (trimmed) parts.push(`  + ${trimmed.slice(0, 80)}`);
+		}
+		if (added.length > 5) parts.push(`  ... and ${added.length - 5} more`);
+	}
+	return parts.join("\n");
+}
+
+/** Summarize a prompt for first-time display. */
+function summarizePrompt(prompt: string): string {
+	const lines = prompt.split("\n");
+	const preview = lines
+		.slice(0, 10)
+		.map((l) => l.slice(0, 80))
+		.join("\n");
+	const suffix = lines.length > 10 ? `\n... (${lines.length} lines total)` : "";
+	return `[sys-prompt] ${lines.length} lines, ${prompt.length} chars\n${preview}${suffix}`;
 }
 
 /** Estimate chars for user/toolResult content (string or content blocks). */
@@ -66,7 +103,6 @@ function estimateMessageChars(message: AgentMessage): number {
 			chars = (msg.summary as string).length;
 			break;
 		default:
-			// Unknown custom role — best effort
 			if (typeof msg.content === "string") chars = msg.content.length;
 			else if (typeof msg.summary === "string") chars = (msg.summary as string).length;
 			break;
@@ -74,7 +110,6 @@ function estimateMessageChars(message: AgentMessage): number {
 	return chars;
 }
 
-/** Map a message role to a display category. */
 function roleCategory(role: string): string {
 	switch (role) {
 		case "user":
@@ -96,7 +131,6 @@ function roleCategory(role: string): string {
 	}
 }
 
-/** Format char count compactly. */
 function fmtChars(count: number): string {
 	if (count < 1000) return count.toString();
 	if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
@@ -104,27 +138,17 @@ function fmtChars(count: number): string {
 	return `${(count / 1000000).toFixed(1)}M`;
 }
 
-/** Compute per-category char breakdown and format as status string. */
 function computeBreakdown(messages: AgentMessage[], systemPrompt: string | undefined): string {
 	const counts = new Map<string, number>();
-
-	// System prompt chars
-	if (systemPrompt) {
-		counts.set("sys", systemPrompt.length);
-	}
-
-	// Message chars by role category
+	if (systemPrompt) counts.set("sys", systemPrompt.length);
 	for (const msg of messages) {
 		if (!msg || typeof msg !== "object" || !("role" in msg)) continue;
 		const cat = roleCategory((msg as { role: string }).role);
 		const chars = estimateMessageChars(msg);
 		counts.set(cat, (counts.get(cat) ?? 0) + chars);
 	}
-
-	// Build display string
 	const parts: string[] = [];
 	let total = 0;
-	// Fixed order: sys first, then known categories, then anything else
 	const order = ["sys", "usr", "ast", "tool", "cmp", "br", "bash", "cust"];
 	const seen = new Set<string>();
 	for (const cat of order) {
@@ -141,7 +165,6 @@ function computeBreakdown(messages: AgentMessage[], systemPrompt: string | undef
 			total += val;
 		}
 	}
-
 	if (parts.length === 0) return "";
 	return `ctx ${fmtChars(total)} chars [${parts.join(" + ")}]`;
 }
@@ -157,95 +180,43 @@ export default function (pi: ExtensionAPI) {
 	let lastSystemPrompt: string | undefined;
 	let lastMessages: AgentMessage[] = [];
 
-	// --- System prompt display (existing functionality) ---
-
-	pi.registerMessageRenderer("sys-prompt-display", (message, { expanded }, theme) => {
-		// Read prompt text from details (not content) to avoid polluting LLM context
-		const details = message.details as { changed?: boolean; prompt?: string } | undefined;
-		const content = details?.prompt ?? "";
-		if (!content) return undefined;
-
-		const isChange = message.details && (message.details as { changed: boolean }).changed;
-		const header = isChange ? "# System Prompt (Changed)" : "# System Prompt";
-		const separator = "─".repeat(60);
-
-		const lines: string[] = [];
-		lines.push(theme.fg("dim", separator));
-		lines.push(theme.fg("warning", header));
-		lines.push("");
-
-		if (expanded) {
-			lines.push(content);
-		} else {
-			const previewLines = content.split("\n").slice(0, 15);
-			lines.push(...previewLines);
-			const totalLines = content.split("\n").length;
-			if (totalLines > 15) {
-				lines.push(theme.fg("dim", `... (${totalLines - 15} more lines — expand to see full prompt)`));
-			}
-		}
-
-		lines.push("");
-		lines.push(theme.fg("dim", separator));
-
-		const text = lines.join("\n");
-		const box = new Box(1, 1, (t: string) => theme.bg("customMessageBg", t));
-		box.addChild(new Text(text, 0, 0));
-		return box;
-	});
-
 	pi.on("session_start", (_event, ctx) => {
 		lastSystemPrompt = restoreLastPrompt(ctx.sessionManager.getEntries());
-		// Clear status on new session
 		lastMessages = [];
 		if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, undefined);
 	});
 
-	pi.on("input", (_event, ctx) => {
-		const currentPrompt = ctx.getSystemPrompt();
-		if (!currentPrompt) return { action: "continue" as const };
-
-		const changed = lastSystemPrompt !== undefined && lastSystemPrompt !== currentPrompt;
-		const isFirst = lastSystemPrompt === undefined;
-
-		if (isFirst || changed) {
-			lastSystemPrompt = currentPrompt;
-			pi.appendEntry(ENTRY_TYPE, currentPrompt);
-			pi.sendMessage({
-				customType: "sys-prompt-display",
-				content: "",
-				display: true,
-				details: { changed, prompt: currentPrompt },
-			});
-		}
-
-		return { action: "continue" as const };
-	});
-
-	// --- Char breakdown status (new functionality) ---
-
-	// Before each LLM call: compute breakdown, and strip display-only custom messages from LLM context
+	// context hook: runs after before_agent_start, so systemPrompt is final.
+	// Detect changes, notify via UI, update status.
 	pi.on("context", (event, ctx) => {
 		lastMessages = event.messages;
 		updateStatus(ctx, event.messages);
-		// Filter out our own display-only message so it never reaches the LLM
-		const filtered = event.messages.filter(
-			(m) => !(m.role === "custom" && (m as { customType?: string }).customType === "sys-prompt-display"),
-		);
-		if (filtered.length !== event.messages.length) {
-			return { messages: filtered };
+
+		if (!ctx.hasUI) return;
+
+		const currentPrompt = ctx.getSystemPrompt();
+		if (!currentPrompt) return;
+
+		if (lastSystemPrompt === undefined) {
+			// First time — show summary
+			lastSystemPrompt = currentPrompt;
+			pi.appendEntry(ENTRY_TYPE, currentPrompt);
+			ctx.ui.notify(summarizePrompt(currentPrompt), "info");
+		} else if (lastSystemPrompt !== currentPrompt) {
+			// Changed — show diff
+			const diff = computePromptDiff(lastSystemPrompt, currentPrompt);
+			lastSystemPrompt = currentPrompt;
+			pi.appendEntry(ENTRY_TYPE, currentPrompt);
+			ctx.ui.notify(`[sys-prompt] Changed:\n${diff}`, "warning");
 		}
 	});
 
-	// After each turn: no status update here — live context updates only in the context hook
 	pi.on("turn_end", (_event, _ctx) => {});
 
-	// After compaction: context is unknown until the next context event arrives
 	pi.on("session_compact", (_event, ctx) => {
 		lastMessages = [];
 		if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, "ctx ? chars [compacted]");
 	});
 
-	// After agent loop ends: no status update here — keep last context-hook value
 	pi.on("agent_end", (_event, _ctx) => {});
 }
