@@ -38,3 +38,6 @@ plans/
 
 # Standalone packages (have their own git repos)
 /impression/
+
+/.tmp/
+/.playwright-mcp/
