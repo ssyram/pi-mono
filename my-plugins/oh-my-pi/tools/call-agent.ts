@@ -162,6 +162,7 @@ export function registerCallAgent(
 
 			// 6. Build runner with retry
 			const isForeground = params.background === false;
+			let jobIdRef = ""; // Set after submit(), used by runner to reset stale timer
 			const runner = async (signal: AbortSignal): Promise<string> => {
 				return runWithRetry(async () => {
 					// Look up cached session inside retry loop (may have been invalidated on previous attempt)
@@ -203,6 +204,15 @@ export function registerCallAgent(
 					// Circuit breaker: detect repeated identical tool calls
 					// M9: Circuit breaker aborts produce the same AbortError path
 					const circuitBreaker = wireCircuitBreaker(session);
+
+					// Wire stale timer reset on tool call activity (keeps background jobs alive)
+					const unsubStaleReset = jobIdRef
+						? session.subscribe((event) => {
+								if (event.type === "tool_execution_start" || event.type === "tool_execution_end") {
+									concurrency.resetStaleTimer(jobIdRef);
+								}
+							})
+						: undefined;
 
 					// Wire streaming accumulator for foreground execution
 					const accumulator = isForeground && onUpdate
@@ -248,6 +258,7 @@ export function registerCallAgent(
 						throw err;
 					} finally {
 						accumulator?.dispose();
+						unsubStaleReset?.();
 						circuitBreaker.unsubscribe();
 						signal.removeEventListener("abort", handleAbort);
 					}
@@ -267,6 +278,7 @@ export function registerCallAgent(
 						resolvedModel.id,
 						runner,
 					);
+					jobIdRef = jobId;
 				} catch (err: unknown) {
 					// Catch maxTotal limit from ConcurrencyManager
 					const message = err instanceof Error ? err.message : String(err);

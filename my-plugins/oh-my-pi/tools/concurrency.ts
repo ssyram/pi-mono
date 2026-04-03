@@ -340,7 +340,21 @@ export class ConcurrencyManager {
 		return count;
 	}
 
-	// ─── Private: stale timeout ────────────────────────────────────────────
+	// ─── Stale timeout ─────────────────────────────────────────────────────
+
+	/**
+	 * Reset the stale timer for a running job.
+	 * Call this whenever the job makes progress (e.g. tool call events)
+	 * to prevent premature stale-timeout cancellation.
+	 */
+	resetStaleTimer(jobId: string): void {
+		if (this.config.staleTimeoutMs <= 0) return;
+		const existing = this.staleTimers.get(jobId);
+		if (!existing) return; // job not running or already completed
+		clearTimeout(existing);
+		this.staleTimers.delete(jobId);
+		this.startStaleTimer(jobId);
+	}
 
 	private startStaleTimer(jobId: string): void {
 		if (this.config.staleTimeoutMs <= 0) return;

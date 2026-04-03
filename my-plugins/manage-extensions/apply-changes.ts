@@ -156,6 +156,10 @@ function applyOne(
 	} else if (!change.from && change.to) {
 		try {
 			mkdirSync(dir, { recursive: true });
+			if (!existsSync(ext.absolutePath)) {
+				warnings.push(`${ext.name}: source path no longer exists — skipping symlink creation`);
+				return;
+			}
 			symlinkSync(relative(dir, ext.absolutePath), linkPath);
 			applied.push(`${ext.name}: ${scope} ON`);
 		} catch (err) {

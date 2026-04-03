@@ -1,71 +1,19 @@
-import { Theme } from "@mariozechner/pi-coding-agent";
-import {
-	Component,
-	getKeybindings,
-	Input,
-	matchesKey,
-	truncateToWidth,
-} from "@mariozechner/pi-tui";
-import { ExtensionState } from "./resolve-state.js";
-import { PreflightIssue } from "./apply-changes.js";
-
-export type Pending = Map<string, { local: boolean; global: boolean }>;
-type Focus = "list" | "actions";
-type ActionId = "apply" | "list" | "cancel";
-
-export type ListResult =
-	| { action: "cancel" }
-	| { action: "apply" }
-	| { action: "back" };
-
-type KeyMap = {
-	cancel: (data: string) => boolean;
-	confirm: (data: string) => boolean;
-	up: (data: string) => boolean;
-	down: (data: string) => boolean;
-	left: (data: string) => boolean;
-	right: (data: string) => boolean;
-	tab: (data: string) => boolean;
-	shiftTab: (data: string) => boolean;
-	space: (data: string) => boolean;
-};
-
-export function createKeyMap(): KeyMap {
-	const kb = getKeybindings();
-	return {
-		cancel: (data) => kb.matches(data, "tui.select.cancel"),
-		confirm: (data) => kb.matches(data, "tui.select.confirm") || data === "\r" || data === "\n",
-		up: (data) => kb.matches(data, "tui.select.up"),
-		down: (data) => kb.matches(data, "tui.select.down"),
-		left: (data) => matchesKey(data, "left"),
-		right: (data) => matchesKey(data, "right"),
-		tab: (data) => kb.matches(data, "tui.input.tab"),
-		shiftTab: (data) => matchesKey(data, "shift+tab"),
-		space: (data) => data === " ",
-	};
-}
-
-export function getState(pending: Pending, ext: ExtensionState): { local: boolean; global: boolean } {
-	return pending.get(ext.extension.absolutePath) ?? { local: ext.local, global: ext.global };
-}
-
-export function toggleField(
-	pending: Pending,
-	ext: ExtensionState,
-	field: "local" | "global"
-): void {
-	const current = getState(pending, ext);
-	const next = { ...current, [field]: !current[field] };
-	if (next.local === ext.local && next.global === ext.global) pending.delete(ext.extension.absolutePath);
-	else pending.set(ext.extension.absolutePath, next);
-}
+import type { Theme } from "@mariozechner/pi-coding-agent";
+import { Component, Input, truncateToWidth } from "@mariozechner/pi-tui";
+import type { ExtensionState } from "./resolve-state.js";
+import type { PreflightIssue } from "./apply-changes.js";
+import type { Pending, Focus, ActionId, ListResult } from "./types.js";
+import { createKeyMap } from "./key-map.js";
+import { getState, toggleField } from "./state-helpers.js";
+import { renderScopeToken } from "./render-scope-token.js";
+import { normalizeSearch, matchesSearch, searchableText } from "./search.js";
 
 export function buildListComponent(
 	states: ExtensionState[],
 	pending: Pending,
 	theme: Theme,
 	done: (result: ListResult) => void,
-	preflightIssues: PreflightIssue[] = []
+	preflightIssues: PreflightIssue[] = [],
 ): Component {
 	const keys = createKeyMap();
 	let selectedIndex = 0;
@@ -73,6 +21,7 @@ export function buildListComponent(
 	let focus: Focus = "list";
 	let actionIndex = 0;
 	let cancelArmed = false;
+	let statusMessage = "";
 	const actions: ActionId[] = ["apply", "list", "cancel"];
 	const searchInput = new Input();
 	searchInput.focused = true;
@@ -123,18 +72,21 @@ export function buildListComponent(
 		const state = selectedState();
 		if (!state) return;
 		toggleField(pending, state, column === 0 ? "local" : "global");
+		statusMessage = "";
 		cancelArmed = false;
 	}
 
 	function focusActions(): void {
 		focus = "actions";
 		actionIndex = canApply() ? 0 : 1;
+		statusMessage = "";
 		cancelArmed = false;
 		searchInput.focused = false;
 	}
 
 	function focusList(): void {
 		focus = "list";
+		statusMessage = "";
 		cancelArmed = false;
 		searchInput.focused = true;
 	}
@@ -142,7 +94,14 @@ export function buildListComponent(
 	function activateCurrentAction(): void {
 		const action = actions[actionIndex];
 		if (action === "apply") {
-			if (!canApply()) return;
+			if (!canApply()) {
+				if (changeCount() === 0) {
+					statusMessage = "No pending changes to apply";
+				} else {
+					statusMessage = `Cannot apply: ${blockingIssueCount()} blocking issue(s) must be resolved first`;
+				}
+				return;
+			}
 			done({ action: "apply" });
 			return;
 		}
@@ -168,7 +127,10 @@ export function buildListComponent(
 				lines.push(theme.fg("muted", truncateToWidth("  No matching extensions", width)));
 			} else {
 				const visible = 20;
-				const start = Math.max(0, Math.min(selectedIndex - Math.floor(visible / 2), filtered.length - visible));
+				const start = Math.max(
+					0,
+					Math.min(selectedIndex - Math.floor(visible / 2), filtered.length - visible),
+				);
 				const end = Math.min(filtered.length, start + visible);
 				for (let i = start; i < end; i++) {
 					const state = filtered[i];
@@ -182,20 +144,31 @@ export function buildListComponent(
 					const localToken = renderScopeToken(theme, "L", current.local, localActive, localChanged);
 					const globalToken = renderScopeToken(theme, "G", current.global, globalActive, globalChanged);
 					const labelBase = `${state.extension.repoName}/${state.extension.name}`;
-					const label = selected && focus === "list" ? theme.fg("accent", labelBase) : labelBase;
-					lines.push(truncateToWidth(`${prefix}${localToken}  ${globalToken}  ${label}`, width));
+					const label =
+						selected && focus === "list" ? theme.fg("accent", labelBase) : labelBase;
+					lines.push(
+						truncateToWidth(`${prefix}${localToken}  ${globalToken}  ${label}`, width),
+					);
 				}
 				if (start > 0 || end < filtered.length) {
-					lines.push(theme.fg("muted", truncateToWidth(`  (${selectedIndex + 1}/${filtered.length})`, width)));
+					lines.push(
+						theme.fg(
+							"muted",
+							truncateToWidth(`  (${selectedIndex + 1}/${filtered.length})`, width),
+						),
+					);
 				}
 			}
 
 			lines.push("");
 			const active = selectedState();
 			if (active) {
-				lines.push(theme.fg("muted", truncateToWidth(`Path: ${active.extension.absolutePath}`, width)));
-				const colColor = column === 0 ? "warning" as const : "success" as const;
-				const colLabel = column === 0 ? "Local (.pi/extensions)" : "Global (~/.pi/agent/extensions)";
+				lines.push(
+					theme.fg("muted", truncateToWidth(`Path: ${active.extension.absolutePath}`, width)),
+				);
+				const colColor = column === 0 ? ("warning" as const) : ("success" as const);
+				const colLabel =
+					column === 0 ? "Local (.pi/extensions)" : "Global (~/.pi/agent/extensions)";
 				lines.push(theme.fg(colColor, truncateToWidth(`▸ ${colLabel}`, width)));
 			}
 			lines.push(theme.fg("muted", `Pending changes: ${changeCount()}`));
@@ -203,17 +176,32 @@ export function buildListComponent(
 				const blocking = blockingIssueCount();
 				const summary =
 					blocking > 0
-						? theme.fg("warning", `Preflight issues: ${preflightIssues.length} (${blocking} blocking)`)
-						: theme.fg("muted", `Preflight issues: ${preflightIssues.length} warning(s)`);
+						? theme.fg(
+								"warning",
+								`Preflight issues: ${preflightIssues.length} (${blocking} blocking)`,
+							)
+						: theme.fg(
+								"muted",
+								`Preflight issues: ${preflightIssues.length} warning(s)`,
+							);
 				lines.push(truncateToWidth(summary, width));
 				for (const issue of preflightIssues.slice(0, 3)) {
 					const row = `- ${issue.extensionName}: ${issue.message}`;
-					const styled = issue.severity === "error" ? theme.fg("warning", row) : theme.fg("muted", row);
+					const styled =
+						issue.severity === "error"
+							? theme.fg("warning", row)
+							: theme.fg("muted", row);
 					lines.push(truncateToWidth(styled, width));
 				}
 				if (preflightIssues.length > 3) {
 					lines.push(
-						theme.fg("muted", truncateToWidth(`...and ${preflightIssues.length - 3} more issue(s)`, width))
+						theme.fg(
+							"muted",
+							truncateToWidth(
+								`...and ${preflightIssues.length - 3} more issue(s)`,
+								width,
+							),
+						),
 					);
 				}
 			}
@@ -224,7 +212,11 @@ export function buildListComponent(
 					const active = focus === "actions" && index === actionIndex;
 					const disabled = action === "apply" && !canApply();
 					const label =
-						action === "apply" ? "Apply Changes" : action === "list" ? "Back to List" : "Cancel";
+						action === "apply"
+							? "Apply Changes"
+							: action === "list"
+								? "Back to List"
+								: "Cancel";
 					const base = `[${label}]`;
 					if (disabled) return theme.fg("muted", base);
 					if (active) return theme.fg("accent", base);
@@ -232,6 +224,10 @@ export function buildListComponent(
 				})
 				.join(" ");
 			lines.push(truncateToWidth(actionBar, width));
+
+			if (statusMessage) {
+				lines.push(theme.fg("warning", truncateToWidth(statusMessage, width)));
+			}
 
 			const help =
 				focus === "list"
@@ -290,6 +286,10 @@ export function buildListComponent(
 				focusActions();
 				return;
 			}
+			if (keys.shiftTab(data)) {
+				// consume shift+tab in list mode to prevent it leaking into search field
+				return;
+			}
 			if (keys.up(data)) {
 				moveSelection(-1);
 				return;
@@ -320,41 +320,4 @@ export function buildListComponent(
 
 		invalidate(): void {},
 	};
-}
-
-function renderScopeToken(
-	theme: Theme,
-	label: "L" | "G",
-	enabled: boolean,
-	active: boolean,
-	changed: boolean
-): string {
-	const box = enabled ? "[✓]" : "[ ]";
-	// L = warning (orange), G = success (green), active = accent (bright)
-	const scopeColor = label === "L" ? "warning" as const : "success" as const;
-	const baseColor = active ? "accent" : enabled ? scopeColor : "dim";
-	const labelColor = active ? "accent" : scopeColor;
-	const labelText = theme.bold(theme.fg(labelColor, label));
-	let boxText = theme.fg(baseColor, box);
-	if (active) boxText = theme.bold(boxText);
-	const changedMark = changed ? theme.fg("warning", "*") : theme.fg("muted", "·");
-	return `${labelText}${boxText}${changedMark}`;
-}
-
-function searchableText(state: ExtensionState): string {
-	return normalizeSearch(`${state.extension.repoName}/${state.extension.name}`);
-}
-
-function normalizeSearch(value: string): string {
-	return value.toLowerCase();
-}
-
-function matchesSearch(query: string, text: string): boolean {
-	let index = 0;
-	for (const char of query) {
-		index = text.indexOf(char, index);
-		if (index === -1) return false;
-		index += 1;
-	}
-	return true;
 }

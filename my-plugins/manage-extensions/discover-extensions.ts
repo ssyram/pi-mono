@@ -6,7 +6,7 @@
  */
 
 import type { Dirent } from "fs";
-import { existsSync, readFileSync, readdirSync } from "fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "fs";
 import { join, resolve } from "path";
 
 export interface RepoConfig {
@@ -86,9 +86,23 @@ export function discoverExtensions(
 			if (entry.name.startsWith(".")) continue;
 			const fullPath = join(repoPath, entry.name);
 
-			if (entry.isFile() && /\.[tj]s$/.test(entry.name)) {
+			// Resolve symlinks before type checks so symlinked extensions are not silently ignored
+			let isFile = entry.isFile();
+			let isDirectory = entry.isDirectory();
+			if (entry.isSymbolicLink()) {
+				try {
+					const stat = statSync(fullPath);
+					isFile = stat.isFile();
+					isDirectory = stat.isDirectory();
+				} catch {
+					// dangling symlink — skip
+					continue;
+				}
+			}
+
+			if (isFile && /\.[tj]s$/.test(entry.name)) {
 				results.push({ repoName: repo.name, repoPath: repoPath, name: entry.name, absolutePath: fullPath });
-			} else if (entry.isDirectory() && isExtensionDir(fullPath)) {
+			} else if (isDirectory && isExtensionDir(fullPath)) {
 				results.push({ repoName: repo.name, repoPath: repoPath, name: entry.name, absolutePath: fullPath });
 			}
 		}
