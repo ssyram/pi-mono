@@ -404,6 +404,21 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 	) => Component;
 }
 
+type AnyToolDefinition = ToolDefinition<any, any, any>;
+
+/**
+ * Preserve parameter inference for standalone tool definitions.
+ *
+ * Use this when assigning a tool to a variable or passing it through arrays such
+ * as `customTools`, where contextual typing would otherwise widen params to
+ * `unknown`.
+ */
+export function defineTool<TParams extends TSchema, TDetails = unknown, TState = any>(
+	tool: ToolDefinition<TParams, TDetails, TState>,
+): ToolDefinition<TParams, TDetails, TState> & AnyToolDefinition {
+	return tool;
+}
+
 // ============================================================================
 // Resource Events
 // ============================================================================
@@ -425,12 +440,6 @@ export interface ResourcesDiscoverResult {
 // ============================================================================
 // Session Events
 // ============================================================================
-
-/** Fired before session manager creation to allow custom session directory resolution */
-export interface SessionDirectoryEvent {
-	type: "session_directory";
-	cwd: string;
-}
 
 /** Fired when a session is started, loaded, or reloaded */
 export interface SessionStartEvent {
@@ -507,7 +516,6 @@ export interface SessionTreeEvent {
 }
 
 export type SessionEvent =
-	| SessionDirectoryEvent
 	| SessionStartEvent
 	| SessionBeforeSwitchEvent
 	| SessionBeforeForkEvent
@@ -906,16 +914,6 @@ export interface BeforeAgentStartEventResult {
 	systemPrompt?: string;
 }
 
-export interface SessionDirectoryResult {
-	/** Custom session directory path. If multiple extensions return this, the last one wins. */
-	sessionDir?: string;
-}
-
-/** Special startup-only handler. Unlike other events, this receives no ExtensionContext. */
-export type SessionDirectoryHandler = (
-	event: SessionDirectoryEvent,
-) => Promise<SessionDirectoryResult | undefined> | SessionDirectoryResult | undefined;
-
 export interface SessionBeforeSwitchResult {
 	cancel?: boolean;
 }
@@ -991,7 +989,6 @@ export interface ExtensionAPI {
 	// =========================================================================
 
 	on(event: "resources_discover", handler: ExtensionHandler<ResourcesDiscoverEvent, ResourcesDiscoverResult>): void;
-	on(event: "session_directory", handler: SessionDirectoryHandler): void;
 	on(event: "session_start", handler: ExtensionHandler<SessionStartEvent>): void;
 	on(
 		event: "session_before_switch",

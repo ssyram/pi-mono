@@ -226,9 +226,8 @@ Run `npm install` in the extension directory, then imports from `node_modules/` 
 ### Lifecycle Overview
 
 ```
-pi starts (CLI only)
+pi starts
   │
-  ├─► session_directory (CLI startup only, no ctx)
   ├─► session_start { reason: "startup" }
   └─► resources_discover { reason: "startup" }
       │
@@ -310,27 +309,6 @@ pi.on("resources_discover", async (event, _ctx) => {
 ### Session Events
 
 See [session.md](session.md) for session storage internals and the SessionManager API.
-
-#### session_directory
-
-Fired by the `pi` CLI during startup session resolution, before the initial session manager is created.
-
-This event is:
-- CLI-only. It is not emitted in SDK mode.
-- Startup-only. It is not emitted for later interactive `/new` or `/resume` actions.
-- Lower priority than `--session-dir` and `sessionDir` in `settings.json`.
-- Special-cased to receive no `ctx` argument.
-
-If multiple extensions return `sessionDir`, the last one wins.
-Combined precedence is: `--session-dir` CLI flag, then `sessionDir` in settings, then extension `session_directory` hooks.
-
-```typescript
-pi.on("session_directory", async (event) => {
-  return {
-    sessionDir: `/tmp/pi-sessions/${encodeURIComponent(event.cwd)}`,
-  };
-});
-```
 
 #### session_start
 
@@ -759,9 +737,7 @@ Transforms chain across handlers. See [input-transform.ts](../examples/extension
 
 ## ExtensionContext
 
-All handlers except `session_directory` receive `ctx: ExtensionContext`.
-
-`session_directory` is a CLI startup hook and receives only the event.
+All handlers receive `ctx: ExtensionContext`.
 
 ### ctx.ui
 
@@ -943,6 +919,38 @@ Options:
 - `customInstructions`: Custom instructions for the summarizer
 - `replaceInstructions`: If true, `customInstructions` replaces the default prompt instead of being appended
 - `label`: Label to attach to the branch summary entry (or target entry if not summarizing)
+
+### ctx.switchSession(sessionPath)
+
+Switch to a different session file:
+
+```typescript
+const result = await ctx.switchSession("/path/to/session.jsonl");
+if (result.cancelled) {
+  // An extension cancelled the switch via session_before_switch
+}
+```
+
+To discover available sessions, use the static `SessionManager.list()` or `SessionManager.listAll()` methods:
+
+```typescript
+import { SessionManager } from "@mariozechner/pi-coding-agent";
+
+pi.registerCommand("switch", {
+  description: "Switch to another session",
+  handler: async (args, ctx) => {
+    const sessions = await SessionManager.list(ctx.cwd);
+    if (sessions.length === 0) return;
+    const choice = await ctx.ui.select(
+      "Pick session:",
+      sessions.map(s => s.file),
+    );
+    if (choice) {
+      await ctx.switchSession(choice);
+    }
+  },
+});
+```
 
 ### ctx.reload()
 

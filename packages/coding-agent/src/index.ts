@@ -125,6 +125,7 @@ export type {
 } from "./core/extensions/index.js";
 export {
 	createExtensionRuntime,
+	defineTool,
 	discoverAndLoadExtensions,
 	ExtensionRunner,
 	isBashToolResult,
@@ -155,14 +156,20 @@ export type { ResourceCollision, ResourceDiagnostic, ResourceLoader } from "./co
 export { DefaultResourceLoader } from "./core/resource-loader.js";
 // SDK for programmatic usage
 export {
-	type AgentSessionRuntimeBootstrap,
-	AgentSessionRuntimeHost,
+	AgentSessionRuntime,
+	type AgentSessionRuntimeDiagnostic,
+	type AgentSessionServices,
+	type CreateAgentSessionFromServicesOptions,
 	type CreateAgentSessionOptions,
 	type CreateAgentSessionResult,
-	type CreateAgentSessionRuntimeOptions,
+	type CreateAgentSessionRuntimeFactory,
+	type CreateAgentSessionRuntimeResult,
+	type CreateAgentSessionServicesOptions,
 	// Factory
 	createAgentSession,
+	createAgentSessionFromServices,
 	createAgentSessionRuntime,
+	createAgentSessionServices,
 	createBashTool,
 	// Tool factories (for custom cwd)
 	createCodingTools,
