@@ -114,8 +114,8 @@ function collectPreflightIssues(
 				issues.push({
 					extensionName: ext.name,
 					scope,
-					severity: "warning",
-					message: `${scope}: existing symlink points elsewhere (${currentTarget})`,
+					severity: "error",
+					message: `${scope}: existing symlink points elsewhere and will not be removed (${currentTarget})`,
 				});
 			}
 		} catch (error) {
@@ -146,6 +146,13 @@ function applyOne(
 			const stat = lstatSync(linkPath);
 			if (!stat.isSymbolicLink()) {
 				warnings.push(`${ext.name}: "${linkPath}" is not a symlink — refusing to remove`);
+				return;
+			}
+			const currentTarget = resolve(dir, readlinkSync(linkPath));
+			if (currentTarget !== ext.absolutePath) {
+				warnings.push(
+					`${ext.name}: "${linkPath}" points to a different extension (${currentTarget}) — refusing to remove`,
+				);
 				return;
 			}
 			unlinkSync(linkPath);

@@ -6,7 +6,7 @@
  * Activation = symlink into .pi/extensions/ or ~/.pi/agent/extensions/.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, KeybindingsManager } from "@mariozechner/pi-coding-agent";
 import { getAgentDir } from "@mariozechner/pi-coding-agent";
 import { join } from "path";
 
@@ -81,37 +81,32 @@ export default function (pi: ExtensionAPI) {
 
 			const states = resolveStates(result.extensions, projectExtDir, globalExtDir);
 			const pending = new Map<string, { local: boolean; global: boolean }>();
-			let uiResult = { action: "cancel" } as ListResult;
 
-			while (true) {
-				const preflightIssues = preflightChanges(
-					buildChanges(states, pending),
-					projectExtDir,
-					globalExtDir,
-				);
-				uiResult = await new Promise<ListResult>((resolve) => {
-					ctx.ui.custom<void>((_tui, theme, _kb, done) => {
-						return buildListComponent(
-							states,
-							pending,
-							theme,
-							(resultValue) => {
-								resolve(resultValue);
-								done();
-							},
-							preflightIssues,
-						);
-					});
+			const preflightIssues = preflightChanges(
+				buildChanges(states, pending),
+				projectExtDir,
+				globalExtDir,
+			);
+			const uiResult = await new Promise<ListResult>((resolve) => {
+				ctx.ui.custom<void>((_tui, theme, keybindings, done) => {
+					return buildListComponent(
+						states,
+						pending,
+						theme,
+						keybindings as KeybindingsManager,
+						(resultValue) => {
+							resolve(resultValue);
+							done();
+						},
+						projectExtDir,
+						globalExtDir,
+						preflightIssues,
+					);
 				});
-
-				if (uiResult.action !== "back") break;
-			}
+			});
 
 			if (uiResult.action !== "apply") {
-				ctx.ui.notify(
-					uiResult.action === "cancel" ? "Cancelled" : "No changes",
-					"info",
-				);
+				ctx.ui.notify("Cancelled", "info");
 				return;
 			}
 

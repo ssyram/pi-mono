@@ -1,61 +1,160 @@
-# manage-extensions
+# Manage Extensions
 
-Interactive extension manager for pi. Toggle extensions on/off for project (local) or global scope via symlinks.
+Interactively enable or disable discovered Pi extensions for the current project (`local`) or your global agent profile (`global`).
 
-## Usage
+## What it does
 
-```text
-/manage-extensions
-```
+`/manage-extensions` scans all configured extension repositories, shows a compact selector-style panel, and lets you toggle each extension in:
 
-The command starts extension discovery in the background. If no cached result exists yet, it now shows a live scanning screen and then automatically opens the TUI once scanning completes. The scan view shows the current repo, current entry, current repo progress, and current entry progress.
+- **Local scope** → `.pi/extensions/`
+- **Global scope** → `~/.pi/agent/extensions/`
 
-```text
-→ L[✓] G[ ]  my-plugins/oh-my-pi
-  L[ ] G[ ]  my-plugins/show-sys-prompt.ts
-```
+Activating an extension creates a symlink into the target scope; deactivating removes the symlink if it points to that extension.
 
-- **L** = local (project `.pi/extensions/`)
-- **G** = global (`~/.pi/agent/extensions/`)
-- **↑/↓** move between extensions
-- **Enter** enters a dedicated scope picker for the selected extension
-- In scope picker mode, **←/→** choose the **L/G** target, **Space** toggles it, and **Enter** or **Esc** exits back to the list
-- **Type** to search while the list is focused using case-insensitive ordered character matching (`g54` can match names like `gpt-5.4`)
-- **Tab** moves focus to the bottom action bar
-- Bottom action bar supports **Apply Changes / Back to List / Cancel**
-- **Esc** no longer exits immediately: it first exits scope picker or action bar, or clears search; only in the plain list state does a second press cancel and exit
-- Active scope is made more obvious with stronger **L / G** color treatment and a current-scope hint
-- Pending row edits are marked inline so accidental toggles are easier to spot
+After applying changes, Pi reloads automatically.
 
-## Configuration
+## Repository configuration
 
-Create `extension-repos.json` in `.pi/` (project) or `~/.pi/agent/` (global):
+Repositories are configured in `extension-repos.json` either in:
+
+- project: `.pi/extension-repos.json`
+- global: `~/.pi/agent/extension-repos.json`
+
+Example:
 
 ```json
 [
-  { "name": "my-plugins", "path": "/absolute/path/to/my-plugins" },
-  { "name": "shared", "path": "/path/to/shared-extensions" }
+  {
+    "name": "my-plugins",
+    "path": "/absolute/path/to/my-plugins"
+  }
 ]
 ```
 
-Both files are read and merged (deduplicated by resolved path). Each repo path is scanned one level deep for valid extensions:
+Each entry must have:
 
-- `.ts` / `.js` files
-- Directories with `index.ts` / `index.js`
-- Directories with `package.json` containing `pi.extensions`
+- `name`: label shown in the UI
+- `path`: absolute path to the repository root
 
-Extension names must be unique across all configured repos. This plugin creates links by extension name, so duplicate names are reported and must be resolved before changes can be applied.
+Repos from local and global config are merged and deduplicated by resolved path.
 
-## How it works
+## What counts as an extension
 
-Activation creates a relative symlink from the target extensions dir to the source:
+Within a configured repo, the scanner accepts:
+
+- `*.ts` or `*.js` files
+- directories containing `index.ts` or `index.js`
+- directories whose `package.json` declares `pi.extensions`
+
+If a repo cannot be read, the scan reports it explicitly.
+
+## Discovery and conflicts
+
+When launched, the command starts a background scan.
+
+- If a cached scan result is available, the list opens immediately.
+- Otherwise, a small live scan progress screen is shown first.
+
+If two extensions across repos share the same exported extension name, Pi warns about the conflict. Conflicting names must be resolved by selection before a clean apply is possible.
+
+## UI layout
+
+The panel is intentionally compact and selector-like:
+
+- title row
+- search row
+- one-line status/context row
+- fixed-height list window with internal scrolling
+- one-line action bar
+- one-line help row
+
+The list window keeps a stable height inside the current terminal budget, even when the filtered result set becomes short or empty.
+
+Each row looks like:
 
 ```text
-.pi/extensions/oh-my-pi -> ../../my-plugins/oh-my-pi
+L  G  repoName/extensionName
 ```
 
-Deactivation removes the symlink. Refuses to remove non-symlink files (shows a warning).
+Where:
 
-If scanning fails, the command shows the scan error instead of pretending no repos are configured.
+- `L` = local scope
+- `G` = global scope
+- filled token = enabled
+- dim token = disabled
+- highlighted token = currently selected scope column in scope-picker mode
+- pending edits are shown inline by changed token styling
 
-After confirming changes via the inline action bar, triggers `/reload` to pick up the new extension set.
+## Interaction model
+
+The panel has three modes:
+
+- **List** → search and browse
+- **Scope** → edit `L/G` for the selected extension
+- **Actions** → bottom action bar (`Apply / List / Cancel`)
+
+### List mode
+
+- Type to search/filter extensions
+- `Up/Down` moves the selected row
+- `Enter` enters the scope picker for the selected row
+- `Tab` or `Shift+Tab` moves to the action bar
+- `Esc` / `Ctrl+C`:
+  - clears search first if search is non-empty
+  - otherwise arms cancel on the first press
+  - exits on the second press
+
+### Scope mode
+
+- `Left/Right` chooses `L` or `G`
+- `Space` toggles the currently selected scope
+- `Up/Down` keeps moving between rows while staying in scope mode
+- `Enter` or `Esc` / `Ctrl+C` returns to list mode
+- `Tab` or `Shift+Tab` moves to the action bar
+
+This split avoids the old conflict where search-input cursor movement and scope editing competed for the same keys.
+
+### Actions mode
+
+Actions are:
+
+- `Apply`
+- `List`
+- `Cancel`
+
+Keys:
+
+- `Left/Right` moves between actions
+- `Enter` or `Space` activates the current action
+- `Tab`, `Shift+Tab`, `Esc`, or `Ctrl+C` returns to list mode
+
+Notes:
+
+- `Apply` is disabled if there are no pending changes or preflight blocking issues exist.
+- `List` just returns focus to the list; it does not reopen the component.
+- `Cancel` exits the panel without applying changes.
+
+## Apply behavior
+
+Before apply, the command runs a preflight check over the pending changes.
+
+Typical checks include:
+
+- duplicate-name conflicts
+- filesystem issues
+- other blocking activation problems
+
+If changes are applied successfully:
+
+1. symlinks are created/removed as needed
+2. the extension scan cache is cleared
+3. Pi reloads
+
+If nothing changed, the command reports that explicitly.
+
+## Notes
+
+- Local and global toggles are independent.
+- Deactivation only removes the symlink in the selected scope.
+- The command uses relative symlinks where possible.
+- The panel now derives its help text from real standard TUI keybinding ids where available, and uses direct physical-key matching for `left/right/shift+tab/space` so it works on standard pi builds without patching pi source.

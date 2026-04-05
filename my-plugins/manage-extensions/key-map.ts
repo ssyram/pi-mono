@@ -1,8 +1,8 @@
-import { getKeybindings, matchesKey } from "@mariozechner/pi-tui";
+import type { KeybindingsManager } from "@mariozechner/pi-coding-agent";
+import { matchesKey } from "@mariozechner/pi-tui";
 import type { KeyMap } from "./types.js";
 
-export function createKeyMap(): KeyMap {
-	const kb = getKeybindings();
+export function createKeyMap(kb: KeybindingsManager): KeyMap {
 	return {
 		cancel: (data) => kb.matches(data, "tui.select.cancel"),
 		confirm: (data) => kb.matches(data, "tui.select.confirm"),

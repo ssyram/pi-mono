@@ -6,10 +6,7 @@ export type Focus = "list" | "scope" | "actions";
 
 export type ActionId = "apply" | "list" | "cancel";
 
-export type ListResult =
-	| { action: "cancel" }
-	| { action: "apply" }
-	| { action: "back" };
+export type ListResult = { action: "cancel" } | { action: "apply" };
 
 export type KeyMap = {
 	cancel: (data: string) => boolean;
