@@ -1,4 +1,4 @@
-import { getKeybindings } from "@mariozechner/pi-tui";
+import { getKeybindings, matchesKey } from "@mariozechner/pi-tui";
 import type { KeyMap } from "./types.js";
 
 export function createKeyMap(): KeyMap {
@@ -8,10 +8,10 @@ export function createKeyMap(): KeyMap {
 		confirm: (data) => kb.matches(data, "tui.select.confirm"),
 		up: (data) => kb.matches(data, "tui.select.up"),
 		down: (data) => kb.matches(data, "tui.select.down"),
-		left: (data) => kb.matches(data, "tui.select.left"),
-		right: (data) => kb.matches(data, "tui.select.right"),
+		left: (data) => matchesKey(data, "left"),
+		right: (data) => matchesKey(data, "right"),
 		tab: (data) => kb.matches(data, "tui.input.tab"),
-		shiftTab: (data) => kb.matches(data, "tui.select.shiftTab"),
-		space: (data) => kb.matches(data, "tui.select.toggle"),
+		shiftTab: (data) => matchesKey(data, "shift+tab"),
+		space: (data) => matchesKey(data, "space"),
 	};
 }

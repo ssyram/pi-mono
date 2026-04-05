@@ -18,13 +18,13 @@ The command starts extension discovery in the background. If no cached result ex
 - **L** = local (project `.pi/extensions/`)
 - **G** = global (`~/.pi/agent/extensions/`)
 - **↑/↓** move between extensions
-- **←/→** switch between L/G column while list is focused
-- **Space** or **Enter** toggle the selected checkbox while list is focused
-- **Type** to search at any time using case-insensitive ordered character matching (`g54` can match names like `gpt-5.4`)
+- **Enter** enters a dedicated scope picker for the selected extension
+- In scope picker mode, **←/→** choose the **L/G** target, **Space** toggles it, and **Enter** or **Esc** exits back to the list
+- **Type** to search while the list is focused using case-insensitive ordered character matching (`g54` can match names like `gpt-5.4`)
 - **Tab** moves focus to the bottom action bar
 - Bottom action bar supports **Apply Changes / Back to List / Cancel**
-- **Esc** no longer exits immediately: first press arms cancel and shows a warning, second press cancels and exits
-- Active scope is made more obvious with stronger **L / G** color treatment and a current-column hint
+- **Esc** no longer exits immediately: it first exits scope picker or action bar, or clears search; only in the plain list state does a second press cancel and exit
+- Active scope is made more obvious with stronger **L / G** color treatment and a current-scope hint
 - Pending row edits are marked inline so accidental toggles are easier to spot
 
 ## Configuration

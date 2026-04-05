@@ -2,7 +2,7 @@ import type { ExtensionState } from "./resolve-state.js";
 
 export type Pending = Map<string, { local: boolean; global: boolean }>;
 
-export type Focus = "list" | "actions";
+export type Focus = "list" | "scope" | "actions";
 
 export type ActionId = "apply" | "list" | "cancel";
 

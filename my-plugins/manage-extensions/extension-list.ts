@@ -17,6 +17,7 @@ export function buildListComponent(
 ): Component {
 	const keys = createKeyMap();
 	let selectedIndex = 0;
+	let scrollOffset = 0;
 	let column = 0;
 	let focus: Focus = "list";
 	let actionIndex = 0;
@@ -31,6 +32,11 @@ export function buildListComponent(
 		const q = normalizeSearch(searchInput.getValue());
 		filtered = q ? states.filter((s) => matchesSearch(q, searchableText(s))) : states;
 		selectedIndex = Math.min(selectedIndex, Math.max(0, filtered.length - 1));
+		ensureSelectionVisible(getVisibleItemCapacity());
+	}
+
+	function getTerminalRows(): number {
+		return process.stdout.rows || 24;
 	}
 
 	function changeCount(): number {
@@ -47,8 +53,9 @@ export function buildListComponent(
 
 	function cancelHint(): string {
 		if (cancelArmed) return theme.fg("warning", "Press Esc again to cancel and exit");
-		if (searchInput.getValue().length > 0) return theme.fg("muted", "Esc clears search");
+		if (focus === "scope") return theme.fg("muted", "Esc exits scope picker");
 		if (focus === "actions") return theme.fg("muted", "Esc returns to list");
+		if (searchInput.getValue().length > 0) return theme.fg("muted", "Esc clears search");
 		return theme.fg("muted", "Esc twice = cancel and exit");
 	}
 
@@ -57,14 +64,58 @@ export function buildListComponent(
 		return filtered[selectedIndex] ?? null;
 	}
 
+	function countFooterLines(): number {
+		let count = 0;
+		count += 1; // spacer before details
+		if (selectedState()) count += 2; // path + scope hint
+		count += 1; // pending changes
+		if (preflightIssues.length > 0) {
+			count += 1; // summary
+			count += Math.min(preflightIssues.length, 3);
+			if (preflightIssues.length > 3) count += 1;
+		}
+		count += 1; // spacer before actions
+		count += 1; // action bar
+		if (statusMessage) count += 1;
+		count += 1; // help text
+		return count;
+	}
+
+	function getListRowBudget(): number {
+		const headerLines = 4;
+		return Math.max(1, getTerminalRows() - headerLines - countFooterLines());
+	}
+
+	function getVisibleItemCapacity(): number {
+		const rowBudget = getListRowBudget();
+		if (filtered.length <= rowBudget) return rowBudget;
+		return Math.max(1, rowBudget - 1);
+	}
+
+	function ensureSelectionVisible(visibleItems: number): void {
+		if (filtered.length === 0) {
+			scrollOffset = 0;
+			return;
+		}
+		const maxOffset = Math.max(0, filtered.length - visibleItems);
+		scrollOffset = Math.max(0, Math.min(scrollOffset, maxOffset));
+		if (selectedIndex < scrollOffset) scrollOffset = selectedIndex;
+		if (selectedIndex >= scrollOffset + visibleItems) {
+			scrollOffset = selectedIndex - visibleItems + 1;
+		}
+	}
+
 	function moveSelection(delta: number): void {
 		if (filtered.length === 0) return;
 		selectedIndex = (selectedIndex + delta + filtered.length) % filtered.length;
+		ensureSelectionVisible(getVisibleItemCapacity());
+		statusMessage = "";
 		cancelArmed = false;
 	}
 
 	function moveColumn(next: number): void {
 		column = next;
+		statusMessage = "";
 		cancelArmed = false;
 	}
 
@@ -89,6 +140,19 @@ export function buildListComponent(
 		statusMessage = "";
 		cancelArmed = false;
 		searchInput.focused = true;
+		ensureSelectionVisible(getVisibleItemCapacity());
+	}
+
+	function focusScope(): void {
+		if (!selectedState()) {
+			statusMessage = "No extension selected";
+			return;
+		}
+		focus = "scope";
+		statusMessage = "";
+		cancelArmed = false;
+		searchInput.focused = false;
+		ensureSelectionVisible(getVisibleItemCapacity());
 	}
 
 	function activateCurrentAction(): void {
@@ -112,147 +176,156 @@ export function buildListComponent(
 		done({ action: "cancel" });
 	}
 
+	function buildHeaderLines(width: number): string[] {
+		const title = theme.bold("Manage Extensions");
+		const modeName = focus === "list" ? "List" : focus === "scope" ? "Scope" : "Actions";
+		const mode = theme.fg("muted", `[${modeName}]`);
+		const pendingLabel = changeCount() > 0 ? theme.fg("warning", ` ${changeCount()} pending`) : "";
+		return [
+			truncateToWidth(`${title} ${mode}${pendingLabel}`, width),
+			truncateToWidth(cancelHint(), width),
+			truncateToWidth(searchInput.render(width - 2).join(""), width),
+			"",
+		];
+	}
+
+	function buildListLines(width: number, rowBudget: number): string[] {
+		if (filtered.length === 0) {
+			return [theme.fg("muted", truncateToWidth("  No matching extensions", width))];
+		}
+
+		const needsIndicator = filtered.length > rowBudget;
+		const visibleItems = needsIndicator ? Math.max(1, rowBudget - 1) : rowBudget;
+		ensureSelectionVisible(visibleItems);
+		const end = Math.min(filtered.length, scrollOffset + visibleItems);
+		const lines: string[] = [];
+
+		for (let i = scrollOffset; i < end; i++) {
+			const state = filtered[i];
+			const current = getState(pending, state);
+			const selected = i === selectedIndex;
+			const localActive = selected && focus === "scope" && column === 0;
+			const globalActive = selected && focus === "scope" && column === 1;
+			const localChanged = current.local !== state.local;
+			const globalChanged = current.global !== state.global;
+			const prefix = selected ? theme.fg("accent", "→ ") : "  ";
+			const localToken = renderScopeToken(theme, "L", current.local, localActive, localChanged);
+			const globalToken = renderScopeToken(theme, "G", current.global, globalActive, globalChanged);
+			const labelBase = `${state.extension.repoName}/${state.extension.name}`;
+			const label = selected && focus !== "actions" ? theme.fg("accent", labelBase) : labelBase;
+			lines.push(truncateToWidth(`${prefix}${localToken}  ${globalToken}  ${label}`, width));
+		}
+
+		if (needsIndicator) {
+			lines.push(
+				theme.fg(
+					"muted",
+					truncateToWidth(`  (${selectedIndex + 1}/${filtered.length})`, width),
+				),
+			);
+		}
+
+		return lines;
+	}
+
+	function buildFooterLines(width: number): string[] {
+		const lines: string[] = [];
+		const active = selectedState();
+		lines.push("");
+		if (active) {
+			lines.push(
+				theme.fg("muted", truncateToWidth(`Path: ${active.extension.absolutePath}`, width)),
+			);
+			const colColor = column === 0 ? ("warning" as const) : ("success" as const);
+			const colLabel =
+				column === 0 ? "Local (.pi/extensions)" : "Global (~/.pi/agent/extensions)";
+			const scopePrefix = focus === "scope" ? "▸ Scope picker:" : "▸ Current scope:";
+			lines.push(theme.fg(colColor, truncateToWidth(`${scopePrefix} ${colLabel}`, width)));
+		}
+		lines.push(theme.fg("muted", `Pending changes: ${changeCount()}`));
+		if (preflightIssues.length > 0) {
+			const blocking = blockingIssueCount();
+			const summary =
+				blocking > 0
+					? theme.fg(
+							"warning",
+							`Preflight issues: ${preflightIssues.length} (${blocking} blocking)`,
+						)
+					: theme.fg("muted", `Preflight issues: ${preflightIssues.length} warning(s)`);
+			lines.push(truncateToWidth(summary, width));
+			for (const issue of preflightIssues.slice(0, 3)) {
+				const row = `- ${issue.extensionName}: ${issue.message}`;
+				const styled =
+					issue.severity === "error" ? theme.fg("warning", row) : theme.fg("muted", row);
+				lines.push(truncateToWidth(styled, width));
+			}
+			if (preflightIssues.length > 3) {
+				lines.push(
+					theme.fg(
+						"muted",
+						truncateToWidth(`...and ${preflightIssues.length - 3} more issue(s)`, width),
+					),
+				);
+			}
+		}
+		lines.push("");
+
+		const actionBar = actions
+			.map((action, index) => {
+				const active = focus === "actions" && index === actionIndex;
+				const disabled = action === "apply" && !canApply();
+				const label =
+					action === "apply"
+						? "Apply Changes"
+						: action === "list"
+							? "Back to List"
+							: "Cancel";
+				const base = `[${label}]`;
+				if (disabled) return theme.fg("muted", base);
+				if (active) return theme.fg("accent", base);
+				return base;
+			})
+			.join(" ");
+		lines.push(truncateToWidth(actionBar, width));
+
+		if (statusMessage) {
+			lines.push(theme.fg("warning", truncateToWidth(statusMessage, width)));
+		}
+
+		const help =
+			focus === "list"
+				? "Type to search · ↑/↓ move · Enter scope · Tab actions"
+				: focus === "scope"
+					? "↑/↓ move · ←/→ choose L/G · Space toggle · Enter/Esc done"
+					: "←/→ move · Enter activate · Tab return to list";
+		lines.push(theme.fg("muted", truncateToWidth(help, width)));
+		return lines;
+	}
+
 	return {
 		render(width: number): string[] {
-			const lines: string[] = [];
-			const title = theme.bold("Manage Extensions");
-			const mode = theme.fg("muted", focus === "list" ? "[List]" : "[Actions]");
-			const pendingLabel = changeCount() > 0 ? theme.fg("warning", ` ${changeCount()} pending`) : "";
-			lines.push(truncateToWidth(`${title} ${mode}${pendingLabel}`, width));
-			lines.push(truncateToWidth(cancelHint(), width));
-			lines.push(truncateToWidth(searchInput.render(width - 2).join(""), width));
-			lines.push("");
-
-			if (filtered.length === 0) {
-				lines.push(theme.fg("muted", truncateToWidth("  No matching extensions", width)));
-			} else {
-				const visible = 20;
-				const start = Math.max(
-					0,
-					Math.min(selectedIndex - Math.floor(visible / 2), filtered.length - visible),
-				);
-				const end = Math.min(filtered.length, start + visible);
-				for (let i = start; i < end; i++) {
-					const state = filtered[i];
-					const current = getState(pending, state);
-					const selected = i === selectedIndex;
-					const localActive = selected && focus === "list" && column === 0;
-					const globalActive = selected && focus === "list" && column === 1;
-					const localChanged = current.local !== state.local;
-					const globalChanged = current.global !== state.global;
-					const prefix = selected ? theme.fg("accent", "→ ") : "  ";
-					const localToken = renderScopeToken(theme, "L", current.local, localActive, localChanged);
-					const globalToken = renderScopeToken(theme, "G", current.global, globalActive, globalChanged);
-					const labelBase = `${state.extension.repoName}/${state.extension.name}`;
-					const label =
-						selected && focus === "list" ? theme.fg("accent", labelBase) : labelBase;
-					lines.push(
-						truncateToWidth(`${prefix}${localToken}  ${globalToken}  ${label}`, width),
-					);
-				}
-				if (start > 0 || end < filtered.length) {
-					lines.push(
-						theme.fg(
-							"muted",
-							truncateToWidth(`  (${selectedIndex + 1}/${filtered.length})`, width),
-						),
-					);
-				}
-			}
-
-			lines.push("");
-			const active = selectedState();
-			if (active) {
-				lines.push(
-					theme.fg("muted", truncateToWidth(`Path: ${active.extension.absolutePath}`, width)),
-				);
-				const colColor = column === 0 ? ("warning" as const) : ("success" as const);
-				const colLabel =
-					column === 0 ? "Local (.pi/extensions)" : "Global (~/.pi/agent/extensions)";
-				lines.push(theme.fg(colColor, truncateToWidth(`▸ ${colLabel}`, width)));
-			}
-			lines.push(theme.fg("muted", `Pending changes: ${changeCount()}`));
-			if (preflightIssues.length > 0) {
-				const blocking = blockingIssueCount();
-				const summary =
-					blocking > 0
-						? theme.fg(
-								"warning",
-								`Preflight issues: ${preflightIssues.length} (${blocking} blocking)`,
-							)
-						: theme.fg(
-								"muted",
-								`Preflight issues: ${preflightIssues.length} warning(s)`,
-							);
-				lines.push(truncateToWidth(summary, width));
-				for (const issue of preflightIssues.slice(0, 3)) {
-					const row = `- ${issue.extensionName}: ${issue.message}`;
-					const styled =
-						issue.severity === "error"
-							? theme.fg("warning", row)
-							: theme.fg("muted", row);
-					lines.push(truncateToWidth(styled, width));
-				}
-				if (preflightIssues.length > 3) {
-					lines.push(
-						theme.fg(
-							"muted",
-							truncateToWidth(
-								`...and ${preflightIssues.length - 3} more issue(s)`,
-								width,
-							),
-						),
-					);
-				}
-			}
-			lines.push("");
-
-			const actionBar = actions
-				.map((action, index) => {
-					const active = focus === "actions" && index === actionIndex;
-					const disabled = action === "apply" && !canApply();
-					const label =
-						action === "apply"
-							? "Apply Changes"
-							: action === "list"
-								? "Back to List"
-								: "Cancel";
-					const base = `[${label}]`;
-					if (disabled) return theme.fg("muted", base);
-					if (active) return theme.fg("accent", base);
-					return base;
-				})
-				.join(" ");
-			lines.push(truncateToWidth(actionBar, width));
-
-			if (statusMessage) {
-				lines.push(theme.fg("warning", truncateToWidth(statusMessage, width)));
-			}
-
-			const help =
-				focus === "list"
-					? "Type to search · ↑/↓ move · ←/→ Local/Global · Space toggle · Tab actions"
-					: "←/→ move · Enter activate · Tab return to list";
-			lines.push(theme.fg("muted", truncateToWidth(help, width)));
-			return lines;
+			const headerLines = buildHeaderLines(width);
+			const listLines = buildListLines(width, getListRowBudget());
+			const footerLines = buildFooterLines(width);
+			return [...headerLines, ...listLines, ...footerLines];
 		},
 
 		handleInput(data: string): void {
 			if (keys.cancel(data)) {
-				// Priority 1: clear search if active
+				if (focus === "scope") {
+					focusList();
+					return;
+				}
+				if (focus === "actions") {
+					focusList();
+					return;
+				}
 				if (searchInput.getValue().length > 0) {
 					searchInput.setValue("");
 					applyFilter();
 					cancelArmed = false;
 					return;
 				}
-				// Priority 2: return to list from actions
-				if (focus === "actions") {
-					focusList();
-					cancelArmed = false;
-					return;
-				}
-				// Priority 3: two-press cancel
 				if (cancelArmed) {
 					done({ action: "cancel" });
 					return;
@@ -282,6 +355,38 @@ export function buildListComponent(
 				return;
 			}
 
+			if (focus === "scope") {
+				if (keys.tab(data) || keys.shiftTab(data)) {
+					focusActions();
+					return;
+				}
+				if (keys.up(data)) {
+					moveSelection(-1);
+					return;
+				}
+				if (keys.down(data)) {
+					moveSelection(1);
+					return;
+				}
+				if (keys.left(data)) {
+					moveColumn(0);
+					return;
+				}
+				if (keys.right(data)) {
+					moveColumn(1);
+					return;
+				}
+				if (keys.space(data)) {
+					toggleSelected();
+					return;
+				}
+				if (keys.confirm(data)) {
+					focusList();
+					return;
+				}
+				return;
+			}
+
 			if (keys.tab(data)) {
 				focusActions();
 				return;
@@ -298,20 +403,8 @@ export function buildListComponent(
 				moveSelection(1);
 				return;
 			}
-			if (keys.left(data)) {
-				moveColumn(0);
-				return;
-			}
-			if (keys.right(data)) {
-				moveColumn(1);
-				return;
-			}
-			if (keys.space(data)) {
-				toggleSelected();
-				return;
-			}
 			if (keys.confirm(data)) {
-				toggleSelected();
+				focusScope();
 				return;
 			}
 			searchInput.handleInput(data);

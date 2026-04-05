@@ -1,5 +1,6 @@
 {
   "skipDistillation": [],
   "showData": true,
+  "debug": true,
   "minLength": 1792
 }
