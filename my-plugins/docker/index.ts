@@ -15,23 +15,33 @@
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import type { OverlayHandle } from "@mariozechner/pi-tui";
 import { Key } from "@mariozechner/pi-tui";
-import { DockerComponent } from "./component.js";
-import { DOCKER_CLEAR, DOCKER_REMOVE, DOCKER_UPDATE, markDockerAvailable } from "./protocol.js";
-import type { DockerRemove, DockerSection } from "./protocol.js";
+import { DOCKER_MAX_HEIGHT_PERCENT, DockerComponent } from "./component.js";
+import type { DockerSection } from "./component.js";
+import { DockerWidthWarningComponent } from "./width-warning.js";
 
-const MIN_TERM_WIDTH = 100;
+interface DockerRemove {
+	id: string;
+}
+
+const MIN_TERM_WIDTH = 50;
+const DOCKER_UPDATE = "docker:update";
+const DOCKER_REMOVE = "docker:remove";
+const DOCKER_CLEAR = "docker:clear";
+const DOCKER_AVAILABLE_FLAG = "$__docker_available__";
 
 export default function dockerExtension(pi: ExtensionAPI): void {
 	let handle: OverlayHandle | null = null;
+	let warningHandle: OverlayHandle | null = null;
 	let component: DockerComponent | null = null;
 	let hidden = false;
 	const disposers: Array<() => void> = [];
 
 	// Signal presence so other plugins can detect docker synchronously
-	markDockerAvailable();
+	(globalThis as Record<string, unknown>)[DOCKER_AVAILABLE_FLAG] = true;
 
 	pi.on("session_start", (_event, ctx) => {
 		setupOverlay(ctx);
+		setupWidthWarningOverlay(ctx);
 		setupEventBus();
 	});
 
@@ -40,27 +50,46 @@ export default function dockerExtension(pi: ExtensionAPI): void {
 		ctx.ui.custom<void>(
 			(tui, theme) => {
 				component = new DockerComponent(theme, tui);
-				// Update maxLines based on terminal height
-				const maxH = Math.floor(tui.terminal.rows * 0.8);
-				component.setMaxLines(maxH - 3); // Account for box chrome
 				return component;
 			},
 			{
 				overlay: true,
 				overlayOptions: {
-					anchor: "right-center",
-					width: "25%",
+					anchor: "top-right",
+					width: "30%",
 					minWidth: 28,
-					maxHeight: "80%",
-					margin: { right: 1 },
+					maxHeight: `${DOCKER_MAX_HEIGHT_PERCENT}%`,
+					margin: { top: 1, right: 1 },
 					nonCapturing: true,
-					visible: (w) => w >= MIN_TERM_WIDTH,
+					visible: (termWidth) => termWidth >= MIN_TERM_WIDTH,
 				},
 				onHandle: (h) => {
 					handle = h;
 					// Start hidden by default
 					handle.setHidden(true);
 					hidden = true;
+				},
+			},
+		);
+	}
+
+	function setupWidthWarningOverlay(ctx: ExtensionContext): void {
+		ctx.ui.custom<void>(
+			(tui, theme) => new DockerWidthWarningComponent(theme, tui, MIN_TERM_WIDTH),
+			{
+				overlay: true,
+				overlayOptions: {
+					anchor: "top-right",
+					width: 30,
+					minWidth: 20,
+					maxHeight: 1,
+					margin: { top: 1, right: 1 },
+					nonCapturing: true,
+					visible: (termWidth) => termWidth < MIN_TERM_WIDTH,
+				},
+				onHandle: (h) => {
+					warningHandle = h;
+					warningHandle.setHidden(true);
 				},
 			},
 		);
@@ -91,9 +120,10 @@ export default function dockerExtension(pi: ExtensionAPI): void {
 	pi.registerShortcut(Key.ctrlShift("t"), {
 		description: "Toggle docker sidebar",
 		handler: () => {
-			if (!handle) return;
+			if (!handle && !warningHandle) return;
 			hidden = !hidden;
-			handle.setHidden(hidden);
+			handle?.setHidden(hidden);
+			warningHandle?.setHidden(hidden);
 		},
 	});
 
@@ -119,6 +149,7 @@ export default function dockerExtension(pi: ExtensionAPI): void {
 		for (const dispose of disposers) dispose();
 		disposers.length = 0;
 		handle = null;
+		warningHandle = null;
 		component = null;
 		hidden = false;
 	});
