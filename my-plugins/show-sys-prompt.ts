@@ -1,9 +1,12 @@
 /**
- * show-sys-prompt — Display system prompt info via notify and show context char breakdown in status.
+ * show-sys-prompt — Display system prompt info via notify and show context char breakdown.
+ *
+ * Best paired with the optional docker plugin, which can render the context breakdown more clearly in its sidebar.
+ * Without docker, the breakdown falls back to the normal footer status area.
  *
  * - On first LLM call: notifies a summary of the system prompt (line count + preview).
  * - On system prompt changes: notifies a compact diff (added/removed lines).
- * - Displays per-role char counts in the footer: sys:XXk usr:XXk ast:XXk tool:XXk ...
+ * - Displays per-role char counts in docker when available, otherwise in the footer status.
  * - Purely visual — does NOT affect model behavior or conversation context.
  */
 import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@mariozechner/pi-coding-agent";
@@ -11,6 +14,22 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
 
 const ENTRY_TYPE = "sys-prompt-last";
 const STATUS_KEY = "ctx-chars";
+const DOCKER_UPDATE = "docker:update";
+const DOCKER_REMOVE = "docker:remove";
+const DOCKER_AVAILABLE_FLAG = "$__docker_available__";
+const DOCKER_SECTION_TITLE = "Context";
+const DOCKER_SECTION_ORDER = 20;
+
+interface DockerSection {
+	id: string;
+	title: string;
+	order: number;
+	lines: string[];
+}
+
+interface DockerRemove {
+	id: string;
+}
 
 function restoreLastPrompt(entries: SessionEntry[]): string | undefined {
 	for (let i = entries.length - 1; i >= 0; i--) {
@@ -169,11 +188,36 @@ function computeBreakdown(messages: AgentMessage[], systemPrompt: string | undef
 	return `ctx ${fmtChars(total)} chars [${parts.join(" + ")}]`;
 }
 
-function updateStatus(ctx: ExtensionContext, messages: AgentMessage[]): void {
+function hasDocker(): boolean {
+	return (globalThis as Record<string, unknown>)[DOCKER_AVAILABLE_FLAG] === true;
+}
+
+function publishStatus(pi: ExtensionAPI, ctx: ExtensionContext, text: string | undefined): void {
+	if (hasDocker()) {
+		if (text) {
+			const section: DockerSection = {
+				id: STATUS_KEY,
+				title: DOCKER_SECTION_TITLE,
+				order: DOCKER_SECTION_ORDER,
+				lines: text.split("\n"),
+			};
+			pi.events.emit(DOCKER_UPDATE, section);
+		} else {
+			const removal: DockerRemove = { id: STATUS_KEY };
+			pi.events.emit(DOCKER_REMOVE, removal);
+		}
+		if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, undefined);
+		return;
+	}
+
 	if (!ctx.hasUI) return;
+	ctx.ui.setStatus(STATUS_KEY, text);
+}
+
+function updateStatus(pi: ExtensionAPI, ctx: ExtensionContext, messages: AgentMessage[]): void {
 	const systemPrompt = ctx.getSystemPrompt();
 	const status = computeBreakdown(messages, systemPrompt);
-	ctx.ui.setStatus(STATUS_KEY, status || undefined);
+	publishStatus(pi, ctx, status || undefined);
 }
 
 export default function (pi: ExtensionAPI) {
@@ -183,14 +227,14 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_start", (_event, ctx) => {
 		lastSystemPrompt = restoreLastPrompt(ctx.sessionManager.getEntries());
 		lastMessages = [];
-		if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, undefined);
+		publishStatus(pi, ctx, undefined);
 	});
 
 	// context hook: runs after before_agent_start, so systemPrompt is final.
 	// Detect changes, notify via UI, update status.
 	pi.on("context", (event, ctx) => {
 		lastMessages = event.messages;
-		updateStatus(ctx, event.messages);
+		updateStatus(pi, ctx, event.messages);
 
 		if (!ctx.hasUI) return;
 
@@ -215,7 +259,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_compact", (_event, ctx) => {
 		lastMessages = [];
-		if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, "ctx ? chars [compacted]");
+		publishStatus(pi, ctx, "ctx ? chars [compacted]");
 	});
 
 	pi.on("agent_end", (_event, _ctx) => {});

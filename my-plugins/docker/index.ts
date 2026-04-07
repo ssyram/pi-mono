@@ -59,7 +59,7 @@ export default function dockerExtension(pi: ExtensionAPI): void {
 					width: "30%",
 					minWidth: 28,
 					maxHeight: `${DOCKER_MAX_HEIGHT_PERCENT}%`,
-					margin: { top: 1, right: 1 },
+					margin: { top: 7, right: 1 },
 					nonCapturing: true,
 					visible: (termWidth) => termWidth >= MIN_TERM_WIDTH,
 				},
@@ -83,7 +83,7 @@ export default function dockerExtension(pi: ExtensionAPI): void {
 					width: 30,
 					minWidth: 20,
 					maxHeight: 1,
-					margin: { top: 1, right: 1 },
+					margin: { top: 7, right: 1 },
 					nonCapturing: true,
 					visible: (termWidth) => termWidth < MIN_TERM_WIDTH,
 				},
@@ -128,7 +128,7 @@ export default function dockerExtension(pi: ExtensionAPI): void {
 	});
 
 	// Scroll sidebar up (global, doesn't steal focus)
-	pi.registerShortcut(Key.ctrlShift("up"), {
+	pi.registerShortcut(Key.ctrlShift("p"), {
 		description: "Scroll docker sidebar up",
 		handler: () => {
 			if (!component || hidden) return;
@@ -137,7 +137,7 @@ export default function dockerExtension(pi: ExtensionAPI): void {
 	});
 
 	// Scroll sidebar down (global, doesn't steal focus)
-	pi.registerShortcut(Key.ctrlShift("down"), {
+	pi.registerShortcut(Key.ctrlShift("n"), {
 		description: "Scroll docker sidebar down",
 		handler: () => {
 			if (!component || hidden) return;

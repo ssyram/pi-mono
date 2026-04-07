@@ -11,8 +11,8 @@ export interface DockerSection {
 	lines: string[];
 }
 
-export const DOCKER_MAX_HEIGHT_PERCENT = 80;
-export const DOCKER_MIN_CONTENT_LINES = 5;
+export const DOCKER_MAX_HEIGHT_PERCENT = 70;
+export const DOCKER_MIN_CONTENT_LINES = 12;
 
 const BOX_CHROME_ROWS = 3;
 const DOCKER_MAX_HEIGHT_RATIO = DOCKER_MAX_HEIGHT_PERCENT / 100;
