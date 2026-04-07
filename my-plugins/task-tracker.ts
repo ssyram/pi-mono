@@ -1,4 +1,6 @@
 /**
+ * FUNCTIONALITY ALREADY PROVIDED BY `oh-my-pi` PLUGIN
+ * 
  * Task Tracker Extension - TODO list with agentic loop enforcement
  *
  * Features:

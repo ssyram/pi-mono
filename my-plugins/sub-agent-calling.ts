@@ -1,4 +1,6 @@
 /**
+ * FUNCTIONALITY ALREADY PROVIDED BY `oh-my-pi` PLUGIN
+ * 
  * Sub-Agent Calling Extension
  *
  * Registers a `spawn_subagent` tool that allows the LLM to spin up an isolated
