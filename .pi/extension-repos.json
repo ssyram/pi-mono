@@ -1,6 +1,6 @@
 [
   {
     "name": "my-plugins",
-    "path": "/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins"
+    "path": "./my-plugins"
   }
 ]
