@@ -179,7 +179,7 @@ export class DockerComponent implements Component {
 		const result: string[] = [];
 
 		// Top border with title
-		const title = truncateToWidth(" Docker ", innerW, "…", true);
+		const title = truncateToWidth(" Docker [ ctrl+shift+p/n scroll ]", innerW, "…", true);
 		const titleVis = visibleWidth(title);
 		const leftPad = Math.max(0, Math.floor((innerW - titleVis) / 2));
 		const rightPad = Math.max(0, innerW - titleVis - leftPad);
@@ -188,7 +188,7 @@ export class DockerComponent implements Component {
 		// Status line
 		const status = showContent
 			? totalLines > 0
-				? " ctrl+shift+↑↓ scroll "
+				? ""
 				: " empty "
 			: ` too short ${bodyRows}/${DOCKER_MIN_CONTENT_LINES} `;
 		result.push(
