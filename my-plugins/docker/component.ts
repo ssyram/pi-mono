@@ -77,7 +77,7 @@ export class DockerComponent implements Component {
 		return clipped + " ".repeat(Math.max(0, innerW - vis));
 	}
 
-	private buildAllLines(): string[] {
+	private buildAllLines(innerW: number): string[] {
 		const th = this.theme;
 		const lines: string[] = [];
 
@@ -89,7 +89,7 @@ export class DockerComponent implements Component {
 
 			// Section title (separator line)
 			if (i > 0) {
-				lines.push(th.fg("borderMuted", "─".repeat(80)));
+				lines.push(th.fg("borderMuted", "─".repeat(innerW)));
 			}
 			lines.push(th.fg("accent", `▸ ${section.title}`));
 
@@ -103,7 +103,7 @@ export class DockerComponent implements Component {
 	}
 
 	private buildWrappedLines(innerW: number): string[] {
-		const raw = this.buildAllLines();
+		const raw = this.buildAllLines(innerW);
 		const wrapped: string[] = [];
 		for (const line of raw) {
 			if (visibleWidth(line) <= innerW) {
