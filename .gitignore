@@ -43,4 +43,5 @@ plans/
 /.playwright-mcp/
 .pi/transcripts/
 .pi/hf-sessions/
+.pi/hf-sessions-backup/
 collect.sh
