@@ -1,3 +1,6 @@
 [submodule "my-plugins/impression"]
 	path = my-plugins/impression
 	url = https://github.com/ssyram/impression
+[submodule "my-plugins/recap"]
+	path = my-plugins/recap
+	url = https://github.com/ssyram/recap.git
