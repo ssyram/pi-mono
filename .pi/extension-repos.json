@@ -2,5 +2,9 @@
   {
     "name": "my-plugins",
     "path": "./my-plugins"
+  },
+  {
+    "name": "third-party-plugins",
+    "path": "./third-party-plugins"
   }
 ]

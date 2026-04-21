@@ -4,3 +4,12 @@
 [submodule "my-plugins/recap"]
 	path = my-plugins/recap
 	url = https://github.com/ssyram/recap.git
+[submodule "third-party-plugins/pi-intercom"]
+	path = third-party-plugins/pi-intercom
+	url = https://github.com/nicobailon/pi-intercom.git
+[submodule "third-party-plugins/pi-subagents"]
+	path = third-party-plugins/pi-subagents
+	url = https://github.com/nicobailon/pi-subagents.git
+[submodule "third-party-plugins/pi-web-access"]
+	path = third-party-plugins/pi-web-access
+	url = https://github.com/nicobailon/pi-web-access.git
