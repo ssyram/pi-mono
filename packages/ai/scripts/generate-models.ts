@@ -3,7 +3,7 @@
 import { writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { Api, KnownProvider, Model } from "../src/types.js";
+import { Api, KnownProvider, Model, type OpenAICompletionsCompat } from "../src/types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -484,6 +484,7 @@ async function loadModelsDevData(): Promise<Model<any>[]> {
 				const npm = m.provider?.npm;
 				let api: Api;
 				let baseUrl: string;
+				let compat: OpenAICompletionsCompat | undefined;
 
 				if (npm === "@ai-sdk/openai") {
 					api = "openai-responses";
@@ -495,6 +496,10 @@ async function loadModelsDevData(): Promise<Model<any>[]> {
 				} else if (npm === "@ai-sdk/google") {
 					api = "google-generative-ai";
 					baseUrl = `${variant.basePath}/v1`;
+				} else if (npm === "@ai-sdk/alibaba") {
+					api = "openai-completions";
+					baseUrl = `${variant.basePath}/v1`;
+					compat = { cacheControlFormat: "anthropic" };
 				} else {
 					// null, undefined, or @ai-sdk/openai-compatible
 					api = "openai-completions";
@@ -515,6 +520,7 @@ async function loadModelsDevData(): Promise<Model<any>[]> {
 						cacheRead: m.cost?.cache_read || 0,
 						cacheWrite: m.cost?.cache_write || 0,
 					},
+					...(compat ? { compat } : {}),
 					contextWindow: m.limit?.context || 4096,
 					maxTokens: m.limit?.output || 4096,
 				});
@@ -606,13 +612,22 @@ async function loadModelsDevData(): Promise<Model<any>[]> {
 
 		// Process Kimi For Coding models
 		if (data["kimi-for-coding"]?.models) {
-			for (const [modelId, model] of Object.entries(data["kimi-for-coding"].models)) {
+			const kimiModels = data["kimi-for-coding"].models as Record<string, ModelsDevModel>;
+			const hasCanonicalModel = Object.prototype.hasOwnProperty.call(kimiModels, "kimi-for-coding");
+
+			for (const [modelId, model] of Object.entries(kimiModels)) {
 				const m = model as ModelsDevModel;
 				if (m.tool_call !== true) continue;
+				// models.dev still exposes deprecated "k2p5" in some snapshots.
+				// Normalize to the canonical model id and drop duplicates when canonical exists.
+				if (modelId === "k2p5" && hasCanonicalModel) continue;
+
+				const normalizedId = modelId === "k2p5" ? "kimi-for-coding" : modelId;
+				const normalizedName = modelId === "k2p5" ? "Kimi For Coding" : m.name || normalizedId;
 
 				models.push({
-					id: modelId,
-					name: m.name || modelId,
+					id: normalizedId,
+					name: normalizedName,
 					api: "anthropic-messages",
 					provider: "kimi-coding",
 					// Kimi For Coding's Anthropic-compatible API - SDK appends /v1/messages
@@ -744,6 +759,27 @@ async function generateModels() {
 		allModels.push({
 			id: "claude-opus-4-6",
 			name: "Claude Opus 4.6",
+			api: "anthropic-messages",
+			baseUrl: "https://api.anthropic.com",
+			provider: "anthropic",
+			reasoning: true,
+			input: ["text", "image"],
+			cost: {
+				input: 5,
+				output: 25,
+				cacheRead: 0.5,
+				cacheWrite: 6.25,
+			},
+			contextWindow: 1000000,
+			maxTokens: 128000,
+		});
+	}
+
+	// Add missing Claude Opus 4.7
+	if (!allModels.some(m => m.provider === "anthropic" && m.id === "claude-opus-4-7")) {
+		allModels.push({
+			id: "claude-opus-4-7",
+			name: "Claude Opus 4.7",
 			api: "anthropic-messages",
 			baseUrl: "https://api.anthropic.com",
 			provider: "anthropic",
@@ -1457,42 +1493,6 @@ async function generateModels() {
 		},
 	];
 	allModels.push(...vertexModels);
-
-	// Kimi For Coding models (Moonshot AI's Anthropic-compatible coding API)
-	// Static fallback in case models.dev doesn't have them yet
-	const KIMI_CODING_BASE_URL = "https://api.kimi.com/coding";
-	const kimiCodingModels: Model<"anthropic-messages">[] = [
-		{
-			id: "kimi-k2-thinking",
-			name: "Kimi K2 Thinking",
-			api: "anthropic-messages",
-			provider: "kimi-coding",
-			baseUrl: KIMI_CODING_BASE_URL,
-			reasoning: true,
-			input: ["text"],
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-			contextWindow: 262144,
-			maxTokens: 32768,
-		},
-		{
-			id: "k2p5",
-			name: "Kimi K2.5",
-			api: "anthropic-messages",
-			provider: "kimi-coding",
-			baseUrl: KIMI_CODING_BASE_URL,
-			reasoning: true,
-			input: ["text"],
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-			contextWindow: 262144,
-			maxTokens: 32768,
-		},
-	];
-	// Only add if not already present from models.dev
-	for (const model of kimiCodingModels) {
-		if (!allModels.some(m => m.provider === "kimi-coding" && m.id === model.id)) {
-			allModels.push(model);
-		}
-	}
 
 	const azureOpenAiModels: Model<Api>[] = allModels
 		.filter((model) => model.provider === "openai" && model.api === "openai-responses")

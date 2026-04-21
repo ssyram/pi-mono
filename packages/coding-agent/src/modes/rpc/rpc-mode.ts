@@ -17,8 +17,10 @@ import type {
 	ExtensionUIContext,
 	ExtensionUIDialogOptions,
 	ExtensionWidgetOptions,
+	WorkingIndicatorOptions,
 } from "../../core/extensions/index.js";
 import { takeOverStdout, writeRawStdout } from "../../core/output-guard.js";
+import { killTrackedDetachedChildren } from "../../utils/shell.js";
 import { type Theme, theme } from "../interactive/theme/theme.js";
 import { attachJsonlLineReader, serializeJsonLine } from "./jsonl.js";
 import type {
@@ -75,6 +77,8 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 
 	// Shutdown request flag
 	let shutdownRequested = false;
+	let shuttingDown = false;
+	const signalCleanupHandlers: Array<() => void> = [];
 
 	/** Helper for dialog methods with signal/timeout support */
 	function createDialogPromise<T>(
@@ -167,6 +171,10 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 
 		setWorkingMessage(_message?: string): void {
 			// Working message not supported in RPC mode - requires TUI loader access
+		},
+
+		setWorkingIndicator(_options?: WorkingIndicatorOptions): void {
+			// Working indicator customization not supported in RPC mode - requires TUI loader access
 		},
 
 		setHiddenThinkingLabel(_label?: string): void {
@@ -295,8 +303,8 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 					}
 					return result;
 				},
-				fork: async (entryId) => {
-					const result = await runtimeHost.fork(entryId);
+				fork: async (entryId, forkOptions) => {
+					const result = await runtimeHost.fork(entryId, forkOptions);
 					if (!result.cancelled) {
 						await rebindSession();
 					}
@@ -336,10 +344,27 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 		});
 	};
 
+	const registerSignalHandlers = (): void => {
+		const signals: NodeJS.Signals[] = ["SIGTERM"];
+		if (process.platform !== "win32") {
+			signals.push("SIGHUP");
+		}
+
+		for (const signal of signals) {
+			const handler = () => {
+				killTrackedDetachedChildren();
+				void shutdown(signal === "SIGHUP" ? 129 : 143);
+			};
+			process.on(signal, handler);
+			signalCleanupHandlers.push(() => process.off(signal, handler));
+		}
+	};
+
 	await rebindSession();
+	registerSignalHandlers();
 
 	// Handle a single command
-	const handleCommand = async (command: RpcCommand): Promise<RpcResponse> => {
+	const handleCommand = async (command: RpcCommand): Promise<RpcResponse | undefined> => {
 		const id = command.id;
 
 		switch (command.type) {
@@ -348,17 +373,27 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 			// =================================================================
 
 			case "prompt": {
-				// Don't await - events will stream
-				// Extension commands are executed immediately, file prompt templates are expanded
-				// If streaming and streamingBehavior specified, queues via steer/followUp
-				session
+				// Start prompt handling immediately, but emit the authoritative response only after
+				// prompt preflight succeeds. Queued and immediately handled prompts also count as success.
+				let preflightSucceeded = false;
+				void session
 					.prompt(command.message, {
 						images: command.images,
 						streamingBehavior: command.streamingBehavior,
 						source: "rpc",
+						preflightResult: (didSucceed) => {
+							if (didSucceed) {
+								preflightSucceeded = true;
+								output(success(id, "prompt"));
+							}
+						},
 					})
-					.catch((e) => output(error(id, "prompt", e.message)));
-				return success(id, "prompt");
+					.catch((e) => {
+						if (!preflightSucceeded) {
+							output(error(id, "prompt", e.message));
+						}
+					});
+				return undefined;
 			}
 
 			case "steer": {
@@ -537,6 +572,18 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 				return success(id, "fork", { text: result.selectedText, cancelled: result.cancelled });
 			}
 
+			case "clone": {
+				const leafId = session.sessionManager.getLeafId();
+				if (!leafId) {
+					return error(id, "clone", "Cannot clone session: no current entry selected");
+				}
+				const result = await runtimeHost.fork(leafId, { position: "at" });
+				if (!result.cancelled) {
+					await rebindSession();
+				}
+				return success(id, "clone", { cancelled: result.cancelled });
+			}
+
 			case "get_fork_messages": {
 				const messages = session.getUserMessagesForForking();
 				return success(id, "get_fork_messages", { messages });
@@ -571,7 +618,7 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 			case "get_commands": {
 				const commands: RpcSlashCommand[] = [];
 
-				for (const command of session.extensionRunner?.getRegisteredCommands() ?? []) {
+				for (const command of session.extensionRunner.getRegisteredCommands()) {
 					commands.push({
 						name: command.invocationName,
 						description: command.description,
@@ -614,12 +661,19 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 	 */
 	let detachInput = () => {};
 
-	async function shutdown(): Promise<never> {
+	async function shutdown(exitCode = 0): Promise<never> {
+		if (shuttingDown) {
+			process.exit(exitCode);
+		}
+		shuttingDown = true;
+		for (const cleanup of signalCleanupHandlers) {
+			cleanup();
+		}
 		unsubscribe?.();
 		await runtimeHost.dispose();
 		detachInput();
 		process.stdin.pause();
-		process.exit(0);
+		process.exit(exitCode);
 	}
 
 	async function checkShutdownRequested(): Promise<void> {
@@ -661,7 +715,9 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 		const command = parsed as RpcCommand;
 		try {
 			const response = await handleCommand(command);
-			output(response);
+			if (response) {
+				output(response);
+			}
 			await checkShutdownRequested();
 		} catch (commandError: unknown) {
 			output(

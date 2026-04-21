@@ -2,10 +2,98 @@
 
 ## [Unreleased]
 
+## [0.68.0] - 2026-04-20
+
+### Added
+
+- Added `PI_OAUTH_CALLBACK_HOST` support for built-in Anthropic, Gemini CLI, Google Antigravity, and OpenAI Codex OAuth flows, allowing local callback servers to bind to a custom interface instead of hardcoded `127.0.0.1` ([#3409](https://github.com/badlogic/pi-mono/pull/3409) by [@Michaelliv](https://github.com/Michaelliv))
+
+### Changed
+
+- Changed Bedrock Converse requests to omit `inferenceConfig.maxTokens` when model token limits are unknown and to omit `temperature` when unset, letting Bedrock use model defaults and avoid unnecessary TPM quota reservation ([#3400](https://github.com/badlogic/pi-mono/pull/3400) by [@wirjo](https://github.com/wirjo))
+
+### Fixed
+
+- Fixed `openai-completions` `compat.requiresThinkingAsText` assistant replay to preserve text-part serialization and avoid same-model crashes when prior assistant messages contain both thinking and text ([#3387](https://github.com/badlogic/pi-mono/issues/3387))
+- Fixed Cloud Code Assist tool schemas to strip JSON Schema meta-declaration keys such as `$schema`, `$defs`, and `definitions` before sending OpenAPI `parameters`, avoiding provider validation failures for tool-enabled requests ([#3412](https://github.com/badlogic/pi-mono/pull/3412) by [@vladlearns](https://github.com/vladlearns))
+- Fixed non-vision model requests to replace user and tool-result image blocks with explicit text placeholders instead of silently dropping them during provider payload conversion ([#3429](https://github.com/badlogic/pi-mono/issues/3429))
+- Fixed direct OpenAI Chat Completions requests to map `sessionId` and `cacheRetention` to OpenAI prompt caching fields, sending `prompt_cache_key` when caching is enabled and `prompt_cache_retention: "24h"` for direct `api.openai.com` requests with long retention ([#3426](https://github.com/badlogic/pi-mono/issues/3426))
+- Fixed OpenAI-compatible Chat Completions requests to optionally send aligned `session_id`, `x-client-request-id`, and `x-session-affinity` session-affinity headers from `sessionId` via `compat.sendSessionAffinityHeaders`, enabling cache-affinity routing for backends such as Fireworks ([#3430](https://github.com/badlogic/pi-mono/issues/3430))
+- Fixed direct Bedrock runtime client construction to pass `model.baseUrl` through as the SDK `endpoint`, restoring support for custom Bedrock endpoints such as VPC or proxy routes ([#3402](https://github.com/badlogic/pi-mono/pull/3402) by [@wirjo](https://github.com/wirjo))
+- Fixed OpenAI-compatible Chat Completions Anthropic-style prompt caching to apply `cache_control` markers to the system prompt, last tool definition, and last user/assistant text content via `compat.cacheControlFormat`, and enabled that compat for OpenCode/OpenCode Go Qwen 3.5/3.6 Plus models so prompt caching works there too ([#3392](https://github.com/badlogic/pi-mono/issues/3392))
+
+## [0.67.68] - 2026-04-17
+
+### Fixed
+
+- Fixed Bedrock bearer-token authentication to use the SDK's native token auth path and omit Claude `thinking.display` for GovCloud targets, avoiding duplicate `Authorization` headers and GovCloud Converse validation errors ([#3359](https://github.com/badlogic/pi-mono/issues/3359))
+- Fixed direct Mistral tool definitions to strip TypeBox symbol metadata before passing schemas to the SDK, restoring tool calls after the SDK's stricter outbound validation ([#3361](https://github.com/badlogic/pi-mono/issues/3361))
+
+## [0.67.67] - 2026-04-17
+
+### Added
+
+- Added Bedrock Converse bearer-token authentication via `AWS_BEARER_TOKEN_BEDROCK`, enabling API-key style access without SigV4 credentials ([#3125](https://github.com/badlogic/pi-mono/pull/3125) by [@wirjo](https://github.com/wirjo))
+
+### Fixed
+
+- Fixed Anthropic and Bedrock adaptive-thinking payload tests to expect the default `display: "summarized"` field when reasoning is enabled.
+- Fixed Mistral Small 4 reasoning requests to use `reasoning_effort` instead of `prompt_mode`, restoring default thinking support for `mistral-small-2603` and `mistral-small-latest` ([#3338](https://github.com/badlogic/pi-mono/issues/3338))
+- Fixed `qwen-chat-template` OpenAI-compatible requests to set `chat_template_kwargs.preserve_thinking: true`, preserving prior Qwen thinking across turns so multi-turn tool calls keep their arguments instead of degrading to empty `{}` payloads ([#3325](https://github.com/badlogic/pi-mono/issues/3325))
+- Fixed OpenAI Codex service-tier accounting to trust the explicitly requested tier when the API echoes the default tier in responses, keeping downstream usage costs aligned with the caller-selected tier ([#3307](https://github.com/badlogic/pi-mono/pull/3307) by [@markusylisiurunen](https://github.com/markusylisiurunen))
+
+## [0.67.6] - 2026-04-16
+
+### Added
+
+- Added `onResponse` to `StreamOptions` so callers can inspect provider HTTP status and headers after each response arrives and before the response stream is consumed ([#3128](https://github.com/badlogic/pi-mono/issues/3128))
+- Added `thinkingDisplay` (`"summarized" | "omitted"`) to `AnthropicOptions` and `BedrockOptions`, wiring it through to the Anthropic/Bedrock `thinking` config. Defaults to `"summarized"` so Claude Opus 4.7 and Mythos Preview keep returning thinking text; set it to `"omitted"` to skip thinking streaming for faster time-to-first-text-token.
+
+### Fixed
+
+- Fixed OpenAI Responses prompt caching for non-`api.openai.com` base URLs (OpenAI-compatible proxies such as litellm, theclawbay) by sending the `session_id` and `x-client-request-id` cache-affinity headers unconditionally when a `sessionId` is provided, matching the official Codex CLI behavior ([#3264](https://github.com/badlogic/pi-mono/pull/3264) by [@vegarsti](https://github.com/vegarsti))
+
+## [0.67.5] - 2026-04-16
+
+### Fixed
+
+- Fixed Opus 4.7 adaptive thinking configuration across Anthropic and Bedrock providers by recognizing Opus 4.7 adaptive-thinking support and mapping `xhigh` reasoning to provider-supported effort values ([#3286](https://github.com/badlogic/pi-mono/pull/3286) by [@markusylisiurunen](https://github.com/markusylisiurunen))
+
+## [0.67.4] - 2026-04-16
+
+### Changed
+
+- Added `claude-opus-4-7` model for Anthropic, OpenRouter.
+- Changed Anthropic prompt caching to add a `cache_control` breakpoint on the last tool definition, so tool schemas can be cached independently from transcript updates while preserving existing cache retention behavior ([#3260](https://github.com/badlogic/pi-mono/issues/3260))
+- Changed Kimi Coding model generation to normalize deprecated `k2p5` to `kimi-for-coding` from models.dev data and removed the old static fallback model list ([#3242](https://github.com/badlogic/pi-mono/issues/3242))
+
+## [0.67.3] - 2026-04-15
+
+### Fixed
+
+- Fixed `google-vertex` API key resolution to treat `gcp-vertex-credentials` as an Application Default Credentials marker instead of a literal API key, so marker-based setups correctly fall back to ADC ([#3221](https://github.com/badlogic/pi-mono/pull/3221) by [@deepkilo](https://github.com/deepkilo))
+
+## [0.67.2] - 2026-04-14
+
+### Fixed
+
+- Fixed direct OpenAI Responses requests to send aligned `prompt_cache_key`, `session_id`, and `x-client-request-id` values when `sessionId` is provided, improving prompt cache affinity for append-only sessions ([#3018](https://github.com/badlogic/pi-mono/pull/3018) by [@steipete](https://github.com/steipete))
+- Fixed streaming-only `partialJson` scratch buffers leaking into persisted OpenAI Responses tool calls, which could corrupt follow-up payloads on resumed conversations.
+
+## [0.67.1] - 2026-04-13
+
+## [0.67.0] - 2026-04-13
+
+### Added
+
+- Added full `OpenRouterRouting` field support, including fallbacks, parameter requirements, data collection, ZDR, ignore lists, quantizations, provider sorting, max price, and preferred throughput and latency constraints ([#2904](https://github.com/badlogic/pi-mono/pull/2904) by [@zmberber](https://github.com/zmberber))
+
 ### Fixed
 
 - Bumped default Antigravity User-Agent version to `1.21.9` ([#2901](https://github.com/badlogic/pi-mono/pull/2901) by [@aadishv](https://github.com/aadishv))
 - Fixed thinking levels for Gemma 4 models to use `thinkingLevel` and map Pi reasoning levels to the model's supported thinking levels ([#2903](https://github.com/badlogic/pi-mono/pull/2903) by [@aadishv](https://github.com/aadishv))
+- Fixed Gemini 2.5 Flash Lite minimal thinking budget to use the model's supported 512-token minimum instead of the regular Flash 128-token minimum, avoiding invalid thinking budget errors ([#2861](https://github.com/badlogic/pi-mono/pull/2861) by [@JasonOA888](https://github.com/JasonOA888))
+- Fixed OpenAI Codex Responses requests to forward configured `serviceTier` values, restoring service-tier selection for Codex sessions ([#2996](https://github.com/badlogic/pi-mono/pull/2996) by [@markusylisiurunen](https://github.com/markusylisiurunen))
 
 ## [0.66.1] - 2026-04-08
 

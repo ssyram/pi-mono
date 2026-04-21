@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+## [0.68.0] - 2026-04-20
+
+### Changed
+
+- Clarified parallel tool execution ordering docs to specify that final tool lifecycle and tool-result artifacts are emitted in tool completion order.
+
+## [0.67.68] - 2026-04-17
+
+## [0.67.67] - 2026-04-17
+
+### Fixed
+
+- Fixed parallel tool-call finalization to convert `afterToolCall` hook throws into error tool results instead of aborting the batch ([#3084](https://github.com/badlogic/pi-mono/issues/3084))
+
+## [0.67.6] - 2026-04-16
+
+## [0.67.5] - 2026-04-16
+
+## [0.67.4] - 2026-04-16
+
+## [0.67.3] - 2026-04-15
+
+## [0.67.2] - 2026-04-14
+
+## [0.67.1] - 2026-04-13
+
+## [0.67.0] - 2026-04-13
+
 ## [0.66.1] - 2026-04-08
 
 ## [0.66.0] - 2026-04-08

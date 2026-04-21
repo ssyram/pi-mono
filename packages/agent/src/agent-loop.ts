@@ -341,7 +341,10 @@ async function executeToolCalls(
 	emit: AgentEventSink,
 ): Promise<ToolResultMessage[]> {
 	const toolCalls = assistantMessage.content.filter((c) => c.type === "toolCall");
-	if (config.toolExecution === "sequential") {
+	const hasSequentialToolCall = toolCalls.some(
+		(tc) => currentContext.tools?.find((t) => t.name === tc.name)?.executionMode === "sequential",
+	);
+	if (config.toolExecution === "sequential" || hasSequentialToolCall) {
 		return executeToolCallsSequential(currentContext, assistantMessage, toolCalls, config, signal, emit);
 	}
 	return executeToolCallsParallel(currentContext, assistantMessage, toolCalls, config, signal, emit);
@@ -571,23 +574,28 @@ async function finalizeExecutedToolCall(
 	let isError = executed.isError;
 
 	if (config.afterToolCall) {
-		const afterResult = await config.afterToolCall(
-			{
-				assistantMessage,
-				toolCall: prepared.toolCall,
-				args: prepared.args,
-				result,
-				isError,
-				context: currentContext,
-			},
-			signal,
-		);
-		if (afterResult) {
-			result = {
-				content: afterResult.content ?? result.content,
-				details: afterResult.details ?? result.details,
-			};
-			isError = afterResult.isError ?? isError;
+		try {
+			const afterResult = await config.afterToolCall(
+				{
+					assistantMessage,
+					toolCall: prepared.toolCall,
+					args: prepared.args,
+					result,
+					isError,
+					context: currentContext,
+				},
+				signal,
+			);
+			if (afterResult) {
+				result = {
+					content: afterResult.content ?? result.content,
+					details: afterResult.details ?? result.details,
+				};
+				isError = afterResult.isError ?? isError;
+			}
+		} catch (error) {
+			result = createErrorToolResult(error instanceof Error ? error.message : String(error));
+			isError = true;
 		}
 	}
 

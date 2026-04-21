@@ -20,7 +20,6 @@ import {
 	type ToolConfiguration,
 	ToolResultStatus,
 } from "@aws-sdk/client-bedrock-runtime";
-
 import { calculateCost } from "../models.js";
 import type {
 	Api,
@@ -46,6 +45,8 @@ import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
 import { adjustMaxTokensForThinking, buildBaseOptions, clampReasoning } from "./simple-options.js";
 import { transformMessages } from "./transform-messages.js";
 
+export type BedrockThinkingDisplay = "summarized" | "omitted";
+
 export interface BedrockOptions extends StreamOptions {
 	region?: string;
 	profile?: string;
@@ -56,11 +57,28 @@ export interface BedrockOptions extends StreamOptions {
 	thinkingBudgets?: ThinkingBudgets;
 	/* Only supported by Claude 4.x models, see https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-extended-thinking.html#claude-messages-extended-thinking-tool-use-interleaved */
 	interleavedThinking?: boolean;
+	/**
+	 * Controls how Claude's thinking content is returned in responses.
+	 * - "summarized": Thinking blocks contain summarized thinking text (default here).
+	 * - "omitted": Thinking content is redacted but the signature still travels back
+	 *   for multi-turn continuity, reducing time-to-first-text-token.
+	 *
+	 * Note: Anthropic's API default for Claude Opus 4.7 and Mythos Preview is
+	 * "omitted". We default to "summarized" here to keep behavior consistent with
+	 * older Claude 4 models. Only applies to Claude models on Bedrock.
+	 */
+	thinkingDisplay?: BedrockThinkingDisplay;
 	/** Key-value pairs attached to the inference request for cost allocation tagging.
 	 * Keys: max 64 chars, no `aws:` prefix. Values: max 256 chars. Max 50 pairs.
 	 * Tags appear in AWS Cost Explorer split cost allocation data.
 	 * @see https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ConverseStream.html */
 	requestMetadata?: Record<string, string>;
+	/** Bearer token for Bedrock API key authentication.
+	 * When set, bypasses SigV4 signing and sends Authorization: Bearer <token> instead.
+	 * Requires `bedrock:CallWithBearerToken` IAM permission on the token's identity.
+	 * Set via AWS_BEARER_TOKEN_BEDROCK env var or pass directly.
+	 * @see https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonbedrock.html */
+	bearerToken?: string;
 }
 
 type Block = (TextContent | ThinkingContent | ToolCall) & { index?: number; partialJson?: string };
@@ -96,6 +114,16 @@ export const streamBedrock: StreamFunction<"bedrock-converse-stream", BedrockOpt
 		const config: BedrockRuntimeClientConfig = {
 			profile: options.profile,
 		};
+
+		// Pass custom endpoint when the model has a non-default baseUrl.
+		// This enables VPC endpoints, proxy setups, and custom routing.
+		if (model.baseUrl) {
+			config.endpoint = model.baseUrl;
+		}
+
+		// Resolve bearer token for Bedrock API key auth.
+		const bearerToken = options.bearerToken || process.env.AWS_BEARER_TOKEN_BEDROCK || undefined;
+		const useBearerToken = bearerToken !== undefined && process.env.AWS_BEDROCK_SKIP_AUTH !== "1";
 
 		// in Node.js/Bun environment only
 		if (typeof process !== "undefined" && (process.versions?.node || process.versions?.bun)) {
@@ -148,15 +176,22 @@ export const streamBedrock: StreamFunction<"bedrock-converse-stream", BedrockOpt
 			config.region = options.region || "us-east-1";
 		}
 
+		if (useBearerToken) {
+			config.token = { token: bearerToken };
+			config.authSchemePreference = ["httpBearerAuth"];
+		}
+
 		try {
 			const client = new BedrockRuntimeClient(config);
-
 			const cacheRetention = resolveCacheRetention(options.cacheRetention);
 			let commandInput = {
 				modelId: model.id,
 				messages: convertMessages(context, model, cacheRetention),
 				system: buildSystemPrompt(context.systemPrompt, model, cacheRetention),
-				inferenceConfig: { maxTokens: options.maxTokens, temperature: options.temperature },
+				inferenceConfig: {
+					...(options.maxTokens !== undefined && { maxTokens: options.maxTokens }),
+					...(options.temperature !== undefined && { temperature: options.temperature }),
+				},
 				toolConfig: convertToolConfig(context.tools, options.toolChoice),
 				additionalModelRequestFields: buildAdditionalModelRequestFields(model, options),
 				...(options.requestMetadata !== undefined && { requestMetadata: options.requestMetadata }),
@@ -168,6 +203,13 @@ export const streamBedrock: StreamFunction<"bedrock-converse-stream", BedrockOpt
 			const command = new ConverseStreamCommand(commandInput);
 
 			const response = await client.send(command, { abortSignal: options.signal });
+			if (response.$metadata.httpStatusCode !== undefined) {
+				const responseHeaders: Record<string, string> = {};
+				if (response.$metadata.requestId) {
+					responseHeaders["x-amzn-requestid"] = response.$metadata.requestId;
+				}
+				await options?.onResponse?.({ status: response.$metadata.httpStatusCode, headers: responseHeaders }, model);
+			}
 
 			for await (const item of response.stream!) {
 				if (item.messageStart) {
@@ -211,6 +253,7 @@ export const streamBedrock: StreamFunction<"bedrock-converse-stream", BedrockOpt
 		} catch (error) {
 			for (const block of output.content) {
 				delete (block as Block).index;
+				// partialJson is only a streaming scratch buffer; never persist it.
 				delete (block as Block).partialJson;
 			}
 			output.stopReason = options.signal?.aborted ? "aborted" : "error";
@@ -413,6 +456,8 @@ function handleContentBlockStop(
 			break;
 		case "toolCall":
 			block.arguments = parseStreamingJson(block.partialJson);
+			// Finalize in-place and strip the scratch buffer so replay only
+			// carries parsed arguments.
 			delete (block as Block).partialJson;
 			stream.push({ type: "toolcall_end", contentIndex: index, toolCall: block, partial: output });
 			break;
@@ -420,12 +465,14 @@ function handleContentBlockStop(
 }
 
 /**
- * Check if the model supports adaptive thinking (Opus 4.6 and Sonnet 4.6).
+ * Check if the model supports adaptive thinking (Opus 4.6+, Sonnet 4.6).
  */
 function supportsAdaptiveThinking(modelId: string): boolean {
 	return (
 		modelId.includes("opus-4-6") ||
 		modelId.includes("opus-4.6") ||
+		modelId.includes("opus-4-7") ||
+		modelId.includes("opus-4.7") ||
 		modelId.includes("sonnet-4-6") ||
 		modelId.includes("sonnet-4.6")
 	);
@@ -434,7 +481,7 @@ function supportsAdaptiveThinking(modelId: string): boolean {
 function mapThinkingLevelToEffort(
 	level: SimpleStreamOptions["reasoning"],
 	modelId: string,
-): "low" | "medium" | "high" | "max" {
+): "low" | "medium" | "high" | "xhigh" | "max" {
 	switch (level) {
 		case "minimal":
 		case "low":
@@ -444,7 +491,13 @@ function mapThinkingLevelToEffort(
 		case "high":
 			return "high";
 		case "xhigh":
-			return modelId.includes("opus-4-6") || modelId.includes("opus-4.6") ? "max" : "high";
+			if (modelId.includes("opus-4-6") || modelId.includes("opus-4.6")) {
+				return "max";
+			}
+			if (modelId.includes("opus-4-7") || modelId.includes("opus-4.7")) {
+				return "xhigh";
+			}
+			return "high";
 		default:
 			return "high";
 	}
@@ -732,6 +785,16 @@ function mapStopReason(reason: string | undefined): StopReason {
 	}
 }
 
+function isGovCloudBedrockTarget(model: Model<"bedrock-converse-stream">, options: BedrockOptions): boolean {
+	const region = options.region || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION;
+	if (region?.toLowerCase().startsWith("us-gov-")) {
+		return true;
+	}
+
+	const modelId = model.id.toLowerCase();
+	return modelId.startsWith("us-gov.") || modelId.startsWith("arn:aws-us-gov:");
+}
+
 function buildAdditionalModelRequestFields(
 	model: Model<"bedrock-converse-stream">,
 	options: BedrockOptions,
@@ -741,9 +804,12 @@ function buildAdditionalModelRequestFields(
 	}
 
 	if (model.id.includes("anthropic.claude") || model.id.includes("anthropic/claude")) {
+		// GovCloud Bedrock currently rejects the Claude thinking.display field.
+		// Omit it there until the GovCloud Converse schema catches up.
+		const display = isGovCloudBedrockTarget(model, options) ? undefined : (options.thinkingDisplay ?? "summarized");
 		const result: Record<string, any> = supportsAdaptiveThinking(model.id)
 			? {
-					thinking: { type: "adaptive" },
+					thinking: { type: "adaptive", ...(display !== undefined ? { display } : {}) },
 					output_config: { effort: mapThinkingLevelToEffort(options.reasoning, model.id) },
 				}
 			: (() => {
@@ -763,6 +829,7 @@ function buildAdditionalModelRequestFields(
 						thinking: {
 							type: "enabled",
 							budget_tokens: budget,
+							...(display !== undefined ? { display } : {}),
 						},
 					};
 				})();

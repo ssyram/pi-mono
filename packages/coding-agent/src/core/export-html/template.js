@@ -709,6 +709,7 @@
             div.appendChild(content);
             // Navigate to the newest leaf through this node, but scroll to the clicked node
             div.addEventListener('click', () => {
+              if (window.getSelection().toString()) return;
               const leafId = findNewestLeaf(entry.id);
               navigateTo(leafId, 'target', entry.id);
             });
@@ -827,7 +828,7 @@
               previewHighlighted = escapeHtml(previewCode);
             }
 
-            return `<div class="tool-output expandable" onclick="this.classList.toggle('expanded')">
+            return `<div class="tool-output expandable" onclick="if(window.getSelection().toString())return;this.classList.toggle('expanded')">
               <div class="output-preview"><pre><code class="hljs">${previewHighlighted}</code></pre>
               <div class="expand-hint">... (${remaining} more lines)</div></div>
               <div class="output-full"><pre><code class="hljs">${highlighted}</code></pre></div></div>`;
@@ -838,7 +839,7 @@
 
         // Plain text output
         if (remaining > 0) {
-          let out = '<div class="tool-output expandable" onclick="this.classList.toggle(\'expanded\')">';
+          let out = '<div class="tool-output expandable" onclick="if(window.getSelection().toString())return;this.classList.toggle(\'expanded\')">';
           out += '<div class="output-preview">';
           for (const line of displayLines) {
             out += `<div>${escapeHtml(replaceTabs(line))}</div>`;
@@ -976,7 +977,7 @@
               
               if (rendered.resultHtmlCollapsed && rendered.resultHtmlExpanded && rendered.resultHtmlCollapsed !== rendered.resultHtmlExpanded) {
                 // Both collapsed and expanded differ - render expandable section
-                html += `<div class="tool-output expandable ansi-rendered" onclick="this.classList.toggle('expanded')">
+                html += `<div class="tool-output expandable ansi-rendered" onclick="if(window.getSelection().toString())return;this.classList.toggle('expanded')">
                   <div class="output-preview">${rendered.resultHtmlCollapsed}</div>
                   <div class="output-full">${rendered.resultHtmlExpanded}</div>
                 </div>`;
@@ -1198,7 +1199,7 @@
         }
 
         if (entry.type === 'compaction') {
-          return `<div class="compaction" id="${entryId}" onclick="this.classList.toggle('expanded')">
+          return `<div class="compaction" id="${entryId}" onclick="if(window.getSelection().toString())return;this.classList.toggle('expanded')">
             <div class="compaction-label">[compaction]</div>
             <div class="compaction-collapsed">Compacted from ${entry.tokensBefore.toLocaleString()} tokens</div>
             <div class="compaction-content"><strong>Compacted from ${entry.tokensBefore.toLocaleString()} tokens</strong>\n\n${escapeHtml(entry.summary)}</div>
@@ -1290,8 +1291,12 @@
           <div class="header">
             <h1>Session: ${escapeHtml(header?.id || 'unknown')}</h1>
             <div class="help-bar">
-              <span>Ctrl+T toggle thinking · Ctrl+O toggle tools</span>
-              <button class="download-json-btn" onclick="downloadSessionJson()" title="Download session as JSONL">↓ JSONL</button>
+              <span class="help-hint">T toggle thinking · O toggle tools</span>
+              <div class="help-actions">
+                <button type="button" class="header-toggle-btn" data-action="toggle-thinking" title="Toggle thinking (T)">Toggle thinking</button>
+                <button type="button" class="header-toggle-btn" data-action="toggle-tools" title="Toggle tools (O)">Toggle tools</button>
+                <button type="button" class="download-json-btn" onclick="downloadSessionJson()" title="Download session as JSONL">↓ JSONL</button>
+              </div>
             </div>
             <div class="header-info">
               <div class="info-item"><span class="info-label">Date:</span><span class="info-value">${header?.timestamp ? new Date(header.timestamp).toLocaleString() : 'unknown'}</span></div>
@@ -1310,7 +1315,7 @@
           if (lines.length > previewLines) {
             const preview = lines.slice(0, previewLines).join('\n');
             const remaining = lines.length - previewLines;
-            html += `<div class="system-prompt expandable" onclick="this.classList.toggle('expanded')">
+            html += `<div class="system-prompt expandable" onclick="if(window.getSelection().toString())return;this.classList.toggle('expanded')">
               <div class="system-prompt-header">System Prompt</div>
               <div class="system-prompt-preview">${escapeHtml(preview)}</div>
               <div class="system-prompt-expand-hint">... (${remaining} more lines, click to expand)</div>
@@ -1347,7 +1352,7 @@
                   }
                   paramsHtml += `</div>`;
                 }
-                return `<div class="tool-item" onclick="this.classList.toggle('params-expanded')"><span class="tool-item-name">${escapeHtml(t.name)}</span> - <span class="tool-item-desc">${escapeHtml(t.description)}</span> <span class="tool-params-hint"></span><div class="tool-params-content">${paramsHtml}</div></div>`;
+                return `<div class="tool-item" onclick="if(window.getSelection().toString())return;this.classList.toggle('params-expanded')"><span class="tool-item-name">${escapeHtml(t.name)}</span> - <span class="tool-item-desc">${escapeHtml(t.description)}</span> <span class="tool-params-hint"></span><div class="tool-params-content">${paramsHtml}</div></div>`;
               }).join('')}
             </div>
           </div>`;
@@ -1392,6 +1397,7 @@
         renderTree();
 
         document.getElementById('header-container').innerHTML = renderHeader();
+        attachHeaderHandlers();
 
         // Build messages using cached DOM nodes
         const messagesEl = document.getElementById('messages');
@@ -1448,9 +1454,23 @@
       }
 
       // Configure marked with syntax highlighting and HTML escaping for text
+      const strictStrikethroughRegex = /^(~~)(?=[^\s~])((?:\\.|[^\\])*?(?:\\.|[^\s~\\]))\1(?=[^~]|$)/;
+
       marked.use({
         breaks: true,
         gfm: true,
+        tokenizer: {
+          del(src) {
+            const match = strictStrikethroughRegex.exec(src);
+            if (!match) return undefined;
+            return {
+              type: 'del',
+              raw: match[0],
+              text: match[2],
+              tokens: this.lexer.inlineTokens(match[2])
+            };
+          }
+        },
         renderer: {
           // Code blocks: syntax highlight, no HTML escaping
           code(token) {
@@ -1657,6 +1677,20 @@
         });
       };
 
+      const attachHeaderHandlers = () => {
+        document.querySelector('[data-action="toggle-thinking"]')?.addEventListener('click', toggleThinking);
+        document.querySelector('[data-action="toggle-tools"]')?.addEventListener('click', toggleToolOutputs);
+      };
+
+      const isEditableTarget = (element) => {
+        if (!element) return false;
+        const tagName = element.tagName;
+        if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT' || tagName === 'BUTTON') {
+          return true;
+        }
+        return element.isContentEditable || Boolean(element.closest?.('[contenteditable="true"]'));
+      };
+
       // Keyboard shortcuts
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
@@ -1664,11 +1698,16 @@
           searchQuery = '';
           navigateTo(leafId, 'bottom');
         }
-        if (e.ctrlKey && e.key === 't') {
+
+        if (isEditableTarget(document.activeElement)) {
+          return;
+        }
+
+        const key = e.key.toLowerCase();
+        if (key === 't') {
           e.preventDefault();
           toggleThinking();
-        }
-        if (e.ctrlKey && e.key === 'o') {
+        } else if (key === 'o') {
           e.preventDefault();
           toggleToolOutputs();
         }

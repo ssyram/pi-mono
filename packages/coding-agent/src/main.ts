@@ -24,6 +24,7 @@ import {
 } from "./core/agent-session-services.js";
 import { AuthStorage } from "./core/auth-storage.js";
 import { exportFromFile } from "./core/export-html/index.js";
+import type { ExtensionFactory } from "./core/extensions/types.js";
 import { KeybindingsManager } from "./core/keybindings.js";
 import type { ModelRegistry } from "./core/model-registry.js";
 import { resolveCliModel, resolveModelScope, type ScopedModel } from "./core/model-resolver.js";
@@ -38,7 +39,6 @@ import {
 import { SessionManager } from "./core/session-manager.js";
 import { SettingsManager } from "./core/settings-manager.js";
 import { printTimings, resetTimings, time } from "./core/timings.js";
-import { allTools } from "./core/tools/index.js";
 import { runMigrations, showDeprecationWarnings } from "./migrations.js";
 import { InteractiveMode, runPrintMode, runRpcMode } from "./modes/index.js";
 import { ExtensionSelectorComponent } from "./modes/interactive/components/extension-selector.js";
@@ -367,14 +367,10 @@ function buildSessionOptions(
 	// Tools
 	if (parsed.noTools) {
 		// --no-tools: start with no built-in tools
-		// --tools can still add specific ones back
-		if (parsed.tools && parsed.tools.length > 0) {
-			options.tools = parsed.tools.map((name) => allTools[name]);
-		} else {
-			options.tools = [];
-		}
+		// --tools can still add specific ones back, including extension tools.
+		options.tools = parsed.tools && parsed.tools.length > 0 ? [...parsed.tools] : [];
 	} else if (parsed.tools) {
-		options.tools = parsed.tools.map((name) => allTools[name]);
+		options.tools = [...parsed.tools];
 	}
 
 	return { options, cliThinkingFromModel, diagnostics };
@@ -418,7 +414,11 @@ async function promptForMissingSessionCwd(
 	});
 }
 
-export async function main(args: string[]) {
+export interface MainOptions {
+	extensionFactories?: ExtensionFactory[];
+}
+
+export async function main(args: string[], options?: MainOptions) {
 	resetTimings();
 	const offlineMode = args.includes("--offline") || isTruthyEnvFlag(process.env.PI_OFFLINE);
 	if (offlineMode) {
@@ -533,8 +533,10 @@ export async function main(args: string[]) {
 				noSkills: parsed.noSkills,
 				noPromptTemplates: parsed.noPromptTemplates,
 				noThemes: parsed.noThemes,
+				noContextFiles: parsed.noContextFiles,
 				systemPrompt: parsed.systemPrompt,
 				appendSystemPrompt: parsed.appendSystemPrompt,
+				extensionFactories: options?.extensionFactories,
 			},
 		});
 		const { settingsManager, modelRegistry, resourceLoader } = services;
