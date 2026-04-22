@@ -33,12 +33,14 @@ import { registerCustomCompaction } from "./hooks/custom-compaction.js";
 import { registerStartWork } from "./commands/start-work.js";
 import { registerConsult } from "./commands/consult.js";
 import { registerReviewPlan } from "./commands/review-plan.js";
+import { ensureSubagentLinks } from "./subagent-links.js";
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
 export default async function ohMyPiV2(pi: ExtensionAPI) {
 	const __dirname = dirname(fileURLToPath(import.meta.url));
 	const agentsDir = resolve(__dirname, "agents");
+	await ensureSubagentLinks(agentsDir);
 	// 1. Load config (fallback to defaults on malformed config)
 	let config: Awaited<ReturnType<typeof loadConfig>>;
 	try {

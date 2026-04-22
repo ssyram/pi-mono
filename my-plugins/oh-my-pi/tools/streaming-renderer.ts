@@ -69,7 +69,13 @@ export function renderStreamingResult(
 	options: { expanded: boolean; isPartial: boolean },
 	theme: Theme,
 ): Component {
-	const details = result.details;
+	const raw: unknown = result.details;
+	const details =
+		typeof raw === "object" && raw !== null &&
+		typeof (raw as Record<string, unknown>).status === "string" &&
+		Array.isArray((raw as Record<string, unknown>).items)
+			? (raw as StreamingDetails)
+			: undefined;
 	if (!details) {
 		// Fallback for non-streaming results
 		const t = result.content[0];

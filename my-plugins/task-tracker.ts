@@ -314,7 +314,16 @@ export default function (pi: ExtensionAPI) {
 		},
 
 		renderResult(result, { expanded }, theme, _context) {
-			const details = result.details as TaskDetails | undefined;
+			const raw = result.details;
+			// details may be replaced by another plugin (e.g. impression distillation),
+			// so validate the shape at runtime before trusting it.
+			const details =
+				typeof raw === "object" && raw !== null &&
+				typeof (raw as Record<string, unknown>).action === "string" &&
+				Array.isArray((raw as Record<string, unknown>).tasks)
+					? (raw as TaskDetails)
+					: undefined;
+
 			if (!details) {
 				const t = result.content[0];
 				return new Text(t?.type === "text" ? t.text : "", 0, 0);
@@ -367,6 +376,11 @@ export default function (pi: ExtensionAPI) {
 					const t = result.content[0];
 					const msg = t?.type === "text" ? t.text : "";
 					return new Text(theme.fg("success", "✓ ") + theme.fg("muted", msg), 0, 0);
+				}
+
+				default: {
+					const t = result.content[0];
+					return new Text(t?.type === "text" ? t.text : "", 0, 0);
 				}
 			}
 		},

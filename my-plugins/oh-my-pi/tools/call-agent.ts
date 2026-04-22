@@ -367,24 +367,32 @@ export function registerCallAgent(
 		},
 
 		renderResult(result, options, theme, _context) {
-			const details = result.details as
-				| (StreamingDetails & { jobId?: string })
-				| { jobId: string; agent: string; model: string; sessionId: string; modelWarning?: string }
-				| undefined;
+			const raw = result.details;
 
-			// Background job result -- no streaming
-			if (details && "jobId" in details && details.jobId) {
+			// Background job result — details has jobId + agent as strings.
+			// details may be replaced by another plugin (e.g. impression distillation),
+			// so validate the shape at runtime before trusting it.
+			if (
+				typeof raw === "object" && raw !== null &&
+				typeof (raw as Record<string, unknown>).jobId === "string" &&
+				typeof (raw as Record<string, unknown>).agent === "string"
+			) {
+				const d = raw as { jobId: string; agent: string; model: string };
 				return new Text(
 					theme.fg("success", "Queued ") +
-						theme.fg("accent", details.jobId.slice(0, 8)) +
-						theme.fg("dim", ` -> ${details.agent} (${details.model})`),
+						theme.fg("accent", d.jobId.slice(0, 8)) +
+						theme.fg("dim", ` -> ${d.agent} (${d.model})`),
 					0,
 					0,
 				);
 			}
 
-			// Streaming/completed inline result
-			if (details && "status" in details) {
+			// Streaming/completed inline result — details has status + items array.
+			if (
+				typeof raw === "object" && raw !== null &&
+				typeof (raw as Record<string, unknown>).status === "string" &&
+				Array.isArray((raw as Record<string, unknown>).items)
+			) {
 				return renderStreamingResult(
 					result as AgentToolResult<StreamingDetails>,
 					{ expanded: options.expanded, isPartial: options.isPartial },
@@ -392,11 +400,10 @@ export function registerCallAgent(
 				);
 			}
 
-			// Fallback
+			// Fallback: details missing or replaced by another plugin.
 			const t = result.content[0];
 			const text = t?.type === "text" ? t.text : "";
-			const preview =
-				text.length > 120 ? text.slice(0, 117) + "..." : text;
+			const preview = text.length > 120 ? text.slice(0, 117) + "..." : text;
 			return new Text(
 				theme.fg("success", "Done ") + theme.fg("muted", preview),
 				0,

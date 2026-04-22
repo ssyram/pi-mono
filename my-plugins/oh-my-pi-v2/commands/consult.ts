@@ -7,7 +7,6 @@ import {
 	type ExtensionCommandContext,
 	SessionManager,
 	createAgentSession,
-	readOnlyTools,
 } from "@mariozechner/pi-coding-agent";
 
 import { readAgentPrompt, extractLastAssistantText } from "./utils.js";
@@ -56,7 +55,7 @@ async function handleConsult(
 		model,
 		modelRegistry: ctx.modelRegistry,
 		sessionManager: SessionManager.inMemory(ctx.cwd),
-		tools: readOnlyTools,
+		tools: ["read", "grep", "find", "ls"],
 	});
 
 	try {

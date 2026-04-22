@@ -26,7 +26,16 @@ export function renderTaskResult(
 	theme: any,
 	_context: any,
 ) {
-	const details = result.details as TaskDetails | undefined;
+	const raw = result.details;
+	// details may be replaced by another plugin (e.g. impression distillation),
+	// so validate the shape at runtime before trusting it.
+	const details =
+		typeof raw === "object" && raw !== null &&
+		typeof (raw as Record<string, unknown>).action === "string" &&
+		Array.isArray((raw as Record<string, unknown>).tasks)
+			? (raw as TaskDetails)
+			: undefined;
+
 	if (!details) {
 		const t = result.content[0];
 		return new Text(t?.type === "text" ? t.text : "", 0, 0);

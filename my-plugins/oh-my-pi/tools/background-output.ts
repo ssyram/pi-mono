@@ -280,7 +280,13 @@ export function registerBackgroundOutput(
 		},
 
 		renderResult(result, { expanded }, theme, _context) {
-			const details = result.details as BackgroundOutputDetails | undefined;
+			const raw = result.details;
+			const details =
+				typeof raw === "object" && raw !== null &&
+				typeof (raw as Record<string, unknown>).jobId === "string" &&
+				typeof (raw as Record<string, unknown>).status === "string"
+					? (raw as BackgroundOutputDetails)
+					: undefined;
 			if (!details) {
 				const t = result.content[0];
 				return new Text(t?.type === "text" ? t.text : "", 0, 0);

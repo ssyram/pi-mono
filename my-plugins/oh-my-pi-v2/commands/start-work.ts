@@ -18,7 +18,6 @@ import type {
 import {
 	SessionManager,
 	createAgentSession,
-	readOnlyTools,
 } from "@mariozechner/pi-coding-agent";
 import type { AgentSession } from "@mariozechner/pi-coding-agent";
 import { writeFile, mkdir, readFile } from "node:fs/promises";
@@ -121,7 +120,7 @@ async function runMomusReview(
 		model: ctx.model ?? undefined,
 		modelRegistry: ctx.modelRegistry,
 		sessionManager: SessionManager.inMemory(ctx.cwd),
-		tools: readOnlyTools,
+		tools: ["read", "grep", "find", "ls"],
 	});
 
 	try {
@@ -192,7 +191,7 @@ export function registerStartWork(
 					model: ctx.model ?? undefined,
 					modelRegistry: ctx.modelRegistry,
 					sessionManager: SessionManager.inMemory(ctx.cwd),
-					tools: readOnlyTools,
+					tools: ["read", "grep", "find", "ls"],
 				});
 
 				try {

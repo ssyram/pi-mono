@@ -12,9 +12,6 @@ import type { Api, Model } from "@mariozechner/pi-ai";
 import {
 	createAgentSession,
 	createExtensionRuntime,
-	createReadTool,
-	createBashTool,
-	createGrepTool,
 	defineTool,
 	SessionManager,
 	SettingsManager,
@@ -102,15 +99,6 @@ export async function runPhase<T>(options: PhaseRunOptions): Promise<PhaseRunRes
 		},
 	});
 
-	// Build builtin tools
-	const tools = builtinTools.map((t) => {
-		switch (t) {
-			case "read": return createReadTool(cwd);
-			case "bash": return createBashTool(cwd);
-			case "grep": return createGrepTool(cwd);
-		}
-	});
-
 	const resourceLoader: ResourceLoader = {
 		getExtensions: () => ({ extensions: [], errors: [], runtime: createExtensionRuntime() }),
 		getSkills: () => ({ skills: [], diagnostics: [] }),
@@ -134,7 +122,7 @@ export async function runPhase<T>(options: PhaseRunOptions): Promise<PhaseRunRes
 		thinkingLevel: "off",
 		modelRegistry,
 		resourceLoader,
-		tools,
+		tools: [...builtinTools],
 		customTools: [wrappedSubmitTool as never],
 		sessionManager: SessionManager.inMemory(cwd),
 		settingsManager,

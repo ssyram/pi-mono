@@ -7,12 +7,7 @@
 
 import type { AssistantMessage } from "@mariozechner/pi-ai";
 import {
-	codingTools,
 	type CreateAgentSessionResult,
-	findTool,
-	grepTool,
-	lsTool,
-	readOnlyTools,
 } from "@mariozechner/pi-coding-agent";
 
 import type { AgentDef } from "../agents/types.js";
@@ -78,17 +73,17 @@ export function extractText(message: AssistantMessage): string {
 
 // ─── Tool preset resolution ─────────────────────────────────────────────────
 
-export function resolveToolPreset(preset: AgentDef["toolPreset"]) {
+export function resolveToolPreset(preset: AgentDef["toolPreset"]): string[] {
 	switch (preset) {
 		case "read-only":
-			return readOnlyTools;
+			return ["read", "grep", "find", "ls"];
 		case "coding":
-			return codingTools;
+			return ["read", "bash", "edit", "write"];
 		case "all":
-			return [...codingTools, grepTool, findTool, lsTool];
+			return ["read", "bash", "edit", "write", "grep", "find", "ls"];
 		default:
 			console.warn(`[session-runner] Unknown tool preset "${preset}", falling back to coding tools`);
-			return codingTools;
+			return ["read", "bash", "edit", "write"];
 	}
 }
 

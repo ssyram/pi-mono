@@ -366,6 +366,7 @@ export class ConcurrencyManager {
 				this.onError(jobId, `Stale timeout: no progress for ${this.config.staleTimeoutMs / 1000}s`);
 			}
 		}, this.config.staleTimeoutMs);
+		timer.unref?.();
 		this.staleTimers.set(jobId, timer);
 	}
 

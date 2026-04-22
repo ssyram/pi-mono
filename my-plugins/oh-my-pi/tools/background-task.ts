@@ -190,7 +190,12 @@ export function registerBackgroundTask(
 		},
 
 		renderResult(result, { expanded }, theme, _context) {
-			const details = result.details as BackgroundTaskDetails | undefined;
+			const raw = result.details;
+			const details =
+				typeof raw === "object" && raw !== null &&
+				typeof (raw as Record<string, unknown>).action === "string"
+					? (raw as BackgroundTaskDetails)
+					: undefined;
 			if (!details) {
 				const t = result.content[0];
 				return new Text(t?.type === "text" ? t.text : "", 0, 0);
@@ -284,6 +289,11 @@ export function registerBackgroundTask(
 					const t = result.content[0];
 					const msg = t?.type === "text" ? t.text : "";
 					return new Text(theme.fg("success", "x ") + theme.fg("muted", msg), 0, 0);
+				}
+
+				default: {
+					const t = result.content[0];
+					return new Text(t?.type === "text" ? (t.text ?? "") : "", 0, 0);
 				}
 			}
 		},
