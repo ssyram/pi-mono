@@ -1,0 +1,79 @@
+task_description: "Implement a small feature end-to-end: plan → implement → test → review → done. Do not skip steps."
+
+# Condition command convention:
+#   condition: { cmd: "<executable>", args: [<interpolated args>] }
+# Args are interpolated before spawning:
+#   ${$TAPE_FILE}  -> absolute path to tape.json
+#   ${ARG_NAME}    -> LLM-supplied value for action argument ARG_NAME
+# Stdout must start with "true" or "false" on the first line; the rest is the reason.
+#
+# This example invokes small helper scripts shipped alongside the flow (see
+# ./scripts/) so the YAML stays readable.
+
+states:
+  - state_id: "$START"
+    state_desc: "Beginning of the feature workflow. You must first produce a plan via the `plan` action before implementing anything."
+    is_epsilon: false
+    actions:
+      - action_id: "plan"
+        action_desc: "Submit a written plan for the feature. Writes PLAN_TEXT to tape.json."
+        arguments:
+          - arg_name: "PLAN_TEXT"
+            arg_desc: "A plain-text plan (2-10 lines) describing the intended changes."
+        condition:
+          cmd: "node"
+          args: ["./scripts/save-plan.mjs", "${$TAPE_FILE}", "${PLAN_TEXT}"]
+        next_state_id: "implement"
+
+  - state_id: "implement"
+    state_desc: "Write the code. When you believe the implementation is complete, call `mark_done`."
+    is_epsilon: false
+    actions:
+      - action_id: "mark_done"
+        action_desc: "Signal that implementation is complete. Requires tape key CODE_WRITTEN=1 (set via save-to-steering-flow after the edits land)."
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key.mjs", "CODE_WRITTEN", "1", "${$TAPE_FILE}"]
+        next_state_id: "test"
+
+  - state_id: "test"
+    state_desc: "Run the tests. Save TESTS_PASSED=1 (or 0) to the tape; the router will branch automatically."
+    is_epsilon: false
+    actions:
+      - action_id: "tests_run"
+        action_desc: "Signal that tests have been executed (result stored in tape key TESTS_PASSED)."
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key-any.mjs", "TESTS_PASSED", "${$TAPE_FILE}"]
+        next_state_id: "test_router"
+
+  - state_id: "test_router"
+    state_desc: "Automatic router — branches on TESTS_PASSED."
+    is_epsilon: true
+    actions:
+      - action_id: "tests_ok"
+        action_desc: "Tests passed → review"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key.mjs", "TESTS_PASSED", "1", "${$TAPE_FILE}"]
+        next_state_id: "review"
+      - action_id: "tests_fail"
+        action_desc: "Default → go back to implement"
+        condition: { default: true }
+        next_state_id: "implement"
+
+  - state_id: "review"
+    state_desc: "Final self-review. Call `approve` to finish."
+    is_epsilon: false
+    actions:
+      - action_id: "approve"
+        action_desc: "Approve and finish the flow."
+        condition:
+          cmd: "node"
+          args: ["./scripts/always-true.mjs", "approved"]
+        next_state_id: "$END"
+
+  - state_id: "$END"
+    state_desc: "Feature shipped: plan documented, code written, tests passed, and self-review approved."
+    is_epsilon: false
+    actions: []
