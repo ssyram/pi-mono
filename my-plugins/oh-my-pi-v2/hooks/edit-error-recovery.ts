@@ -90,8 +90,8 @@ export function registerEditErrorRecovery(pi: ExtensionAPI): void {
 					{ type: "text" as const, text: `\n\nHint: ${matched.hint}\n${RECOVERY_REMINDER}` },
 				],
 			};
-		} catch {
-			// Hooks must never throw
+		} catch (err) {
+			console.error(`[oh-my-pi edit-recovery] Failed to build edit recovery hint: ${err instanceof Error ? err.message : String(err)}`);
 			return undefined;
 		}
 	});

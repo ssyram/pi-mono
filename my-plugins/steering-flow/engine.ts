@@ -173,6 +173,7 @@ export async function runCondition(
 			}
 		});
 		child.on("error", (err) => {
+			closed = true;
 			settle({ ok: false, reason: `condition kind=spawn-error: ${err.message}` });
 		});
 	});
@@ -269,6 +270,8 @@ export async function executeAction(
 
 	// Check $END
 	if (runtime.current_state_id === "$END") {
+		runtime.transition_log ??= [];
+		runtime.transition_log.push(...chain);
 		return {
 			success: true,
 			chain,
@@ -282,7 +285,7 @@ export async function executeAction(
 	// Chain through epsilon states
 	const epsilonResult = await chainEpsilon(runtime, chain, tapePath, cwd);
 	if (!epsilonResult.ok) {
-		// Rollback: do not persist a half-advanced state
+		// Rollback: restore state but preserve tape (tape is cumulative, never rolled back)
 		runtime.current_state_id = snapshotStateId;
 		return {
 			success: false,
@@ -296,6 +299,8 @@ export async function executeAction(
 		};
 	}
 
+	runtime.transition_log ??= [];
+	runtime.transition_log.push(...chain);
 	return {
 		success: true,
 		chain,
@@ -320,23 +325,30 @@ export async function chainEpsilon(
 	let depth = 0;
 	while (depth < MAX_EPSILON_DEPTH) {
 		const state = runtime.states[runtime.current_state_id];
-		if (!state) return { ok: false, error: `state '${runtime.current_state_id}' not found` };
+		if (!state) {
+			return { ok: false, error: `state '${runtime.current_state_id}' not found` };
+		}
 		if (!state.is_epsilon) return { ok: true };  // $END is non-epsilon, caught here
 
 		// Try actions in order (no LLM args on epsilon actions)
 		let matched: Action | undefined;
 		let matchedReason = "";
+		// NDA-07: collect per-condition rejection reasons
+		const failReasons: string[] = [];
 		for (const act of state.actions) {
-			const res = await runCondition(act.condition, tapePath, [], cwd, runtime.flow_dir);
+			// NDA-04: pass explicit empty namedArgs (epsilon states have no declared args)
+			const res = await runCondition(act.condition, tapePath, [], cwd, runtime.flow_dir, {});
 			if (res.ok) {
 				matched = act;
 				matchedReason = res.reason;
 				break;
 			}
+			failReasons.push(`action '${act.action_id}': ${res.reason}`);
 		}
 
 		if (!matched) {
-			return { ok: false, error: `epsilon state '${state.state_id}' had no matching condition (and no { default: true })` };
+			const detail = failReasons.length > 0 ? `; tried: ${failReasons.join(" | ")}` : "";
+			return { ok: false, error: `epsilon state '${state.state_id}' had no matching condition (and no { default: true })${detail}` };
 		}
 
 		chain.push({

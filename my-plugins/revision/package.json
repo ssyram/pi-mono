@@ -1,0 +1,12 @@
+{
+  "name": "pi-revision",
+  "version": "0.1.0",
+  "description": "Revise a previous user turn by duplicating it onto a new branch with a recap box",
+  "private": false,
+  "type": "module",
+  "license": "MIT",
+  "keywords": ["pi-package", "pi", "pi-coding-agent", "revision", "revise"],
+  "pi": {
+    "extensions": ["revision.ts"]
+  }
+}

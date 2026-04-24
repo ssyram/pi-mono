@@ -82,8 +82,8 @@ function matchesGlob(filename: string, pattern: string): boolean {
 
   try {
     return nodeMatchesGlob(filename, pattern);
-  } catch {
-    // Invalid glob pattern — treat as non-matching rather than crashing
+  } catch (err) {
+    console.error(`[oh-my-pi rules] Invalid glob pattern "${pattern}": ${err instanceof Error ? err.message : String(err)}`);
     return false;
   }
 }
@@ -130,7 +130,8 @@ function parseFrontmatter(raw: string): { metadata: RuleMetadata; body: string }
   try {
     const metadata = parseSimpleYaml(yamlContent);
     return { metadata, body };
-  } catch {
+  } catch (err) {
+    console.error(`[oh-my-pi rules] Failed to parse rule frontmatter: ${err instanceof Error ? err.message : String(err)}`);
     return { metadata: {}, body: raw };
   }
 }
@@ -255,13 +256,13 @@ async function scanRuleDir(
         const name = basename(file).replace(/\.(md|mdc)$/, "");
 
         rules.push({ name, body, metadata, hash, source: sourceLabel });
-      } catch {
-        // Skip unreadable files
+      } catch (err) {
+        console.error(`[oh-my-pi rules] Failed to read rule file ${join(dir, file)}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
     return rules;
-  } catch {
-    // Directory doesn't exist or unreadable
+  } catch (err) {
+    console.error(`[oh-my-pi rules] Failed to scan rule directory ${dir}: ${err instanceof Error ? err.message : String(err)}`);
     return [];
   }
 }
@@ -381,8 +382,8 @@ export function registerRulesInjector(
         return {
           systemPrompt: event.systemPrompt + injection,
         };
-      } catch {
-        // Hooks must never throw
+      } catch (err) {
+        console.error(`[oh-my-pi rules] Rules injection failed: ${err instanceof Error ? err.message : String(err)}`);
         return undefined;
       }
     },

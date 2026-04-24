@@ -51,6 +51,7 @@ export function executeStart(id: number | undefined, tasks: Task[], nextId: numb
 	if (id === undefined) return err("start", "id is required for start", tasks, nextId);
 	const task = tasks.find((t) => t.id === id);
 	if (!task) return err("start", `task #${id} not found`, tasks, nextId);
+	if (task.status !== "pending") return err("start", `task #${id} is ${task.status} and cannot be started`, tasks, nextId);
 	if (!isUnblocked(task, tasks)) {
 		const blockers = task.blockedBy.filter((bid) => {
 			const dep = tasks.find((d) => d.id === bid);
@@ -115,12 +116,17 @@ export function executeUpdateDeps(
 	// Build the adjacency (blockedBy edges) that WOULD exist after this update,
 	// then check if task.id is reachable from itself via those edges.
 	{
-		// Snapshot the proposed blockedBy for each task
 		const proposedBlockedBy = new Map<number, number[]>();
 		for (const t of tasks) {
-			proposedBlockedBy.set(t.id, t.id === task.id ? [...newBlockedBy] : [...t.blockedBy]);
+			proposedBlockedBy.set(t.id, [...t.blockedBy]);
 		}
-		// For each id in newBlocks, ensure the reverse edge (id.blockedBy includes task.id)
+
+		for (const id of task.blocks) {
+			const deps = proposedBlockedBy.get(id);
+			if (deps) proposedBlockedBy.set(id, deps.filter((b) => b !== task.id));
+		}
+		proposedBlockedBy.set(task.id, [...newBlockedBy]);
+
 		for (const id of newBlocks) {
 			const deps = proposedBlockedBy.get(id);
 			if (deps && !deps.includes(task.id)) deps.push(task.id);

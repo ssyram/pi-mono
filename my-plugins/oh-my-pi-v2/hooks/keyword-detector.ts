@@ -155,7 +155,8 @@ export function registerKeywordDetector(pi: ExtensionAPI): void {
 
         const injection = "\n\n" + effective.map((d) => d.message).join("\n\n");
         return { systemPrompt: event.systemPrompt + injection };
-      } catch {
+      } catch (err) {
+        console.error(`[oh-my-pi keyword] Keyword detector failed: ${err instanceof Error ? err.message : String(err)}`);
         return undefined;
       }
     },

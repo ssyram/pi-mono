@@ -55,12 +55,12 @@ export async function discoverAgents(agentsDir: string): Promise<DiscoveredAgent
 						thinking: meta.thinking,
 					});
 				}
-			} catch {
-				// Skip unreadable individual agent files without stopping discovery
+			} catch (err) {
+				console.error(`[oh-my-pi sisyphus] Failed to read agent file ${file}: ${err instanceof Error ? err.message : String(err)}`);
 			}
 		}
-	} catch {
-		// agents dir doesn't exist or is unreadable
+	} catch (err) {
+		console.error(`[oh-my-pi sisyphus] Failed to discover agents in ${agentsDir}: ${err instanceof Error ? err.message : String(err)}`);
 	}
 	return agents.sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -670,9 +670,13 @@ export function registerSisyphusPrompt(
 	agentsDir: string,
 ): void {
 	let agents: DiscoveredAgent[] = [];
-	const agentsReady = discoverAgents(agentsDir).then((a) => {
-		agents = a;
-	});
+	const agentsReady = discoverAgents(agentsDir)
+		.then((a) => {
+			agents = a;
+		})
+		.catch((err: unknown) => {
+			console.error(`[oh-my-pi sisyphus] Agent discovery failed: ${err instanceof Error ? err.message : String(err)}`);
+		});
 
 	pi.on("before_agent_start", async (event: BeforeAgentStartEvent, ctx) => {
 		try {
@@ -690,7 +694,8 @@ export function registerSisyphusPrompt(
 			return {
 				systemPrompt: event.systemPrompt + "\n\n" + SISYPHUS_PROMPT + supplements,
 			};
-		} catch {
+		} catch (err) {
+			console.error(`[oh-my-pi sisyphus] Prompt injection failed: ${err instanceof Error ? err.message : String(err)}`);
 			return undefined;
 		}
 	});

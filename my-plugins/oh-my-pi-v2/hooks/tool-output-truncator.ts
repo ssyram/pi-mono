@@ -51,8 +51,8 @@ export function registerToolOutputTruncator(pi: ExtensionAPI): void {
 			});
 
 			return { content: truncated };
-		} catch {
-			// Hooks must never throw
+		} catch (err) {
+			console.error(`[oh-my-pi truncator] Failed to truncate tool output: ${err instanceof Error ? err.message : String(err)}`);
 			return undefined;
 		}
 	});

@@ -3,7 +3,7 @@
  *
  * - 70%: injects a reminder that context is filling but still has room.
  * - 78%: triggers automatic compaction (once per session).
- * - After compaction: injects pending task list so the model does not lose track.
+ * - After compaction: injects active task list so the model does not lose track.
  */
 
 import type {
@@ -20,12 +20,12 @@ const AUTO_COMPACT_THRESHOLD = 78;
 /** Sessions that already received the 70% hint. */
 const warnedSessions = new Set<string>();
 
-/** Sessions that already triggered auto-compaction. */
+/** Sessions with auto-compaction in-flight or already attempted successfully. */
 const compactedSessions = new Set<string>();
 
 export function registerContextRecovery(
   pi: ExtensionAPI,
-  getTaskState: () => { tasks: Task[]; pendingCount: number },
+  getTaskState: () => { tasks: Task[]; actionableCount: number; readyTasks: Task[] },
 ): void {
   // ── before_agent_start: threshold monitoring ────────────────────────────
   pi.on(
@@ -43,8 +43,16 @@ export function registerContextRecovery(
           usage.percent >= AUTO_COMPACT_THRESHOLD &&
           !compactedSessions.has(sessionId)
         ) {
+          ctx.compact({
+            onComplete: () => {
+              console.error(`[oh-my-pi context] Auto-compaction completed for session ${sessionId}`);
+            },
+            onError: (error) => {
+              compactedSessions.delete(sessionId);
+              console.error(`[oh-my-pi context] Auto-compaction failed for session ${sessionId}: ${error.message}`);
+            },
+          });
           compactedSessions.add(sessionId);
-          ctx.compact();
           return {
             systemPrompt:
               event.systemPrompt +
@@ -73,27 +81,25 @@ export function registerContextRecovery(
         }
 
         return undefined;
-      } catch {
-        // Hooks must never throw
+      } catch (err) {
+        console.error(`[oh-my-pi context] before_agent_start failed: ${err instanceof Error ? err.message : String(err)}`);
         return undefined;
       }
     },
   );
 
-  // ── session_compact: restore pending tasks after compaction ──────────────
+  // ── session_compact: restore active tasks after compaction ───────────────
   pi.on(
     "session_compact",
     async (_event: SessionCompactEvent, ctx) => {
       try {
         const sessionId = ctx.sessionManager.getSessionId?.() ?? "__default__";
         warnedSessions.delete(sessionId);
-        compactedSessions.delete(sessionId);
 
-        const { tasks, pendingCount } = getTaskState();
-        if (pendingCount === 0) return;
+        const { tasks, actionableCount, readyTasks } = getTaskState();
+        if (actionableCount === 0) return;
 
-        const taskLines = tasks
-          .filter((t) => t.status !== "done" && t.status !== "expired")
+        const taskLines = [...tasks.filter((t) => t.status === "in_progress"), ...readyTasks]
           .map((t) => `- [#${t.id}] ${t.text} (${t.status})`)
           .join("\n");
 
@@ -101,8 +107,8 @@ export function registerContextRecovery(
           `## Context Restored After Compaction\n\nActive tasks:\n${taskLines}\n\nPlease continue working on these tasks.`,
           { deliverAs: "followUp" },
         );
-      } catch {
-        // Hooks must never throw
+      } catch (err) {
+        console.error(`[oh-my-pi context] Failed to restore tasks after compaction: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
   );
@@ -115,8 +121,8 @@ export function registerContextRecovery(
         const sessionId = ctx.sessionManager.getSessionId?.() ?? "__default__";
         warnedSessions.delete(sessionId);
         compactedSessions.delete(sessionId);
-      } catch {
-        // Hooks must never throw
+      } catch (err) {
+        console.error(`[oh-my-pi context] session_shutdown cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
   );

@@ -37,9 +37,13 @@ export async function ensureSessionDir(cwd: string, sessionId: string): Promise<
 async function atomicWriteJson(path: string, data: unknown): Promise<void> {
 	const tmp = `${path}.tmp.${process.pid}.${randomBytes(4).toString("hex")}`;
 	const text = JSON.stringify(data, null, 2);
-	await fs.writeFile(tmp, text, "utf-8");
-	// rename is atomic on POSIX (within same filesystem)
-	await fs.rename(tmp, path);
+	try {
+		await fs.writeFile(tmp, text, "utf-8");
+		await fs.rename(tmp, path);
+	} catch (e) {
+		await fs.unlink(tmp).catch(() => {});
+		throw e;
+	}
 }
 
 async function readJsonStrict<T>(path: string): Promise<T | undefined> {
@@ -49,7 +53,7 @@ async function readJsonStrict<T>(path: string): Promise<T | undefined> {
 	} catch (e) {
 		const err = e as NodeJS.ErrnoException;
 		if (err.code === "ENOENT") return undefined;
-		throw e;
+		throw new CorruptedStateError(path, `filesystem error (${err.code}): ${err.message}`);
 	}
 	try {
 		return JSON.parse(text) as T;
@@ -89,7 +93,11 @@ export async function readStack(sessionDir: string): Promise<string[]> {
 	const arr = await readJsonStrict<unknown>(p);
 	if (arr === undefined) return [];
 	if (!Array.isArray(arr)) throw new CorruptedStateError(p, "stack.json is not an array");
-	return arr.filter((x) => typeof x === "string") as string[];
+	if (arr.some((x) => typeof x !== "string")) throw new CorruptedStateError(p, "stack.json contains non-string entries");
+	const FSM_ID_RE = /^[a-z0-9-]+$/;
+	const bad = (arr as string[]).find((x) => !FSM_ID_RE.test(x));
+	if (bad) throw new CorruptedStateError(p, `stack.json contains invalid fsmId '${bad}' (expected [a-z0-9-]+)`);
+	return arr as string[];
 }
 
 export async function writeStack(sessionDir: string, stack: string[]): Promise<void> {
@@ -204,6 +212,15 @@ export async function readFsmStructure(sessionDir: string, fsmId: string): Promi
 	if (typeof data !== "object" || !data.states || typeof data.states !== "object") {
 		throw new CorruptedStateError(join(fsmDir(sessionDir, fsmId), "fsm.json"), "invalid shape");
 	}
+	if (Object.keys(data.states).length === 0) {
+		throw new CorruptedStateError(join(fsmDir(sessionDir, fsmId), "fsm.json"), "states must not be empty");
+	}
+	for (const [key, state] of Object.entries(data.states)) {
+		const sid = (state as unknown as Record<string, unknown>).state_id;
+		if (typeof sid !== "string" || sid.length === 0) {
+			throw new CorruptedStateError(join(fsmDir(sessionDir, fsmId), "fsm.json"), `state at key "${key}" is missing a valid state_id`);
+		}
+	}
 	return data;
 }
 
@@ -231,7 +248,23 @@ export async function writeState(
 }
 
 export async function readState(sessionDir: string, fsmId: string): Promise<StateFile | undefined> {
-	return await readJsonStrict<StateFile>(join(fsmDir(sessionDir, fsmId), "state.json"));
+	const data = await readJsonStrict<unknown>(join(fsmDir(sessionDir, fsmId), "state.json"));
+	if (data === undefined) return undefined;
+	const obj = data as Record<string, unknown>;
+	if (
+		typeof data !== "object" || data === null ||
+		typeof obj.current_state_id !== "string" ||
+		typeof obj.entered_at !== "string"
+	) {
+		throw new CorruptedStateError(join(fsmDir(sessionDir, fsmId), "state.json"), "invalid shape: missing current_state_id or entered_at");
+	}
+	if (obj.last_transition_chain !== undefined && !Array.isArray(obj.last_transition_chain)) {
+		throw new CorruptedStateError(join(fsmDir(sessionDir, fsmId), "state.json"), "invalid shape: last_transition_chain must be an array");
+	}
+	if (obj.last_transition_chain === undefined) {
+		(obj as Record<string, unknown>).last_transition_chain = [];
+	}
+	return data as StateFile;
 }
 
 export async function readTape(sessionDir: string, fsmId: string): Promise<Record<string, import("./types.js").TapeValue>> {
@@ -258,13 +291,44 @@ export async function loadRuntime(sessionDir: string, fsmId: string): Promise<FS
 	return {
 		fsm_id: fsmId,
 		flow_name: struct.flow_name,
-		flow_dir: struct.flow_dir ?? "",  // backward-compat: older on-disk records may lack it
+		flow_dir: struct.flow_dir ?? fsmDir(sessionDir, fsmId),  // backward-compat: migrated sessions lack flow_dir; fall back to FSM storage dir rather than CWD
 		task_description: struct.task_description,
 		states: struct.states,
 		current_state_id: state?.current_state_id ?? "$START",
 		tape,
 		transition_log: state?.last_transition_chain ?? [],
 	};
+}
+
+// ─── Pending-pop marker ────────────────────────────────────────────────────
+
+const PENDING_POP = "pending-pop.json";
+
+export interface PendingPop {
+	fsmId: string;
+	timestamp: number;
+}
+
+export async function writePendingPop(sessionDir: string, fsmId: string): Promise<void> {
+	await atomicWriteJson(join(sessionDir, PENDING_POP), { fsmId, timestamp: Date.now() } satisfies PendingPop);
+}
+
+export async function readPendingPop(sessionDir: string): Promise<PendingPop | undefined> {
+	const parsed = await readJsonStrict<unknown>(join(sessionDir, PENDING_POP));
+	if (parsed === undefined) return undefined;
+	const fsmId = (parsed as Record<string, unknown>).fsmId;
+	if (!parsed || typeof fsmId !== "string" || fsmId.length === 0) {
+		throw new CorruptedStateError(join(sessionDir, PENDING_POP), "invalid shape: missing fsmId");
+	}
+	return parsed as PendingPop;
+}
+
+export async function deletePendingPop(sessionDir: string): Promise<void> {
+	try {
+		await fs.unlink(join(sessionDir, PENDING_POP));
+	} catch (e: unknown) {
+		if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+	}
 }
 
 export function newFsmId(flowName: string): string {

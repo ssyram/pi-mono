@@ -40,7 +40,8 @@ async function loadState(cwd: string): Promise<WorkState | null> {
 	try {
 		const raw = await readFile(join(cwd, STATE_FILE), "utf-8");
 		return JSON.parse(raw) as WorkState;
-	} catch {
+	} catch (err) {
+		console.error(`[omp-start] Failed to load state: ${err instanceof Error ? err.message : String(err)}`);
 		return null;
 	}
 }

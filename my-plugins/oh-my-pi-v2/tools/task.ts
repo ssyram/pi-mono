@@ -11,6 +11,7 @@ import type { BeforeAgentStartEvent, ExtensionAPI, ExtensionContext, SessionEntr
 import { Type } from "@sinclair/typebox";
 import { executeAdd, executeClear, executeDoneOrExpire, executeList, executeStart, executeUpdateDeps } from "./task-actions.js";
 import type { Task, TaskChangeCallback } from "./task-helpers.js";
+import { cloneTasks, type TaskStateEntry, validateTaskStateEntryData } from "./task-state-entry.js";
 import { isUnblocked, statusTag } from "./task-helpers.js";
 import { renderTaskCall, renderTaskResult } from "./task-renderers.js";
 
@@ -19,7 +20,7 @@ export type { Task, TaskChangeCallback, TaskDetails } from "./task-helpers.js";
 export const CONFIRM_STOP_TAG = "<CONFIRM-TO-STOP/>";
 
 export interface TaskToolHandle {
-	getTaskState: () => { tasks: Task[]; pendingCount: number; inProgressCount: number; readyTasks: Task[] };
+	getTaskState: () => { tasks: Task[]; pendingCount: number; actionableCount: number; inProgressCount: number; readyTasks: Task[] };
 	setOnTaskChange: (cb: TaskChangeCallback) => void;
 }
 
@@ -52,7 +53,13 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 	let tasks: Task[] = [];
 	let nextId = 1;
 	let onTaskChange: TaskChangeCallback | undefined;
-	const notifyChange = () => onTaskChange?.([...tasks]);
+	const notifyChange = () => {
+		try {
+			onTaskChange?.([...tasks]);
+		} catch (err) {
+			console.error(`[oh-my-pi task] Task change callback failed: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	};
 
 	// ── State persistence (CustomEntry, orthogonal to LLM context) ──────
 
@@ -62,23 +69,27 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 
 	function getTaskStateFromEntry(entry: SessionEntry): TaskStateEntry | undefined {
 		if (entry.type !== "custom" || entry.customType !== TASK_ENTRY_TYPE) return undefined;
-		const data = entry.data as TaskStateEntry | undefined;
-		if (data && Array.isArray(data.tasks) && typeof data.nextId === "number") return data;
-		return undefined;
+		const state = validateTaskStateEntryData(entry.data);
+		if (!state) {
+			console.error("[oh-my-pi task] Ignoring invalid persisted task state entry");
+		}
+		return state;
 	}
 
 	const reloadState = async (ctx: ExtensionContext) => {
-		tasks = [];
-		nextId = 1;
+		let loaded: TaskStateEntry | undefined;
 		for (const entry of ctx.sessionManager.getEntries()) {
 			const state = getTaskStateFromEntry(entry);
-			if (state) { tasks = state.tasks; nextId = state.nextId; }
+			if (state) loaded = state;
 		}
+		if (!loaded) return;
+		tasks = cloneTasks(loaded.tasks);
+		nextId = loaded.nextId;
 		notifyChange();
 	};
 
 	const persistState = () => {
-		pi.appendEntry(TASK_ENTRY_TYPE, { tasks: [...tasks], nextId } satisfies TaskStateEntry);
+		pi.appendEntry(TASK_ENTRY_TYPE, { tasks: cloneTasks(tasks), nextId } satisfies TaskStateEntry);
 	};
 
 	pi.on("session_start", async (_event, ctx) => reloadState(ctx));
@@ -87,19 +98,19 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 	// ── System prompt injection ──────────────────────────────────────────────
 
 	pi.on("before_agent_start", async (event: BeforeAgentStartEvent, _ctx) => {
-		const active = tasks.filter((t) => t.status === "pending" || t.status === "in_progress");
+		const active = tasks.filter((t) => t.status === "in_progress" || (t.status === "pending" && isUnblocked(t, tasks)));
 		if (active.length === 0) return;
 		const taskLines = active.map((t) => `  - ${statusTag(t, tasks)} [#${t.id}] ${t.text}`).join("\n");
 		const injection = [
 			"", "## Active Tasks (managed by task tool)",
-			"The following tasks are still pending or in progress. You MUST complete or expire all of them before stopping.",
+			"The following tasks are currently actionable. You MUST complete or expire them before stopping.",
 			taskLines, "",
 			"Use the `task` tool to manage tasks:",
 			"  - `start` (id) — mark a task as in progress",
 			"  - `done` (id) — mark a task as completed",
 			"  - `expire` (id, reason) — mark a task as stale/no longer relevant and explain why",
 			"  - `update_deps` (id, blocks?, blockedBy?) — set task dependencies",
-			"If the agent loop ends while tasks remain pending/in_progress, it will be automatically restarted.", "",
+			"If the agent loop ends while actionable tasks remain, it will be automatically restarted.", "",
 			"Exception: if you genuinely cannot continue right now (e.g. waiting for user input, blocked on external state),",
 			`output the exact tag ${CONFIRM_STOP_TAG} anywhere in your final message to acknowledge and suppress the restart.`,
 		].join("\n");
@@ -119,12 +130,14 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 			"expire (id, reason) — mark task as stale/no longer relevant and explain why; clear — remove all tasks; " +
 			"update_deps (id, blocks?, blockedBy?) — set dependency edges. " +
 			"Tasks can have dependencies: a [blocked] task cannot start until its blockers are done/expired. " +
-			"The loop will restart automatically if any tasks remain pending/in_progress when you stop.",
+			"The loop will restart automatically if any tasks remain in_progress or ready when you stop.",
 		promptSnippet:
 			"Manage the tracked task list.",
 		parameters: TaskParams,
 		async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
 			const mutating = params.action !== "list";
+			const previousTasks = cloneTasks(tasks);
+			const previousNextId = nextId;
 			let result;
 			switch (params.action) {
 				case "list": result = executeList(tasks, nextId); break;
@@ -140,8 +153,15 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 				case "clear": tasks = []; nextId = 1; result = executeClear(); break;
 			}
 			if (mutating) {
+				try {
+					persistState();
+				} catch (err) {
+					tasks = previousTasks;
+					nextId = previousNextId;
+					console.error(`[oh-my-pi task] Failed to persist task state: ${err instanceof Error ? err.message : String(err)}`);
+					throw err;
+				}
 				notifyChange();
-				persistState();
 			}
 			return result;
 		},
@@ -152,12 +172,17 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 	// ── Return handle ────────────────────────────────────────────────────────
 
 	return {
-		getTaskState: () => ({
-			tasks: [...tasks],
-			pendingCount: tasks.filter((t) => t.status === "pending" || t.status === "in_progress").length,
-			inProgressCount: tasks.filter((t) => t.status === "in_progress").length,
-			readyTasks: tasks.filter((t) => t.status === "pending" && isUnblocked(t, tasks)),
-		}),
+		getTaskState: () => {
+			const readyTasks = tasks.filter((t) => t.status === "pending" && isUnblocked(t, tasks));
+			const inProgressCount = tasks.filter((t) => t.status === "in_progress").length;
+			return {
+				tasks: [...tasks],
+				pendingCount: tasks.filter((t) => t.status === "pending" || t.status === "in_progress").length,
+				actionableCount: inProgressCount + readyTasks.length,
+				inProgressCount,
+				readyTasks,
+			};
+		},
 		setOnTaskChange: (cb: TaskChangeCallback) => { onTaskChange = cb; },
 	};
 }

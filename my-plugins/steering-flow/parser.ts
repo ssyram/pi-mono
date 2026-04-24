@@ -91,7 +91,7 @@ function validateState(raw: unknown): State {
 		throw new ParseError(`State '${s.state_id}' missing 'state_desc'`);
 	}
 
-	const is_epsilon = !!s.is_epsilon;
+	const is_epsilon = s.is_epsilon === true;
 	const actions: Action[] = [];
 
 	if (s.state_id === "$END") {
@@ -333,6 +333,32 @@ export function buildFSM(config: FlowConfig): ParsedFSM {
 			`Dead-end states detected (reachable from $START but cannot reach $END): ${deadEnds.join(", ")}. ` +
 			"Every state must have a path to $END — no dead loops allowed."
 		);
+	}
+
+	// Epsilon-cycle detection: DFS on the epsilon-only subgraph.
+	// An epsilon cycle means the engine would loop up to the depth limit (64) with no user-visible progress.
+	const GRAY = 1, BLACK = 2;
+	const color = new Map<string, number>();
+	function epsilonDFS(id: string, path: string[]): void {
+		color.set(id, GRAY);
+		const st = stateMap.get(id);
+		if (!st || !st.is_epsilon) { color.set(id, BLACK); return; }
+		for (const a of st.actions) {
+			const next = a.next_state_id;
+			if (color.get(next) === GRAY) {
+				const cycleStart = path.indexOf(next);
+				const cycle = path.slice(cycleStart).concat(next);
+				throw new ParseError(
+					`Epsilon cycle detected: ${cycle.join(" \u2192 ")}. ` +
+					"Epsilon states must not form cycles \u2014 the engine would loop without progress.",
+				);
+			}
+			if (!color.has(next)) epsilonDFS(next, [...path, next]);
+		}
+		color.set(id, BLACK);
+	}
+	for (const id of fwdVisited) {
+		if (!color.has(id)) epsilonDFS(id, [id]);
 	}
 
 	return { task_description: config.task_description, states: stateMap };

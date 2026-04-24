@@ -434,6 +434,7 @@ function renderFsm(fsmIndex) {
   /* edges from pre-computed layout */
   var edgeData = layout.edges.map(function(e) {
     var src = nodePos[e.srcId], tgt = nodePos[e.tgtId];
+    if (!src || !tgt) return null;
     var action = actionMap[e.srcId + '\\0' + e.tgtId + '\\0' + e.actionId];
     return {
       src: e.srcId, tgt: e.tgtId, name: e.actionId,
@@ -443,7 +444,7 @@ function renderFsm(fsmIndex) {
       labelW: e.label.w, labelH: e.label.h,
       points: e.points
     };
-  });
+  }).filter(Boolean);
 
   var edgeGroups = root.append('g').attr('class','edges')
     .selectAll('g').data(edgeData).enter().append('g').attr('class','edge-group');
@@ -492,6 +493,7 @@ function renderFsm(fsmIndex) {
         d3.select(this).select('.edge-label').classed('highlight', isHl).classed('dim', !isHl);
       });
     }
+    if (!d.edge.action) { hideTooltip(); return; }
     showTooltip(evt, '<b>' + esc(d.edge.action.id) + '</b>' +
       '<br><span class="tt-muted">' + esc(d.src) + ' \\u2192 ' + esc(d.tgt) + '</span>' +
       '<br><span class="tt-muted">' + esc(d.edge.action.conditionSummary || '') + '</span>');
@@ -504,7 +506,7 @@ function renderFsm(fsmIndex) {
     hideTooltip();
     if (!lockedNodeId) clearHighlight();
   });
-  edgeLabels.on('click', function(_e, d) { showAction(d.edge.action); });
+  edgeLabels.on('click', function(_e, d) { if (!d.edge.action) return; showAction(d.edge.action); });
 
   /* nodes */
   var nodes = root.append('g').attr('class','nodes')
@@ -517,7 +519,7 @@ function renderFsm(fsmIndex) {
       if (s.id === fsm.currentStateId) c += ' current';
       return c;
     })
-    .attr('transform', function(s) { var n = nodePos[s.id]; return 'translate(' + n.x + ',' + n.y + ')'; });
+    .attr('transform', function(s) { var n = nodePos[s.id]; if (!n) return 'translate(0,0)'; return 'translate(' + n.x + ',' + n.y + ')'; });
 
   nodes.append('circle').attr('r', nodeR);
   nodes.append('text').attr('class','label').attr('text-anchor','middle').attr('dy', '-0.15em')
@@ -580,6 +582,7 @@ document.getElementById('resetBtn').addEventListener('click', function() {
   d3.selectAll('.node').transition().duration(dur).ease(d3.easeCubicOut)
     .attr('transform', function(s) {
       var p = _initPos[s.id];
+      if (!p || !_nodePos[s.id]) return d3.select(this).attr('transform');
       _nodePos[s.id].x = p.x;
       _nodePos[s.id].y = p.y;
       return 'translate(' + p.x + ',' + p.y + ')';
@@ -588,10 +591,7 @@ document.getElementById('resetBtn').addEventListener('click', function() {
       /* redraw edges after nodes settle */
       d3.selectAll('.edge-group').each(function(d) {
         var g = d3.select(this);
-        var src = _nodePos[d.src], tgt = _nodePos[d.tgt];
-        d.srcNode = { x: src.x, y: src.y };
-        d.tgtNode = { x: tgt.x, y: tgt.y };
-        /* restore original layout points */
+        /* restore original layout points regardless of whether nodes are positioned */
         var layoutEdge = LAYOUTS[Number(fsmSelect.value) || 0].edges.find(function(e) {
           return e.srcId === d.src && e.tgtId === d.tgt && e.actionId === d.name;
         });
@@ -600,6 +600,10 @@ document.getElementById('resetBtn').addEventListener('click', function() {
           d.labelX = layoutEdge.label.x;
           d.labelY = layoutEdge.label.y;
         }
+        var src = _nodePos[d.src], tgt = _nodePos[d.tgt];
+        if (!src || !tgt) return;
+        d.srcNode = { x: src.x, y: src.y };
+        d.tgtNode = { x: tgt.x, y: tgt.y };
         var nodeR = NODE_R;
         var pts = d.points.slice();
         if (pts.length >= 2) {

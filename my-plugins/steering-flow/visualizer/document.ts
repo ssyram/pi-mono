@@ -30,21 +30,29 @@ export function getVisualizerTools(): VisualizerSurface[] {
 	return TOOLS;
 }
 
-export async function buildSessionVisualizerDocument(sessionDir: string, sessionId: string): Promise<VisualizerDocument> {
+export async function buildSessionVisualizerDocument(sessionDir: string, sessionId: string): Promise<{ document: VisualizerDocument; warnings: string[] }> {
 	const stack = await readStack(sessionDir);
 	if (stack.length === 0) throw new Error("No active steering-flow stack to visualize.");
 
+	const warnings: string[] = [];
 	const fsms: VisualizerFsm[] = [];
 	for (const fsmId of stack) {
 		const runtime = await loadRuntime(sessionDir, fsmId);
-		if (!runtime) continue;
+		if (!runtime) {
+			warnings.push(`[steering-flow] Warning: FSM "${fsmId}" could not be loaded and will be skipped in the visualization.`);
+			continue;
+		}
 		fsms.push({
 			id: runtime.fsm_id,
 			name: runtime.flow_name,
 			flowDir: runtime.flow_dir,
 			taskDescription: runtime.task_description,
 			sourceLabel: runtime.flow_name,
-			states: Object.values(runtime.states).map(toVisualizerState),
+			states: (() => {
+				const s = Object.values(runtime.states).map(toVisualizerState);
+				if (s.length === 0) warnings.push(`[steering-flow] Warning: FSM "${runtime.fsm_id}" (${runtime.flow_name}) has no states — the visualization will be empty.`);
+				return s;
+			})(),
 			currentStateId: runtime.current_state_id,
 			tapePath: tapePathFor(sessionDir, fsmId),
 			tape: runtime.tape,
@@ -54,44 +62,52 @@ export async function buildSessionVisualizerDocument(sessionDir: string, session
 	if (fsms.length === 0) throw new Error("No readable steering-flow FSMs found in the active stack.");
 
 	return {
-		title: `Steering-Flow · ${sessionId || "session"}`,
-		generatedAt: new Date().toISOString(),
-		sourceMode: "session",
-		sourceLabel: sessionId || "_no_session_",
-		activeFsmId: stack.at(-1),
-		fsms,
-		commands: COMMANDS,
-		tools: TOOLS,
+		document: {
+			title: `Steering-Flow · ${sessionId || "session"}`,
+			generatedAt: new Date().toISOString(),
+			sourceMode: "session",
+			sourceLabel: sessionId || "_no_session_",
+			activeFsmId: stack.at(-1),
+			fsms,
+			commands: COMMANDS,
+			tools: TOOLS,
+		},
+		warnings,
 	};
 }
 
-export function buildFileVisualizerDocument(content: string, filename: string): VisualizerDocument {
+export function buildFileVisualizerDocument(content: string, filename: string): { document: VisualizerDocument; warnings: string[] } {
+	const warnings: string[] = [];
 	const flow = parseFlowConfig(content, filename);
 	const parsed = buildFSM(flow);
 	const states = Array.from(parsed.states.values());
+	if (states.length === 0) warnings.push(`[steering-flow] Warning: FSM file "${filename}" has no states — the visualization will be empty.`);
 	const name = basename(filename);
 	const emptyTape: Record<string, TapeValue> = {};
 	const transitionLog: TransitionRecord[] = [];
 
 	return {
-		title: `Steering-Flow · ${name}`,
-		generatedAt: new Date().toISOString(),
-		sourceMode: "file",
-		sourceLabel: filename,
-		fsms: [
-			{
-				id: name,
-				name,
-				flowDir: "",
-				taskDescription: flow.task_description,
-				sourceLabel: filename,
-				states: states.map(toVisualizerState),
-				currentStateId: "$START",
-				tape: emptyTape,
-				transitionLog,
-			},
-		],
-		commands: COMMANDS,
-		tools: TOOLS,
+		document: {
+			title: `Steering-Flow · ${name}`,
+			generatedAt: new Date().toISOString(),
+			sourceMode: "file",
+			sourceLabel: filename,
+			fsms: [
+				{
+					id: name,
+					name,
+					flowDir: "",
+					taskDescription: flow.task_description,
+					sourceLabel: filename,
+					states: states.map(toVisualizerState),
+					currentStateId: "$START",
+					tape: emptyTape,
+					transitionLog,
+				},
+			],
+			commands: COMMANDS,
+			tools: TOOLS,
+		},
+		warnings,
 	};
 }

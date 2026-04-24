@@ -1,0 +1,12 @@
+{
+  "name": "pi-keep-recent",
+  "version": "0.1.0",
+  "description": "Compact conversation history keeping only the N most recent user turns",
+  "private": false,
+  "type": "module",
+  "license": "MIT",
+  "keywords": ["pi-package", "pi", "pi-coding-agent", "compaction", "keep-recent"],
+  "pi": {
+    "extensions": ["keep-recent.ts"]
+  }
+}

@@ -64,4 +64,5 @@ export interface VisualizerArtifactResult {
 	outputPath: string;
 	sourceLabel: string;
 	fsmCount: number;
+	warnings: string[];
 }

@@ -21,14 +21,14 @@ export interface CountdownHandle {
  *
  * @param ctx        Extension context (must have UI)
  * @param totalMs    Total countdown duration in milliseconds
- * @param pending    Number of pending tasks (shown in status text)
+ * @param actionable Number of actionable tasks (shown in status text)
  * @param onFinish   Called when countdown reaches zero without cancellation
  * @returns Handle with a `cancel()` method
  */
 export function startCountdown(
   ctx: ExtensionContext,
   totalMs: number,
-  pending: number,
+  actionable: number,
   onFinish: () => void,
 ): CountdownHandle {
   let remaining = Math.ceil(totalMs / 1000);
@@ -37,7 +37,7 @@ export function startCountdown(
   const updateStatus = () => {
     ctx.ui.setStatus(
       STATUS_KEY,
-      `Restarting in ${remaining}s (${pending} tasks) — press Esc to cancel`,
+      `Restarting in ${remaining}s (${actionable} actionable tasks) — press Esc to cancel`,
     );
   };
 

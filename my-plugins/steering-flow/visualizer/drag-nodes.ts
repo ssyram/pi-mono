@@ -6,6 +6,7 @@ function enableDragNodes(nodeSelection, nodePos, edgeGroups, nodeR) {
     .on('start', function() { d3.select(this).raise(); svg.style('cursor','grabbing'); })
     .on('drag', function(evt, d) {
       var np = nodePos[d.id];
+      if (!np) return;
       np.x = evt.x;
       np.y = evt.y;
       d3.select(this).attr('transform', 'translate(' + np.x + ',' + np.y + ')');
@@ -15,6 +16,7 @@ function enableDragNodes(nodeSelection, nodePos, edgeGroups, nodeR) {
         if (ed.src !== d.id && ed.tgt !== d.id) return;
         var group = d3.select(this);
         var sn = nodePos[ed.src], tn = nodePos[ed.tgt];
+        if (!sn || !tn) return;
         ed.srcNode.x = sn.x; ed.srcNode.y = sn.y;
         ed.tgtNode.x = tn.x; ed.tgtNode.y = tn.y;
         // Recompute label midpoint

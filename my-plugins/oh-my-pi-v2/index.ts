@@ -6,6 +6,7 @@
  * This extension only provides: prompt injection, hooks, task management, and commands.
  */
 
+import { execSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
@@ -50,9 +51,6 @@ export default async function ohMyPiV2(pi: ExtensionAPI) {
 		config = {};
 	}
 
-	// ── Stop-continuation state ──────────────────────────────────────────────
-	let continuationStopped = false;
-
 	// 2. Register task tool
 	const { getTaskState, setOnTaskChange } = registerTaskTool(pi);
 
@@ -89,7 +87,7 @@ export default async function ohMyPiV2(pi: ExtensionAPI) {
 			return aPri - bPri || a.id - b.id;
 		});
 		const display = sorted.slice(0, 10);
-		const active = tasks.filter((t) => t.status === "pending" || t.status === "in_progress").length;
+		const active = tasks.filter((t) => t.status === "in_progress" || (t.status === "pending" && isUnblocked(t, tasks))).length;
 		const done = tasks.filter((t) => t.status === "done").length;
 		const lines = [`Tasks (${active} active, ${done}/${tasks.length} done)`];
 		for (const t of display) {
@@ -118,8 +116,8 @@ export default async function ohMyPiV2(pi: ExtensionAPI) {
 		}
 		if (sorted.length > 10) lines.push(`  ... ${sorted.length - 10} more`);
 		latestCtx.ui.setWidget("omp-tasks", lines);
-		} catch {
-			// Widget update must never crash the task tool
+		} catch (err) {
+			console.error(`[oh-my-pi task] Widget update failed: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	});
 
@@ -128,7 +126,6 @@ export default async function ohMyPiV2(pi: ExtensionAPI) {
 		registerBoulder(
 			pi,
 			getTaskState,
-			() => continuationStopped,
 		);
 	}
 	registerSisyphusPrompt(pi, config, agentsDir);
@@ -144,21 +141,9 @@ export default async function ohMyPiV2(pi: ExtensionAPI) {
 	registerConsult(pi, agentsDir);
 	registerReviewPlan(pi, agentsDir);
 
-	// 4b. /omp-stop command
-	pi.registerCommand("omp-stop", {
-		description: "Stop all automatic continuation (Boulder loop enforcement)",
-		handler: async (_args, ctx) => {
-			continuationStopped = true;
-			ctx.ui.notify("Auto-continuation stopped. Send a new message to re-enable.", "info");
-		},
-	});
-
-	// 4c. Capture context + reset stop flag on new turns
+	// 4c. Capture context for task widget updates
 	pi.on("before_agent_start", async (_event, ctx) => {
 		latestCtx = ctx;
-		if (continuationStopped) {
-			continuationStopped = false;
-		}
 	});
 
 	// 5. Register skill paths
@@ -168,17 +153,17 @@ export default async function ohMyPiV2(pi: ExtensionAPI) {
 
 	// 6. Optional: AST-Grep tool
 	try {
-		const { execSync } = await import("node:child_process");
 		let astGrepCmd = "";
 		try {
 			execSync("sg --version", { stdio: "ignore", timeout: 2000 });
 			astGrepCmd = "sg";
-		} catch {
+		} catch (err) {
+			console.error(`[oh-my-pi ast-grep] sg binary unavailable: ${err instanceof Error ? err.message : String(err)}`);
 			try {
 				execSync("npx @ast-grep/cli --version", { stdio: "ignore", timeout: 2000 });
 				astGrepCmd = "npx @ast-grep/cli";
-			} catch {
-				// Neither available
+			} catch (err) {
+				console.error(`[oh-my-pi ast-grep] npx @ast-grep/cli unavailable: ${err instanceof Error ? err.message : String(err)}`);
 			}
 		}
 
@@ -194,12 +179,11 @@ export default async function ohMyPiV2(pi: ExtensionAPI) {
 					path: Type.Optional(Type.String({ description: "Path to search in (default: current dir)" })),
 				}),
 				async execute(_toolCallId, params) {
-					const { execSync: exec } = await import("node:child_process");
 					const args = ["-p", params.pattern];
 					if (params.lang) args.push("-l", params.lang);
 					args.push(params.path ?? ".");
 					try {
-						const result = exec(`${cmd} run ${args.map((a) => `'${a}'`).join(" ")}`, {
+						const result = execSync(`${cmd} run ${args.map((a) => `'${a}'`).join(" ")}`, {
 							encoding: "utf-8",
 							timeout: 30000,
 							cwd: process.cwd(),
@@ -217,13 +201,17 @@ export default async function ohMyPiV2(pi: ExtensionAPI) {
 				},
 			});
 		}
-	} catch {
-		// ast-grep not available, skip silently
+	} catch (err) {
+		console.error(`[oh-my-pi ast-grep] Tool registration failed: ${err instanceof Error ? err.message : String(err)}`);
 	}
 
 	// 7. Clean up on session shutdown
 	pi.on("session_shutdown", async (_event, ctx) => {
-		ctx.ui.setWidget("omp-tasks", undefined);
+		try {
+			ctx.ui.setWidget("omp-tasks", undefined);
+		} catch (err) {
+			console.error(`[oh-my-pi task] Widget shutdown cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
+		}
 		latestCtx = undefined;
 	});
 }

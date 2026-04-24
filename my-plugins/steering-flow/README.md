@@ -56,6 +56,8 @@ Example: `args: ["./scripts/save-plan.mjs", "${$TAPE_FILE}", "${PLAN_TEXT}"]` ex
 
 Runtime limits: 30 s wall-clock timeout with process-group SIGKILL, 64 KiB stdout cap, 16 KiB stderr cap.
 
+> **SIGKILL truncation accepted**: Condition processes write `tape.json` directly via the `${$TAPE_FILE}` path. If a condition is killed mid-write (30 s timeout → SIGKILL), `tape.json` may be left truncated. This is an inherent property of the external-process condition model and is accepted. The interrupt is absolute — if the tool did not report completion via stdout, the write is considered interrupted.
+
 ### Why argv, not shell
 
 - No shell injection surface — LLM-supplied `args` are always positional argv, never interpreted by a shell.
@@ -85,6 +87,8 @@ Per-FSM JSON file under `.pi/steering-flow/<session>/<fsm-id>/tape.json`. Writer
 
 Caps: ≤ 64 KiB per value, ≤ 1024 keys total. Tape ids must match `/^[A-Za-z_][A-Za-z0-9_]*$/`.
 
+> **Tape is cumulative, never rolled back**: Tape records execution history. When a transition fails (including epsilon chain failures), only `current_state_id` is rolled back; any tape mutations written by conditions during that attempt are preserved on disk. This is intentional — conditions write to tape as side effects representing work done regardless of whether the state transition succeeded. If full transactional rollback is needed, the recommended approach is git-based tape management external to steering-flow.
+
 ### Stack
 
 Multiple FSMs can be nested. Each load pushes; reaching `$END` pops. `/pop-steering-flow` (user-only) force-pops.
@@ -111,6 +115,9 @@ All writes are atomic (tmp + rename). Orphan `.tmp.*` files are swept on `sessio
 | `/save-to-steering-flow <ID> <VALUE>` | Write a tape entry |
 | `/get-steering-flow-info` | Dump the stack, states, and tapes |
 | `/steering-flow-action <ACTION-ID> [ARGS...]` | Invoke an action |
+| `/visualize-steering-flow` | Visualize FSM states as a text diagram (user-only) |
+
+> **Design decision — visualizer is a command-only tool**: The visualizer is invoked exclusively via `/visualize-steering-flow` — it is not available as an LLM tool. Warnings about skipped FSMs or empty visualizations are surfaced to the user via `ctx.ui.notify`. Output paths are contained within `cwd` (no path traversal).
 
 ## Tools (LLM)
 
@@ -129,7 +136,7 @@ All writes are atomic (tmp + rename). Orphan `.tmp.*` files are swept on `sessio
 4. Stdout `true\n<reason>` → transition to `next_state_id`. Stdout `false\n<reason>` → stay, surface reason.
 5. After any successful transition, if the new state is epsilon, the engine auto-routes: tries each action's condition in declared order, first `true` wins, `{default:true}` matches unconditionally. Depth capped at 64.
 6. Reaching `$END` pops the FSM and resumes the parent flow (if any).
-7. If the epsilon chain fails after the chosen action's condition already passed, the entry state is **rolled back** — nothing is persisted.
+7. If the epsilon chain fails after the chosen action's condition already passed, `current_state_id` is **rolled back** to the pre-transition state and nothing is written to `state.json`. Note: any tape mutations written by conditions during the attempt are **preserved** — tape is cumulative and is never rolled back (see below).
 8. The in-memory tape is re-synced from disk after every condition so side-channel writes are visible next turn.
 
 ## Stop hook
@@ -137,10 +144,12 @@ All writes are atomic (tmp + rename). Orphan `.tmp.*` files are swept on `sessio
 When `agent_end` fires with a non-empty stack and a non-$END top state, the plugin re-injects the current state view + legal actions + overall task via `pi.sendUserMessage(...)`. Guards (matching the ralph-loop / boulder pattern):
 
 - User abort (`ctx.signal.aborted` or `AssistantMessage.stopReason === "aborted"`)
-- Question detection (last message ends with `?`)
-- Confirm-to-stop tag: `<STEERING-FLOW-CONFIRM-STOP/>`
-- 60 s cooldown after `session_compact`
+- 30 s cooldown after `session_compact`
 - Stagnation limit: 3 consecutive identical-`(state, tape)` reminders → pause reminders, notify user
+
+> **Design decision — stop hook is fully automatic**: The stop hook **always** re-injects state when the LLM stops mid-flow (before `$END`). There is no question detection and no confirm-to-stop mechanism. The only way to stop the loop is reaching `$END` or the user manually calling `/pop-steering-flow`. The only guard beyond user abort is the 30-second compaction cooldown per session.
+
+> **Stagnation counter freeze on ENOSPC accepted**: The stagnation counter (`reminder_count` in `state.json`) is written inside the stop hook's error-swallowing `try/catch`. If `writeState` fails (e.g., ENOSPC), the counter freezes and the user may receive repeated reminders. This is accepted because ENOSPC indicates a system-level failure beyond steering-flow's scope; propagating the error would risk crashing the agent on disk-full conditions.
 - Corrupted state surfaced to the user (not silently swallowed)
 
 ## Example

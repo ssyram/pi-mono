@@ -8,7 +8,7 @@ oh-my-pi v2 provides:
 
 - **Sisyphus persona** — system prompt injection with intent detection, delegation routing, code enforcement rules
 - **Agent definitions** — 10 sub-agent `.md` files (oracle, explore, librarian, metis, momus, hephaestus, atlas, sisyphus-junior, multimodal-looker, prometheus)
-- **Boulder loop** — auto-restarts the agent when tasks remain incomplete
+- **Boulder loop** — auto-restarts the agent when actionable tasks remain (`in_progress` or ready/unblocked `pending`)
 - **Quality hooks** — comment checker, edit error recovery, tool output truncator, rules injector, keyword detector, custom compaction, context recovery
 - **Task management** — task tool with dependencies, blocking, and TUI widget
 - **Commands** — `/omp-start` (Prometheus planning), `/omp-consult` (Oracle consultation), `/omp-review` (Momus plan review)
@@ -27,18 +27,26 @@ pi install npm:pi-subagents
 ## Recommended Extensions
 
 ```bash
-# MCP server proxy (~200 token overhead, lazy lifecycle, OAuth)
-pi install npm:pi-mcp-adapter
-
 # Web search + content extraction + GitHub cloning + video understanding
 pi install npm:pi-web-access
+
+# Session bridge used by pi-subagents for inter-session communication
+pi install npm:pi-intercom
 ```
 
-| Extension | Author | Stars | What it replaces |
+Optional MCP support:
+
+```bash
+# MCP server proxy (~200 token overhead, lazy lifecycle, OAuth)
+pi install npm:pi-mcp-adapter
+```
+
+| Extension | Author | Stars | Role |
 |---|---|---|---|
-| [pi-subagents](https://github.com/nicobailon/pi-subagents) | nicobailon | 681 | delegation tools (delegate-task, call-agent, background-task) |
-| [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter) | nicobailon | 325 | MCP proxy |
-| [pi-web-access](https://github.com/nicobailon/pi-web-access) | nicobailon | 314 | web search, content fetch, research kit |
+| [pi-subagents](https://github.com/nicobailon/pi-subagents) | nicobailon | 681 | Required delegation tools (single/parallel/chain/background agents) |
+| [pi-web-access](https://github.com/nicobailon/pi-web-access) | nicobailon | 314 | Recommended web search, content fetch, research kit |
+| [pi-intercom](https://github.com/nicobailon/pi-intercom) | nicobailon | — | Recommended inter-session bridge for pi-subagents |
+| [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter) | nicobailon | 325 | Optional MCP proxy |
 
 ## Configuration
 
@@ -82,7 +90,7 @@ oh-my-pi-v2/
 │   └── prometheus.md
 ├── hooks/               # Behavioral hooks
 │   ├── sisyphus-prompt.ts    # Core: persona + agent list + category guidance
-│   ├── boulder.ts            # Auto-restart on incomplete tasks
+│   ├── boulder.ts            # Auto-restart on actionable tasks
 │   ├── context-recovery.ts   # Restore tasks after compaction
 │   ├── custom-compaction.ts  # Structured compaction summaries
 │   ├── keyword-detector.ts   # ultrawork/search/analyze injection

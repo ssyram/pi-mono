@@ -131,6 +131,7 @@ export interface LayoutResult {
 	edges: EdgeLayout[];
 	graphWidth: number;
 	graphHeight: number;
+	warnings?: string[];
 }
 
 export interface FsmState {
@@ -167,8 +168,14 @@ export function layoutFsm(
 		});
 	}
 
+	const warnings: string[] = [];
+	const stateIds = new Set(states.map((s) => s.id));
 	for (const s of states) {
 		for (const a of s.actions) {
+			if (!stateIds.has(a.nextStateId)) {
+				warnings.push(`Dangling transition: ${s.id} -> ${a.nextStateId} (state not found)`);
+				continue;
+			}
 			g.setEdge(
 				s.id,
 				a.nextStateId,
@@ -244,5 +251,6 @@ export function layoutFsm(
 		edges,
 		graphWidth: graph.width ?? 400,
 		graphHeight: graph.height ?? 300,
+		warnings,
 	};
 }

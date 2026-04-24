@@ -5,6 +5,10 @@
  * for common shorthand patterns that indicate incomplete code.
  */
 
+import { execSync } from "node:child_process";
+import { existsSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type {
   ExtensionAPI,
   ToolResultEvent,
@@ -114,66 +118,49 @@ async function resolveCommentCheckerBinary(): Promise<string | null> {
   }
 
   try {
-    const { execSync } = await import("node:child_process");
-
-    // Strategy 1: globally installed or in PATH
-    try {
-      const whichResult = execSync("which comment-checker", {
-        encoding: "utf-8",
-        timeout: 3000,
-        stdio: ["pipe", "pipe", "pipe"],
-      }).trim();
-      if (whichResult) {
-        binaryPathCache = whichResult;
-        return whichResult;
-      }
-    } catch {
-      // not in PATH
+    const whichResult = execSync("which comment-checker", {
+      encoding: "utf-8",
+      timeout: 3000,
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+    if (whichResult) {
+      binaryPathCache = whichResult;
+      return whichResult;
     }
-
-    // Strategy 2: resolve through the npm package
-    try {
-      const { existsSync } = await import("node:fs");
-      const { join } = await import("node:path");
-
-      // Try common install locations
-      const candidates = [
-        // global npm
-        join(process.env["HOME"] ?? "", ".npm", "node_modules", "@code-yeongyu", "comment-checker", "bin", "comment-checker"),
-        // npx cache or local node_modules
-        ...(() => {
-          try {
-            const resolved = execSync(
-              "node -e \"try{console.log(require.resolve('@code-yeongyu/comment-checker'))}catch{process.exit(1)}\"",
-              { encoding: "utf-8", timeout: 3000, stdio: ["pipe", "pipe", "pipe"] },
-            ).trim();
-            if (resolved) {
-              const pkgDir = join(resolved, "..");
-              return [join(pkgDir, "bin", "comment-checker")];
-            }
-          } catch {
-            // ignore
-          }
-          return [];
-        })(),
-      ];
-
-      for (const candidate of candidates) {
-        if (existsSync(candidate)) {
-          binaryPathCache = candidate;
-          return candidate;
-        }
-      }
-    } catch {
-      // resolve failed
-    }
-
-    binaryPathCache = false;
-    return null;
-  } catch {
-    binaryPathCache = false;
-    return null;
+  } catch (err) {
+    console.error(`[oh-my-pi comments] comment-checker not found in PATH: ${err instanceof Error ? err.message : String(err)}`);
   }
+
+  const candidates = [
+    join(process.env["HOME"] ?? "", ".npm", "node_modules", "@code-yeongyu", "comment-checker", "bin", "comment-checker"),
+    ...resolveCommentCheckerPackageCandidates(),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      binaryPathCache = candidate;
+      return candidate;
+    }
+  }
+
+  binaryPathCache = false;
+  return null;
+}
+
+function resolveCommentCheckerPackageCandidates(): string[] {
+  try {
+    const resolved = execSync(
+      "node -e \"try{console.log(require.resolve('@code-yeongyu/comment-checker'))}catch{process.exit(1)}\"",
+      { encoding: "utf-8", timeout: 3000, stdio: ["pipe", "pipe", "pipe"] },
+    ).trim();
+    if (resolved) {
+      const pkgDir = join(resolved, "..");
+      return [join(pkgDir, "bin", "comment-checker")];
+    }
+  } catch (err) {
+    console.error(`[oh-my-pi comments] Failed to resolve comment-checker npm package: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return [];
 }
 
 // ─── AST detection ─────────────────────────────────────────────────────────
@@ -289,14 +276,7 @@ async function checkWithAST(
   if (!hookInput) return null;
 
   try {
-    const { execSync } = await import("node:child_process");
-
     const inputJson = JSON.stringify(hookInput);
-    // Use a temp file to avoid shell escaping issues with complex code content
-    const { writeFileSync, unlinkSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const { tmpdir } = await import("node:os");
-
     const tmpFile = join(tmpdir(), `pi-cc-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
 
     try {
@@ -317,7 +297,8 @@ async function checkWithAST(
         if (execErr.status === 2 && typeof execErr.stderr === "string") {
           stderr = execErr.stderr;
         } else {
-          // unexpected error (timeout, crash, etc.)
+          const msg = execErr.stderr || (err instanceof Error ? err.message : String(err));
+          console.error(`[oh-my-pi comments] Comment checker execution failed: ${msg}`);
           return null;
         }
       }
@@ -338,11 +319,12 @@ async function checkWithAST(
     } finally {
       try {
         unlinkSync(tmpFile);
-      } catch {
-        // cleanup best-effort
+      } catch (err) {
+        console.error(`[oh-my-pi comments] Failed to remove temp file ${tmpFile}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
-  } catch {
+  } catch (err) {
+    console.error(`[oh-my-pi comments] AST comment check failed: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
 }
@@ -501,7 +483,8 @@ export function registerCommentChecker(pi: ExtensionAPI): void {
         ];
 
         return { content: appendedContent };
-      } catch {
+      } catch (err) {
+        console.error(`[oh-my-pi comments] Comment checker hook failed: ${err instanceof Error ? err.message : String(err)}`);
         return undefined;
       }
     },

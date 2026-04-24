@@ -31,10 +31,13 @@ import {
 	tapePathFor,
 	sweepTmpFiles,
 	CorruptedStateError,
+	writePendingPop,
+	readPendingPop,
+	deletePendingPop,
 } from "./storage.js";
 import { enterStart, executeAction, renderStateView, renderTransitionResult } from "./engine.js";
 import { createVisualizerArtifact } from "./visualizer/index.js";
-import { findLastAssistant, isAskingQuestion, wasAborted } from "./stop-guards.js";
+import { wasAborted } from "./stop-guards.js";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -42,8 +45,7 @@ const MAX_FLOW_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_TAPE_VALUE_BYTES = 64 * 1024;
 const MAX_TAPE_KEYS = 1024;
 const STOP_HOOK_STAGNATION_LIMIT = 3;
-const COMPACTION_GUARD_MS = 60_000;
-const CONFIRM_STOP_TAG = "<STEERING-FLOW-CONFIRM-STOP/>";
+const COMPACTION_GUARD_MS = 30_000;
 
 /**
  * Shell-style tokenizer for slash-command args: supports single/double quotes
@@ -102,11 +104,7 @@ function resolveFilePath(cwd: string, p: string): string {
 }
 
 async function persistRuntime(sessionDir: string, rt: FSMRuntime): Promise<void> {
-	// Write tape first, then state. state.json is effectively the commit
-	// marker: if we crash between the two, the tape is already durable and
-	// the state.current_state_id is unchanged from the previous successful
-	// transition, so the next read sees a consistent (pre-transition) world.
-	await writeTape(sessionDir, rt.fsm_id, rt.tape);
+	// Write state only — tape is managed separately by the tape-writing operations.
 	await writeState(sessionDir, rt.fsm_id, rt.current_state_id, rt.transition_log);
 }
 
@@ -157,7 +155,12 @@ async function loadAndPush(
 	await writeFsmStructure(sessionDir, fsmId, flowName, flowDir, fsm.task_description, statesRec);
 	await writeState(sessionDir, fsmId, "$START", []);
 	await writeTape(sessionDir, fsmId, {});
-	await pushFsm(sessionDir, fsmId);
+	try {
+		await pushFsm(sessionDir, fsmId);
+	} catch (pushErr) {
+		await fs.rm(`${sessionDir}/${fsmId}`, { recursive: true, force: true }).catch(() => {});
+		throw pushErr;
+	}
 
 	const rt: FSMRuntime = {
 		fsm_id: fsmId,
@@ -177,7 +180,12 @@ async function loadAndPush(
 		// Condition processes may have written to tape.json; re-sync the in-memory tape.
 		rt.tape = await readTape(sessionDir, fsmId);
 	} catch (e) {
-		await popFsm(sessionDir);
+		try {
+			await popFsm(sessionDir);
+		} catch (rollbackErr) {
+			console.error('[steering-flow] popFsm rollback failed during $START catch:', rollbackErr);
+			throw e;
+		}
 		return {
 			ok: false,
 			error: `Flow '${flowName}' failed during $START entry; stack rolled back. Cause: ${e instanceof Error ? e.message : String(e)}`,
@@ -187,17 +195,51 @@ async function loadAndPush(
 
 	if (!entry.success) {
 		// Roll back: pop and remove the FSM dir so we don't leave a half-loaded flow.
-		await popFsm(sessionDir);
+		// D1-002: retry popFsm once on failure; warn loudly if stack is left inconsistent.
+		let popSucceeded = false;
+		try {
+			await popFsm(sessionDir);
+			popSucceeded = true;
+		} catch (rollbackErr) {
+			console.error('[steering-flow] popFsm rollback failed after epsilon chain failure (attempt 1):', rollbackErr);
+			// R4-I-004: Before retrying, re-read the stack to check if attempt 1 partially
+			// succeeded (wrote stack but failed on rename). If fsmId is no longer on top,
+			// the pop already completed — skip retry to avoid double-pop.
+			try {
+				const stackAfterAttempt1 = await readStack(sessionDir);
+				if (stackAfterAttempt1[stackAfterAttempt1.length - 1] !== fsmId) {
+					// FSM was already popped by attempt 1 — no retry needed.
+					popSucceeded = true;
+				} else {
+					await popFsm(sessionDir);
+					popSucceeded = true;
+				}
+			} catch (retryErr) {
+				console.error('[steering-flow] CRITICAL: popFsm rollback failed after epsilon chain failure (attempt 2) — FSM stack may be inconsistent:', retryErr);
+			}
+		}
 		return {
 			ok: false,
-			error: `Flow '${flowName}' loaded but its initial epsilon chain from $START failed; stack rolled back. Reasons:\n${entry.reasons.map((r) => `  - ${r}`).join("\n")}`,
+			error: `Flow '${flowName}' loaded but its initial epsilon chain from $START failed; stack rolled back. Reasons:\n${entry.reasons.map((r) => `  - ${r}`).join("\n")}${!popSucceeded ? "\n⚠️  WARNING: stack cleanup failed — FSM stack may be inconsistent." : ""}`,
 		};
 	}
 
+	// RC-A: persist state BEFORE writing pending-pop marker so crash recovery never
+	// sees a marker for an FSM whose state was never saved.
 	await persistRuntime(sessionDir, rt);
+	// R4-I-001: writePendingPop is best-effort; if it throws after persistRuntime succeeded,
+	// the $END sweep in session_start provides secondary recovery. Log but don't rethrow.
+	if (entry.reached_end) {
+		try {
+			await writePendingPop(sessionDir, fsmId);
+		} catch (pendingPopErr) {
+			console.error('[steering-flow] writePendingPop failed after loadAndPush (state was saved; $END sweep will recover):', pendingPopErr);
+		}
+	}
 
 	if (entry.reached_end) {
 		await popFsm(sessionDir);
+		await deletePendingPop(sessionDir);
 		const endDesc = statesRec["$END"]?.state_desc ?? "";
 		let text = `🏁 Flow '${flowName}' loaded and immediately reached $END: ${endDesc}`;
 		// If there is a parent flow, resurface it so the LLM knows context continues there.
@@ -241,13 +283,29 @@ async function actionCall(
 	// On failure, executeAction rolls back runtime.current_state_id; we skip
 	// persistence entirely to avoid churn on state.json.
 	if (result.success) {
-		await persistRuntime(sessionDir, rt);
+		try {
+			// RC-A: persist state BEFORE writing pending-pop marker.
+			await persistRuntime(sessionDir, rt);
+		} catch (persistErr) {
+			console.error('[steering-flow] persistRuntime failed after successful action:', persistErr);
+			return `✅ Action succeeded but state persistence failed: ${persistErr instanceof Error ? persistErr.message : String(persistErr)}. The transition completed but current state may not be saved.`;
+		}
+		// R4-I-001: writePendingPop is best-effort; if it throws after persistRuntime succeeded,
+		// the $END sweep in session_start provides secondary recovery. Log but don't rethrow.
+		if (result.reached_end) {
+			try {
+				await writePendingPop(sessionDir, fsmId);
+			} catch (pendingPopErr) {
+				console.error('[steering-flow] writePendingPop failed after actionCall (state was saved; $END sweep will recover):', pendingPopErr);
+			}
+		}
 	}
 
 	let text = renderTransitionResult(rt, result);
 
 	if (result.reached_end) {
 		await popFsm(sessionDir);  // also rm's the FSM dir
+		await deletePendingPop(sessionDir);
 		const remaining = await readStack(sessionDir);
 		text += `\n\n📤 Popped FSM \`${fsmId}\` from stack. Stack depth: ${remaining.length}.`;
 		if (remaining.length > 0) {
@@ -582,6 +640,9 @@ export default async function steeringFlow(pi: ExtensionAPI) {
 				pi.sendUserMessage(
 					`## Steering-Flow Visualizer\n- Mode: ${result.mode}\n- FSM count: ${result.fsmCount}\n- Source: ${result.sourceLabel}\n- Output: ${result.outputPath}`,
 				);
+				for (const warning of result.warnings) {
+					ctx.ui.notify(warning, "warning");
+				}
 			} catch (e) {
 				ctx.ui.notify(friendlyError(e), "error");
 			}
@@ -642,18 +703,14 @@ export default async function steeringFlow(pi: ExtensionAPI) {
 			if (ctx.signal?.aborted) return;
 			if (wasAborted(event.messages)) return;
 
-			// Guard: asking a question — don't override user interaction
-			if (isAskingQuestion(event.messages)) return;
 
-			// Guard: explicit confirm-to-stop tag in last assistant message
-			const last = findLastAssistant(event.messages);
-			if (last && last.content.some((c) => c.type === "text" && c.text.includes(CONFIRM_STOP_TAG))) return;
 
 			// Guard: compaction cooldown
 			const lastCompact = lastCompactionAt.get(sessionId) ?? 0;
 			if (Date.now() - lastCompact < COMPACTION_GUARD_MS) return;
 
 			await withSessionLock(sessionId, async () => {
+				if (ctx.signal?.aborted) return;
 				const sessionDir = getSessionDir(cwd, sessionId);
 				let stack: string[];
 				try {
@@ -714,14 +771,14 @@ export default async function steeringFlow(pi: ExtensionAPI) {
 					rt,
 					`🧭 **steering-flow active** (reminder ${nextCount}/${STOP_HOOK_STAGNATION_LIMIT}) — you must drive the flow to completion. ` +
 						"Call the `steering-flow-action` tool to transition, or `save-to-steering-flow` to provide tape data a condition needs. " +
-						`Output \`${CONFIRM_STOP_TAG}\` in your reply if the user explicitly wants to abandon the flow (user can also /pop-steering-flow). ` +
 						"You cannot exit silently until `$END` is reached.",
 				);
 
 				pi.sendUserMessage(reminder);
 			});
-		} catch {
-			// Hooks must never throw
+		} catch (e) {
+			// Hooks must never throw — but log so failures are diagnosable
+			if (ctx.hasUI) ctx.ui.notify(`steering-flow: stop-hook error: ${e instanceof Error ? e.message : String(e)}`, "warning");
 		}
 	});
 
@@ -731,8 +788,50 @@ export default async function steeringFlow(pi: ExtensionAPI) {
 		// New session/resume/fork: clear in-memory compaction timestamps for this sessionId.
 		const sid = ctx.sessionManager.getSessionId();
 		lastCompactionAt.delete(sid);
-		// Best-effort orphan-tmp sweep (from atomicWriteJson crashes in previous runs).
-		const dir = getSessionDir(ctx.sessionManager.getCwd(), sid);
-		await sweepTmpFiles(dir);
+		// D4-001: wrap all file I/O in the session lock so concurrent tool calls
+		// cannot interleave with crash-recovery reads/writes.
+		try {
+			await withSessionLock(sid, async () => {
+			// R4-I-003: wrap entire recovery body in try/catch so a crash here never
+			// silently kills the session_start hook.
+			const dir = getSessionDir(ctx.sessionManager.getCwd(), sid);
+			try {
+				// Best-effort orphan-tmp sweep (from atomicWriteJson crashes in previous runs).
+				await sweepTmpFiles(dir);
+
+				// CS-2 Part B: Check for pending pop marker (crash during $END transition)
+				const pendingPop = await readPendingPop(dir);
+				if (pendingPop) {
+					const stackForPop = await readStack(dir);
+					if (!stackForPop.length || stackForPop[stackForPop.length - 1] !== pendingPop.fsmId) {
+						console.warn(`[steering-flow] Stale pending-pop marker (fsmId=${pendingPop.fsmId} not at stack top) — deleting without pop`);
+						await deletePendingPop(dir);
+					} else {
+						await popFsm(dir);
+						await deletePendingPop(dir);
+						// R4-I-002: guard ctx.ui access with hasUI check.
+						if (ctx.hasUI) ctx.ui.notify(`[steering-flow] Auto-popped FSM ${pendingPop.fsmId} (crash recovered from pending pop marker)`, "warning");
+					}
+				}
+
+				// CS-2 Part A: Sweep stack top for stuck $END state (e.g. crash before marker was written)
+				const stack = await readStack(dir);
+				if (stack.length > 0) {
+					const topId = stack[stack.length - 1];
+					const state = await readState(dir, topId);
+					if (state && state.current_state_id === "$END") {
+						await popFsm(dir);
+						// R4-I-002: guard ctx.ui access with hasUI check.
+						if (ctx.hasUI) ctx.ui.notify(`[steering-flow] Auto-popped stuck $END FSM ${topId} from stack`, "warning");
+					}
+				}
+			} catch (e) {
+				console.error('[steering-flow] session_start recovery error:', e);
+				await deletePendingPop(dir).catch(() => {});
+			}
+		});
+		} catch (e) {
+			console.error('[steering-flow] session_start withSessionLock error:', e);
+		}
 	});
 }

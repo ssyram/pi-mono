@@ -39,7 +39,22 @@ if (!assessment || assessment.trim().length === 0) {
 
 const SUCCESS_MARKERS = ["done", "complete", "pass", "approved", "ok", "yes", "true", "satisfied"];
 const text = assessment.trim().toLowerCase();
-const passed = SUCCESS_MARKERS.some(m => text === m || text.startsWith(m + " ") || text.startsWith(m + ".") || text.startsWith(m + ",") || text.includes(" " + m));
+// D1-003 fix: secondary pre-match check for negation within 10 chars, handles multi-space (e.g. "not  done").
+const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const markerFound = SUCCESS_MARKERS.some(m => {
+  const re = new RegExp(`\\b${m}\\b`);
+  const match = re.exec(text);
+  if (!match) return false;
+  const pre = text.slice(Math.max(0, match.index - 10), match.index);
+  if (/\bnot\s+$/.test(pre) || /\bno\s+$/.test(pre)) return false;
+  return true;
+});
+// D1-004 fix: word-boundary regex instead of substring includes, prevents "ok" matching inside "book".
+const rubricSatisfied = rubric.length === 0 || rubric.every(item => {
+  const term = item.trim().toLowerCase();
+  return new RegExp(`\\b${escapeRegex(term)}\\b`).test(text);
+});
+const passed = markerFound && rubricSatisfied;
 
 if (passed) {
   const rubricNote = rubric.length > 0 ? ` Rubric: [${rubric.join("; ")}].` : "";

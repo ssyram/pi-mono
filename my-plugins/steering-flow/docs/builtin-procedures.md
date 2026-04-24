@@ -12,7 +12,7 @@ In your YAML you write:
 ```yaml
 condition:
   builtin: submit/required-fields
-  args: [CODE_WRITTEN, TESTS_PASSED]
+  args: [CODE_WRITTEN, TESTS_PASSED, "${$TAPE_FILE}"]
 ```
 
 The parser rewrites this before the engine loads the flow:
@@ -20,11 +20,11 @@ The parser rewrites this before the engine loads the flow:
 ```yaml
 condition:
   cmd: node
-  args: [<plugin-dir>/builtins/submit-required-fields.mjs, CODE_WRITTEN, TESTS_PASSED]
+  args: [<plugin-dir>/builtins/submit-required-fields.mjs, CODE_WRITTEN, TESTS_PASSED, "${$TAPE_FILE}"]
 ```
 
-Builtins do not receive the tape path implicitly. If you replace a builtin helper
-with your own tape-reading helper, pass `${$TAPE_FILE}` explicitly in `args`.
+Builtins do not receive the tape path implicitly. Always pass `${$TAPE_FILE}` as
+the last element of `args` for any builtin that reads the tape.
 
 Every builtin listed below follows the same stdout contract as hand-written
 conditions: first line `true` or `false`, optional remaining lines as human-readable
@@ -42,14 +42,14 @@ condition on a terminal action that moves the flow to `$END`.
 ```yaml
 condition:
   builtin: submit/required-fields
-  args: [PLAN_TEXT, CODE_WRITTEN, TESTS_PASSED]
+  args: [PLAN_TEXT, CODE_WRITTEN, TESTS_PASSED, "${$TAPE_FILE}"]
 ```
 
 Expands to a node script that reads the tape JSON and fails if any key is absent or
-has a falsy value. The builtin receives the tape path explicitly via the engine's
-`${$TAPE_FILE}` interpolation.
+has a falsy value. `${$TAPE_FILE}` must be the last argument — the script reads it
+as the tape path.
 
-**Requires tape**: yes; the builtin handles `${$TAPE_FILE}` in its lowered args.
+**Requires tape**: yes; pass `${$TAPE_FILE}` explicitly as the final arg.
 
 ---
 
@@ -140,7 +140,7 @@ states:
       - action_id: gate_pass
         condition:
           builtin: submit/required-fields
-          args: [PLAN_TEXT, CODE_WRITTEN]
+          args: [PLAN_TEXT, CODE_WRITTEN, "${$TAPE_FILE}"]
         next_state_id: $END
       - action_id: gate_fail
         condition:

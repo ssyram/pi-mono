@@ -31,7 +31,8 @@ export async function readAgentPrompt(agentsDir: string, agentName: string): Pro
 		const content = await readFile(join(agentsDir, `${agentName}.md`), "utf-8");
 		const match = content.match(/^---\n[\s\S]*?\n---\n?([\s\S]*)$/);
 		return match ? match[1].trim() : content.trim();
-	} catch {
+	} catch (err) {
+		console.error(`[oh-my-pi commands] Failed to read agent prompt ${agentName}: ${err instanceof Error ? err.message : String(err)}`);
 		return undefined;
 	}
 }

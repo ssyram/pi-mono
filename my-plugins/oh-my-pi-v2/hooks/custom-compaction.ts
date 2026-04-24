@@ -157,13 +157,12 @@ function formatFileOps(ops: FileOps): string {
 // ── Context injection helpers ────────────────────────────────────────────────
 
 function formatTaskContext(
-  getTaskState: () => { tasks: Task[]; pendingCount: number },
+  getTaskState: () => { tasks: Task[]; actionableCount: number; readyTasks: Task[] },
 ): string {
-  const { tasks, pendingCount } = getTaskState();
-  if (pendingCount === 0) return "";
+  const { tasks, actionableCount, readyTasks } = getTaskState();
+  if (actionableCount === 0) return "";
 
-  const lines = tasks
-    .filter((t) => t.status !== "done" && t.status !== "expired")
+  const lines = [...tasks.filter((t) => t.status === "in_progress"), ...readyTasks]
     .map((t) => `- [#${t.id}] ${t.text} (${t.status})`)
     .join("\n");
 
@@ -206,25 +205,33 @@ function buildUpdateCompactionPrompt(
 
 export function registerCustomCompaction(
   pi: ExtensionAPI,
-  getTaskState: () => { tasks: Task[]; pendingCount: number },
+  getTaskState: () => { tasks: Task[]; actionableCount: number; readyTasks: Task[] },
 ): void {
   pi.on(
     "session_before_compact",
     async (event: SessionBeforeCompactEvent, ctx) => {
-      ctx.ui.setStatus("omp-compact", "⚡ Compacting (oh-my-pi)...");
+      const clearStatus = () => {
+        try {
+          ctx.ui.setStatus("omp-compact", undefined);
+        } catch (err) {
+          console.error(`[oh-my-pi compact] failed to clear status: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      };
 
       try {
+        ctx.ui.setStatus("omp-compact", "⚡ Compacting (oh-my-pi)...");
+
         const model = ctx.model as Model<Api> | undefined;
         if (!model) {
           console.error("[oh-my-pi compact] ctx.model is undefined, falling back to built-in");
-          ctx.ui.setStatus("omp-compact", undefined);
+          clearStatus();
           return undefined;
         }
 
         const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
         if (!auth.ok) {
           console.error(`[oh-my-pi compact] auth failed: ${auth.error}, falling back to built-in`);
-          ctx.ui.setStatus("omp-compact", undefined);
+          clearStatus();
           return undefined;
         }
 
@@ -287,7 +294,7 @@ export function registerCustomCompaction(
 
         if (!summary.trim()) {
           console.error("[oh-my-pi compact] LLM returned empty summary, falling back to built-in");
-          ctx.ui.setStatus("omp-compact", undefined);
+          clearStatus();
           return undefined;
         }
 
@@ -297,7 +304,7 @@ export function registerCustomCompaction(
         );
         summary += formatFileOps(fileOps);
 
-        ctx.ui.setStatus("omp-compact", undefined);
+        clearStatus();
 
         return {
           compaction: {
@@ -308,7 +315,7 @@ export function registerCustomCompaction(
         };
       } catch (err) {
         console.error("[oh-my-pi compact] error, falling back to built-in:", err);
-        ctx.ui.setStatus("omp-compact", undefined);
+        clearStatus();
         return undefined;
       }
     },

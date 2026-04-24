@@ -84,7 +84,7 @@ fn loadAndPush(cwd, sessionId, filePath):
         popFsm(sessionDir); return {ok:false, reasons}
     if entry.reached_end:
         popFsm(sessionDir); render parent flow
-    persistRuntime(sessionDir, rt)                  // tape-first!
+    persistRuntime(sessionDir, rt)                  // state.json only
     return renderStateView(rt)
 ```
 
@@ -317,6 +317,8 @@ killTree():
     catch: try child.kill("SIGKILL")
 ```
 
+> **Design decision — SIGKILL truncation accepted**: Condition processes write `tape.json` directly via the `${$TAPE_FILE}` path. If a condition is killed mid-write (e.g., 30 s timeout → SIGKILL), `tape.json` may be left truncated. This is an inherent property of the external-process condition model and is accepted. The interrupt is absolute — if the tool did not report completion via stdout, the write is considered interrupted. Callers must treat a post-SIGKILL `tape.json` as potentially corrupt and rely on the re-sync (`rt.tape = readTape(...)`) to detect parse failures.
+
 **首行解析**：
 ```pseudo
 first = lines[0].trim().toLowerCase()
@@ -355,10 +357,12 @@ fn executeAction(runtime, actionId, positionalArgs, tapePath, cwd):
 ```pseudo
     epsilonResult = chainEpsilon(runtime, chain, tapePath, cwd)
     if !epsilonResult.ok:
-        runtime.current_state_id = snapshot  // ← ROLLBACK
+        runtime.current_state_id = snapshot  // ← ROLLBACK (current_state_id only)
         return fail("epsilon failed", epsilonError)
     return { success: true, chain, reached_end: current_state_id == "$END" }
 ```
+
+> **Design decision — tape is cumulative, never rolled back**: When a transition fails (including epsilon chain failures above), only `current_state_id` is restored to the snapshot. Any tape mutations that conditions wrote to `tape.json` during that attempt are **preserved on disk**. This is intentional: conditions write to tape as side effects representing work that was done regardless of whether the state transition ultimately succeeded. If full transactional rollback is needed, the recommended approach is git-based tape management external to steering-flow.
 
 ### G.2 `chainEpsilon` @engine.ts:286
 
@@ -382,6 +386,8 @@ fn chainEpsilon(runtime, chain, tapePath, cwd):
 ```
 
 解析器保证 epsilon 的最后一个 action 是 `{default:true}` → always matches → no deadlocks.
+
+> **Design decision — `transition_log` records only committed transitions**: Every successful hop in an epsilon chain (including all intermediate states) is pushed to `transition_log` once the full chain succeeds. If the epsilon chain fails partway through, `current_state_id` is rolled back and **none of the failed hops are added to `transition_log`** — only transitions that are actually committed to `state.json` appear in the log.
 
 ### G.3 `enterStart` @engine.ts:331
 
@@ -417,11 +423,10 @@ fn actionCall(cwd, sessionId, actionId, args):
 
 ```pseudo
 fn persistRuntime(sessionDir, rt):
-    writeTape(sessionDir, rt.fsm_id, rt.tape)    // data first
-    writeState(sessionDir, rt.fmm_id, ...)        // commit marker second
+    writeState(sessionDir, rt.fsm_id, ...)        // state.json only
 ```
 
-**提交顺序**：tape 先（数据），state 后（提交标记）。崩溃在两步之间 → 下次读到旧 state（前一次转移）+ 新 tape → 相当于转移没发生但 tape 数据就位 → at-least-once 重试语义。
+> **Design decision — `persistRuntime` only writes `state.json`**: Tape is managed independently. Condition scripts write `tape.json` directly via `${$TAPE_FILE}`, and the `save-to-steering-flow` tool writes tape via `writeTape`. `persistRuntime` does **not** call `writeTape` — doing so would overwrite tape changes already made by condition scripts during the same transition.
 
 ### H.3 `saveCall` @index.ts:263
 
@@ -472,9 +477,9 @@ fn popCall(cwd, sessionId):
 |---|---|---|---|
 | 1 | 信号中止 | @index.ts:558 | `ctx.signal?.aborted` |
 | 2 | 用户 abort | @index.ts:559 | `AssistantMessage.stopReason === "aborted"` |
-| 3 | 正在提问 | @index.ts:562 | 末尾文本以 `?` 结束 或 有 `question` 工具调用 |
-| 4 | 确认停止标签 | @index.ts:565 | 最后 assistant 消息含 `<STEERING-FLOW-CONFIRM-STOP/>` |
-| 5 | 压缩冷却 | @index.ts:569 | 距上次 `session_compact` 不足 60 秒 |
+| 3 | 压缩冷却 | @index.ts:569 | 距上次 `session_compact` 不足 30 秒 |
+
+> **Design decision — stop hook is fully automatic**: steering-flow is fully automated. The stop hook **always** re-injects state when the LLM stops mid-flow (before `$END`). There is no question detection and no confirm-to-stop mechanism. The only way to stop the loop is reaching `$END` or the user manually calling `/pop-steering-flow`. The only guard beyond user abort is the 30-second compaction cooldown (per-session) to avoid re-injecting immediately after context compaction.
 
 ### I.2 主体（在 `withSessionLock` 内）
 
@@ -497,6 +502,8 @@ writeState(... count=nextCount, hash=hash, preserve_entered_at)
 render reminder via renderStateView with instruction header
 pi.sendUserMessage(reminder)
 ```
+
+> **Design decision — stagnation counter freeze on ENOSPC accepted**: `writeState` (which persists `reminder_count` to `state.json`) is called inside the stop hook's outer `try/catch` that swallows all errors. If `writeState` fails due to ENOSPC, `reminder_count` is not updated on disk; the counter freezes at its previous value and the user may receive repeated reminders beyond the stagnation limit. This is accepted: ENOSPC indicates a system-level failure beyond steering-flow's scope, and propagating the error from the stop hook would risk crashing the agent on disk-full conditions.
 
 **自愈**：成功转移后 `persistRuntime` 写 `state.json` 不带 `reminder_count` → 下次 hook 读到 `undefined` → counter 重置为 1。
 
@@ -543,8 +550,6 @@ fn stableStringify(v):
 |---|---|---|
 | `findLastAssistant` | @stop-guards.ts:8 | Reverse scan for role=="assistant" |
 | `wasAborted` | @stop-guards.ts:18 | `last.stopReason === "aborted"` |
-| `isAskingQuestion` | @stop-guards.ts:27 | endsWith("?") or toolCall name "question" |
-| `hasConfirmStop` | @stop-guards.ts:44 | any text block includes tag string |
 
 ---
 
@@ -556,7 +561,7 @@ User/LLM → tool/command → withSessionLock → loadAndPush
  → stat/read → parseFlowConfig → buildFSM
  → write fs(fsm.json + state.json + tape.json) → pushFsm
  → enterStart (chainEpsilon → runCondition → spawn)
- → persistRuntime (tape-first) → renderStateView → response
+ → persistRuntime (state.json only) → renderStateView → response
 
 Action flow:
 User/LLM → tool/command → withSessionLock → actionCall
@@ -567,7 +572,7 @@ User/LLM → tool/command → withSessionLock → actionCall
  → persistRuntime (only if success) → popFsm if $END → renderTransitionResult → response
 
 Stop hook:
-agent_end → guards (abort/question/confirm-stop/compaction)
+agent_end → guards (abort/compaction)
  → withSessionLock
  → readStack → loadRuntime → compute stagnation hash
  → if count > 3: notify & return
@@ -617,7 +622,7 @@ agent_end → guards (abort/question/confirm-stop/compaction)
 | 成功 load | stack 有新 top；FSM 目录完整；state.json 在初始状态 |
 | 失败 load | stack 不变（已回滚）；FSM 目录已删 |
 | 成功 action | state.json = 新状态；tape.json = 最新（含条件脚本写入） |
-| 失败 action | state.json 不变（不写磁盘）；runtime.current_state_id 已回滚 |
+| 失败 action | state.json 不变（不写磁盘）；runtime.current_state_id 已回滚；**tape.json 的条件写入已保留**（tape 不回滚，见 G.1 设计决策） |
 | 到达 $END | FSM 目录已删；stack 已 pop；父流程（如有）成为新 top |
 | save | tape.json 已更新 |
 | pop | FSM 目录已删；stack 已更新 |
