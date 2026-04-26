@@ -2,7 +2,7 @@ import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import type { AgentSession } from "./agent-session.js";
 import type { AgentSessionRuntimeDiagnostic, AgentSessionServices } from "./agent-session-services.js";
-import type { SessionShutdownEvent, SessionStartEvent } from "./extensions/index.js";
+import type { ReplacedSessionContext, SessionShutdownEvent, SessionStartEvent } from "./extensions/index.js";
 import { emitSessionShutdownEvent } from "./extensions/runner.js";
 import type { CreateAgentSessionResult } from "./sdk.js";
 import { assertSessionCwdExists } from "./session-cwd.js";
@@ -65,6 +65,9 @@ function extractUserMessageText(content: string | Array<{ type: string; text?: s
  * caller. The caller is responsible for user-facing error handling.
  */
 export class AgentSessionRuntime {
+	private rebindSession?: (session: AgentSession) => Promise<void>;
+	private beforeSessionInvalidate?: () => void;
+
 	constructor(
 		private _session: AgentSession,
 		private _services: AgentSessionServices,
@@ -91,6 +94,22 @@ export class AgentSessionRuntime {
 
 	get modelFallbackMessage(): string | undefined {
 		return this._modelFallbackMessage;
+	}
+
+	setRebindSession(rebindSession?: (session: AgentSession) => Promise<void>): void {
+		this.rebindSession = rebindSession;
+	}
+
+	/**
+	 * Set a synchronous callback that runs after `session_shutdown` handlers finish
+	 * but before the current session is invalidated.
+	 *
+	 * This is for host-owned UI teardown that must not yield to the event loop,
+	 * such as detaching extension-provided TUI components before the old extension
+	 * context becomes stale.
+	 */
+	setBeforeSessionInvalidate(beforeSessionInvalidate?: () => void): void {
+		this.beforeSessionInvalidate = beforeSessionInvalidate;
 	}
 
 	private async emitBeforeSwitch(
@@ -133,6 +152,7 @@ export class AgentSessionRuntime {
 			reason,
 			targetSessionFile,
 		});
+		this.beforeSessionInvalidate?.();
 		this.session.dispose();
 	}
 
@@ -143,14 +163,26 @@ export class AgentSessionRuntime {
 		this._modelFallbackMessage = result.modelFallbackMessage;
 	}
 
-	async switchSession(sessionPath: string, cwdOverride?: string): Promise<{ cancelled: boolean }> {
+	private async finishSessionReplacement(withSession?: (ctx: ReplacedSessionContext) => Promise<void>): Promise<void> {
+		if (this.rebindSession) {
+			await this.rebindSession(this.session);
+		}
+		if (withSession) {
+			await withSession(this.session.createReplacedSessionContext());
+		}
+	}
+
+	async switchSession(
+		sessionPath: string,
+		options?: { cwdOverride?: string; withSession?: (ctx: ReplacedSessionContext) => Promise<void> },
+	): Promise<{ cancelled: boolean }> {
 		const beforeResult = await this.emitBeforeSwitch("resume", sessionPath);
 		if (beforeResult.cancelled) {
 			return beforeResult;
 		}
 
 		const previousSessionFile = this.session.sessionFile;
-		const sessionManager = SessionManager.open(sessionPath, undefined, cwdOverride);
+		const sessionManager = SessionManager.open(sessionPath, undefined, options?.cwdOverride);
 		assertSessionCwdExists(sessionManager, this.cwd);
 		await this.teardownCurrent("resume", sessionManager.getSessionFile());
 		this.apply(
@@ -161,12 +193,14 @@ export class AgentSessionRuntime {
 				sessionStartEvent: { type: "session_start", reason: "resume", previousSessionFile },
 			}),
 		);
+		await this.finishSessionReplacement(options?.withSession);
 		return { cancelled: false };
 	}
 
 	async newSession(options?: {
 		parentSession?: string;
 		setup?: (sessionManager: SessionManager) => Promise<void>;
+		withSession?: (ctx: ReplacedSessionContext) => Promise<void>;
 	}): Promise<{ cancelled: boolean }> {
 		const beforeResult = await this.emitBeforeSwitch("new");
 		if (beforeResult.cancelled) {
@@ -193,12 +227,13 @@ export class AgentSessionRuntime {
 			await options.setup(this.session.sessionManager);
 			this.session.agent.state.messages = this.session.sessionManager.buildSessionContext().messages;
 		}
+		await this.finishSessionReplacement(options?.withSession);
 		return { cancelled: false };
 	}
 
 	async fork(
 		entryId: string,
-		options?: { position?: "before" | "at" },
+		options?: { position?: "before" | "at"; withSession?: (ctx: ReplacedSessionContext) => Promise<void> },
 	): Promise<{ cancelled: boolean; selectedText?: string }> {
 		const position = options?.position ?? "before";
 		const beforeResult = await this.emitBeforeFork(entryId, { position });
@@ -242,6 +277,7 @@ export class AgentSessionRuntime {
 						sessionStartEvent: { type: "session_start", reason: "fork", previousSessionFile },
 					}),
 				);
+				await this.finishSessionReplacement(options?.withSession);
 				return { cancelled: false, selectedText };
 			}
 
@@ -260,6 +296,7 @@ export class AgentSessionRuntime {
 					sessionStartEvent: { type: "session_start", reason: "fork", previousSessionFile },
 				}),
 			);
+			await this.finishSessionReplacement(options?.withSession);
 			return { cancelled: false, selectedText };
 		}
 
@@ -278,6 +315,7 @@ export class AgentSessionRuntime {
 				sessionStartEvent: { type: "session_start", reason: "fork", previousSessionFile },
 			}),
 		);
+		await this.finishSessionReplacement(options?.withSession);
 		return { cancelled: false, selectedText };
 	}
 
@@ -321,6 +359,7 @@ export class AgentSessionRuntime {
 				sessionStartEvent: { type: "session_start", reason: "resume", previousSessionFile },
 			}),
 		);
+		await this.finishSessionReplacement();
 		return { cancelled: false };
 	}
 
@@ -329,6 +368,7 @@ export class AgentSessionRuntime {
 			type: "session_shutdown",
 			reason: "quit",
 		});
+		this.beforeSessionInvalidate?.();
 		this.session.dispose();
 	}
 }

@@ -173,6 +173,10 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 			// Working message not supported in RPC mode - requires TUI loader access
 		},
 
+		setWorkingVisible(_visible: boolean): void {
+			// Working visibility not supported in RPC mode - requires TUI loader access
+		},
+
 		setWorkingIndicator(_options?: WorkingIndicatorOptions): void {
 			// Working indicator customization not supported in RPC mode - requires TUI loader access
 		},
@@ -259,6 +263,10 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 			});
 		},
 
+		addAutocompleteProvider(): void {
+			// Autocomplete provider composition is not supported in RPC mode
+		},
+
 		setEditorComponent(): void {
 			// Custom editor components not supported in RPC mode
 		},
@@ -290,24 +298,19 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 		},
 	});
 
+	runtimeHost.setRebindSession(async () => {
+		await rebindSession();
+	});
+
 	const rebindSession = async (): Promise<void> => {
 		session = runtimeHost.session;
 		await session.bindExtensions({
 			uiContext: createExtensionUIContext(),
 			commandContextActions: {
 				waitForIdle: () => session.agent.waitForIdle(),
-				newSession: async (options) => {
-					const result = await runtimeHost.newSession(options);
-					if (!result.cancelled) {
-						await rebindSession();
-					}
-					return result;
-				},
+				newSession: async (options) => runtimeHost.newSession(options),
 				fork: async (entryId, forkOptions) => {
 					const result = await runtimeHost.fork(entryId, forkOptions);
-					if (!result.cancelled) {
-						await rebindSession();
-					}
 					return { cancelled: result.cancelled };
 				},
 				navigateTree: async (targetId, options) => {
@@ -319,12 +322,8 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 					});
 					return { cancelled: result.cancelled };
 				},
-				switchSession: async (sessionPath) => {
-					const result = await runtimeHost.switchSession(sessionPath);
-					if (!result.cancelled) {
-						await rebindSession();
-					}
-					return result;
+				switchSession: async (sessionPath, options) => {
+					return runtimeHost.switchSession(sessionPath, options);
 				},
 				reload: async () => {
 					await session.reload();
