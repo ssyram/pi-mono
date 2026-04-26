@@ -4,6 +4,12 @@
 **Last updated:** 2026-04-24  
 **Status:** Convergence achieved at Round 7; Round 8 opened new findings in previously unaudited code paths
 
+## Canonical references
+
+- `docs/ARCHITECTURE.md` — design baseline for the runtime model
+- `docs/configuration-tutorial.md` — authoring contract
+- `docs/execution-behavior.md` — runtime contract
+
 ---
 
 ## Section 1: Executive Summary

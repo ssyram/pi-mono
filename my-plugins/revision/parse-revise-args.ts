@@ -1,6 +1,6 @@
 import type { ReviseOptions, RevisionMode } from "./types.js";
 
-const UPT0_FLAG = "--upto";
+const UPTO_FLAG = "--upto";
 const NO_SUMMARY_FLAG = "--no-summary";
 const VISIBLE_SUMMARY_FLAG = "--visible-summary";
 
@@ -14,16 +14,16 @@ function parsePositiveInt(value: string | undefined): number | null {
 export function parseReviseArgs(args: string): ReviseOptions {
 	const parts = args.trim().split(/\s+/).filter(Boolean);
 	let upto = 1;
-	let mode: RevisionMode = "hidden-summary";
+	let mode: RevisionMode = "default";
 	let flagsDone = false;
 	const promptParts: string[] = [];
 
 	for (let i = 0; i < parts.length; i += 1) {
 		const part = parts[i];
-		if (!flagsDone && part === UPT0_FLAG) {
+		if (!flagsDone && part === UPTO_FLAG) {
 			const parsed = parsePositiveInt(parts[i + 1]);
 			if (parsed == null) {
-				throw new Error(`Expected a positive integer after ${UPT0_FLAG}`);
+				throw new Error(`Expected a positive integer after ${UPTO_FLAG}`);
 			}
 			upto = parsed;
 			i += 1;

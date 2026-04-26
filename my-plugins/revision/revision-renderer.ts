@@ -1,46 +1,60 @@
-import type { MessageRenderer, MessageRenderOptions, Theme } from "@mariozechner/pi-coding-agent";
-import { Box, Text, type Component } from "@mariozechner/pi-tui";
-import type { RevisionLiveState, RevisionMode } from "./types.js";
+import type { MessageRenderer, Theme } from "@mariozechner/pi-coding-agent";
+import { Box, Text } from "@mariozechner/pi-tui";
+import type { Component } from "@mariozechner/pi-tui";
+import type { RevisionDetails } from "./types.js";
 
-const VALID_MODES = new Set<RevisionMode>(["hidden-summary", "visible-summary", "no-summary"]);
-const VALID_STATUSES = new Set(["running", "done", "error"]);
+const VALID_MODES: Set<string> = new Set(["default", "visible-summary", "no-summary"]);
 
-function isRevisionDetails(details: unknown): details is RevisionLiveState {
+function isRevisionDetails(details: unknown): details is RevisionDetails {
 	if (typeof details !== "object" || details === null) return false;
-	const value = details as Record<string, unknown>;
-	if (typeof value.requestId !== "string") return false;
-	if (typeof value.mode !== "string" || !VALID_MODES.has(value.mode as RevisionMode)) return false;
-	if (typeof value.status !== "string" || !VALID_STATUSES.has(value.status)) return false;
-	if (value.recap !== undefined && typeof value.recap !== "string") return false;
-	if (value.error !== undefined && typeof value.error !== "string") return false;
-	return true;
+	const d = details as Record<string, unknown>;
+	return (
+		typeof d.requestId === "string" &&
+		typeof d.targetUserId === "string" &&
+		typeof d.revisePrompt === "string" &&
+		VALID_MODES.has(d.mode as string)
+	);
 }
 
-function getTextLines(text: string): string[] {
-	const lines = text.trim() ? text.trim().split(/\r?\n/) : [];
-	return lines.length > 0 ? lines : ["Generating recap..."];
-}
+function createRevisionRenderer(): MessageRenderer {
+	return (message, options, theme) => {
+		const content = typeof message.content === "string" ? message.content : "";
+		const details = isRevisionDetails(message.details) ? message.details : undefined;
 
-function buildLines(details: RevisionLiveState, expanded: boolean): string[] {
-	const recap = details.recap || "";
-	const error = details.error;
-	const status = details.status;
-	const baseLines = error ? [`Revision recap error: ${error}`] : getTextLines(recap);
+		const box = new Box(1, 0);
 
-	const header = status === "running" ? "Revision recap (running)" : status === "error" ? "Revision recap (error)" : "Revision recap";
-	const visible = expanded ? baseLines : baseLines.slice(0, 4);
-	return [header, ...visible.map((line) => (line.length > 120 ? `${line.slice(0, 117)}...` : line))];
-}
+		// Header
+		box.addChild(new Text(theme.fg("accent", "⟳ Revision")));
 
-function createRevisionRenderer(): MessageRenderer<unknown> {
-	return (message, options: MessageRenderOptions, theme: Theme): Component | undefined => {
-		if (!isRevisionDetails(message.details)) return undefined;
-		const lines = buildLines(message.details, options.expanded);
-		const box = new Box(1, 1);
-		for (let index = 0; index < lines.length; index += 1) {
-			const line = lines[index];
-			box.addChild(new Text(index === 0 ? theme.fg("accent", line) : theme.fg("muted", `  ${line}`), 0, 0));
+		// Show recap if available
+		if (details?.recap) {
+			if (options.expanded) {
+				box.addChild(new Text(""));
+				for (const line of details.recap.split("\n")) {
+					box.addChild(new Text(theme.fg("muted", `  ${line}`)));
+				}
+			} else {
+				const firstLine = details.recap.split("\n")[0] ?? "";
+				const truncated = firstLine.length > 120 ? `${firstLine.slice(0, 120)}…` : firstLine;
+				box.addChild(new Text(theme.fg("muted", truncated)));
+			}
 		}
+
+		// Content lines (omitted notice)
+		if (content) {
+			const lines = content.split("\n").filter((line) => line.trim());
+			if (!options.expanded && lines.length > 3) {
+				for (const line of lines.slice(0, 3)) {
+					box.addChild(new Text(theme.fg("muted", line)));
+				}
+				box.addChild(new Text(theme.fg("dim", "…")));
+			} else {
+				for (const line of lines) {
+					box.addChild(new Text(theme.fg("muted", line)));
+				}
+			}
+		}
+
 		return box;
 	};
 }

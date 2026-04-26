@@ -3,6 +3,12 @@
 Use this skill when asked to design, write, or review a `.yaml` flow for the
 `steering-flow` plugin.
 
+## Canonical references
+
+- `docs/ARCHITECTURE.md` — overall runtime model
+- `docs/configuration-tutorial.md` — full schema and invocation semantics
+- `docs/builtin-procedures.md` — builtin expansion rules
+
 ## Core model (read first)
 
 A flow is a finite-state machine. The engine drives transitions by evaluating

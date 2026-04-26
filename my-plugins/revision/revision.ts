@@ -1,25 +1,13 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
-import { boundLlmInput, formatTruncationNotice, parseMaxChars } from "../bounded-llm-input.js";
 import { parseReviseArgs } from "./parse-revise-args.js";
-import { handleCompletedRevision, createReviseInstruction } from "./revision-completion.js";
 import { createRevisionRenderer } from "./revision-renderer.js";
-import { REVISION_TYPE } from "./revision-state.js";
-import { clearRevisionSessionState, getRevisionSessionState, type RevisionSessionState } from "./revision-session-state.js";
-import { buildEntriesText, collectReplacedEntries, findTargetUserEntry } from "./session-text.js";
+import { REVISION_TYPE, createRequestId } from "./revision-state.js";
+import { findTargetUserEntry, handleCompletedRevision } from "./revision-completion.js";
+import { clearRevisionSessionState, getRevisionSessionState } from "./revision-session-state.js";
+import type { RevisionSessionState } from "./revision-session-state.js";
 
-function buildBoundedOriginalText(originalText: string, maxChars: number): string {
-	const bounded = boundLlmInput(originalText, maxChars);
-	return bounded.truncated ? `${formatTruncationNotice(bounded.originalLength, maxChars)}\n\n${bounded.text}` : bounded.text;
-}
-
-const revisionStates = new Map<string, RevisionSessionState>();
-
-export default async function revision(pi: ExtensionAPI): Promise<void> {
-	pi.registerFlag("revision-max-recap-chars", {
-		type: "string",
-		description: "Maximum source characters used for revision recap generation",
-		default: "10240",
-	});
+export default function (pi: ExtensionAPI) {
+	const revisionStates: Map<string, RevisionSessionState> = new Map();
 
 	pi.registerMessageRenderer(REVISION_TYPE, createRevisionRenderer());
 
@@ -27,26 +15,10 @@ export default async function revision(pi: ExtensionAPI): Promise<void> {
 		clearRevisionSessionState(revisionStates, ctx.sessionManager.getSessionId());
 	});
 
-	pi.on("before_agent_start", async (_event, ctx) => {
-		const state = getRevisionSessionState(revisionStates, ctx.sessionManager.getSessionId());
-		const request = state.request;
-		if (state.status !== "generating" || !request) return;
-		return {
-			systemPrompt: `${ctx.getSystemPrompt()}\n\nYou are replacing an earlier assistant response. Use this omitted source material as ground truth for the replacement:\n\n${request.boundedOriginalText}`,
-		};
-	});
-
-	pi.on("message_end", async (event, ctx) => {
-		const state = getRevisionSessionState(revisionStates, ctx.sessionManager.getSessionId());
-		if (state.status !== "generating") return;
-		if (event.message.role === "assistant") state.generatedMessages.push(event.message);
-	});
-
 	pi.on("agent_end", async (_event, ctx) => {
 		await handleCompletedRevision({
 			ctx,
 			sessionStates: revisionStates,
-			maxChars: parseMaxChars(pi.getFlag("revision-max-recap-chars")),
 		});
 	});
 
@@ -75,30 +47,33 @@ export default async function revision(pi: ExtensionAPI): Promise<void> {
 				return;
 			}
 
-			const replacedEntries = collectReplacedEntries(branch, targetUser.id);
-			if (replacedEntries.length === 0) {
-				ctx.ui.notify("No assistant content found after the selected user turn.", "error");
-				return;
+			// Collect original text length for metadata
+			let originalTextLength = 0;
+			const targetIdx = branch.findIndex((e) => e.id === targetUser.id);
+			if (targetIdx >= 0) {
+				const afterTarget = branch.slice(targetIdx + 1);
+				for (const entry of afterTarget) {
+					if (entry.type === "message" && entry.message.role === "assistant") {
+						const content = (entry.message as { content: unknown }).content;
+						originalTextLength += typeof content === "string" ? content.length : JSON.stringify(content).length;
+					}
+				}
 			}
 
-			const originalText = buildEntriesText(replacedEntries);
-			const maxChars = parseMaxChars(pi.getFlag("revision-max-recap-chars"));
-			const requestId = crypto.randomUUID();
+			const requestId = createRequestId();
 			state.status = "generating";
-			state.generatedMessages = [];
 			state.request = {
 				requestId,
 				mode: options.mode,
 				prompt: options.prompt,
-				targetUser,
-				replacedEntries,
-				boundedOriginalText: buildBoundedOriginalText(originalText, maxChars),
-				originalTextLength: originalText.length,
+				targetUserId: targetUser.id,
 				leafBefore: ctx.sessionManager.getLeafId(),
+				originalTextLength,
 			};
 
-			pi.sendUserMessage(createReviseInstruction(options.upto, options.prompt));
-			ctx.ui.notify("Revision generation started. The branch will be replaced after the response completes.", "info");
+			// Send only the user's prompt, not a synthetic instruction
+			pi.sendUserMessage(options.prompt);
+			ctx.ui.notify("Revision generation started.", "info");
 		},
 	});
 }

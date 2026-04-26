@@ -39,47 +39,9 @@ const LAZY_CONTENT_PATTERNS: RegExp[] = [
   /^\s*\.{3}\s*$/,
 ];
 
-// ─── Regex-fallback patterns ───────────────────────────────────────────────
-// Full-line patterns that include the comment delimiter. Used when the AST
-// binary is not available and we must scan raw text.
+// Regex fallback removed: only AST-based detection is used.
+// If the comment-checker binary is unavailable, no detection is performed.
 
-const REGEX_FALLBACK_PATTERNS: RegExp[] = [
-  /\/\/\s*rest of code/i,
-  /\/\/\s*\.{2,}\s*existing code/i,
-  /\/\*\s*TODO\s*\*\//i,
-  /\/\/\s*TODO\b/i,
-  /\/\/\s*implementation here/i,
-  /\/\/\s*\.{2,}\s*\(rest remains the same\)/i,
-  /\/\/\s*Add more as needed/i,
-  /\/\/\s*\.{3}\s*$/m,
-  /\/\/\s*rest remains/i,
-  /\/\/\s*same as before/i,
-  /\/\/\s*\.{2,}\s*remaining/i,
-  /\/\/\s*remaining code/i,
-  /\/\/\s*\.{2,}\s*keep existing/i,
-  /\/\/\s*unchanged/i,
-  /\/\/\s*TODO:\s*implement/i,
-  /\/\/\s*placeholder/i,
-  /\/\/\s*add implementation/i,
-  /\/\*\s*\.\.\.\s*\*\//,
-  // Hash-style comments (Python, Ruby, Shell)
-  /#\s*rest of code/i,
-  /#\s*\.{2,}\s*existing code/i,
-  /#\s*implementation here/i,
-  /#\s*remaining code/i,
-  /#\s*placeholder/i,
-  /#\s*TODO:\s*implement/i,
-  /#\s*add implementation/i,
-  /#\s*TODO\b/i,
-  /#\s*\.{2,}\s*\(rest remains the same\)/i,
-  /#\s*Add more as needed/i,
-  /#\s*\.{3}\s*$/m,
-  /#\s*rest remains/i,
-  /#\s*same as before/i,
-  /#\s*\.{2,}\s*remaining/i,
-  /#\s*\.{2,}\s*keep existing/i,
-  /#\s*unchanged/i,
-];
 
 // ─── Warning message ────────────────────────────────────────────────────────
 
@@ -329,90 +291,8 @@ async function checkWithAST(
   }
 }
 
-// ─── Regex fallback detection ──────────────────────────────────────────────
+// Regex fallback functions removed.
 
-/**
- * Strip string literals from source code to prevent false positives.
- * Replaces content inside "..." and '...' with empty strings, handling escapes.
- * Template literals (`...`) are also handled.
- */
-function stripStringLiterals(text: string): string {
-  let i = 0;
-  const len = text.length;
-
-  // Skip a regular string ('' or ""), advancing i past the closing quote.
-  // Returns nothing — content is discarded.
-  function skipString(quote: string): void {
-    i++; // skip opening quote
-    while (i < len && text[i] !== quote) {
-      if (text[i] === "\\") { i += 2; continue; }
-      i++;
-    }
-    if (i < len) i++; // skip closing quote
-  }
-
-  // Skip a template literal (` ... `), recursively handling ${...} interpolations.
-  // Content between backticks is discarded. Interpolation expressions are kept
-  // (they may contain comment-like code that should be checked).
-  function skipTemplateLiteral(): string {
-    i++; // skip opening backtick
-    let interpolated = "";
-    while (i < len && text[i] !== "`") {
-      if (text[i] === "\\" ) { i += 2; continue; }
-      if (text[i] === "$" && i + 1 < len && text[i + 1] === "{") {
-        i += 2; // skip ${
-        interpolated += processInterpolation();
-        continue;
-      }
-      i++; // skip template string character
-    }
-    if (i < len) i++; // skip closing backtick
-    return interpolated;
-  }
-
-  // Process the inside of a ${...} interpolation (brace-delimited).
-  // Returns the expression content (including any nested strings stripped).
-  function processInterpolation(): string {
-    let result = "";
-    let depth = 1;
-    while (i < len && depth > 0) {
-      if (text[i] === "{") { depth++; result += text[i]; i++; }
-      else if (text[i] === "}") { depth--; if (depth > 0) { result += text[i]; } i++; }
-      else if (text[i] === '"' || text[i] === "'") { skipString(text[i]); }
-      else if (text[i] === "`") { result += skipTemplateLiteral(); }
-      else { result += text[i]; i++; }
-    }
-    return result;
-  }
-
-  // Main loop: copy non-string content, skip string literals
-  let result = "";
-  while (i < len) {
-    const ch = text[i];
-    if (ch === '"' || ch === "'") {
-      result += ch; // keep opening quote
-      skipString(ch);
-      result += ch; // keep closing quote (as empty string marker)
-      continue;
-    }
-    if (ch === "`") {
-      result += "`";
-      result += skipTemplateLiteral();
-      result += "`";
-      continue;
-    }
-    result += ch;
-    i++;
-  }
-  return result;
-}
-
-function checkForLazyCommentsRegex(text: string): boolean {
-  // Strip string literals first to avoid matching comment-like patterns
-  // inside strings (e.g., const url = "// rest of code").
-  const stripped = stripStringLiterals(text);
-  return REGEX_FALLBACK_PATTERNS.some((pattern) => pattern.test(stripped));
-}
 
 function extractWrittenText(event: ToolResultEvent): string | undefined {
   const input = event.input as Record<string, unknown>;
@@ -471,18 +351,12 @@ export function registerCommentChecker(pi: ExtensionAPI): void {
             ];
             return { content: appendedContent };
           }
-          // astResult === null means binary failed unexpectedly; fall through to regex
+          // astResult === null means binary failed unexpectedly; no fallback, skip detection
+          return undefined;
         }
 
-        // Regex fallback
-        if (!checkForLazyCommentsRegex(written)) return undefined;
-
-        const appendedContent = [
-          ...event.content,
-          { type: "text" as const, text: WARNING },
-        ];
-
-        return { content: appendedContent };
+        // Binary unavailable, skip detection
+        return undefined;
       } catch (err) {
         console.error(`[oh-my-pi comments] Comment checker hook failed: ${err instanceof Error ? err.message : String(err)}`);
         return undefined;

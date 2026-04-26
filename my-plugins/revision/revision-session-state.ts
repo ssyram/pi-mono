@@ -1,5 +1,3 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { SessionEntry } from "@mariozechner/pi-coding-agent";
 import type { RevisionMode } from "./types.js";
 
 type RevisionStatus = "idle" | "generating";
@@ -8,23 +6,20 @@ interface RevisionRequest {
 	requestId: string;
 	mode: RevisionMode;
 	prompt: string;
-	targetUser: Extract<SessionEntry, { type: "message" }>;
-	replacedEntries: SessionEntry[];
-	boundedOriginalText: string;
-	originalTextLength: number;
+	targetUserId: string;
 	leafBefore: string | null;
+	originalTextLength: number;
 }
 
 interface RevisionSessionState {
 	status: RevisionStatus;
 	request?: RevisionRequest;
-	generatedMessages: AgentMessage[];
 }
 
 function getRevisionSessionState(states: Map<string, RevisionSessionState>, sessionId: string): RevisionSessionState {
 	let state = states.get(sessionId);
 	if (!state) {
-		state = { status: "idle", generatedMessages: [] };
+		state = { status: "idle" };
 		states.set(sessionId, state);
 	}
 	return state;

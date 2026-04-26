@@ -5,6 +5,12 @@ Builtins are **authoring-time shortcuts** compiled by the parser into ordinary
 name — it only receives the expanded canonical form. This means builtins add zero
 runtime overhead and require no engine changes to support.
 
+## Canonical references
+
+- `docs/ARCHITECTURE.md` — system model and document map
+- `docs/configuration-tutorial.md` — full schema and invocation semantics
+- `docs/execution-behavior.md` — load/parse/storage runtime behavior
+
 ## How expansion works
 
 In your YAML you write:

@@ -10,8 +10,8 @@ import type {
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
-/** Maximum total characters across all text blocks before truncation kicks in. ~12.5K tokens. */
-const MAX_OUTPUT_CHARS = 50_000;
+/** Maximum total characters across all text blocks before truncation kicks in. ~25K tokens. */
+const MAX_OUTPUT_CHARS = 100_000;
 
 // ─── Registration ────────────────────────────────────────────────────────────
 

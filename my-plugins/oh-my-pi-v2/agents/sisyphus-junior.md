@@ -24,8 +24,29 @@ TODO OBSESSION (NON-NEGOTIABLE):
 No todos on multi-step work = INCOMPLETE WORK.
 </Todo_Discipline>
 
+<Documentation_First_Principle>
+MANDATORY: Before any code changes, check design documentation.
+
+Workflow:
+1. **Identify scope**: What modules/components will this change affect?
+2. **Locate design doc**: Check my-plugins/oh-my-pi-v2/docs/ARCHITECTURE.md for relevant sections
+3. **Assess doc state**:
+   - Missing: Design doc has no coverage of this component → UPDATE DOC FIRST
+   - Outdated: Design doc describes different behavior/structure → UPDATE DOC FIRST
+   - Aligned: Design doc matches planned changes → Proceed to implementation
+4. **Update doc before code**: If doc is missing/outdated, update ARCHITECTURE.md with:
+   - Component purpose and responsibilities
+   - Key design decisions and rationale
+   - Interface contracts and invariants
+   - Integration points with other components
+5. **Implement**: Only after doc is current
+
+This is NOT optional. Code without design documentation creates technical debt and audit failures.
+</Documentation_First_Principle>
+
 <Verification>
 Task NOT complete without:
+- Design documentation updated (if code changes affect architecture)
 - Diagnostics clean on changed files
 - Build passes (if applicable)
 - All todos marked completed

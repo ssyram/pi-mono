@@ -83,7 +83,6 @@ function matchesGlob(filename: string, pattern: string): boolean {
   try {
     return nodeMatchesGlob(filename, pattern);
   } catch (err) {
-    console.error(`[oh-my-pi rules] Invalid glob pattern "${pattern}": ${err instanceof Error ? err.message : String(err)}`);
     return false;
   }
 }
@@ -131,7 +130,6 @@ function parseFrontmatter(raw: string): { metadata: RuleMetadata; body: string }
     const metadata = parseSimpleYaml(yamlContent);
     return { metadata, body };
   } catch (err) {
-    console.error(`[oh-my-pi rules] Failed to parse rule frontmatter: ${err instanceof Error ? err.message : String(err)}`);
     return { metadata: {}, body: raw };
   }
 }
@@ -257,12 +255,11 @@ async function scanRuleDir(
 
         rules.push({ name, body, metadata, hash, source: sourceLabel });
       } catch (err) {
-        console.error(`[oh-my-pi rules] Failed to read rule file ${join(dir, file)}: ${err instanceof Error ? err.message : String(err)}`);
+        // Silently skip unreadable files
       }
     }
     return rules;
   } catch (err) {
-    console.error(`[oh-my-pi rules] Failed to scan rule directory ${dir}: ${err instanceof Error ? err.message : String(err)}`);
     return [];
   }
 }
@@ -383,7 +380,6 @@ export function registerRulesInjector(
           systemPrompt: event.systemPrompt + injection,
         };
       } catch (err) {
-        console.error(`[oh-my-pi rules] Rules injection failed: ${err instanceof Error ? err.message : String(err)}`);
         return undefined;
       }
     },

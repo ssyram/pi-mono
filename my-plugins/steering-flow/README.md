@@ -12,6 +12,16 @@ Large models tend to:
 
 `steering-flow` lets you describe a workflow as a **finite state machine** — with program-based transition conditions (MCP-style: executable + fixed args), automatic routing (`epsilon`) states, and a writable tape (`tape.json`) the conditions read and write. The model is forced to drive the FSM to `$END` and cannot silently exit: a Stop hook re-injects the current state + legal actions until the flow completes.
 
+## Documentation map
+
+- [Architecture](docs/ARCHITECTURE.md) — canonical design summary
+- [Flow config tutorial](docs/configuration-tutorial.md) — full syntax and invocation semantics
+- [Runtime behavior](docs/execution-behavior.md) — load, parse, validation, and storage behavior
+- [Builtin procedures](docs/builtin-procedures.md) — parser-expansion shortcuts
+- [Comparison with MCP server FSM](docs/comparison-with-mcp-server-fsm.md) — alternative architecture comparison
+- [Correctness audit](docs/correctness-audit.md) — verification history and open limitations
+- [Authoring skill](skills/steering-flow-author/SKILL.md) — quick authoring checklist
+
 ## Concepts
 
 ### Flow config

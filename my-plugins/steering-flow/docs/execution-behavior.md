@@ -2,6 +2,8 @@
 
 > **Line references** (`@file:line`) are approximate — they track the function/block, not exact lines. Use the function name to locate in source if a line has drifted.
 
+> **Canonical design**: see `docs/ARCHITECTURE.md` first. This document is the runtime companion to the architecture summary.
+
 以**由总到分**的结构组织。每个核心函数用 ≤5 行伪代码抽象核心流程，附 `@file:line` 引用。全篇无泔水、言之有物。
 
 ---

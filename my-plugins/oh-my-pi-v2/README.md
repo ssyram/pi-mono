@@ -7,14 +7,16 @@ Thin Sisyphus runtime for [pi](https://github.com/badlogic/pi-mono). Defines age
 oh-my-pi v2 provides:
 
 - **Sisyphus persona** — system prompt injection with intent detection, delegation routing, code enforcement rules
-- **Agent definitions** — 10 sub-agent `.md` files (oracle, explore, librarian, metis, momus, hephaestus, atlas, sisyphus-junior, multimodal-looker, prometheus)
+- **Agent definitions** — 16 sub-agent `.md` files (prometheus, momus, atlas, oracle, explore, librarian, metis, hephaestus, sisyphus-junior, multimodal-looker, 6 audit agents, confirmation-auditor, workflow-auditor)
 - **Boulder loop** — auto-restarts the agent when actionable tasks remain (`in_progress` or ready/unblocked `pending`)
-- **Quality hooks** — comment checker, edit error recovery, tool output truncator, rules injector, keyword detector, custom compaction, context recovery
+- **Quality hooks** — comment checker, edit error recovery, tool output truncator, rules injector, custom compaction, context recovery
 - **Task management** — task tool with dependencies, blocking, and TUI widget
-- **Commands** — `/omp-start` (Prometheus planning), `/omp-consult` (Oracle consultation), `/omp-review` (Momus plan review)
+- **Commands** — `/omp-start` (two-stage workflow), `/omp-ultrawork` (4-stage execution), `/omp-consult` (Oracle consultation), `/omp-review-plan` (plan review)
 - **Skills** — pre-publish-review, github-triage
 
 oh-my-pi v2 does NOT provide delegation execution. It assumes the `subagent` tool exists (provided by pi-subagents).
+
+**For detailed architecture documentation, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ## Required Extension
 
@@ -67,11 +69,52 @@ pi install npm:pi-mcp-adapter
   "categories": {
     "visual-engineering": {
       "model": "anthropic/claude-sonnet-4-6",
-      "agent": "sisyphus-junior"
+      "agent": "sisyphus-junior",
+      "description": "Frontend/UI work",
+      "fallbackModels": ["anthropic/claude-opus-4"]
     }
-  }
+  },
+
+  // Default model for unspecified tasks
+  "default_model": "anthropic/claude-sonnet-4-6"
 }
 ```
+
+### Default Categories
+
+OMPV2 defines 8 categories that guide Sisyphus's delegation decisions:
+
+| Category | Default Model | Agent | Domain |
+|----------|--------------|-------|--------|
+| `visual-engineering` | claude-sonnet-4-6 | sisyphus-junior | UI/CSS/frontend/design |
+| `ultrabrain` | claude-opus-4 | sisyphus-junior | Complex logic/architecture |
+| `deep` | claude-sonnet-4-6 | hephaestus | Autonomous research + implementation |
+| `artistry` | claude-sonnet-4-6 | sisyphus-junior | Creative/artistic tasks |
+| `quick` | claude-haiku-4-5 | sisyphus-junior | Single-file trivial fixes |
+| `unspecified-low` | claude-sonnet-4-6 | sisyphus-junior | Moderate effort tasks |
+| `unspecified-high` | claude-opus-4 | sisyphus-junior | Large cross-system work |
+| `writing` | claude-sonnet-4-6 | sisyphus-junior | Documentation/technical writing |
+
+You can override any category in your config file. Categories are advisory — Sisyphus makes the final routing decision based on task domain matching.
+
+### Configuration Merging
+
+- **categories**: Per-key shallow merge (project overrides user for matching keys)
+- **disabled_agents**: Union (project + user)
+- **Other fields**: Project config completely overrides user config
+
+### Uninstallation
+
+If you uninstall oh-my-pi-v2, **manually delete symlinks** in `~/.pi/agent/agents/` to avoid stale agent references:
+
+```bash
+rm ~/.pi/agent/agents/prometheus.md
+rm ~/.pi/agent/agents/momus.md
+rm ~/.pi/agent/agents/atlas.md
+# ... (delete all oh-my-pi-v2 agent symlinks)
+```
+
+OMPV2 does not auto-cleanup symlinks on uninstall.
 
 ## Directory Structure
 

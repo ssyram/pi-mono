@@ -2,6 +2,8 @@
 
 > **Line references** (`@file:line`) are approximate — they track the function/block, not exact lines. Use the function name to locate in source if a line has drifted after edits.
 
+> **Canonical design**: see `docs/ARCHITECTURE.md` first. This file is the syntax-and-invocation companion to the architecture summary.
+
 This is the primary reference for writing `.yaml` (or `.json` / `.md`) flow config files consumed by the `steering-flow` pi plugin. Every claim is backed by a code citation in the form `@file:line-range` so you can click through to the implementation.
 
 ---

@@ -1,5 +1,12 @@
 # Comparative Analysis: mcp-server-fsm vs steering-flow
 
+## Canonical references
+
+- `docs/ARCHITECTURE.md` — canonical steering-flow design
+- `docs/configuration-tutorial.md` — steering-flow config syntax
+- `docs/execution-behavior.md` — steering-flow runtime behavior
+- `docs/correctness-audit.md` — implementation verification history
+
 Two independently developed FSM-based workflow enforcement systems for LLM coding agents. mcp-server-fsm targets Claude Code via the MCP protocol and Claude Code hook infrastructure; steering-flow targets the pi coding-agent plugin system.
 
 ---

@@ -22,7 +22,7 @@ import { isUnblocked, statusTag, formatTaskContent } from "./tools/task-helpers.
 // Hooks
 import { registerBoulder } from "./hooks/boulder.js";
 import { registerSisyphusPrompt } from "./hooks/sisyphus-prompt.js";
-import { registerKeywordDetector } from "./hooks/keyword-detector.js";
+import { registerUltraworkPrompt } from "./hooks/ultrawork-prompt.js";
 import { registerCommentChecker } from "./hooks/comment-checker.js";
 import { registerContextRecovery } from "./hooks/context-recovery.js";
 import { registerRulesInjector } from "./hooks/rules-injector.js";
@@ -31,9 +31,10 @@ import { registerToolOutputTruncator } from "./hooks/tool-output-truncator.js";
 import { registerCustomCompaction } from "./hooks/custom-compaction.js";
 
 // Commands
-import { registerStartWork } from "./commands/start-work.js";
+import { registerStartWorkCommand } from "./commands/start-work.js";
 import { registerConsult } from "./commands/consult.js";
 import { registerReviewPlan } from "./commands/review-plan.js";
+import { registerUltrawork } from "./commands/ultrawork.js";
 import { ensureSubagentLinks } from "./subagent-links.js";
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
@@ -129,7 +130,7 @@ export default async function ohMyPiV2(pi: ExtensionAPI) {
 		);
 	}
 	registerSisyphusPrompt(pi, config, agentsDir);
-	registerKeywordDetector(pi);
+	registerUltraworkPrompt(pi);
 	registerCommentChecker(pi);
 	registerContextRecovery(pi, getTaskState);
 	registerCustomCompaction(pi, getTaskState);
@@ -137,9 +138,10 @@ export default async function ohMyPiV2(pi: ExtensionAPI) {
 	registerEditErrorRecovery(pi);
 	registerToolOutputTruncator(pi);
 	// 4. Register commands
-	registerStartWork(pi, agentsDir);
+	registerStartWorkCommand(pi, agentsDir);
 	registerConsult(pi, agentsDir);
 	registerReviewPlan(pi, agentsDir);
+	registerUltrawork(pi, agentsDir);
 
 	// 4c. Capture context for task widget updates
 	pi.on("before_agent_start", async (_event, ctx) => {
@@ -151,59 +153,6 @@ export default async function ohMyPiV2(pi: ExtensionAPI) {
 		skillPaths: [resolve(__dirname, "skills")],
 	}));
 
-	// 6. Optional: AST-Grep tool
-	try {
-		let astGrepCmd = "";
-		try {
-			execSync("sg --version", { stdio: "ignore", timeout: 2000 });
-			astGrepCmd = "sg";
-		} catch (err) {
-			console.error(`[oh-my-pi ast-grep] sg binary unavailable: ${err instanceof Error ? err.message : String(err)}`);
-			try {
-				execSync("npx @ast-grep/cli --version", { stdio: "ignore", timeout: 2000 });
-				astGrepCmd = "npx @ast-grep/cli";
-			} catch (err) {
-				console.error(`[oh-my-pi ast-grep] npx @ast-grep/cli unavailable: ${err instanceof Error ? err.message : String(err)}`);
-			}
-		}
-
-		if (astGrepCmd) {
-			const cmd = astGrepCmd;
-			pi.registerTool({
-				name: "ast_grep",
-				label: "AST Grep",
-				description: "AST-aware code search using ast-grep. Finds patterns by structure, not just text.",
-				parameters: Type.Object({
-					pattern: Type.String({ description: "The AST pattern to search for" }),
-					lang: Type.Optional(Type.String({ description: "Language (ts, js, py, etc.)" })),
-					path: Type.Optional(Type.String({ description: "Path to search in (default: current dir)" })),
-				}),
-				async execute(_toolCallId, params) {
-					const args = ["-p", params.pattern];
-					if (params.lang) args.push("-l", params.lang);
-					args.push(params.path ?? ".");
-					try {
-						const result = execSync(`${cmd} run ${args.map((a) => `'${a}'`).join(" ")}`, {
-							encoding: "utf-8",
-							timeout: 30000,
-							cwd: process.cwd(),
-						});
-						return { content: [{ type: "text", text: result || "No matches found." }], details: undefined };
-					} catch (e: unknown) {
-						const execErr = e as { status?: number; stdout?: string; stderr?: string };
-						// ast-grep returns exit code 1 for "no matches" — not an error
-						if (execErr.status === 1) {
-							return { content: [{ type: "text", text: execErr.stdout || "No matches found." }], details: undefined };
-						}
-						const msg = execErr.stderr || (e instanceof Error ? e.message : String(e));
-						return { content: [{ type: "text", text: `ast-grep error: ${msg}` }], details: undefined };
-					}
-				},
-			});
-		}
-	} catch (err) {
-		console.error(`[oh-my-pi ast-grep] Tool registration failed: ${err instanceof Error ? err.message : String(err)}`);
-	}
 
 	// 7. Clean up on session shutdown
 	pi.on("session_shutdown", async (_event, ctx) => {
