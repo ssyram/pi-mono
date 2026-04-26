@@ -10,7 +10,7 @@ import { StringEnum } from "@mariozechner/pi-ai";
 import type { BeforeAgentStartEvent, ExtensionAPI, ExtensionContext, SessionEntry } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { executeAdd, executeClear, executeDoneOrExpire, executeList, executeStart, executeUpdateDeps } from "./task-actions.js";
-import type { Task, TaskChangeCallback } from "./task-helpers.js";
+import type { Task, TaskChangeCallback, TaskDetails } from "./task-helpers.js";
 import { cloneTasks, type TaskStateEntry, validateTaskStateEntryData } from "./task-state-entry.js";
 import { isUnblocked, statusTag } from "./task-helpers.js";
 import { renderTaskCall, renderTaskResult } from "./task-renderers.js";
@@ -135,11 +135,14 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 			"Manage the tracked task list.",
 		parameters: TaskParams,
 		async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
-			const mutating = params.action !== "list";
+			const action = params.action;
+			const mutating =
+				action === "add" || action === "start" || action === "done" ||
+				action === "expire" || action === "clear" || action === "update_deps";
 			const previousTasks = cloneTasks(tasks);
 			const previousNextId = nextId;
 			let result;
-			switch (params.action) {
+			switch (action) {
 				case "list": result = executeList(tasks, nextId); break;
 				case "add": {
 					const r = executeAdd(params.text, tasks, nextId);
@@ -151,6 +154,13 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 				case "expire": result = executeDoneOrExpire("expire", params.id, params.reason, tasks, nextId); break;
 				case "update_deps": result = executeUpdateDeps(params, tasks, nextId); break;
 				case "clear": tasks = []; nextId = 1; result = executeClear(); break;
+				default: {
+					const error = `unknown action: ${String(action)}`;
+					return {
+						content: [{ type: "text", text: `Error: ${error}` }],
+						details: { action: "list", tasks: [...tasks], nextId, error } as TaskDetails,
+					};
+				}
 			}
 			if (mutating) {
 				try {

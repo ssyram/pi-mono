@@ -303,6 +303,9 @@ export default function (pi: ExtensionAPI) {
 						details: { action: "clear", tasks: [], nextId: 1 } as TaskDetails,
 					};
 				}
+
+				default:
+					return err("list", `unknown action: ${String(params.action)}`);
 			}
 		},
 
