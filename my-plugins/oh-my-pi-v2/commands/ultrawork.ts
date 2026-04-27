@@ -1,88 +1,42 @@
 /**
- * /ultrawork command — UltraWork maximalist execution mode
- * 
- * Activates a sticky mode where Sisyphus operates with maximum rigor:
- * - Forced design phase if intent is unclear
- * - Exhaustive multi-dimensional auditing
- * - Automatic non-decisional fixes
- * - User confirmation only for decisional items
- * 
- * Usage:
- *   /ultrawork <message>     — Enable mode + send message
- *   /ultrawork off           — Disable mode
- *   /ultrawork off <message> — Keep enabled + send message
+ * /omp-ultrawork — Enable/disable UltraWork maximalist execution mode.
+ *
+ * State is persisted as a session-log custom entry ("omp-ultrawork-state").
+ * Reading state back happens in hooks/ultrawork-prompt.ts via ctx.sessionManager.
  */
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join } from "path";
 
-interface UltraWorkState {
+export const ULTRAWORK_ENTRY_TYPE = "omp-ultrawork-state";
+
+export interface UltraWorkStateData {
 	enabled: boolean;
 	activatedAt: string;
 }
 
-const STATE_FILE = ".pi/ultrawork-state.json";
-
-function loadState(cwd: string): UltraWorkState | null {
-	const statePath = join(cwd, STATE_FILE);
-	if (!existsSync(statePath)) return null;
-	try {
-		return JSON.parse(readFileSync(statePath, "utf-8"));
-	} catch {
-		return null;
-	}
-}
-
-function saveState(cwd: string, state: UltraWorkState): void {
-	const stateDir = join(cwd, ".pi");
-	if (!existsSync(stateDir)) mkdirSync(stateDir, { recursive: true });
-	writeFileSync(join(cwd, STATE_FILE), JSON.stringify(state, null, 2));
-}
-
-function deleteState(cwd: string): void {
-	const statePath = join(cwd, STATE_FILE);
-	if (existsSync(statePath)) {
-		try {
-			require("fs").unlinkSync(statePath);
-		} catch {}
-	}
-}
-
-export function registerUltrawork(pi: ExtensionAPI, _agentsDir: string) {
+export function registerUltrawork(pi: ExtensionAPI): void {
 	pi.registerCommand("ultrawork", {
 		description: "Enable/disable UltraWork maximalist execution mode",
-		handler: async (args: string, ctx: ExtensionCommandContext) => {
-			const { cwd } = ctx;
-			const trimmedArgs = args.trim();
+		handler: async (args: string, _ctx: ExtensionCommandContext) => {
+			const input = args.trim();
 
-			// Parse command variants
-			const isOffCommand = trimmedArgs === "off";
-			const isOffWithMessage = trimmedArgs.startsWith("off ");
-
-			if (isOffCommand) {
-				// Pure off — disable mode
-				deleteState(cwd);
+			if (input === "off") {
+				pi.appendEntry<UltraWorkStateData>(ULTRAWORK_ENTRY_TYPE, {
+					enabled: false,
+					activatedAt: new Date().toISOString(),
+				});
 				pi.sendUserMessage("[UltraWork mode disabled]");
 				return;
 			}
 
-			// Enable mode (either with message or "off <message>")
-			const state: UltraWorkState = {
+			const message = input.startsWith("off ") ? input.slice(4) : input;
+			pi.appendEntry<UltraWorkStateData>(ULTRAWORK_ENTRY_TYPE, {
 				enabled: true,
 				activatedAt: new Date().toISOString(),
-			};
-			saveState(cwd, state);
-
-			// Extract actual message
-			const userMessage = isOffWithMessage ? trimmedArgs.slice(4).trim() : trimmedArgs;
-
-			// Inject mode activation marker + user message
-			const fullMessage = userMessage
-				? `[UltraWork mode enabled]\n\n${userMessage}`
-				: "[UltraWork mode enabled]";
-
-			pi.sendUserMessage(fullMessage);
+			});
+			pi.sendUserMessage(
+				`[UltraWork mode enabled]${message ? `\n${message}` : ""}`,
+			);
 		},
 	});
 }

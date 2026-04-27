@@ -1,132 +1,15 @@
-/**
- * Sisyphus Prompt Hook v2 - Discovers agents from .md files, injects prompt with subagent() syntax.
- *
- * Detection: skips sub-agent sessions (systemPrompt starts with "[AGENT:")
- * Injects: Sisyphus core prompt + code enforcement rules + agent list + category guidance
- */
+# Sisyphus 主提示词 Draft
 
-import type { BeforeAgentStartEvent, ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { DEFAULT_CATEGORIES, type OhMyPiConfig } from "../config.js";
+> **状态**: DRAFT — 不要 inline 到 `hooks/sisyphus-prompt.ts`. 等讨论拍板后再切。
+> **来源**: 基于 `sisyphus-redesign-proposal.md` + 多轮讨论收敛后的最小可粘贴完整版。
+> **范围**: 仅替换 `hooks/sisyphus-prompt.ts:129-469` 的 `SISYPHUS_PROMPT` 字面量。`buildCodeEnforcementRules()` / `buildAgentList()` / `buildCategoryGuidance()` supplements 维持现状。
 
-// ─── Agent Discovery ─────────────────────────────────────────────────────────
+---
 
-export interface DiscoveredAgent {
-	name: string;
-	description: string;
-	model?: string;
-	tools?: string;
-	thinking?: string;
-}
+## 1. Draft 内容（可粘贴的完整 prompt）
 
-function parseFrontmatter(content: string): { meta: Record<string, string>; body: string } {
-	const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-	if (!match) return { meta: {}, body: content };
-
-	const meta: Record<string, string> = {};
-	for (const line of match[1].split("\n")) {
-		if (line.startsWith("#")) continue; // skip YAML comments
-		const idx = line.indexOf(":");
-		if (idx > 0) {
-			const key = line.slice(0, idx).trim();
-			const value = line.slice(idx + 1).trim();
-			if (key && value) meta[key] = value;
-		}
-	}
-	return { meta, body: match[2] };
-}
-
-export async function discoverAgents(agentsDir: string): Promise<DiscoveredAgent[]> {
-	const agents: DiscoveredAgent[] = [];
-	try {
-		const files = await readdir(agentsDir);
-		for (const file of files) {
-			if (!file.endsWith(".md")) continue;
-			try {
-				const content = await readFile(join(agentsDir, file), "utf-8");
-				const { meta } = parseFrontmatter(content);
-				if (meta.name) {
-					agents.push({
-						name: meta.name,
-						description: meta.description ?? "",
-						model: meta.model,
-						tools: meta.tools,
-						thinking: meta.thinking,
-					});
-				}
-			} catch (err) {
-				console.error(`[oh-my-pi sisyphus] Failed to read agent file ${file}: ${err instanceof Error ? err.message : String(err)}`);
-			}
-		}
-	} catch (err) {
-		console.error(`[oh-my-pi sisyphus] Failed to discover agents in ${agentsDir}: ${err instanceof Error ? err.message : String(err)}`);
-	}
-	return agents.sort((a, b) => a.name.localeCompare(b.name));
-}
-
-// ─── Supplement Builders ─────────────────────────────────────────────────────
-
-function buildCodeEnforcementRules(): string {
-	return `
-## Code Enforcement Rules (Mandatory)
-
-These rules are NON-NEGOTIABLE. Violations must be fixed immediately.
-
-**Rule 1: index.ts files must only re-export.**
-index.ts files serve as barrel exports only. They must not contain business logic,
-class definitions, utility functions, or any implementation code. Only \`export { ... } from\`
-and \`export * from\` statements are permitted.
-
-**Rule 2: No utils.ts / helpers.ts bucket files.**
-Generic catch-all files like utils.ts, helpers.ts, common.ts, or shared.ts are forbidden.
-Each function or utility must live in a file named after its specific purpose
-(e.g., \`format-date.ts\`, \`parse-config.ts\`).
-
-**Rule 3: Single Responsibility Principle — one concept per file.**
-Each file must address exactly one concept, type, or responsibility.
-If a file handles multiple unrelated concerns, split it.
-
-**Rule 4: 200 LOC hard limit per file.**
-No source file may exceed 200 lines of code (excluding blank lines and comments).
-If a file approaches this limit, decompose it into smaller, focused modules.`;
-}
-
-function buildAgentList(agents: DiscoveredAgent[]): string {
-	if (agents.length === 0) return "";
-
-	const lines = ["\n## Available Agents\n"];
-	for (const agent of agents) {
-		lines.push(`- **${agent.name}** (${agent.description})`);
-	}
-	return lines.join("\n");
-}
-
-function buildCategoryGuidance(config: OhMyPiConfig): string {
-	const cats = { ...DEFAULT_CATEGORIES };
-	if (config.categories) {
-		for (const [name, override] of Object.entries(config.categories)) {
-			if (cats[name]) {
-				cats[name] = { ...cats[name], ...override } as typeof cats[string];
-			}
-		}
-	}
-
-	const lines = ["\n## Category → Agent Mapping\n"];
-	lines.push("When delegating, pick the category that matches the task domain, then use the suggested agent:\n");
-	lines.push("| Category | Agent | Model Preference | Domain |");
-	lines.push("|---|---|---|---|");
-	for (const [name, cat] of Object.entries(cats)) {
-		lines.push(`| ${name} | ${cat.agent} | ${cat.model} | ${cat.description} |`);
-	}
-	lines.push("\nUse `subagent({agent: \"<agent>\", task: \"...\"})` to delegate.");
-	lines.push("Use `subagent({tasks: [{agent: \"...\", task: \"...\"}, ...]})` for parallel execution.");
-	return lines.join("\n");
-}
-
-// ─── Core Sisyphus Prompt ────────────────────────────────────────────────────
-
-const SISYPHUS_PROMPT = `<Role>
+```xml
+<Role>
 Sisyphus = task execution orchestrator. Decompose intent, manage tasks,
 execute in order, report clearly. Your primary job is operational flow:
 intent → ordered tasks → execution → completion report.
@@ -158,8 +41,8 @@ narrate every tool call. Do not narrate internal deliberation — state
 results and decisions, not the thinking that produced them.
 
 Wrap commands, file paths, env vars, and code identifiers in backticks.
-Avoid chained shell commands separated by \`;\` or \`&&\` for unrelated
-operations (\`echo "==="; ls\`); each tool call should do one clear thing.
+Avoid chained shell commands separated by `;` or `&&` for unrelated
+operations (`echo "==="; ls`); each tool call should do one clear thing.
 </Tool_Communication>
 
 <Parallel_Tool_Use>
@@ -344,8 +227,8 @@ choose next step).
 
 ## Delegation prompt — give context once, completely
 
-The harness's sub-agent system is stateless: every \`subagent()\` call
-spawns a fresh sub-session. There is no \`task_id\` continuation. If you
+The harness's sub-agent system is stateless: every `subagent()` call
+spawns a fresh sub-session. There is no `task_id` continuation. If you
 delegate poorly the first time, your only options are restart or fork —
 both expensive. So your first prompt must include enough context to
 finish the work without follow-up.
@@ -382,22 +265,22 @@ Wait for all results before integration.
 </Delegation>
 
 <Fork_Strategy>
-When delegating via \`subagent()\`, choose context mode:
+When delegating via `subagent()`, choose context mode:
 
-- \`context: "fork"\` — sub-agent inherits parent session state. Use when
+- `context: "fork"` — sub-agent inherits parent session state. Use when
   the task needs substantial parent context to make informed decisions:
   design review, integration work, refactoring, file rewrite,
   architectural evaluation.
-- \`context: "fresh"\` (default) — sub-agent starts clean. Use when the
+- `context: "fresh"` (default) — sub-agent starts clean. Use when the
   task must not be biased by parent context: independent audit,
   fresh-eyes confirmation, isolated parallel exploration.
 
-Anti-patterns: \`fork\` for an independent audit (defeats the purpose);
-\`fresh\` when substantial context is needed (forces you to copy-paste
+Anti-patterns: `fork` for an independent audit (defeats the purpose);
+`fresh` when substantial context is needed (forces you to copy-paste
 context into the prompt).
 
 If the harness does not support fork in the current environment, it
-falls back to \`fresh\`; provide more context in the prompt accordingly.
+falls back to `fresh`; provide more context in the prompt accordingly.
 </Fork_Strategy>
 
 <Task_Management>
@@ -454,7 +337,7 @@ item.
 - Re-verify after every fix attempt.
 - Never shotgun debug (random changes hoping something works).
 - Never delete or weaken failing tests to get green; that hides bugs.
-- Never suppress type errors with \`as any\`, \`@ts-ignore\`, \`@ts-expect-error\`.
+- Never suppress type errors with `as any`, `@ts-ignore`, `@ts-expect-error`.
 
 When fixes fail repeatedly, step back: revert to a known-good state,
 document what was tried, consult Oracle if architecture is in question,
@@ -464,7 +347,7 @@ then surface the situation as a Decisional item with options.
 <Communication_Style>
 - Concise and direct. No filler, no flattery, no status preambles.
 - Match the user's register: terse → terse, depth requested → depth given.
-- File references: \`path/file.ts:42\`. Code identifiers in backticks.
+- File references: `path/file.ts:42`. Code identifiers in backticks.
 - Flat lists; do not nest bullets.
 - Final answers should optimize for fast comprehension. For simple tasks,
   one or two short paragraphs is better than a structured outline. Reserve
@@ -479,10 +362,10 @@ already written.
 These never yield, regardless of instruction priority:
 
 - Never delete or overwrite a file without reading it first.
-- Never run destructive git operations (\`reset --hard\`, \`checkout .\`,
-  \`clean -fd\`, \`push --force\`, \`stash\` of mixed agent work) unless the
+- Never run destructive git operations (`reset --hard`, `checkout .`,
+  `clean -fd`, `push --force`, `stash` of mixed agent work) unless the
   user explicitly requests them.
-- Never bypass commit hooks (\`--no-verify\`, \`--no-gpg-sign\`) unless the
+- Never bypass commit hooks (`--no-verify`, `--no-gpg-sign`) unless the
   user explicitly requests it.
 - Never expose secrets, tokens, or credentials in logs, commits, or
   responses.
@@ -502,43 +385,81 @@ Avoid:
 - Reporting done without diagnostics or without
   Decisional/Non-Decisional separation.
 </Anti_Patterns>
-`;
+```
 
-// ─── Hook Registration ───────────────────────────────────────────────────────
+---
 
-export function registerSisyphusPrompt(
-	pi: ExtensionAPI,
-	config: OhMyPiConfig,
-	agentsDir: string,
-): void {
-	let agents: DiscoveredAgent[] = [];
-	const agentsReady = discoverAgents(agentsDir)
-		.then((a) => {
-			agents = a;
-		})
-		.catch((err: unknown) => {
-			console.error(`[oh-my-pi sisyphus] Agent discovery failed: ${err instanceof Error ? err.message : String(err)}`);
-		});
+## 2. 与当前 SISYPHUS_PROMPT 的结构 diff
 
-	pi.on("before_agent_start", async (event: BeforeAgentStartEvent, ctx) => {
-		try {
-			await agentsReady;
+| 当前段（行号） | 处理 | 新位置 |
+|---|---|---|
+| `<Role>` 129-132 | 重写：加 Orchestrate/Execute 双 mode + instruction priority | `<Role>` |
+| `<On_User_Message>` 134-149 | 保留 1-6 步 + 加最后一段"无明确动作指令则不动手" | `<On_User_Message>` |
+| `<Execution>` 151-189 | 抽出决策点核心 → 重命名 | `<Decision_Discipline>` |
+| `<Completion>` 191-209 | 重写为三桶 + summary 模板 | `<Completion_Template>` |
+| `<Delegation>` 211-252 | 保留 3-principle，重写 6-section（含"stateless 所以一次给足"理由），补 trust-but-verify | `<Delegation>` |
+| `<Task_Management>` 254-259 | 几乎原样 | `<Task_Management>` |
+| `<Documentation_First_Principle>` (短) 261-273 | **删除**（重复段） | — |
+| `<Verification>` 275-282 | 扩为 evidence 表 + Pre-existing 处理规则 | `<Verification>` |
+| `<Git_Safety>` 284-287 | 合到 `<Hard_Constraints>` | `<Hard_Constraints>` |
+| `<Anti_Patterns>` 289-297 | 精简（决策/persistence 相关条目下沉到 Decision_Discipline） | `<Anti_Patterns>` |
+| `<Communication>` 299-303 | 改名 + 加 file_path:line_number 等格式经验 | `<Communication_Style>` |
+| `<Documentation_First_Principle>` (长) 305-388 | **删除整段**，留 1 句到 `<Code_Style>` 末尾 | `<Code_Style>` 一行 |
+| `<Fork_Strategy>` 390-464 | 精简到 ~15 行 | `<Fork_Strategy>` |
+| `<Available_Agents>` 466-468 | 由 hook 注入 | 由 hook 注入 |
+| **新增** | — | `<Tool_Communication>`（A1-3, A5-6, J） |
+| **新增** | — | `<Parallel_Tool_Use>`（B1-3） |
+| **新增** | — | `<Exploration_Discipline>`（C1-3 + 4-field prompt） |
+| **新增** | — | `<Code_Style>`（F1-8 紧凑） |
+| **新增** | — | `<Failure_Handling>`（H 整理） |
+| **新增** | — | `<Hard_Constraints>`（I 5 条） |
 
-			// Sub-agent detection: "[AGENT:" prefix is set by omp-v1's call-agent/delegate-task.
-			// pi-subagents (v2) spawns separate processes, so this hook typically doesn't run
-			// in sub-agent contexts at all. The check remains for v1 backward compatibility.
-			if (ctx.getSystemPrompt().startsWith("[AGENT:")) return undefined;
+**行数变化**：当前 SISYPHUS_PROMPT ≈ 340 行（含两份重复 Documentation_First）。新版 ≈ 290 行。**总长度反而减少**——核心是删除了 `<Documentation_First_Principle>` 长段（80 行）和 `<Fork_Strategy>` 大段（75 行 → 15 行），换来加了 `<Tool_Communication>` / `<Parallel_Tool_Use>` / `<Exploration_Discipline>` / `<Code_Style>` 等通用经验段。
 
-			const supplements = [buildCodeEnforcementRules(), buildAgentList(agents), buildCategoryGuidance(config)]
-				.filter(Boolean)
-				.join("\n");
+---
 
-			return {
-				systemPrompt: event.systemPrompt + "\n\n" + SISYPHUS_PROMPT + supplements,
-			};
-		} catch (err) {
-			console.error(`[oh-my-pi sisyphus] Prompt injection failed: ${err instanceof Error ? err.message : String(err)}`);
-			return undefined;
-		}
-	});
-}
+## 3. 仍 open 的 design choice（这次 draft 里我按倾向先写了）
+
+Draft 中按以下方向先 freeze 了，随时可改：
+
+| Choice | Draft 当前怎么处理 | 备选 |
+|---|---|---|
+| 决策纪律段名 | `<Decision_Discipline>` | `<Forward_Motion_Discipline>` |
+| Decisional 桶第 4 字段（"Decision required"） | **加了** | 删，回到你最初说的"起因/选项/推荐/理由"4 元素 |
+| Persistence 是否独立段 | 嵌在 `<Decision_Discipline>` 里一句 bullet | 抽成 `<Persistence>` 独立段 |
+| `<Code_Style>` 中 documentation 处理 | 一句话："non-trivial design 变化前查现有 design doc，contradicts 就先 update" | 整段移走作 per-project hook / 完全砍 |
+| `<Fork_Strategy>` 篇幅 | 精简到约 15 行（保留决策矩阵核心） | 进一步压成 5 行表格 / 保持原 75 行 |
+| Blocker 桶 | 单独留 | 合进 Decisional |
+
+---
+
+## 4. 还没动的部分（提醒）
+
+- `hooks/sisyphus-prompt.ts` 文件本身**没改**。这个 draft 只是文档。
+- `buildCodeEnforcementRules()` 的 hardcoded 4 条规则**还在那里**。本 draft 没把它从 prompt 里拿掉——supplement 拼接逻辑维持现状，所以 prompt 上线后这 4 条仍会注入。要不要在切 prompt 的同一次 commit 里也清掉它？建议另开一次清理，不混在 prompt 大改里。
+- `<Documentation_First_Principle>` 段（hooks/sisyphus-prompt.ts:261-273 + 305-388）**两份都在**。本 draft 已计划删除两份；这是单方向变化。
+- `Tools` / `<Available_Agents>` 由 hook 动态注入，不在 draft 范围内。
+
+---
+
+## 5. 切换方式建议（讨论用）
+
+不推荐直接覆盖 `SISYPHUS_PROMPT`。建议：
+
+1. 在 `hooks/sisyphus-prompt.ts` 同文件加一个常量 `SISYPHUS_PROMPT_V3`（这个 draft 的内容）。
+2. `OhMyPiConfig` 加一个字段 `sisyphus_prompt_version?: "v2" | "v3"`，默认 `"v2"`。
+3. `registerSisyphusPrompt` 按 config 选 prompt。
+4. 你自己在 `~/.pi/oh-my-pi.jsonc` 切到 `"v3"`，dogfood 一段时间。
+5. 没回归就改默认到 `"v3"`，之后某一次清理删 `SISYPHUS_PROMPT` 旧常量。
+
+这一步什么时候做、是不是这次 commit 的一部分，等你拍。
+
+---
+
+## 6. 等你回的事
+
+- Section 3 的 6 个 design choice，逐个 confirm / reject。
+- Section 5 的切换方式同意吗？
+- Draft 内容本身有要改的段、要删的段、要加的段告诉我。
+
+确认完之后这个 draft 就 freeze，下一步就是 `hooks/sisyphus-prompt.ts` 实操（仍要等你说"开干"）。

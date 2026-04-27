@@ -12,7 +12,7 @@
  * - Injection failure backoff (exponential 10s-160s)
  * - Stagnation detection: stops after 3 restarts with no progress
  * - Pending question detection: skips restart if agent is asking a question
- * - Compaction guard: skips restart within 60s after context compaction
+ * - Compaction guard: skips restart within 10s after context compaction
  * - Background task awareness: skips restart while background tasks are running
  * - Failure observability: logs failures and disables Boulder after repeated failures
  *
@@ -43,7 +43,7 @@ interface BoulderContext {
 
 const MAX_INJECTION_FAILURES = 5;
 const NORMAL_COOLDOWN_MS = 10000;
-const COMPACTION_GUARD_MS = 60000;
+const COMPACTION_GUARD_MS = 10000;
 
 // ─── Module-level state ─────────────────────────────────────────────────────
 
@@ -167,9 +167,13 @@ export function registerBoulder(
         sendRestart(pi, ctx, freshMessage);
       };
 
+      const onCountdownError = (err: unknown) => {
+        recordBoulderFailure(ctx, "Boulder countdown failed", err);
+      };
+
       activeCountdown = ctx.hasUI
-        ? startCountdown(ctx, totalDelay, actionableCount, fire)
-        : startSilentCountdown(totalDelay, fire);
+        ? startCountdown({ ctx, totalMs: totalDelay, actionable: actionableCount, onFinish: fire, onError: onCountdownError })
+        : startSilentCountdown(totalDelay, fire, onCountdownError);
     } catch (err) {
       recordBoulderFailure(ctx, "Boulder hook failed", err);
     }

@@ -24,7 +24,6 @@ import { registerBoulder } from "./hooks/boulder.js";
 import { registerSisyphusPrompt } from "./hooks/sisyphus-prompt.js";
 import { registerUltraworkPrompt } from "./hooks/ultrawork-prompt.js";
 import { registerCommentChecker } from "./hooks/comment-checker.js";
-import { registerContextRecovery } from "./hooks/context-recovery.js";
 import { registerRulesInjector } from "./hooks/rules-injector.js";
 import { registerEditErrorRecovery } from "./hooks/edit-error-recovery.js";
 import { registerToolOutputTruncator } from "./hooks/tool-output-truncator.js";
@@ -132,7 +131,6 @@ export default async function ohMyPiV2(pi: ExtensionAPI) {
 	registerSisyphusPrompt(pi, config, agentsDir);
 	registerUltraworkPrompt(pi);
 	registerCommentChecker(pi);
-	registerContextRecovery(pi, getTaskState);
 	registerCustomCompaction(pi, getTaskState);
 	registerRulesInjector(pi, config);
 	registerEditErrorRecovery(pi);
@@ -141,7 +139,7 @@ export default async function ohMyPiV2(pi: ExtensionAPI) {
 	registerStartWorkCommand(pi, agentsDir);
 	registerConsult(pi, agentsDir);
 	registerReviewPlan(pi, agentsDir);
-	registerUltrawork(pi, agentsDir);
+	registerUltrawork(pi);
 
 	// 4c. Capture context for task widget updates
 	pi.on("before_agent_start", async (_event, ctx) => {

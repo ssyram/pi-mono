@@ -1,31 +1,3 @@
-# Design Intent — oh-my-pi v2
-
-This document captures the core design philosophy and intent behind oh-my-pi v2's architecture.
-
-## Core Philosophy
-
-**Sisyphus = Orchestration, not execution.**
-
-oh-my-pi v2 is a thin runtime that defines **how** an AI agent should think, delegate, and enforce quality — but delegates all **execution** to external extensions (pi-subagents, pi-web-access, etc.).
-
-## Key Design Decisions
-
-### 1. Sisyphus Persona — Orchestrator with Discipline
-
-**Intent**: Create an agent that coordinates work through the right mix of self-execution and delegation, with built-in quality enforcement.
-
-**Core Principles**:
-- **Decompose → Order → Delegate → Verify** — structured workflow, not ad-hoc execution
-- **Decisional vs Non-Decisional** — separate "needs user judgment" from "can proceed autonomously"
-- **Forward motion bias** — ask only when truly unclear, default to reasonable interpretation
-- **Evidence-based completion** — diagnostics + build + functional verification required
-
-**Anti-patterns enforced**:
-- No silent scope reduction
-- No "should work" / "types check out" claims without functional verification
-- No self-review (delegation for independent perspective)
-- No shotgun debugging (root cause analysis required)
-
 ### 2. UltraWork Mode — Maximalist Quality Loop
 
 **Intent**: Provide a "do it completely, exhaustively, with zero regrets" mode for critical work where speed and token cost are secondary to correctness.
@@ -66,96 +38,70 @@ Stage 3: Audit Loop (Sisyphus 自己推进 hoare-audit.md 9 步)
     Step 7: 收敛判断
     if 收敛: break
     if 同一模块 3+ 轮: 熔断 → 根因分析
-  Step 8-9: 汇报 Decisional → 用户决策 → 应用决策 → 重启循环
 
 Stage 4: Completion Report
-  ├─ Non-Decisional: 已自动修复，简要列出
-  ├─ Decisional: 累积列出 (设计阶段 + 审计阶段)
-  └─ Blocker (方向性问题): 突出标记
+  ├─ Non-Decisional
+  ├─ Decisional
+  └─ Blocker
 ```
 
-**Why Sisyphus pushes the loop, not a sub-agent**:
-- 委托给另一个 agent → 流程过长 + 异步不可控 + 用户无法直接对话
-- Sisyphus 是主 agent，循环推进是自己的工作
-- Sub-agent 只负责单步 (dimension audit, confirmation)，结果写文件，Sisyphus 读文件衔接下一步
+**Why Sisyphus pushes the loop**:
+- Delegation to another agent is too long
+- Async control becomes difficult
+- User dialogue becomes indirect
+- Sub-agents handle single steps; Sisyphus stitches the loop
 
 ### 3. Audit Agents — Parallel Multi-Dimensional Review
 
-**Intent**: Implement hoare-audit.md's multi-dimensional parallel audit strategy with independent agents.
+**Intent**: Avoid single-agent blind spots and increase audit coverage.
 
-**Agent Hierarchy**:
+**Audit hierarchy**:
+- **6 dimension auditors**: crash-safety, functional-correctness, cross-boundary, resource, spec-impl, adversarial
+- **1 confirmation-auditor**: fresh-eyes independent confirmation
+- **1 workflow-auditor**: checks workflow discipline and prompt compliance
 
-```
-大循环 (Sisyphus 推进)
-  └─ hoare-audit.md 9 步框架
-      └─ 单步审计工具 (并列)
-          ├─ Dimension Agents (用 hoare-prompt.md 方法论)
-          │   ├─ crash-safety-auditor
-          │   ├─ functional-correctness-auditor
-          │   ├─ cross-boundary-auditor
-          │   ├─ resource-auditor
-          │   ├─ spec-impl-auditor
-          │   └─ adversarial-auditor
-          ├─ confirmation-auditor (fresh eyes, Step 4)
-          └─ workflow-auditor (workflow.md 流程纪律)
-```
+**Selection examples**:
+- Algorithm-dense work → crash-safety + functional-correctness + adversarial
+- API change → cross-boundary + spec-impl
+- Resource management → resource + crash-safety
 
 **Why 6 dimension agents + 1 confirmation + 1 workflow**:
-- hoare-audit.md Step 2 要求 3-6 个维度并行审计，避免群体思维
-- 每个 dimension agent 专注一个角度 (crash safety, functional correctness, etc.)
-- confirmation-auditor 提供独立视角 (不读原报告，fresh eyes)
-- workflow-auditor 检查流程纪律 (根因分析、测试失败协议、回归防护)
-
-**Task-specific selection**: Sisyphus 根据任务类型选择性派发 dimension agents:
-- 算法密集 → crash/functional/adversarial
-- API 改动 → cross-boundary/spec-impl
-- 资源管理 → resource/crash
+- hoare-audit.md Step 2 expects 3–6 parallel audits
+- Multiple dimensions reduce groupthink
+- Confirmation adds fresh eyes
+- Workflow audit catches process drift
 
 ### 4. Methodology References — Immutable Ground Truth
 
-**Intent**: Embed proven methodologies as immutable references, not inline rules.
-
-**Four reference documents** (`references/`):
-1. **workflow.md** — 总流程 (设计→实施→测试→修复→回归)
-2. **hoare-design.md** — 设计阶段工具 (反向推理 / 正向设计)
-3. **hoare-prompt.md** — Hoare logic 方法论 (静态推理、跨界契约)
-4. **hoare-audit.md** — 审计执行循环 (9 步自动化框架)
-
-**Why references/ not inline**:
-- Sisyphus prompt 保持简洁 (orchestration logic only)
-- 方法论可以独立演进、版本锁定
-- Audit agents 直接引用完整方法论，无压缩损失
+These four documents are the source of truth:
+- `workflow.md`
+- `hoare-design.md`
+- `hoare-prompt.md`
+- `hoare-audit.md`
 
 ### 5. Verification — Functional, Not Just Static
 
-**Intent**: Enforce functional verification as mandatory, not optional.
+**Rule**: "Types check out" only proves type correctness, not functional correctness.
 
-**Sisyphus `<Verification>` 段**:
-```markdown
-After changing files:
-- Run diagnostics + build/test
-- Functional verification (mandatory):
-  | Change type             | Required verification              |
-  |-------------------------|------------------------------------|
-  | CLI command             | Run the command, show output       |
-  | Build output            | Run build, verify output files     |
-  | API behavior            | Call endpoint, show response       |
-  | UI rendering            | Describe render / use browser tool |
-  | New tool/hook/feature   | End-to-end test in real scenario   |
-  | Config handling         | Load config, verify it parses      |
-- Insufficient claims: "should work", "types check out", 
-  "diagnostics clean", "tests pass" — none prove the feature works.
+**Manual QA Mandate**:
+- Simple changes → minimal verification
+- Complex changes → audit agents
 
-For complex scenarios, see /workflow and /hoare-prompt for:
-- Root cause analysis (workflow §5.1)
-- Structural reasoning (hoare-prompt)
-- Cross-boundary contracts (hoare-prompt)
-```
+**Required verification types**:
+- CLI output
+- Build outputs
+- API responses
+- UI rendering / visual inspection
+- New tool/hook behavior
+- Config handling
 
-**Why this matters**: 
-- "Types check out" 只证明类型正确，不证明功能正确
-- UltraWork 的 Manual QA Mandate 提升到默认行为
-- 简单改动 → 最小验证；复杂改动 → 派 audit agents
+**Insufficient claims**:
+- "should work"
+- "types check out"
+- "tests pass"
+- "diagnostics clean"
+
+For complex scenarios, use `/workflow` and `/hoare-prompt` for root cause analysis, structural reasoning, and cross-boundary contracts.
 
 ### 6. Scope Discipline — No Silent Downscoping
 
@@ -171,11 +117,6 @@ The user's request is a contract. Do not silently downscope.
 - Partial completion is acceptable ONLY when explicitly reported as such.
 ```
 
-**Why this matters**:
-- 默认 AI 遇到困难时倾向降低目标而不上报
-- UltraWork 的 "100% delivery" 原则提升到默认行为
-- 用户的请求是契约，不能默默打折
-
 ### 7. Delegation — Three Principles, Not Default
 
 **Intent**: Delegate strategically, not reflexively.
@@ -185,83 +126,57 @@ The user's request is a contract. Do not silently downscope.
 2. **Capability** — Task requires abilities you lack (e.g., PDF analysis)
 3. **Efficiency** — Task is context-independent + multi-step complex
 
-**Why not "default delegate"**:
-- 过度委托浪费 token (简单 grep 不需要 explore agent)
-- 委托有成本 (sub-agent 启动、上下文传递)
-- Sisyphus 应该能自己做简单工作
-
 **When to delegate**:
-- 独立视角 (review 自己的代码)
-- 专门能力 (multimodal-looker 看 PDF)
-- 复杂搜索 (2-5 explore agents 并行，不同角度)
+- Use 2–5 explore agents in parallel for complex search
+- Don’t delegate simple grep-style work
 
-### 8. Task Management — Real-Time Progress Tracking
+### 8. Task Management — Track Progress Explicitly
 
-**Intent**: Make progress visible to user, prevent drift.
-
-**Mandatory workflow**:
-1. Multi-step task → 立即创建 todos
-2. 开始每步前 → mark `in_progress`
-3. 完成每步后 → mark `done` 立即 (不批量)
-4. Scope 变化 → 更新 todos 再继续
-
-**Why this matters**:
-- 用户实时看到进度，不是黑盒
-- Todos 锚定实际请求，防止漂移
-- 中断后可以无缝恢复
+- Multi-step work requires todos
+- Mark each step `in_progress` before work proceeds
+- Mark completion with `done` immediately
+- Update scope changes as they happen
 
 ### 9. Boulder Loop — Auto-Restart on Actionable Tasks
 
-**Intent**: Keep agent running until all actionable work is complete.
+- Boulder auto-restarts while actionable tasks remain
+- Actionable = `in_progress` or ready/unblocked `pending`
+- `<CONFIRM-TO-STOP/>` is the escape hatch
 
-**Mechanism**: After agent stops, if tasks remain `in_progress` or ready `pending`, auto-restart.
+### 10. Design Constraints
 
-**Why this matters**:
-- 防止 agent 中途停下，留下未完成工作
-- 用户不必手动 "continue"
-- 明确停止点：所有 actionable tasks 完成
+- oh-my-pi v2 does not do execution, web access, or MCP itself
+- Those are delegated to `pi-subagents`, `pi-web-access`, and `pi-mcp-adapter`
 
-**Escape hatch**: `<CONFIRM-TO-STOP/>` tag — agent 明确表示需要等待外部输入
+### 11. Why Thin Runtime
 
-## Design Constraints
+- v1 was about 7700 lines and did everything in-house
+- v2 is about 3300 lines and focuses on Persona, Behavioral hooks, and Task management
 
-### What oh-my-pi v2 Does NOT Do
+### 12. Evolution Path
 
-1. **Execution** — 不实现 subagent 调用、并行管理、session 运行。委托给 pi-subagents。
-2. **Web access** — 不实现搜索、fetch、GitHub clone。委托给 pi-web-access。
-3. **MCP** — 不实现 MCP 协议。委托给 pi-mcp-adapter。
+- In-house tools → `pi-subagents`
+- In-house web access → `pi-web-access`
+- Category system → simplified delegation principles
+- Keyword detector → explicit commands
+- 286-line ultrawork prompt → 80-100 line maximalist loop
 
-### Why Thin Runtime
+### 13. Future Considerations
 
-v1 实现了所有功能 in-house (~7700 lines)。v2 专注于 Sisyphus 独特价值 (~3300 lines):
-- Persona (orchestration logic)
-- Behavioral hooks (quality enforcement)
-- Task management (progress tracking)
+- Audit agent nesting depth
+- Workflow/Hoare fusion
+- Design-intent detection accuracy
 
-执行层委托给社区扩展，避免重复造轮子。
-
-## Evolution Path
-
-### From v1 to v2
-
-| v1 | v2 |
-|---|---|
-| In-house delegation tools | pi-subagents |
-| In-house web access | pi-web-access |
-| Category system (8 categories) | Simplified (delegation principles) |
-| Keyword detector (300+ regex) | Explicit commands |
-| 286-line ultrawork prompt | 80-100 line maximalist loop |
-
-### Future Considerations
-
-1. **Audit agent 嵌套深度** — 当前 Sisyphus 推进循环，派 dimension agents。如果 dimension agents 需要再派 sub-agent，是否支持？
-2. **Workflow vs Hoare 融合** — 当前 workflow-auditor 和 dimension agents 并列。是否需要更深度融合？
-3. **设计意图探测准确性** — Stage 0 的"基本完整"判断依赖 Sisyphus 综合 explore 结果。是否需要更明确的量化标准？
-
-## Summary
+### 14. Summary
 
 oh-my-pi v2 的设计意图：
 - **Orchestration, not execution** — 定义思维方式，委托执行
 - **Quality by default** — 验证、根因分析、scope 纪律内置
 - **Maximalist when needed** — UltraWork 提供"做绝"选项
 - **Thin runtime** — 专注独特价值，避免重复造轮子
+
+### UltraWork State — Session Log Custom Entry
+
+- UltraWork state is stored as a session-log custom entry (`omp-ultrawork-state`).
+- On resume, the runtime walks upward through the current session branch to find the latest valid UltraWork entry.
+- If no valid entry is found, UltraWork defaults to `false`.

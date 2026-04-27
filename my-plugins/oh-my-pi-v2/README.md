@@ -1,160 +1,86 @@
 # oh-my-pi v2
 
-Thin Sisyphus runtime for [pi](https://github.com/badlogic/pi-mono). Defines agent personalities, behavioral hooks, and task management. Delegates all execution to external extensions.
+A thin Sisyphus runtime for pi that defines agent personalities, behavioral hooks, and task management.
 
 ## Architecture
 
-oh-my-pi v2 provides:
-
-- **Sisyphus persona** — system prompt injection with intent detection, delegation routing, code enforcement rules
-- **Agent definitions** — 16 sub-agent `.md` files (prometheus, momus, atlas, oracle, explore, librarian, metis, hephaestus, sisyphus-junior, multimodal-looker, 6 audit agents, confirmation-auditor, workflow-auditor)
+- **Sisyphus persona** — core orchestration identity
+- **16 sub-agent `.md` files** — installed as individual agents
 - **Boulder loop** — auto-restarts the agent when actionable tasks remain (`in_progress` or ready/unblocked `pending`)
-- **Quality hooks** — comment checker, edit error recovery, tool output truncator, rules injector, custom compaction, context recovery
+- **Quality hooks** — comment checker, edit error recovery, tool output truncator, rules injector, custom compaction
 - **Task management** — task tool with dependencies, blocking, and TUI widget
 - **Commands** — `/omp-start` (two-stage workflow), `/omp-ultrawork` (4-stage execution), `/omp-consult` (Oracle consultation), `/omp-review-plan` (plan review)
 - **Skills** — pre-publish-review, github-triage
 
 oh-my-pi v2 does NOT provide delegation execution. It assumes the `subagent` tool exists (provided by pi-subagents).
 
-**For detailed architecture documentation, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+For detailed architecture documentation, see `docs/ARCHITECTURE.md`.
 
 ## Required Extension
 
-```bash
-pi install npm:pi-subagents
-```
-
-[pi-subagents](https://github.com/nicobailon/pi-subagents) (681★) provides the `subagent` tool for single/parallel/chain agent execution, async background jobs, and agent management TUI.
+- `pi-subagents` — required for subagent execution
 
 ## Recommended Extensions
 
-```bash
-# Web search + content extraction + GitHub cloning + video understanding
-pi install npm:pi-web-access
+- `pi-web-access` — web search, fetch, GitHub cloning
+- `pi-intercom` — runtime communication between agents
 
-# Session bridge used by pi-subagents for inter-session communication
-pi install npm:pi-intercom
-```
+## Optional MCP Support
 
-Optional MCP support:
-
-```bash
-# MCP server proxy (~200 token overhead, lazy lifecycle, OAuth)
-pi install npm:pi-mcp-adapter
-```
-
-| Extension | Author | Stars | Role |
-|---|---|---|---|
-| [pi-subagents](https://github.com/nicobailon/pi-subagents) | nicobailon | 681 | Required delegation tools (single/parallel/chain/background agents) |
-| [pi-web-access](https://github.com/nicobailon/pi-web-access) | nicobailon | 314 | Recommended web search, content fetch, research kit |
-| [pi-intercom](https://github.com/nicobailon/pi-intercom) | nicobailon | — | Recommended inter-session bridge for pi-subagents |
-| [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter) | nicobailon | 325 | Optional MCP proxy |
+- `pi-mcp-adapter` — optional MCP integration
 
 ## Configuration
 
-`~/.pi/oh-my-pi.jsonc` (user) and `.pi/oh-my-pi.jsonc` (project, overrides user):
-
 ```jsonc
 {
-  // Disable specific agents (they won't appear in prompt)
-  "disabled_agents": ["prometheus"],
-
-  // Toggle Boulder auto-restart loop
+  "disabled_agents": ["momus"],
   "boulder_enabled": true,
-
-  // Toggle rules injection from .cursor/rules/, .claude/rules/, etc.
   "sisyphus_rules_enabled": true,
-
-  // Override category → agent/model mapping
   "categories": {
-    "visual-engineering": {
-      "model": "anthropic/claude-sonnet-4-6",
-      "agent": "sisyphus-junior",
-      "description": "Frontend/UI work",
-      "fallbackModels": ["anthropic/claude-opus-4"]
-    }
+    "ultrabrain": ["atlas", "prometheus"]
   },
-
-  // Default model for unspecified tasks
-  "default_model": "anthropic/claude-sonnet-4-6"
+  "default_model": "claude-3.5-sonnet"
 }
 ```
 
-### Default Categories
+User config: `~/.pi/oh-my-pi.jsonc`
+Project config: `.pi/oh-my-pi.jsonc`
 
-OMPV2 defines 8 categories that guide Sisyphus's delegation decisions:
+Project config overrides user config.
 
-| Category | Default Model | Agent | Domain |
-|----------|--------------|-------|--------|
-| `visual-engineering` | claude-sonnet-4-6 | sisyphus-junior | UI/CSS/frontend/design |
-| `ultrabrain` | claude-opus-4 | sisyphus-junior | Complex logic/architecture |
-| `deep` | claude-sonnet-4-6 | hephaestus | Autonomous research + implementation |
-| `artistry` | claude-sonnet-4-6 | sisyphus-junior | Creative/artistic tasks |
-| `quick` | claude-haiku-4-5 | sisyphus-junior | Single-file trivial fixes |
-| `unspecified-low` | claude-sonnet-4-6 | sisyphus-junior | Moderate effort tasks |
-| `unspecified-high` | claude-opus-4 | sisyphus-junior | Large cross-system work |
-| `writing` | claude-sonnet-4-6 | sisyphus-junior | Documentation/technical writing |
+## Default Categories
 
-You can override any category in your config file. Categories are advisory — Sisyphus makes the final routing decision based on task domain matching.
+1. `visual-engineering`
+2. `ultrabrain`
+3. `deep`
+4. `artistry`
+5. `quick`
+6. `unspecified-low`
+7. `unspecified-high`
+8. `writing`
 
-### Configuration Merging
+Categories are advisory. Sisyphus makes the final routing decision.
 
-- **categories**: Per-key shallow merge (project overrides user for matching keys)
-- **disabled_agents**: Union (project + user)
-- **Other fields**: Project config completely overrides user config
+## Configuration Merging
 
-### Uninstallation
+- `disabled_agents` values are unioned between user and project config
+- `categories` are shallow-merged per key
+- All other keys are project-overrides-user
 
-If you uninstall oh-my-pi-v2, **manually delete symlinks** in `~/.pi/agent/agents/` to avoid stale agent references:
+## Uninstallation
 
-```bash
-rm ~/.pi/agent/agents/prometheus.md
-rm ~/.pi/agent/agents/momus.md
-rm ~/.pi/agent/agents/atlas.md
-# ... (delete all oh-my-pi-v2 agent symlinks)
-```
-
-OMPV2 does not auto-cleanup symlinks on uninstall.
+Remove symlinks from `~/.pi/agent/agents/` manually.
 
 ## Directory Structure
 
-```
+```text
 oh-my-pi-v2/
-├── agents/              # .md files → installed to ~/.pi/agent/agents/
-│   ├── oracle.md        #   Read by pi-subagents for execution
-│   ├── explore.md
-│   ├── librarian.md
-│   ├── metis.md
-│   ├── momus.md
-│   ├── hephaestus.md
-│   ├── atlas.md
-│   ├── sisyphus-junior.md
-│   ├── multimodal-looker.md
-│   └── prometheus.md
-├── hooks/               # Behavioral hooks
-│   ├── sisyphus-prompt.ts    # Core: persona + agent list + category guidance
-│   ├── boulder.ts            # Auto-restart on actionable tasks
-│   ├── context-recovery.ts   # Restore tasks after compaction
-│   ├── custom-compaction.ts  # Structured compaction summaries
-│   ├── keyword-detector.ts   # ultrawork/search/analyze injection
-│   ├── comment-checker.ts    # Detect lazy placeholder comments
-│   ├── edit-error-recovery.ts # Edit failure hints
-│   ├── tool-output-truncator.ts # Prevent context blowup
-│   └── rules-injector.ts     # .cursor/rules, .claude/rules injection
+├── agents/
+├── hooks/
 ├── tools/
-│   └── task.ts              # Task management (boulder dependency)
 ├── commands/
-│   ├── start-work.ts        # /omp-start — Prometheus interview + Momus review
-│   ├── consult.ts           # /omp-consult — Oracle consultation
-│   └── review-plan.ts       # /omp-review — Momus plan review
 ├── skills/
-│   ├── pre-publish-review/
-│   └── github-triage/
-├── config.ts            # Category mapping + JSONC config loading
-├── index.ts             # Extension entry point
+├── config.ts
+├── index.ts
 └── package.json
 ```
-
-## vs v1
-
-v1 implemented everything in-house: delegation tools, concurrency manager, session runner, streaming stack, background task management (~7700 lines). v2 delegates execution to pi-subagents and focuses on what makes Sisyphus unique: the persona, behavioral hooks, and quality enforcement (~3300 lines).

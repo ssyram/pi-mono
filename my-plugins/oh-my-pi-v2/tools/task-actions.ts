@@ -34,7 +34,7 @@ export function executeList(tasks: Task[], nextId: number) {
  * executeAdd — appends a new task to the array with auto-incremented ID.
  */
 export function executeAdd(text: string | undefined, tasks: Task[], nextId: number) {
-	if (!text) return err("add", "text is required for add", tasks, nextId);
+	if (!text?.trim()) return err("add", "text is required for add", tasks, nextId);
 	const now = Date.now();
 	tasks.push({
 		id: nextId++, text, status: "pending",
@@ -101,6 +101,8 @@ export function executeUpdateDeps(
 	const allIds = new Set(tasks.map((t) => t.id));
 	const newBlocks = params.blocks ?? task.blocks;
 	const newBlockedBy = params.blockedBy ?? task.blockedBy;
+	if (hasDuplicates(newBlocks)) return err("update_deps", "blocks contains duplicate task ids", tasks, nextId);
+	if (hasDuplicates(newBlockedBy)) return err("update_deps", "blockedBy contains duplicate task ids", tasks, nextId);
 	const now = Date.now();
 
 	for (const id of newBlocks) {
@@ -169,6 +171,10 @@ export function executeUpdateDeps(
 		if (o && !o.blocks.includes(task.id)) { o.blocks.push(task.id); o.updatedAt = now; }
 	}
 	return ok(`#${params.id}`, "update_deps", tasks, nextId);
+}
+
+function hasDuplicates(values: number[]): boolean {
+	return new Set(values).size !== values.length;
 }
 
 export function executeClear() {

@@ -1,74 +1,101 @@
-/**
- * Boulder countdown timer with Esc cancellation.
- *
- * Shows a ticking countdown in the status bar. The user can press Esc
- * at any time during the countdown to cancel the pending restart.
- * When the countdown reaches zero, the provided callback fires.
- */
-
 import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { matchesKey } from "@mariozechner/pi-tui";
 
 const STATUS_KEY = "boulder-countdown";
 
 export interface CountdownHandle {
-  /** Cancel the countdown programmatically. */
   cancel: () => void;
 }
 
-/**
- * Start a visible countdown in the status bar.
- *
- * @param ctx        Extension context (must have UI)
- * @param totalMs    Total countdown duration in milliseconds
- * @param actionable Number of actionable tasks (shown in status text)
- * @param onFinish   Called when countdown reaches zero without cancellation
- * @returns Handle with a `cancel()` method
- */
-export function startCountdown(
-  ctx: ExtensionContext,
-  totalMs: number,
-  actionable: number,
-  onFinish: () => void,
-): CountdownHandle {
+interface CountdownOptions {
+  ctx: ExtensionContext;
+  totalMs: number;
+  actionable: number;
+  onFinish: () => void;
+  onError: (err: unknown) => void;
+}
+
+export function startCountdown(options: CountdownOptions): CountdownHandle {
+  const { ctx, totalMs, actionable, onFinish, onError } = options;
   let remaining = Math.ceil(totalMs / 1000);
   let cancelled = false;
+  let ticker: ReturnType<typeof setInterval> | undefined;
+  let unsubscribeInput: (() => void) | undefined;
+
+  const reportError = (err: unknown) => {
+    try {
+      onError(err);
+    } catch (reportErr) {
+      console.error(`[oh-my-pi boulder] Countdown error reporter failed: ${reportErr instanceof Error ? reportErr.message : String(reportErr)}`);
+    }
+  };
 
   const updateStatus = () => {
-    ctx.ui.setStatus(
-      STATUS_KEY,
-      `Restarting in ${remaining}s (${actionable} actionable tasks) — press Esc to cancel`,
-    );
+    ctx.ui.setStatus(STATUS_KEY, `Restarting in ${remaining}s (${actionable} actionable tasks) — press Esc to cancel`);
   };
 
   const cleanup = () => {
     cancelled = true;
-    clearInterval(ticker);
-    ctx.ui.setStatus(STATUS_KEY, undefined);
-    unsubInput();
+    if (ticker) clearInterval(ticker);
+    try {
+      ctx.ui.setStatus(STATUS_KEY, undefined);
+    } catch (err) {
+      reportError(err);
+    }
+    try {
+      unsubscribeInput?.();
+    } catch (err) {
+      reportError(err);
+    }
   };
 
-  // Tick every second
-  updateStatus();
-  const ticker = setInterval(() => {
-    remaining--;
-    if (remaining <= 0) {
-      cleanup();
+  const finish = () => {
+    if (cancelled) return;
+    cleanup();
+    try {
       onFinish();
-      return;
+    } catch (err) {
+      reportError(err);
     }
-    updateStatus();
-  }, 1000);
+  };
 
-  // Intercept Esc to cancel
-  const unsubInput = ctx.ui.onTerminalInput((data) => {
-    if (matchesKey(data, "escape") && !cancelled) {
-      cleanup();
-      ctx.ui.notify("Task restart cancelled.", "info");
-      return { consume: true };
-    }
-    return undefined;
-  });
+  try {
+    updateStatus();
+    ticker = setInterval(() => {
+      try {
+        remaining--;
+        if (remaining <= 0) {
+          finish();
+          return;
+        }
+        updateStatus();
+      } catch (err) {
+        cleanup();
+        reportError(err);
+      }
+    }, 1000);
+
+    unsubscribeInput = ctx.ui.onTerminalInput((data) => {
+      try {
+        if (matchesKey(data, "escape") && !cancelled) {
+          cleanup();
+          try {
+            ctx.ui.notify("Task restart cancelled.", "info");
+          } catch (err) {
+            reportError(err);
+          }
+          return { consume: true };
+        }
+      } catch (err) {
+        cleanup();
+        reportError(err);
+      }
+      return undefined;
+    });
+  } catch (err) {
+    cleanup();
+    reportError(err);
+  }
 
   return {
     cancel: () => {
@@ -77,16 +104,26 @@ export function startCountdown(
   };
 }
 
-/**
- * Delay with a plain setTimeout (no UI). Used as fallback when ctx.hasUI is false.
- */
 export function startSilentCountdown(
   totalMs: number,
   onFinish: () => void,
+  onError: (err: unknown) => void,
 ): CountdownHandle {
   let cancelled = false;
+  const reportError = (err: unknown) => {
+    try {
+      onError(err);
+    } catch (reportErr) {
+      console.error(`[oh-my-pi boulder] Silent countdown error reporter failed: ${reportErr instanceof Error ? reportErr.message : String(reportErr)}`);
+    }
+  };
   const timer = setTimeout(() => {
-    if (!cancelled) onFinish();
+    if (cancelled) return;
+    try {
+      onFinish();
+    } catch (err) {
+      reportError(err);
+    }
   }, totalMs);
 
   return {

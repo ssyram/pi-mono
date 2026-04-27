@@ -68,7 +68,9 @@ function isTaskStatus(value: unknown): value is TaskStatus {
 }
 
 function isNumberArray(value: unknown): value is number[] {
-	return Array.isArray(value) && value.every((item) => typeof item === "number" && Number.isInteger(item) && item > 0);
+	return Array.isArray(value)
+		&& value.every((item) => typeof item === "number" && Number.isInteger(item) && item > 0)
+		&& new Set(value).size === value.length;
 }
 
 function isTimestamp(value: unknown): value is number {

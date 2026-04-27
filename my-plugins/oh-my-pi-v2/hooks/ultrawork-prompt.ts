@@ -9,26 +9,21 @@
  * - Stage 4: Completion report
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { readFileSync, existsSync } from "fs";
-import { join } from "path";
+import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import { ULTRAWORK_ENTRY_TYPE } from "../commands/ultrawork.js";
+import type { UltraWorkStateData } from "../commands/ultrawork.js";
 
-interface UltraWorkState {
-	enabled: boolean;
-	activatedAt: string;
-}
-
-const STATE_FILE = ".pi/ultrawork-state.json";
-
-function isUltraWorkEnabled(cwd: string): boolean {
-	const statePath = join(cwd, STATE_FILE);
-	if (!existsSync(statePath)) return false;
-	try {
-		const state: UltraWorkState = JSON.parse(readFileSync(statePath, "utf-8"));
-		return state.enabled === true;
-	} catch {
-		return false;
+function isUltraWorkEnabled(sessionManager: ExtensionContext["sessionManager"]): boolean {
+	for (const entry of sessionManager.getEntries().slice().reverse()) {
+		if (entry.type !== "custom" || entry.customType !== ULTRAWORK_ENTRY_TYPE) {
+			continue;
+		}
+		const data = entry.data as UltraWorkStateData | undefined;
+		if (data && typeof data.enabled === "boolean") {
+			return data.enabled;
+		}
 	}
+	return false;
 }
 
 const ULTRAWORK_LOOP = `
@@ -178,9 +173,8 @@ Fire them in parallel via subagent delegation. Read their reports from docs/audi
 
 export function registerUltraworkPrompt(pi: ExtensionAPI) {
 	pi.on("before_agent_start", async (event, ctx) => {
-		if (!isUltraWorkEnabled(ctx.cwd)) return undefined;
+		if (!isUltraWorkEnabled(ctx.sessionManager)) return undefined;
 
-		// Append UltraWork loop to system prompt
 		return {
 			systemPrompt: event.systemPrompt + "\n\n" + ULTRAWORK_LOOP,
 		};
