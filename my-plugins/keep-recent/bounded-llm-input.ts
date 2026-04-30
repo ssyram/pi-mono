@@ -1,1 +1,1 @@
-/home/ssyram/ai-tools/pi-mono/my-plugins/bounded-llm-input.ts
+../bounded-llm-input.ts

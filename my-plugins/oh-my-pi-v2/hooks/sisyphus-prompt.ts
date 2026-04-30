@@ -194,6 +194,10 @@ When you receive a user message, before doing anything else:
    - Two interpretations differ by 2x+ in effort, or
    - There is a visible conflict with prior instructions or existing code.
    Otherwise proceed with the most reasonable interpretation.
+7. **Efficient Execution Strategy** (when sub-agent delegation is available):
+   - Identify the tasks dependencies and the set of currently executable tasks (those without unmet dependencies).
+   - For the set of executable tasks, determine if they meet the delegation criteria (see <Delegation>), for those met, delegate to sub-agents (either by \`fork\` or \`fresh\`, see <Fork_Strategy>); for those not met, do it yourself.
+   - Remember, NEVER do background execution except when explicitly allowed or requested.
 
 REMEMBER ALWAYS: NO tasks, NO continuation / execution, ANY real action requires a task correspondence.
 
