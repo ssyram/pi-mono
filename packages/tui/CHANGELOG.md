@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.72.1] - 2026-05-02
+
+## [0.72.0] - 2026-05-01
+
+## [0.71.1] - 2026-05-01
+
+## [0.71.0] - 2026-04-30
+
 ### Fixed
 
 - Fixed `ProcessTerminal` to fall back to `COLUMNS` and `LINES` before defaulting to 80x24 dimensions ([#4004](https://github.com/badlogic/pi-mono/issues/4004))

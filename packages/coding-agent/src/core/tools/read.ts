@@ -1,11 +1,13 @@
+import { basename, dirname, isAbsolute, relative, resolve as resolvePath, sep } from "node:path";
 import type { AgentTool } from "@mariozechner/pi-agent-core";
 import type { Api, ImageContent, Model, TextContent } from "@mariozechner/pi-ai";
 import { Text } from "@mariozechner/pi-tui";
 import { constants } from "fs";
 import { access as fsAccess, readFile as fsReadFile } from "fs/promises";
 import { type Static, Type } from "typebox";
-import { keyHint } from "../../modes/interactive/components/keybinding-hints.js";
-import { getLanguageFromPath, highlightCode } from "../../modes/interactive/theme/theme.js";
+import { getReadmePath } from "../../config.js";
+import { keyHint, keyText } from "../../modes/interactive/components/keybinding-hints.js";
+import { getLanguageFromPath, highlightCode, type Theme } from "../../modes/interactive/theme/theme.js";
 import { formatDimensionNote, resizeImage } from "../../utils/image-resize.js";
 import { detectSupportedImageMimeTypeFromFile } from "../../utils/mime.js";
 import type { ToolDefinition, ToolRenderResultOptions } from "../extensions/types.js";
@@ -25,6 +27,13 @@ export type ReadToolInput = Static<typeof readSchema>;
 export interface ReadToolDetails {
 	truncation?: TruncationResult;
 }
+
+interface CompactReadClassification {
+	kind: "docs" | "resource" | "skill";
+	label: string;
+}
+
+const COMPACT_RESOURCE_FILE_NAMES = new Set(["AGENTS.md", "AGENTS.MD", "CLAUDE.md", "CLAUDE.MD"]);
 
 /**
  * Pluggable operations for the read tool.
@@ -54,7 +63,7 @@ export interface ReadToolOptions {
 
 function formatReadCall(
 	args: { path?: string; file_path?: string; offset?: number; limit?: number } | undefined,
-	theme: typeof import("../../modes/interactive/theme/theme.js").theme,
+	theme: Theme,
 ): string {
 	const rawPath = str(args?.file_path ?? args?.path);
 	const path = rawPath !== null ? shortenPath(rawPath) : null;
@@ -85,15 +94,84 @@ function getNonVisionImageNote(model: Model<Api> | undefined): string | undefine
 	return "[Current model does not support images. The image will be omitted from this request.]";
 }
 
+function toPosixPath(filePath: string): string {
+	return filePath.split(sep).join("/");
+}
+
+function getPiDocsClassification(absolutePath: string): CompactReadClassification | undefined {
+	const packageRoot = dirname(getReadmePath());
+	const relativePath = relative(resolvePath(packageRoot), resolvePath(absolutePath));
+	if (
+		relativePath === "" ||
+		relativePath === ".." ||
+		relativePath.startsWith(`..${sep}`) ||
+		isAbsolute(relativePath)
+	) {
+		return undefined;
+	}
+
+	const label = toPosixPath(relativePath);
+	if (label === "README.md" || label.startsWith("docs/") || label.startsWith("examples/")) {
+		return { kind: "docs", label };
+	}
+	return undefined;
+}
+
+function getCompactReadClassification(
+	args: { path?: string; file_path?: string } | undefined,
+	cwd: string,
+): CompactReadClassification | undefined {
+	const rawPath = str(args?.file_path ?? args?.path);
+	if (!rawPath) return undefined;
+
+	const absolutePath = resolveReadPath(rawPath, cwd);
+	const fileName = basename(absolutePath);
+	if (fileName === "SKILL.md") {
+		return { kind: "skill", label: basename(dirname(absolutePath)) || fileName };
+	}
+
+	const docsClassification = getPiDocsClassification(absolutePath);
+	if (docsClassification) return docsClassification;
+
+	if (COMPACT_RESOURCE_FILE_NAMES.has(fileName)) {
+		return { kind: "resource", label: fileName };
+	}
+
+	return undefined;
+}
+
+function formatCompactReadCall(classification: CompactReadClassification, theme: Theme): string {
+	if (classification.kind === "skill") {
+		return (
+			theme.fg("customMessageLabel", `\x1b[1m[skill]\x1b[22m `) +
+			theme.fg("customMessageText", classification.label) +
+			theme.fg("dim", ` (${keyText("app.tools.expand")} to expand)`)
+		);
+	}
+
+	return (
+		theme.fg("toolTitle", theme.bold(`read ${classification.kind}`)) +
+		" " +
+		theme.fg("accent", classification.label) +
+		theme.fg("dim", ` (${keyText("app.tools.expand")} to expand)`)
+	);
+}
+
 function formatReadResult(
 	args: { path?: string; file_path?: string; offset?: number; limit?: number } | undefined,
 	result: { content: (TextContent | ImageContent)[]; details?: ReadToolDetails },
 	options: ToolRenderResultOptions,
-	theme: typeof import("../../modes/interactive/theme/theme.js").theme,
+	theme: Theme,
 	showImages: boolean,
+	cwd: string,
+	isError: boolean,
 ): string {
+	if (!options.expanded && !isError && getCompactReadClassification(args, cwd)) {
+		return "";
+	}
+
 	const rawPath = str(args?.file_path ?? args?.path);
-	const output = getTextOutput(result as any, showImages);
+	const output = getTextOutput(result, showImages);
 	const lang = rawPath ? getLanguageFromPath(rawPath) : undefined;
 	const renderedLines = lang ? highlightCode(replaceTabs(output), lang) : output.split("\n");
 	const lines = trimTrailingEmptyLines(renderedLines);
@@ -257,12 +335,15 @@ export function createReadToolDefinition(
 		},
 		renderCall(args, theme, context) {
 			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
-			text.setText(formatReadCall(args, theme));
+			const classification = !context.expanded ? getCompactReadClassification(args, context.cwd) : undefined;
+			text.setText(classification ? formatCompactReadCall(classification, theme) : formatReadCall(args, theme));
 			return text;
 		},
 		renderResult(result, options, theme, context) {
 			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
-			text.setText(formatReadResult(context.args, result as any, options, theme, context.showImages));
+			text.setText(
+				formatReadResult(context.args, result, options, theme, context.showImages, context.cwd, context.isError),
+			);
 			return text;
 		},
 	};

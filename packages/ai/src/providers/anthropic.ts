@@ -32,6 +32,7 @@ import { headersToRecord } from "../utils/headers.js";
 import { parseJsonWithRepair, parseStreamingJson } from "../utils/json-parse.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
 
+import { resolveCloudflareBaseUrl } from "./cloudflare.js";
 import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./github-copilot-headers.js";
 import { adjustMaxTokensForThinking, buildBaseOptions } from "./simple-options.js";
 import { transformMessages } from "./transform-messages.js";
@@ -215,8 +216,8 @@ export interface AnthropicOptions extends StreamOptions {
 	client?: Anthropic;
 }
 
-function mergeHeaders(...headerSources: (Record<string, string> | undefined)[]): Record<string, string> {
-	const merged: Record<string, string> = {};
+function mergeHeaders(...headerSources: (Record<string, string | null> | undefined)[]): Record<string, string | null> {
+	const merged: Record<string, string | null> = {};
 	for (const headers of headerSources) {
 		if (headers) {
 			Object.assign(merged, headers);
@@ -693,23 +694,20 @@ function supportsAdaptiveThinking(modelId: string): boolean {
  * Map ThinkingLevel to Anthropic effort levels for adaptive thinking.
  * Note: effort "max" is only valid on Opus 4.6, while Opus 4.7 supports "xhigh".
  */
-function mapThinkingLevelToEffort(level: SimpleStreamOptions["reasoning"], modelId: string): AnthropicEffort {
+function mapThinkingLevelToEffort(
+	model: Model<"anthropic-messages">,
+	level: SimpleStreamOptions["reasoning"],
+): AnthropicEffort {
+	const mapped = level ? model.thinkingLevelMap?.[level] : undefined;
+	if (typeof mapped === "string") return mapped as AnthropicEffort;
+
 	switch (level) {
 		case "minimal":
-			return "low";
 		case "low":
 			return "low";
 		case "medium":
 			return "medium";
 		case "high":
-			return "high";
-		case "xhigh":
-			if (modelId.includes("opus-4-6") || modelId.includes("opus-4.6")) {
-				return "max";
-			}
-			if (modelId.includes("opus-4-7") || modelId.includes("opus-4.7")) {
-				return "xhigh";
-			}
 			return "high";
 		default:
 			return "high";
@@ -734,7 +732,7 @@ export const streamSimpleAnthropic: StreamFunction<"anthropic-messages", SimpleS
 	// For Opus 4.6 and Sonnet 4.6: use adaptive thinking with effort level
 	// For older models: use budget-based thinking
 	if (supportsAdaptiveThinking(model.id)) {
-		const effort = mapThinkingLevelToEffort(options.reasoning, model.id);
+		const effort = mapThinkingLevelToEffort(model, options.reasoning);
 		return streamAnthropic(model, context, {
 			...base,
 			thinkingEnabled: true,
@@ -772,17 +770,39 @@ function createClient(
 	// Adaptive thinking models (Opus 4.6, Sonnet 4.6) have interleaved thinking built-in.
 	// The beta header is deprecated on Opus 4.6 and redundant on Sonnet 4.6, so skip it.
 	const needsInterleavedBeta = interleavedThinking && !supportsAdaptiveThinking(model.id);
+	const betaFeatures: string[] = [];
+	if (useFineGrainedToolStreamingBeta) {
+		betaFeatures.push(FINE_GRAINED_TOOL_STREAMING_BETA);
+	}
+	if (needsInterleavedBeta) {
+		betaFeatures.push(INTERLEAVED_THINKING_BETA);
+	}
+
+	if (model.provider === "cloudflare-ai-gateway") {
+		const client = new Anthropic({
+			apiKey: null,
+			authToken: null,
+			baseURL: resolveCloudflareBaseUrl(model),
+			dangerouslyAllowBrowser: true,
+			defaultHeaders: mergeHeaders(
+				{
+					accept: "application/json",
+					"anthropic-dangerous-direct-browser-access": "true",
+					"cf-aig-authorization": `Bearer ${apiKey}`,
+					"x-api-key": null,
+					Authorization: null,
+					...(betaFeatures.length > 0 ? { "anthropic-beta": betaFeatures.join(",") } : {}),
+				},
+				model.headers,
+				optionsHeaders,
+			),
+		});
+
+		return { client, isOAuthToken: false };
+	}
 
 	// Copilot: Bearer auth, selective betas.
 	if (model.provider === "github-copilot") {
-		const betaFeatures: string[] = [];
-		if (useFineGrainedToolStreamingBeta) {
-			betaFeatures.push(FINE_GRAINED_TOOL_STREAMING_BETA);
-		}
-		if (needsInterleavedBeta) {
-			betaFeatures.push(INTERLEAVED_THINKING_BETA);
-		}
-
 		const client = new Anthropic({
 			apiKey: null,
 			authToken: apiKey,
@@ -801,14 +821,6 @@ function createClient(
 		});
 
 		return { client, isOAuthToken: false };
-	}
-
-	const betaFeatures: string[] = [];
-	if (useFineGrainedToolStreamingBeta) {
-		betaFeatures.push(FINE_GRAINED_TOOL_STREAMING_BETA);
-	}
-	if (needsInterleavedBeta) {
-		betaFeatures.push(INTERLEAVED_THINKING_BETA);
 	}
 
 	// OAuth: Bearer auth, Claude Code identity headers
