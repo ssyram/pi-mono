@@ -54,7 +54,7 @@ fn steeringFlow(pi):
     pi.on("session_start", clear_ts + sweep_tmp_files)
 ```
 
-所有工具和 `/steering-flow` subcommand 共享模式：`withSessionLock(sessionId, () => coreOp(...))`。`/steering-flow`、`/steering-flow help`、`/steering-flow h`、`/steering-flow --help` 都显示帮助；无法解析的输入先通过 `ctx.ui.notify(..., "error")` 报错，然后显示帮助。`/steering-flow pop|info|set-state|reset-state|set-action|visualize` 不注册为 tool — LLM 无法自己 pop、读取 notify-only 状态，或执行 manual set。
+所有工具和 `/steering-flow` subcommand 共享模式：`withSessionLock(sessionId, () => coreOp(...))`。`/steering-flow`、`/steering-flow help`、`/steering-flow h`、`/steering-flow --help` 都显示帮助；无法解析的输入先通过 `ctx.ui.notify(..., "error")` 报错，然后显示帮助。`/steering-flow pop|info|set-state|reset-state|set-action|visualize` 不注册为 tool — LLM 无法自己 pop、读取 notify-only 状态，或执行 manual set。`/steering-flow visualize` 只通过 UI notification 返回 artifact 信息；`steering-flow-action` 和 `/steering-flow action` 会拒绝 interactive gated pause state，只有 user-only `/steering-flow set-action` 可以推进该门禁。
 
 ---
 
@@ -63,6 +63,7 @@ fn steeringFlow(pi):
 ```pseudo
 fn loadAndPush(cwd, sessionId, filePath):
     absPath = resolve(cwd, filePath)
+    reject if absPath is outside cwd
     stat(absPath) → reject if !isFile or >2MiB
     content = readFile(absPath)
     cfg = parseFlowConfig(content, absPath)        ← §D
@@ -72,8 +73,11 @@ fn loadAndPush(cwd, sessionId, filePath):
 ```pseudo
     sessionDir = ensureSessionDir(cwd, sessionId)
     fsmId = newFsmId(flowName)
-    writeFsmStructure(...) → writeState(..., "$START") → writeTape(...)
-    pushFsm(sessionDir, fsmId)                     // stack.json updated
+    try:
+        writeFsmStructure(...) → writeState(..., "$START") → writeTape(...)
+        pushFsm(sessionDir, fsmId)                 // stack.json updated
+    catch e:
+        rm fsmDir(sessionDir, fsmId); throw
     // FSM fully on disk; snapshot complete
 ```
 
@@ -91,7 +95,7 @@ fn loadAndPush(cwd, sessionId, filePath):
     return renderStateView(rt)
 ```
 
-**关键不变量**：任何失败路径都触发 `popFsm` 回滚（同时删 FSM 目录）。
+**关键不变量**：setup 写入或 stack push 失败会删除新建 FSM 目录；entry 失败会通过 `popFsm` 回滚已 push 的 FSM（同时删 FSM 目录）。
 
 ---
 

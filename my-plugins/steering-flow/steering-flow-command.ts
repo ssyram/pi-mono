@@ -10,6 +10,7 @@ type CoreCalls = {
 	contextInfo: () => Promise<string>;
 	info: () => Promise<string>;
 	setState: (stateId: string) => Promise<string>;
+	setAction: (actionId: string, args: string[]) => Promise<string>;
 	action: (actionId: string, args: string[]) => Promise<string>;
 	visualize: (flowFile: string | undefined, outputFile: string | undefined) => Promise<Awaited<ReturnType<typeof createVisualizerArtifact>>>;
 };
@@ -37,7 +38,7 @@ Subcommands:
 - reset-state: user-only reset current state to $START
 - set-action <ACTION-ID> [ARGS...]: user-only trigger action via UI notification
 - action <ACTION-ID> [ARGS...]: trigger action and send result to the model
-- visualize [FLOW_FILE] [-o OUTPUT.html]: generate a visualizer artifact`;
+- visualize [FLOW_FILE] [-o OUTPUT.html]: generate a visualizer artifact as UI notification`;
 
 function notifyHelp(ctx: ExtensionCommandContext): void {
 	ctx.ui.notify(HELP, "info");
@@ -120,19 +121,23 @@ export function registerSteeringFlowCommand(options: SteeringFlowCommandOptions)
 					return;
 				}
 				if (subcommand === "reset-state") { ctx.ui.notify(renderNotifyInfo(await core.setState("$START")), "info"); return; }
-				if (subcommand === "set-action" || subcommand === "action") {
-					if (rest.length === 0) { ctx.ui.notify(`Usage: /steering-flow ${subcommand} <ACTION-ID> [ARGS...]`, "error"); return; }
+				if (subcommand === "set-action") {
+					if (rest.length === 0) { ctx.ui.notify("Usage: /steering-flow set-action <ACTION-ID> [ARGS...]", "error"); return; }
 					const [actionId, ...actionArgs] = rest;
-					const text = await core.action(actionId, actionArgs);
-					if (subcommand === "set-action") ctx.ui.notify(renderNotifyInfo(text), "info");
-					else pi.sendUserMessage(text);
+					ctx.ui.notify(renderNotifyInfo(await core.setAction(actionId, actionArgs)), "info");
+					return;
+				}
+				if (subcommand === "action") {
+					if (rest.length === 0) { ctx.ui.notify("Usage: /steering-flow action <ACTION-ID> [ARGS...]", "error"); return; }
+					const [actionId, ...actionArgs] = rest;
+					pi.sendUserMessage(await core.action(actionId, actionArgs));
 					return;
 				}
 				if (subcommand === "visualize") {
 					const parsed = parseVisualizerArgs(rest);
 					if ("error" in parsed) { ctx.ui.notify(parsed.error, "error"); return; }
 					const result = await core.visualize(parsed.flowFile, parsed.outputFile);
-					pi.sendUserMessage(`## Steering-Flow Visualizer\n- Mode: ${result.mode}\n- FSM count: ${result.fsmCount}\n- Source: ${result.sourceLabel}\n- Output: ${result.outputPath}`);
+					ctx.ui.notify(renderNotifyInfo(`## Steering-Flow Visualizer\n- Mode: ${result.mode}\n- FSM count: ${result.fsmCount}\n- Source: ${result.sourceLabel}\n- Output: ${result.outputPath}`), "info");
 					for (const warning of result.warnings) ctx.ui.notify(warning, "warning");
 					return;
 				}

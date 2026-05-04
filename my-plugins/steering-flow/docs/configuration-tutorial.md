@@ -620,24 +620,24 @@ When `nextCount > STOP_HOOK_STAGNATION_LIMIT` (i.e., more than 3 identical remin
 
 | Command | Usage | Notes |
 |---|---|---|
-| `/steering-flow load <FILE>` | Load a flow config file and push it onto the stack | File path relative to cwd or absolute. Parses, validates, creates on-disk state, runs initial epsilon chain from $START (`@index.ts:452-467`). |
+| `/steering-flow load <FILE>` | Load a flow config file and push it onto the stack | File path must resolve inside cwd. Parses, validates, creates on-disk state, runs initial epsilon chain from $START (`@index.ts:452-467`). |
 | `/steering-flow pop` | Pop the top FSM from the stack | **User-only.** Not available as an LLM tool. Force-removes the active flow. If a parent exists, it is resumed (`@index.ts:469-482`). |
 | `/steering-flow save <ID> <VALUE>` | Write a key-value pair to the top FSM's tape | ID is the first whitespace-delimited token; VALUE is the remainder. ID must match the identifier regex (`@index.ts:484-504`). |
 | `/steering-flow context-info` | Print the full stack with states and tape contents into model context | Shows all FSMs in the stack, not just the top. Includes tape key/value dump (`@index.ts:506-518`). |
 | `/steering-flow info` | Show full stack/state/action info as UI notification only | Command-only, not model-visible. |
-| `/steering-flow set-state <STATE-ID>` | Set the top FSM's current state | Command-only manual control. |
+| `/steering-flow set-state <STATE-ID>` | Set the top FSM's current state | Command-only manual control. Target must be an ordinary non-epsilon, non-`$END` state. |
 | `/steering-flow reset-state` | Reset the top FSM to `$START` | Command-only manual control. |
-| `/steering-flow set-action <ACTION-ID> [ARGS...]` | Trigger an action on the top FSM via UI notification only | Supports shell-style quoting. Command-only manual control. |
-| `/steering-flow action <ACTION-ID> [ARGS...]` | Invoke an action on the top FSM and send the result into model context | Supports shell-style quoting for args with spaces. Uses a tokenizer that handles single/double quotes and backslash escapes (`@index.ts:520-541`). |
-| `/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]` | Generate a visualizer HTML artifact | Command-only. |
+| `/steering-flow set-action <ACTION-ID> [ARGS...]` | Trigger an action on the top FSM via UI notification only | Supports shell-style quoting. Command-only manual control; this is the only action channel allowed to advance interactive states. |
+| `/steering-flow action <ACTION-ID> [ARGS...]` | Invoke an action on the top FSM and send the result into model context | Supports shell-style quoting for args with spaces. Rejects interactive states, which require user-only `set-action`. Uses a tokenizer that handles single/double quotes and backslash escapes (`@index.ts:520-541`). |
+| `/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]` | Generate a visualizer HTML artifact | Command-only. Paths must stay inside cwd; output must be `.html`; existing files are not overwritten. |
 | `/steering-flow help` | Show help | Also used for `/steering-flow`, `/steering-flow h`, `/steering-flow --help`, and unknown subcommands after an error notification. |
 
 ### LLM Tools
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `load-steering-flow` | `file` (string) | Load a flow config file. Path relative to cwd or absolute (`@index.ts:362-381`). |
-| `steering-flow-action` | `action_id` (string), `args` (string[], optional) | Invoke an action. Args are positional, matching the action's declared arguments (`@index.ts:383-404`). |
+| `load-steering-flow` | `file` (string) | Load a flow config file. Path must resolve inside cwd (`@index.ts:362-381`). |
+| `steering-flow-action` | `action_id` (string), `args` (string[], optional) | Invoke an action. Args are positional, matching the action's declared arguments. Rejects interactive states (`@index.ts:383-404`). |
 | `save-to-steering-flow` | `id` (string), `value` (string) | Write to tape. ID must match identifier regex. Value max 64 KiB (`@index.ts:406-428`). |
 | `get-steering-flow-info` | (none) | Inspect the full stack (`@index.ts:430-446`). |
 

@@ -126,15 +126,15 @@ All writes are atomic (tmp + rename). Orphan `.tmp.*` files are swept on `sessio
 | `/steering-flow save <ID> <VALUE>` | Write a tape entry |
 | `/steering-flow context-info` | Dump the stack, states, and tapes into the model context |
 | `/steering-flow info` | Show the active stack, current state, tape summary, and available actions as UI info only |
-| `/steering-flow set-state <STATE-ID>` | User-only jump/reset of the top FSM's current state |
+| `/steering-flow set-state <STATE-ID>` | User-only jump/reset of the top FSM's current state to an ordinary non-epsilon, non-`$END` state |
 | `/steering-flow reset-state` | User-only reset of the top FSM to `$START` |
 | `/steering-flow set-action <ACTION-ID> [ARGS...]` | User-only trigger of one currently available action |
 | `/steering-flow action <ACTION-ID> [ARGS...]` | Invoke an action through the model-visible command channel |
-| `/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]` | Visualize FSM states as a text diagram (user-only) |
+| `/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]` | Visualize FSM states as a text diagram (user-only UI notification) |
 
 `/steering-flow <unknown>` first shows a UI error, then falls back to the same help text as `/steering-flow help`.
 
-> **Design decision — visualizer is command-only**: The visualizer is invoked via `/steering-flow visualize` — it is not available as an LLM tool. Warnings about skipped FSMs or empty visualizations are surfaced to the user via `ctx.ui.notify`. Output paths are contained within `cwd` (no path traversal).
+> **Design decision — visualizer is command-only**: The visualizer is invoked via `/steering-flow visualize` — it is not available as an LLM tool and its result is displayed through UI notification, not injected into model context. Warnings about skipped FSMs or empty visualizations are surfaced to the user via `ctx.ui.notify`. Flow input and output paths are contained within `cwd`; output paths must end in `.html` and existing files are not overwritten.
 
 ## Tools (LLM)
 
@@ -147,7 +147,7 @@ All writes are atomic (tmp + rename). Orphan `.tmp.*` files are swept on `sessio
 
 ## Transitions
 
-1. The LLM calls `steering-flow-action`, or the user calls `/steering-flow set-action`, with `action_id` and positional `args`.
+1. The LLM calls `steering-flow-action`, or the user calls `/steering-flow action`, with `action_id` and positional `args`. Interactive states are gated: model-visible action channels reject them, and only the user-only `/steering-flow set-action` channel may advance them.
 2. Engine finds the action under the current state. Rejects if the action doesn't exist or the arg count doesn't match the declaration.
 3. Engine spawns the condition with argv built by interpolating `${$TAPE_FILE}` and `${arg-name}` placeholders in `cfg.args`.
 4. Stdout `true\n<reason>` → transition to `next_state_id`. Stdout `false\n<reason>` → stay, surface reason.
@@ -160,7 +160,7 @@ All writes are atomic (tmp + rename). Orphan `.tmp.*` files are swept on `sessio
 
 A state may set `interactive: true` to become a gated pause. Interactive states are ordinary non-epsilon states: they must still have actions, cannot use `{ default: true }`, and must remain on a path to `$END`.
 
-When a successful action or epsilon chain lands on an interactive state, the state is persisted like any other `current_state_id`. The difference appears at `agent_end`: instead of sending a new user message to force another model turn, the stop hook shows a UI info notification with the current state and available actions, then returns. The flow remains active on the stack. It resumes when the user sends the next prompt, invokes `/steering-flow set-action`, jumps with `/steering-flow set-state`, or pops the flow.
+When a successful action or epsilon chain lands on an interactive state, the state is persisted like any other `current_state_id`. The difference appears at `agent_end`: instead of sending a new user message to force another model turn, the stop hook shows a UI info notification with the current state and available actions, then returns. The flow remains active on the stack. It resumes when the user sends the next prompt, invokes user-only `/steering-flow set-action`, jumps with `/steering-flow set-state`, or pops the flow. Model-visible `steering-flow-action` and `/steering-flow action` reject interactive states so the model cannot advance the gate itself.
 
 Interactive state metadata is control state, not tape. Tape remains cumulative and visible to conditions; pause bookkeeping belongs with `state.json` if runtime metadata is needed.
 

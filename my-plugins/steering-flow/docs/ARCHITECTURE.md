@@ -57,6 +57,8 @@ The plugin combines:
    re-injects the current state and legal actions.
 10. If the top state is interactive, the stop hook shows an info notification and
     lets the agent stop until the next user prompt or a user-only manual command.
+    Model-visible action channels reject interactive states; only `/steering-flow set-action`
+    may advance the gate.
 
 The key design decision is the split between:
 
@@ -122,14 +124,14 @@ User-facing command surfaces are consolidated under one slash command:
 
 - `/steering-flow`, `/steering-flow help`, `/steering-flow h`, and `/steering-flow --help` show help
 - `/steering-flow load <FILE>` pairs with `load-steering-flow`
-- `/steering-flow action <ACTION-ID> [ARGS...]` pairs with `steering-flow-action`
+- `/steering-flow action <ACTION-ID> [ARGS...]` pairs with `steering-flow-action` and rejects interactive states
 - `/steering-flow save <ID> <VALUE>` pairs with `save-to-steering-flow`
 - `/steering-flow context-info` pairs with `get-steering-flow-info`
 - `/steering-flow info` is command-only and notify-only
-- `/steering-flow set-state` is command-only and user-only
+- `/steering-flow set-state` is command-only and user-only; targets must be ordinary non-epsilon, non-`$END` states
 - `/steering-flow reset-state` is command-only and user-only
-- `/steering-flow set-action` is command-only and user-only
-- `/steering-flow visualize` is command-only
+- `/steering-flow set-action` is command-only, user-only, and may advance interactive states
+- `/steering-flow visualize` is command-only, notify-only, contained within `cwd`, `.html` only, and no-overwrite
 - `/steering-flow pop` is command-only and user-only
 
 Unknown or unparsable subcommands first show a UI error and then render help.
@@ -144,7 +146,7 @@ Files of interest:
 
 - `stack.json`
 - `fsm.json`
-- `state.json` stores the rollback-capable control state, reminder metadata, and any interactive-pause bookkeeping
+- `state.json` stores the rollback-capable control state and reminder metadata
 - `tape.json` stores cumulative condition-visible data
 
 ## Known limitations
@@ -160,5 +162,5 @@ If you remember only five things, remember these:
 2. Conditions are external processes with boolean-first stdout.
 3. Tape is persistent and separate from control-state rollback.
 4. Epsilon states are routers, not work states.
-5. Interactive states are gates: they stop automatic re-injection but remain inside the FSM.
+5. Interactive states are gates: they stop automatic re-injection, reject model-visible action channels, and remain inside the FSM until user action.
 6. The stop hook keeps ordinary states alive until `$END` or a user pop.

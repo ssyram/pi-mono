@@ -7,7 +7,7 @@
 
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
-import { basename, dirname, isAbsolute, resolve } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 
@@ -34,6 +34,7 @@ import {
 	writePendingPop,
 	readPendingPop,
 	deletePendingPop,
+	fsmDir,
 } from "./storage.js";
 import { enterStart, executeAction, renderStateView, renderTransitionResult } from "./engine.js";
 import { manualSetState } from "./manual-control.js";
@@ -103,7 +104,19 @@ function stableStringify(v: unknown): string {
 const lastCompactionAt = new Map<string, number>();  // sessionId → ms
 
 function resolveFilePath(cwd: string, p: string): string {
-	return isAbsolute(p) ? p : resolve(cwd, p);
+	const absPath = isAbsolute(p) ? p : resolve(cwd, p);
+	if (!isPathInside(cwd, absPath)) throw new Error("Flow file must be inside the current working directory.");
+	return absPath;
+}
+
+function isPathInside(root: string, target: string): boolean {
+	const rel = relative(resolve(root), resolve(target));
+	return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+}
+
+function displayPath(cwd: string, absPath: string): string {
+	const rel = relative(resolve(cwd), resolve(absPath));
+	return rel === "" ? "." : rel;
 }
 
 function isInteractiveState(rt: FSMRuntime): boolean {
@@ -127,9 +140,9 @@ async function loadAndPush(
 	try {
 		stat = await fs.stat(absPath);
 	} catch (e) {
-		return { ok: false, error: `Could not stat '${absPath}': ${e instanceof Error ? e.message : e}` };
+		return { ok: false, error: `Could not stat '${displayPath(cwd, absPath)}': ${e instanceof Error ? e.message : e}` };
 	}
-	if (!stat.isFile()) return { ok: false, error: `'${absPath}' is not a regular file` };
+	if (!stat.isFile()) return { ok: false, error: `'${displayPath(cwd, absPath)}' is not a regular file` };
 	if (stat.size > MAX_FLOW_FILE_BYTES) {
 		return { ok: false, error: `Flow file exceeds ${MAX_FLOW_FILE_BYTES} bytes (got ${stat.size})` };
 	}
@@ -138,7 +151,7 @@ async function loadAndPush(
 	try {
 		content = await fs.readFile(absPath, "utf-8");
 	} catch (e) {
-		return { ok: false, error: `Could not read '${absPath}': ${e instanceof Error ? e.message : e}` };
+		return { ok: false, error: `Could not read '${displayPath(cwd, absPath)}': ${e instanceof Error ? e.message : e}` };
 	}
 
 	let fsm: ReturnType<typeof buildFSM>;
@@ -159,14 +172,14 @@ async function loadAndPush(
 	const statesRec: Record<string, State> = {};
 	for (const [k, v] of fsm.states.entries()) statesRec[k] = v;
 
-	await writeFsmStructure(sessionDir, fsmId, flowName, flowDir, fsm.task_description, statesRec);
-	await writeState(sessionDir, fsmId, "$START", []);
-	await writeTape(sessionDir, fsmId, {});
 	try {
+		await writeFsmStructure(sessionDir, fsmId, flowName, flowDir, fsm.task_description, statesRec);
+		await writeState(sessionDir, fsmId, "$START", []);
+		await writeTape(sessionDir, fsmId, {});
 		await pushFsm(sessionDir, fsmId);
-	} catch (pushErr) {
-		await fs.rm(`${sessionDir}/${fsmId}`, { recursive: true, force: true }).catch(() => {});
-		throw pushErr;
+	} catch (setupErr) {
+		await fs.rm(fsmDir(sessionDir, fsmId), { recursive: true, force: true }).catch(() => {});
+		throw setupErr;
 	}
 
 	const rt: FSMRuntime = {
@@ -271,6 +284,7 @@ async function actionCall(
 	sessionId: string,
 	actionId: string,
 	args: string[],
+	allowInteractive = false,
 ): Promise<string> {
 	const sessionDir = getSessionDir(cwd, sessionId);
 	const fsmId = await topFsmId(sessionDir);
@@ -279,6 +293,9 @@ async function actionCall(
 	}
 	const rt = await loadRuntime(sessionDir, fsmId);
 	if (!rt) return `❌ Could not load runtime for FSM '${fsmId}'`;
+	if (isInteractiveState(rt) && !allowInteractive) {
+		return "❌ Current state is interactive. Use `/steering-flow set-action <ACTION-ID> [ARGS...]` to advance this gated pause state.";
+	}
 
 	const tapePath = tapePathFor(sessionDir, fsmId);
 	const result: TransitionResult = await executeAction(rt, actionId, args, tapePath, cwd);
@@ -400,14 +417,18 @@ async function infoCall(cwd: string, sessionId: string): Promise<string> {
 
 async function popCall(cwd: string, sessionId: string): Promise<string> {
 	const sessionDir = getSessionDir(cwd, sessionId);
+	const stackBeforePop = await readStack(sessionDir);
+	const parentId = stackBeforePop.length > 1 ? stackBeforePop[stackBeforePop.length - 2] : undefined;
+	let parentView: string | undefined;
+	if (parentId) {
+		const parent = await loadRuntime(sessionDir, parentId);
+		if (parent) parentView = renderStateView(parent, "**Resumed parent flow:**");
+	}
 	const popped = await popFsm(sessionDir);
 	if (!popped) return "(Nothing to pop — stack is empty.)";
-	const remaining = await readStack(sessionDir);
-	let text = `📤 Popped FSM \`${popped}\`. Stack depth: ${remaining.length}.`;
-	if (remaining.length > 0) {
-		const parent = await loadRuntime(sessionDir, remaining[remaining.length - 1]);
-		if (parent) text += "\n\n" + renderStateView(parent, "**Resumed parent flow:**");
-	}
+	const remainingDepth = Math.max(stackBeforePop.length - 1, 0);
+	let text = `📤 Popped FSM \`${popped}\`. Stack depth: ${remainingDepth}.`;
+	if (parentView) text += "\n\n" + parentView;
 	return text;
 }
 
@@ -506,40 +527,6 @@ export default async function steeringFlow(pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
-		name: "visualize-steering-flow",
-		label: "Visualize Steering-Flow",
-		description:
-			"Generate a static HTML visualizer for the active steering-flow stack, or for a specific flow file if provided.",
-		parameters: Type.Object({
-			flow_file: Type.Optional(Type.String({ description: "Optional flow file to visualize instead of the active session stack." })),
-			output_file: Type.Optional(Type.String({ description: "Optional output HTML path. Defaults to .pi/steering-flow-visualizer.html under cwd." })),
-		}),
-		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			const sessionId = ctx.sessionManager.getSessionId();
-			const cwd = ctx.sessionManager.getCwd();
-			try {
-				const result = await withSessionLock(sessionId, () =>
-					createVisualizerArtifact({
-						cwd,
-						sessionId,
-						flowFile: params.flow_file,
-						outputFile: params.output_file,
-					}),
-				);
-				return {
-					content: [{
-						type: "text",
-						text: `✅ Wrote steering-flow visualizer (${result.mode}, ${result.fsmCount} FSMs) to ${result.outputPath}\nSource: ${result.sourceLabel}`,
-					}],
-					details: undefined,
-				};
-			} catch (e) {
-				return { content: [{ type: "text", text: `❌ ${friendlyError(e)}` }], isError: true, details: undefined };
-			}
-		},
-	});
-
-	pi.registerTool({
 		name: "get-steering-flow-info",
 		label: "Get Steering-Flow Info",
 		description:
@@ -577,6 +564,7 @@ export default async function steeringFlow(pi: ExtensionAPI) {
 				info: () => withSessionLock(sessionId, () => infoCall(cwd, sessionId)),
 				setState: (stateId) => withSessionLock(sessionId, () => manualSetStateCall(cwd, sessionId, stateId)),
 				action: (actionId, args) => withSessionLock(sessionId, () => actionCall(cwd, sessionId, actionId, args)),
+				setAction: (actionId, args) => withSessionLock(sessionId, () => actionCall(cwd, sessionId, actionId, args, true)),
 				visualize: (flowFile, outputFile) => withSessionLock(sessionId, () =>
 					createVisualizerArtifact({ cwd, sessionId, flowFile, outputFile }),
 				),

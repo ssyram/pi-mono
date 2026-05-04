@@ -14,17 +14,16 @@ const COMMANDS: VisualizerSurface[] = [
 	{ name: "/steering-flow info", description: "Show stack, state, tape, and active actions as UI info only." },
 	{ name: "/steering-flow set-state <STATE-ID>", description: "User-only jump/reset of the active FSM state." },
 	{ name: "/steering-flow reset-state", description: "User-only reset of the active FSM state to $START." },
-	{ name: "/steering-flow set-action <ACTION-ID> [ARGS...]", description: "User-only action trigger with UI notification output." },
-	{ name: "/steering-flow action <ACTION-ID> [ARGS...]", description: "Invoke an action on the active FSM and send the result to the model context." },
-	{ name: "/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]", description: "Generate this static HTML visualizer." },
+	{ name: "/steering-flow set-action <ACTION-ID> [ARGS...]", description: "User-only action trigger with UI notification output. May advance interactive states." },
+	{ name: "/steering-flow action <ACTION-ID> [ARGS...]", description: "Invoke an action on the active FSM and send the result to the model context. Rejects interactive states." },
+	{ name: "/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]", description: "Generate this static HTML visualizer as UI notification output." },
 ];
 
 const TOOLS: VisualizerSurface[] = [
 	{ name: "load-steering-flow", description: "LLM tool for loading a flow config." },
-	{ name: "steering-flow-action", description: "LLM tool for invoking an action with positional args." },
+	{ name: "steering-flow-action", description: "LLM tool for invoking an action with positional args. Rejects interactive states." },
 	{ name: "save-to-steering-flow", description: "LLM tool for writing tape values." },
 	{ name: "get-steering-flow-info", description: "LLM tool for inspecting active flow state." },
-	{ name: "visualize-steering-flow", description: "LLM tool for generating a static visualizer artifact." },
 ];
 
 export function getVisualizerCommands(): VisualizerSurface[] {

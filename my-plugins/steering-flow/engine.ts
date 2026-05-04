@@ -209,7 +209,7 @@ export async function executeAction(
 			success: false,
 			chain: [],
 			final_state_id: runtime.current_state_id,
-			reasons: [`current state '${current.state_id}' is epsilon (auto-routing); cannot invoke action explicitly — call /steering-flow info to inspect`],
+			reasons: [`current state '${current.state_id}' is epsilon (auto-routing); cannot invoke action explicitly`],
 			reached_end: false,
 		};
 	}
@@ -421,7 +421,11 @@ export function renderStateView(runtime: FSMRuntime, header?: string): string {
 
 	if (state && state.actions.length > 0) {
 		lines.push("");
-		lines.push("**Available actions** (call via `steering-flow-action` tool or `/steering-flow action`):");
+		if (state.interactive) {
+			lines.push("**Available actions**: this gated pause state must be advanced by the user with `/steering-flow set-action`.");
+		} else {
+			lines.push("**Available actions** (call via `steering-flow-action` tool or `/steering-flow action`):");
+		}
 		for (const a of state.actions) {
 			const args = a.arguments.length > 0
 				? ` — args: ${a.arguments.map((ar) => `<${ar.arg_name}: ${ar.arg_desc}>`).join(", ")}`
