@@ -208,6 +208,7 @@ function showState(fsm, state) {
   details.innerHTML =
     '<div class="section"><h2>State \\u00b7 ' + esc(state.id) + '</h2>' +
     (state.isEpsilon ? '<span class="pill">\\u03b5 epsilon</span> ' : '') +
+    (state.isInteractive ? '<span class="pill" style="border-color:#d2a8ff;color:#d2a8ff">interactive</span> ' : '') +
     (state.id === fsm.currentStateId ? '<span class="pill" style="border-color:#58a6ff;color:#58a6ff">current</span>' : '') +
     '<pre style="margin-top:8px">' + esc(state.description) + '</pre></div>' +
     '<div class="section"><h2>Actions (' + state.actions.length + ')</h2>' +

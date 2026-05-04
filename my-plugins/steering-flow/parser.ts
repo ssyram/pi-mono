@@ -92,6 +92,10 @@ function validateState(raw: unknown): State {
 	}
 
 	const is_epsilon = s.is_epsilon === true;
+	if (s.interactive !== undefined && typeof s.interactive !== "boolean") {
+		throw new ParseError(`State '${s.state_id}': interactive must be a boolean when present`);
+	}
+	const interactive = s.interactive === true;
 	const actions: Action[] = [];
 
 	if (s.state_id === "$END") {
@@ -101,7 +105,13 @@ function validateState(raw: unknown): State {
 		if (is_epsilon) {
 			throw new ParseError("$END state cannot be epsilon");
 		}
+		if (interactive) {
+			throw new ParseError("$END state cannot be interactive");
+		}
 	} else {
+		if (interactive && is_epsilon) {
+			throw new ParseError(`State '${s.state_id}' cannot be both interactive and epsilon`);
+		}
 		if (!Array.isArray(s.actions) || s.actions.length === 0) {
 			throw new ParseError(`State '${s.state_id}' must have at least one action (only $END can have none)`);
 		}
@@ -111,7 +121,7 @@ function validateState(raw: unknown): State {
 		}
 	}
 
-	return { state_id: s.state_id, state_desc: s.state_desc as string, is_epsilon, actions };
+	return { state_id: s.state_id, state_desc: s.state_desc as string, is_epsilon, interactive, actions };
 }
 
 function validateAction(raw: unknown, stateId: string, isEpsilon: boolean, isLast: boolean): Action {

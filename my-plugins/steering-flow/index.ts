@@ -8,7 +8,7 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
-import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 
 import { parseFlowConfig, buildFSM, ParseError, isReservedJsName } from "./parser.js";
@@ -36,6 +36,9 @@ import {
 	deletePendingPop,
 } from "./storage.js";
 import { enterStart, executeAction, renderStateView, renderTransitionResult } from "./engine.js";
+import { manualSetState } from "./manual-control.js";
+import { renderInteractivePause, renderManualInfo } from "./notify-render.js";
+import { registerSteeringFlowCommand } from "./steering-flow-command.js";
 import { createVisualizerArtifact } from "./visualizer/index.js";
 import { wasAborted } from "./stop-guards.js";
 
@@ -101,6 +104,10 @@ const lastCompactionAt = new Map<string, number>();  // sessionId → ms
 
 function resolveFilePath(cwd: string, p: string): string {
 	return isAbsolute(p) ? p : resolve(cwd, p);
+}
+
+function isInteractiveState(rt: FSMRuntime): boolean {
+	return rt.states[rt.current_state_id]?.interactive === true;
 }
 
 async function persistRuntime(sessionDir: string, rt: FSMRuntime): Promise<void> {
@@ -268,7 +275,7 @@ async function actionCall(
 	const sessionDir = getSessionDir(cwd, sessionId);
 	const fsmId = await topFsmId(sessionDir);
 	if (!fsmId) {
-		return "❌ No active steering-flow. Use `/load-steering-flow <FILE>` or the `load-steering-flow` tool to load one.";
+		return "❌ No active steering-flow. Use `/steering-flow load <FILE>` or the `load-steering-flow` tool to load one.";
 	}
 	const rt = await loadRuntime(sessionDir, fsmId);
 	if (!rt) return `❌ Could not load runtime for FSM '${fsmId}'`;
@@ -402,6 +409,15 @@ async function popCall(cwd: string, sessionId: string): Promise<string> {
 		if (parent) text += "\n\n" + renderStateView(parent, "**Resumed parent flow:**");
 	}
 	return text;
+}
+
+async function manualSetStateCall(cwd: string, sessionId: string, stateId: string): Promise<string> {
+	const sessionDir = getSessionDir(cwd, sessionId);
+	const fsmId = await topFsmId(sessionDir);
+	if (!fsmId) return "❌ No active steering-flow.";
+	const text = await manualSetState(sessionDir, fsmId, stateId);
+	const rt = await loadRuntime(sessionDir, fsmId);
+	return rt ? `${text}\n\n${renderManualInfo("Manual steering-flow state set", rt)}` : text;
 }
 
 function friendlyError(e: unknown): string {
@@ -541,148 +557,30 @@ export default async function steeringFlow(pi: ExtensionAPI) {
 		},
 	});
 
-	// NOTE: pop-steering-flow is intentionally NOT registered as a tool (user-only per spec).
+	// NOTE: user-only steering-flow controls are intentionally NOT registered as tools.
 
 	// ── Commands ──────────────────────────────────────────────────────────
 
-	pi.registerCommand("load-steering-flow", {
-		description: "Load a steering-flow config file and push it onto the FSM stack",
-		handler: async (args: string, ctx: ExtensionCommandContext) => {
-			const filePath = args.trim();
-			if (!filePath) { ctx.ui.notify("Usage: /load-steering-flow <FILE>", "error"); return; }
+	registerSteeringFlowCommand({
+		pi,
+		tokenizeArgs,
+		friendlyError,
+		isReservedJsName,
+		calls: (ctx) => {
 			const sessionId = ctx.sessionManager.getSessionId();
 			const cwd = ctx.sessionManager.getCwd();
-			try {
-				const res = await withSessionLock(sessionId, () => loadAndPush(cwd, sessionId, filePath));
-				if (!res.ok) { ctx.ui.notify(res.error, "error"); return; }
-				pi.sendUserMessage(res.text);
-			} catch (e) {
-				ctx.ui.notify(friendlyError(e), "error");
-			}
-		},
-	});
-
-	pi.registerCommand("pop-steering-flow", {
-		description: "Pop the top steering-flow FSM from the stack (user-only)",
-		handler: async (_args: string, ctx: ExtensionCommandContext) => {
-			const sessionId = ctx.sessionManager.getSessionId();
-			const cwd = ctx.sessionManager.getCwd();
-			try {
-				const text = await withSessionLock(sessionId, () => popCall(cwd, sessionId));
-				ctx.ui.notify(text.split("\n")[0], "info");
-				pi.sendUserMessage(text);
-			} catch (e) {
-				ctx.ui.notify(friendlyError(e), "error");
-			}
-		},
-	});
-
-	pi.registerCommand("save-to-steering-flow", {
-		description: "Save <ID> <VALUE> to the top FSM's Turing tape (value = remainder of args)",
-		handler: async (args: string, ctx: ExtensionCommandContext) => {
-			const trimmed = args.trim();
-			const firstSpace = trimmed.indexOf(" ");
-			if (firstSpace === -1) { ctx.ui.notify("Usage: /save-to-steering-flow <ID> <VALUE>", "error"); return; }
-			const id = trimmed.slice(0, firstSpace);
-			const value = trimmed.slice(firstSpace + 1);
-			if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(id)) {
-				ctx.ui.notify(`Invalid tape id '${id}'.`, "error"); return;
-			}
-			if (isReservedJsName(id)) {
-				ctx.ui.notify(`Tape id '${id}' is a reserved JS property name.`, "error"); return;
-			}
-			const sessionId = ctx.sessionManager.getSessionId();
-			const cwd = ctx.sessionManager.getCwd();
-			try {
-				const text = await withSessionLock(sessionId, () => saveCall(cwd, sessionId, id, value));
-				ctx.ui.notify(text.split("\n")[0], "info");
-			} catch (e) {
-				ctx.ui.notify(friendlyError(e), "error");
-			}
-		},
-	});
-
-	pi.registerCommand("visualize-steering-flow", {
-		description: "Generate a static HTML visualizer for the active stack or for a specific flow file",
-		handler: async (args: string, ctx: ExtensionCommandContext) => {
-			let parts: string[];
-			try {
-				parts = tokenizeArgs(args);
-			} catch (e) {
-				ctx.ui.notify(`${friendlyError(e)}. Usage: /visualize-steering-flow [FLOW_FILE] [-o OUTPUT.html]`, "error");
-				return;
-			}
-			let flowFile: string | undefined;
-			let outputFile: string | undefined;
-			for (let i = 0; i < parts.length; i++) {
-				const part = parts[i];
-				if (part === "-o" || part === "--output") {
-					outputFile = parts[i + 1];
-					if (!outputFile) {
-						ctx.ui.notify("Usage: /visualize-steering-flow [FLOW_FILE] [-o OUTPUT.html]", "error");
-						return;
-					}
-					i++;
-					continue;
-				}
-				if (flowFile !== undefined) {
-					ctx.ui.notify("Usage: /visualize-steering-flow [FLOW_FILE] [-o OUTPUT.html]", "error");
-					return;
-				}
-				flowFile = part;
-			}
-			const sessionId = ctx.sessionManager.getSessionId();
-			const cwd = ctx.sessionManager.getCwd();
-			try {
-				const result = await withSessionLock(sessionId, () =>
+			return {
+				load: (path) => withSessionLock(sessionId, () => loadAndPush(cwd, sessionId, path)),
+				pop: () => withSessionLock(sessionId, () => popCall(cwd, sessionId)),
+				save: (id, value) => withSessionLock(sessionId, () => saveCall(cwd, sessionId, id, value)),
+				contextInfo: () => withSessionLock(sessionId, () => infoCall(cwd, sessionId)),
+				info: () => withSessionLock(sessionId, () => infoCall(cwd, sessionId)),
+				setState: (stateId) => withSessionLock(sessionId, () => manualSetStateCall(cwd, sessionId, stateId)),
+				action: (actionId, args) => withSessionLock(sessionId, () => actionCall(cwd, sessionId, actionId, args)),
+				visualize: (flowFile, outputFile) => withSessionLock(sessionId, () =>
 					createVisualizerArtifact({ cwd, sessionId, flowFile, outputFile }),
-				);
-				pi.sendUserMessage(
-					`## Steering-Flow Visualizer\n- Mode: ${result.mode}\n- FSM count: ${result.fsmCount}\n- Source: ${result.sourceLabel}\n- Output: ${result.outputPath}`,
-				);
-				for (const warning of result.warnings) {
-					ctx.ui.notify(warning, "warning");
-				}
-			} catch (e) {
-				ctx.ui.notify(friendlyError(e), "error");
-			}
-		},
-	});
-
-	pi.registerCommand("get-steering-flow-info", {
-		description: "Print the current steering-flow stack, states, and tape contents",
-		handler: async (_args: string, ctx: ExtensionCommandContext) => {
-			const sessionId = ctx.sessionManager.getSessionId();
-			const cwd = ctx.sessionManager.getCwd();
-			try {
-				const text = await withSessionLock(sessionId, () => infoCall(cwd, sessionId));
-				pi.sendUserMessage(text);
-			} catch (e) {
-				ctx.ui.notify(friendlyError(e), "error");
-			}
-		},
-	});
-
-	pi.registerCommand("steering-flow-action", {
-		description: "Invoke an action: /steering-flow-action <ACTION-ID> [ARG1] [ARG2] ... (use quotes for args with spaces)",
-		handler: async (args: string, ctx: ExtensionCommandContext) => {
-			let parts: string[];
-			try {
-				parts = tokenizeArgs(args);
-			} catch (e) {
-				ctx.ui.notify(`${friendlyError(e)}. Usage: /steering-flow-action <ACTION-ID> [ARGS...]`, "error");
-				return;
-			}
-			if (parts.length === 0) { ctx.ui.notify("Usage: /steering-flow-action <ACTION-ID> [ARGS...]", "error"); return; }
-			const [actionId, ...rest] = parts;
-			const sessionId = ctx.sessionManager.getSessionId();
-			const cwd = ctx.sessionManager.getCwd();
-			try {
-				const text = await withSessionLock(sessionId, () => actionCall(cwd, sessionId, actionId, rest));
-				pi.sendUserMessage(text);
-			} catch (e) {
-				ctx.ui.notify(friendlyError(e), "error");
-			}
+				),
+			};
 		},
 	});
 
@@ -735,6 +633,11 @@ export default async function steeringFlow(pi: ExtensionAPI) {
 				if (!rt) return;
 				if (rt.current_state_id === "$END") return;
 
+				if (isInteractiveState(rt)) {
+					if (ctx.hasUI) ctx.ui.notify(renderInteractivePause(rt), "info");
+					return;
+				}
+
 				// Stagnation: stable hash over (state, sorted tape). Resets when state changes.
 				const hash = createHash("sha1")
 					.update(rt.current_state_id + "\0" + stableStringify(rt.tape))
@@ -748,7 +651,7 @@ export default async function steeringFlow(pi: ExtensionAPI) {
 					// Stop re-prompting; notify the user instead.
 					if (ctx.hasUI) {
 						ctx.ui.notify(
-							`steering-flow: stagnation detected in '${rt.flow_name}' at state '${rt.current_state_id}' (${nextCount - 1} identical reminders). Re-prompt paused — use /pop-steering-flow to abandon or /get-steering-flow-info to inspect.`,
+							`steering-flow: stagnation detected in '${rt.flow_name}' at state '${rt.current_state_id}' (${nextCount - 1} identical reminders). Re-prompt paused — use /steering-flow pop to abandon or /steering-flow info to inspect.`,
 							"warning",
 						);
 					}

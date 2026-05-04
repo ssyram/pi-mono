@@ -193,7 +193,7 @@ The plugin listens to `agent_end` events (`@steering-flow/index.ts:551-641`). Wh
 
 mcp-server-fsm's stop hook is structurally correct for Claude Code but minimal: it has no stagnation detection, no abort detection, no question detection, and no escape hatch for the LLM. If the model gets stuck, it will loop indefinitely with the hook blocking every stop attempt.
 
-steering-flow's approach is more robust: the stagnation detector prevents infinite loops, question detection avoids suppressing legitimate user interaction, and the confirm-to-stop tag gives the LLM an explicit escape valve (which the user can also trigger via `/pop-steering-flow`).
+steering-flow's approach is more robust: the stagnation detector prevents infinite loops, question detection avoids suppressing legitimate user interaction, and the command-only `/steering-flow pop` escape hatch lets the user force-pop the active flow.
 
 ---
 
@@ -218,7 +218,7 @@ Both systems support nested FSMs, but with different semantics:
 |--------|---------------|---------------|
 | **Stack model** | In-memory `Vec<FsmStackEntry>` with persisted `stack.json` | On-disk `stack.json` (array of FSM-IDs) + per-FSM directory |
 | **Push** | `enter_fsm` tool: looks up pre-registered skill by name, pushes onto stack (`@mcp-server-fsm/crates/server/src/automaton.rs:312-349`) | `load-steering-flow` tool/command: parses a file, pushes a new FSM-ID |
-| **Pop** | `exit_fsm` tool: requires being at `exit_state` (`@mcp-server-fsm/crates/server/src/automaton.rs:352-384`) | Automatic on reaching `$END`; also `/pop-steering-flow` (user-only) |
+| **Pop** | `exit_fsm` tool: requires being at `exit_state` (`@mcp-server-fsm/crates/server/src/automaton.rs:352-384`) | Automatic on reaching `$END`; also `/steering-flow pop` (user-only) |
 | **FSM source** | Pre-registered YAML "skills" in `~/.mcp_server_fsm/skills/` | Arbitrary file path at runtime |
 | **Minimum stack** | Always >= 1 (default automaton at bottom) (`@mcp-server-fsm/crates/server/src/automaton.rs:364-381`) | Can be 0 (no flow active) |
 | **Cross-stack back** | `fsm_back(fsm, state)`: searches stack top-down, pops everything above target (`@mcp-server-fsm/crates/server/src/automaton.rs:412-468`) | Not supported (can only pop top) |
@@ -231,7 +231,7 @@ mcp-server-fsm's stack is more powerful: it supports cross-stack rollback and re
 | Aspect | mcp-server-fsm | steering-flow |
 |--------|---------------|---------------|
 | **Runtime data store** | Git commit hashes as checkpoints (`checkpoint` field); `CheckContext` struct with diff/changed_files/evidence (`@mcp-server-fsm/crates/client/src/guards.rs:23-35`) | `tape.json` per FSM: arbitrary JSON key-value store (`@steering-flow/storage.ts:237-251`) |
-| **Who can write** | System only (checkpoint set at enter/transition); evidence passed in `fsm_try_transition` | Condition processes (via file I/O), LLM (`save-to-steering-flow` tool), user (`/save-to-steering-flow`) |
+| **Who can write** | System only (checkpoint set at enter/transition); evidence passed in `fsm_try_transition` | Condition processes (via file I/O), LLM (`save-to-steering-flow` tool), user (`/steering-flow save`) |
 | **Passed to conditions** | Via `FSM_CONTEXT` env var pointing to a temp JSON file with selected fields (`@mcp-server-fsm/crates/client/src/guards.rs:93-96`) | Via argv: tape.json path is appended to the child's argv (`@steering-flow/engine.ts:57-58`) |
 | **Re-sync** | No re-sync (context is computed per transition) | Re-synced from disk after every condition execution (`@steering-flow/index.ts:177, 237`) |
 | **Caps** | No explicit caps | 64 KiB per value, 1024 keys max |

@@ -6,12 +6,17 @@ import { toVisualizerState } from "./normalize-state.js";
 import type { VisualizerDocument, VisualizerFsm, VisualizerSurface } from "./types.js";
 
 const COMMANDS: VisualizerSurface[] = [
-	{ name: "/load-steering-flow <FILE>", description: "Load a flow config and push it onto the FSM stack." },
-	{ name: "/pop-steering-flow", description: "Pop the active FSM from the stack. User-only escape hatch." },
-	{ name: "/save-to-steering-flow <ID> <VALUE>", description: "Write a value to the active FSM tape." },
-	{ name: "/get-steering-flow-info", description: "Print stack, state, tape, and active actions." },
-	{ name: "/steering-flow-action <ACTION-ID> [ARGS...]", description: "Invoke an action on the active FSM." },
-	{ name: "/visualize-steering-flow [FLOW_FILE] [-o OUTPUT.html]", description: "Generate this static HTML visualizer." },
+	{ name: "/steering-flow help", description: "Show unified steering-flow command help." },
+	{ name: "/steering-flow load <FILE>", description: "Load a flow config and push it onto the FSM stack." },
+	{ name: "/steering-flow pop", description: "Pop the active FSM from the stack. User-only escape hatch." },
+	{ name: "/steering-flow save <ID> <VALUE>", description: "Write a value to the active FSM tape." },
+	{ name: "/steering-flow context-info", description: "Send stack, state, tape, and active actions to the model context." },
+	{ name: "/steering-flow info", description: "Show stack, state, tape, and active actions as UI info only." },
+	{ name: "/steering-flow set-state <STATE-ID>", description: "User-only jump/reset of the active FSM state." },
+	{ name: "/steering-flow reset-state", description: "User-only reset of the active FSM state to $START." },
+	{ name: "/steering-flow set-action <ACTION-ID> [ARGS...]", description: "User-only action trigger with UI notification output." },
+	{ name: "/steering-flow action <ACTION-ID> [ARGS...]", description: "Invoke an action on the active FSM and send the result to the model context." },
+	{ name: "/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]", description: "Generate this static HTML visualizer." },
 ];
 
 const TOOLS: VisualizerSurface[] = [

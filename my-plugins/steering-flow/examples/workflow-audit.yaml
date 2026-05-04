@@ -1,0 +1,286 @@
+task_description: |
+  PR 审计工作流（驳回优先）。
+  三方向并行审计 → 汇总 → 质疑循环 → 汇报 → 决策循环，直到所有项目清零。
+  只读流程——禁止修改源代码，只产出 review 文档。
+
+  Tape 核心字段：
+    DECISION_COUNT      — 待决策项数量（需要人类判断的）
+    NON_DECISION_COUNT  — 非决策项数量（可独立处理的发现）
+    ROUND               — 当前大循环轮次
+
+  每个阶段必须提交具体文档，系统才允许状态变迁。
+
+# Condition scripts live in ./scripts/ alongside this YAML.
+
+states:
+  # ═══════════════════════════════════════════════════════════════
+  # Phase 1: 数据收集
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "$START"
+    state_desc: |
+      收集 PR 的全部上下文：commits、diff、描述、已有 review comments。
+      方式不限（gh CLI、GitHub API、fetch_content、手动提供 diff 均可）。
+      同时读取项目的 workflow/规范文档。
+
+      完成后：
+      1. 将收集结果写入文档，通过 save-to-steering-flow 设置 GATHER_DOC 为文档路径
+      2. 设置 ROUND=1
+    is_epsilon: false
+    actions:
+      - action_id: "submit_gather"
+        action_desc: "提交数据收集文档。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-doc-submitted.mjs", "GATHER_DOC", "${$TAPE_FILE}"]
+        next_state_id: "audit"
+
+  # ═══════════════════════════════════════════════════════════════
+  # Phase 2: 三方向并行审计
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "audit"
+    state_desc: |
+      启动三个独立的审计方向（并行 subagent，fresh context）：
+      - 方向 A：Hoare Logic + Workflow（逻辑正确性、安全属性、不变式）
+      - 方向 B：Finegrained Check + Workflow（命题提取、跨文件矛盾）
+      - 方向 C：Workflow Pure（纯流程审计）
+
+      每个方向必须产出独立的审计文档。
+
+      完成后：
+      1. 将三个方向的文档路径分别设置为 AUDIT_DOC_A、AUDIT_DOC_B、AUDIT_DOC_C
+    is_epsilon: false
+    actions:
+      - action_id: "submit_audit"
+        action_desc: "提交三方向审计文档。三个文档必须全部存在。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/submit-required-fields.mjs", "AUDIT_DOC_A", "AUDIT_DOC_B", "AUDIT_DOC_C", "${$TAPE_FILE}"]
+        next_state_id: "consolidate"
+
+  # ═══════════════════════════════════════════════════════════════
+  # Phase 3: 发现汇总去重
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "consolidate"
+    state_desc: |
+      汇总所有发现（含新一轮循环带入的剩余项）：
+      1. 去重：合并重复项
+      2. 分类：每条标注严重性和类型
+      3. 区分：
+         - 决策项（DECISION）：需要人类判断的（多个合理方案、设计权衡、争议点）
+         - 非决策项（NON_DECISION）：可独立验证和处理的（明确的 bug、文档错误、流程缺失）
+      4. 只汇总不删除
+
+      完成后：
+      1. 提交汇总文档，设置 CONSOLIDATE_DOC
+      2. 设置 DECISION_COUNT 和 NON_DECISION_COUNT（数字）
+    is_epsilon: false
+    actions:
+      - action_id: "submit_consolidation"
+        action_desc: "提交汇总文档，含决策项/非决策项分类和计数。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/submit-required-fields.mjs", "CONSOLIDATE_DOC", "DECISION_COUNT", "NON_DECISION_COUNT", "${$TAPE_FILE}"]
+        next_state_id: "dispatch_router"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 分派路由器（epsilon — 自动路由）
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "dispatch_router"
+    state_desc: |
+      自动路由：
+      - NON_DECISION_COUNT > 0 → 进入质疑轮处理非决策项
+      - NON_DECISION_COUNT = 0 且 DECISION_COUNT > 0 → 进入汇报期
+      - 两者均为 0 → 审计完成
+    is_epsilon: true
+    actions:
+      - action_id: "has_non_decisions"
+        action_desc: "存在非决策项，进入质疑轮。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key-gt-zero.mjs", "NON_DECISION_COUNT", "${$TAPE_FILE}"]
+        next_state_id: "challenge"
+      - action_id: "only_decisions"
+        action_desc: "仅剩决策项，进入汇报期。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key-gt-zero.mjs", "DECISION_COUNT", "${$TAPE_FILE}"]
+        next_state_id: "report"
+      - action_id: "all_clear"
+        action_desc: "无剩余项目，审计完成。"
+        condition: { default: true }
+        next_state_id: "$END"
+
+  # ═══════════════════════════════════════════════════════════════
+  # Phase 4: 质疑轮（驳回优先）
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "challenge"
+    state_desc: |
+      对每条非决策项派出 ≥2 个独立 agent 进行质疑（fresh context，禁止 fork）。
+      质疑者不看原始审计报告，只看具体的单条 claim + 相关源文件。
+      显式指令："你的任务是找出这条发现错误的理由。保持对抗性。"
+
+      每条发现必须被 ≥2 个不同 agent 覆盖。
+
+      完成后：
+      1. 提交质疑文档（包含所有质疑者的判定），设置 CHALLENGE_DOC
+    is_epsilon: false
+    actions:
+      - action_id: "submit_challenge"
+        action_desc: "提交质疑文档，含所有质疑者判定。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-doc-submitted.mjs", "CHALLENGE_DOC", "${$TAPE_FILE}"]
+        next_state_id: "aggregate"
+
+  # ═══════════════════════════════════════════════════════════════
+  # Phase 5: 判定聚合
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "aggregate"
+    state_desc: |
+      汇总质疑结果：
+      - 全部 UPHELD → 进入反质疑
+      - 全部 REJECTED → 丢弃
+      - 判定分裂 → 派仲裁 agent（fresh context）做 tiebreak
+      - 全部 WEAKENED → 调整严重程度
+
+      完成后：
+      1. 提交聚合文档（含仲裁结果），设置 AGGREGATE_DOC
+      2. 更新 NON_DECISION_COUNT（剔除被 REJECTED 的）
+      3. 若有分裂判定升级为决策项，更新 DECISION_COUNT
+    is_epsilon: false
+    actions:
+      - action_id: "submit_aggregate"
+        action_desc: "提交聚合文档，含仲裁结果和更新后的计数。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/submit-required-fields.mjs", "AGGREGATE_DOC", "NON_DECISION_COUNT", "DECISION_COUNT", "${$TAPE_FILE}"]
+        next_state_id: "aggregate_router"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 聚合路由器（epsilon）
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "aggregate_router"
+    state_desc: "自动路由：有存活的非决策项 → 反质疑，否则 → 回分派路由器。"
+    is_epsilon: true
+    actions:
+      - action_id: "has_survivors"
+        action_desc: "有存活非决策项，进入反质疑。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key-gt-zero.mjs", "NON_DECISION_COUNT", "${$TAPE_FILE}"]
+        next_state_id: "counter_challenge"
+      - action_id: "none_survived"
+        action_desc: "非决策项全部驳回，回到分派路由器检查决策项。"
+        condition: { default: true }
+        next_state_id: "dispatch_router"
+
+  # ═══════════════════════════════════════════════════════════════
+  # Phase 7: 反质疑
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "counter_challenge"
+    state_desc: |
+      对每条存活非决策项，再启动一个 fresh agent 做最终推翻尝试。
+      反质疑者收到：原始 claim + 质疑者判定摘要。
+      指令："之前的质疑者试图推翻此发现但未成功。做最后一次推翻尝试。"
+
+      - 无法推翻 → 确认成立
+      - 有效推翻 → 升级为争议（决策项）
+
+      完成后：
+      1. 提交反质疑文档，设置 COUNTER_DOC
+      2. 更新 NON_DECISION_COUNT（确认成立的保留）和 DECISION_COUNT（新增争议项）
+    is_epsilon: false
+    actions:
+      - action_id: "submit_counter"
+        action_desc: "提交反质疑文档，含更新后的计数。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/submit-required-fields.mjs", "COUNTER_DOC", "NON_DECISION_COUNT", "DECISION_COUNT", "${$TAPE_FILE}"]
+        next_state_id: "verify"
+
+  # ═══════════════════════════════════════════════════════════════
+  # Phase 8: 主审亲自验证
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "verify"
+    state_desc: |
+      主审亲自阅读源码验证每条确认发现的关键证据。不能仅依赖 agent 报告。
+      对每条发现声明："我在 file:line 验证了 [具体证据]" 或 "我无法验证 [主张]"。
+
+      证据标准：
+      - 代码类：必须有测试用例/PoC/逐步复现步骤
+      - 文档类：三重确认无其他部分缓解该问题
+
+      验证可能改变分类：
+      - 无法验证的非决策项 → 升级为决策项
+      - 验证中发现新问题 → 增加对应计数
+
+      完成后：
+      1. 提交验证文档，设置 VERIFY_DOC
+      2. 最终更新 NON_DECISION_COUNT 和 DECISION_COUNT
+    is_epsilon: false
+    actions:
+      - action_id: "submit_verify"
+        action_desc: "提交主审验证文档，含最终计数。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/submit-required-fields.mjs", "VERIFY_DOC", "NON_DECISION_COUNT", "DECISION_COUNT", "${$TAPE_FILE}"]
+        next_state_id: "dispatch_router"
+
+  # ═══════════════════════════════════════════════════════════════
+  # Phase 9: 汇报期
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "report"
+    state_desc: |
+      生成 review 文档，呈报所有决策项给人类。
+      文档结构：
+      1. 概要
+      2. 已确认的非决策项（已处理完毕的发现）
+      3. 决策项（每项含：情况、选项、推荐、需要的决策）
+      4. 争议项（正方+反方证据，不做裁决）
+      5. 已驳回项
+      6. 审计方法说明
+
+      完成后：
+      1. 提交 review 文档，设置 REPORT_DOC
+    is_epsilon: false
+    actions:
+      - action_id: "submit_report"
+        action_desc: "提交 review 文档。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-doc-submitted.mjs", "REPORT_DOC", "${$TAPE_FILE}"]
+        next_state_id: "decision_gate"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 决策门禁：等待人类决策
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "decision_gate"
+    state_desc: |
+      等待人类对决策项做出判断。人类可能：
+      - 接受某些发现 → 该发现从决策项中移除
+      - 拒绝某些发现 → 该发现从决策项中移除
+      - 要求进一步调查 → 该发现转为非决策项进入新一轮
+
+      根据人类决策更新计数：
+      1. 设置 DECISION_DOC（决策记录文档路径）
+      2. 更新 DECISION_COUNT 和 NON_DECISION_COUNT
+      3. ROUND 递增
+    is_epsilon: false
+    actions:
+      - action_id: "decisions_made"
+        action_desc: "人类已做出决策，提交决策记录。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/submit-required-fields.mjs", "DECISION_DOC", "DECISION_COUNT", "NON_DECISION_COUNT", "${$TAPE_FILE}"]
+        next_state_id: "dispatch_router"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 终态
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "$END"
+    state_desc: |
+      审计完成。DECISION_COUNT=0 且 NON_DECISION_COUNT=0。
+      所有发现已处理：确认的已记录，驳回的已记录，决策项已由人类裁决。
+      Review 文档可用于回复 PR。
+    is_epsilon: false
+    actions: []

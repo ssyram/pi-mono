@@ -100,6 +100,18 @@ Constraints:
 - `$END` cannot be epsilon: `"$END state cannot be epsilon"` (`@parser.ts:91-92`).
 - Defaults to `false` if omitted (`@parser.ts:84`).
 
+### `interactive` (boolean, optional, default `false`)
+
+Marks this state as a gated pause. Interactive states are not completion states and are not epsilon routers; they are ordinary work/review states where the stop hook is allowed to stop after the model reaches the state.
+
+When `agent_end` fires on an interactive state, steering-flow shows the current state and available actions through a UI info notification and does not call `pi.sendUserMessage(...)`. The FSM remains active on the stack and can continue on the next user prompt or through user-only commands such as `/steering-flow set-action`.
+
+Constraints:
+- `$END` cannot be interactive.
+- Interactive states cannot be epsilon.
+- Interactive states still need at least one action and must still be able to reach `$END`.
+- Interactive states do not make `{ default: true }` valid; default transitions remain epsilon-only.
+
 ### `actions` (array, required for non-$END states)
 
 The list of actions available in this state.
@@ -114,6 +126,7 @@ The list of actions available in this state.
 - state_id: "implement"
   state_desc: "Write the code. When done, call mark_done."
   is_epsilon: false
+  interactive: false
   actions:
     - action_id: "mark_done"
       action_desc: "Signal that implementation is complete."
@@ -547,7 +560,7 @@ A per-session async mutex serializes all read-modify-write operations (`@storage
 
 ### Push on load
 
-When a flow config is loaded (via `/load-steering-flow` or the `load-steering-flow` tool), a new FSM is created and pushed onto the stack (`@index.ts:159`). The FSM ID is generated from a timestamp, slugified flow name, and random bytes (`@storage.ts:275-279`).
+When a flow config is loaded (via `/steering-flow load` or the `load-steering-flow` tool), a new FSM is created and pushed onto the stack (`@index.ts:159`). The FSM ID is generated from a timestamp, slugified flow name, and random bytes (`@storage.ts:275-279`).
 
 ### Pop on $END
 
@@ -555,7 +568,7 @@ When a transition reaches `$END`, the FSM is automatically popped from the stack
 
 ### Pop on user command
 
-The user can force-pop the top FSM at any time with `/pop-steering-flow` (`@index.ts:469-482`). This is a user-only operation -- the LLM cannot pop flows.
+The user can force-pop the top FSM at any time with `/steering-flow pop` (`@index.ts:469-482`). This is a user-only operation -- the LLM cannot pop flows.
 
 ### Nested flows
 
@@ -607,11 +620,17 @@ When `nextCount > STOP_HOOK_STAGNATION_LIMIT` (i.e., more than 3 identical remin
 
 | Command | Usage | Notes |
 |---|---|---|
-| `/load-steering-flow <FILE>` | Load a flow config file and push it onto the stack | File path relative to cwd or absolute. Parses, validates, creates on-disk state, runs initial epsilon chain from $START (`@index.ts:452-467`). |
-| `/pop-steering-flow` | Pop the top FSM from the stack | **User-only.** Not available as an LLM tool. Force-removes the active flow. If a parent exists, it is resumed (`@index.ts:469-482`). |
-| `/save-to-steering-flow <ID> <VALUE>` | Write a key-value pair to the top FSM's tape | ID is the first whitespace-delimited token; VALUE is the remainder. ID must match the identifier regex (`@index.ts:484-504`). |
-| `/get-steering-flow-info` | Print the full stack with states and tape contents | Shows all FSMs in the stack, not just the top. Includes tape key/value dump (`@index.ts:506-518`). |
-| `/steering-flow-action <ACTION-ID> [ARGS...]` | Invoke an action on the top FSM | Supports shell-style quoting for args with spaces. Uses a tokenizer that handles single/double quotes and backslash escapes (`@index.ts:520-541`). |
+| `/steering-flow load <FILE>` | Load a flow config file and push it onto the stack | File path relative to cwd or absolute. Parses, validates, creates on-disk state, runs initial epsilon chain from $START (`@index.ts:452-467`). |
+| `/steering-flow pop` | Pop the top FSM from the stack | **User-only.** Not available as an LLM tool. Force-removes the active flow. If a parent exists, it is resumed (`@index.ts:469-482`). |
+| `/steering-flow save <ID> <VALUE>` | Write a key-value pair to the top FSM's tape | ID is the first whitespace-delimited token; VALUE is the remainder. ID must match the identifier regex (`@index.ts:484-504`). |
+| `/steering-flow context-info` | Print the full stack with states and tape contents into model context | Shows all FSMs in the stack, not just the top. Includes tape key/value dump (`@index.ts:506-518`). |
+| `/steering-flow info` | Show full stack/state/action info as UI notification only | Command-only, not model-visible. |
+| `/steering-flow set-state <STATE-ID>` | Set the top FSM's current state | Command-only manual control. |
+| `/steering-flow reset-state` | Reset the top FSM to `$START` | Command-only manual control. |
+| `/steering-flow set-action <ACTION-ID> [ARGS...]` | Trigger an action on the top FSM via UI notification only | Supports shell-style quoting. Command-only manual control. |
+| `/steering-flow action <ACTION-ID> [ARGS...]` | Invoke an action on the top FSM and send the result into model context | Supports shell-style quoting for args with spaces. Uses a tokenizer that handles single/double quotes and backslash escapes (`@index.ts:520-541`). |
+| `/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]` | Generate a visualizer HTML artifact | Command-only. |
+| `/steering-flow help` | Show help | Also used for `/steering-flow`, `/steering-flow h`, `/steering-flow --help`, and unknown subcommands after an error notification. |
 
 ### LLM Tools
 
@@ -622,7 +641,7 @@ When `nextCount > STOP_HOOK_STAGNATION_LIMIT` (i.e., more than 3 identical remin
 | `save-to-steering-flow` | `id` (string), `value` (string) | Write to tape. ID must match identifier regex. Value max 64 KiB (`@index.ts:406-428`). |
 | `get-steering-flow-info` | (none) | Inspect the full stack (`@index.ts:430-446`). |
 
-**`pop-steering-flow` is intentionally NOT registered as a tool** (`@index.ts:448`). The LLM cannot pop flows -- only the user can.
+**`/steering-flow pop` is intentionally command-only and not registered as a tool** (`@index.ts:448`). The LLM cannot pop flows -- only the user can.
 
 ---
 
@@ -835,7 +854,7 @@ Always succeeds. Prints the first arg as the reason. No `${$TAPE_FILE}` in `args
 ### Happy path walkthrough
 
 ```
-User: /load-steering-flow examples/code-review.yaml
+User: /steering-flow load examples/code-review.yaml
 ```
 
 1. Parser validates the YAML. `buildFSM` confirms $START/$END exist, all references resolve, $END is reachable.

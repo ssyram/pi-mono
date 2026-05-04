@@ -30,6 +30,7 @@ export interface State {
 	state_id: string;
 	state_desc: string;
 	is_epsilon: boolean;
+	interactive: boolean;
 	actions: Action[];
 }
 

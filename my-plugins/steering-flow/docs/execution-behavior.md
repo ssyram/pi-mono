@@ -12,7 +12,8 @@
 
 ```
 ┌─ Plugin Init (index.ts:359) ───────────────┐
-│  4 tools + 5 commands + 3 hooks             │
+│  tools + commands + 3 hooks                 │
+│  model-visible tools; user-only commands    │
 └─────────────┬───────────────────────────────┘
               │
     ┌─────────┴─────────┐ User/LLM triggers
@@ -37,7 +38,7 @@
                      ┌───────────────────────────┘
                      ▼
              agent_end hook (index.ts:551)
-             guards → stagnation check → sendUserMessage
+             guards → interactive? notify-only : stagnation check → sendUserMessage
 ```
 
 ---
@@ -47,13 +48,13 @@
 ```pseudo
 fn steeringFlow(pi):
     for each tool: registerTool( ... execute wraps withSessionLock + try/catch )
-    for each command: registerCommand(handler parses args → sends to LLM)
+    registerCommand("steering-flow", handler tokenizes SUBCOMMAND → dispatches)
     pi.on("session_compact", record_timestamp)
     pi.on("agent_end", stop_hook_body)
     pi.on("session_start", clear_ts + sweep_tmp_files)
 ```
 
-所有工具/command 共享模式：`withSessionLock(sessionId, () => coreOp(...))`。唯一例外是 `pop-steering-flow` **只注册为 command，不注册为 tool** (@index.ts:448) — LLM 无法自己 pop。
+所有工具和 `/steering-flow` subcommand 共享模式：`withSessionLock(sessionId, () => coreOp(...))`。`/steering-flow`、`/steering-flow help`、`/steering-flow h`、`/steering-flow --help` 都显示帮助；无法解析的输入先通过 `ctx.ui.notify(..., "error")` 报错，然后显示帮助。`/steering-flow pop|info|set-state|reset-state|set-action|visualize` 不注册为 tool — LLM 无法自己 pop、读取 notify-only 状态，或执行 manual set。
 
 ---
 
@@ -481,7 +482,7 @@ fn popCall(cwd, sessionId):
 | 2 | 用户 abort | @index.ts:559 | `AssistantMessage.stopReason === "aborted"` |
 | 3 | 压缩冷却 | @index.ts:569 | 距上次 `session_compact` 不足 30 秒 |
 
-> **Design decision — stop hook is fully automatic**: steering-flow is fully automated. The stop hook **always** re-injects state when the LLM stops mid-flow (before `$END`). There is no question detection and no confirm-to-stop mechanism. The only way to stop the loop is reaching `$END` or the user manually calling `/pop-steering-flow`. The only guard beyond user abort is the 30-second compaction cooldown (per-session) to avoid re-injecting immediately after context compaction.
+> **Design decision — stop hook has a gated-pause exception**: steering-flow is automated for ordinary states: the stop hook re-injects state when the LLM stops mid-flow before `$END`. Interactive states are deliberate gates; the hook notifies through UI and waits. The loop otherwise stops by reaching `$END` or the user manually calling `/steering-flow pop`. The compaction cooldown avoids re-injecting immediately after context compaction.
 
 ### I.2 主体（在 `withSessionLock` 内）
 
@@ -597,7 +598,7 @@ agent_end → guards (abort/compaction)
 | | CorruptedStateError | tool outer try/catch | "steering-flow corrupted state: ..." with recovery tip |
 | save tool | value too big / key limit | `saveCall` returns ❌ text | tool result |
 | info tool | middle FSM corrupted | `infoCall` per-FSM catch | "⚠️ CORRUPTED" + continue rendering others |
-| pop command | empty stack | `popCall` returns text | "/pop-steering-flow returned '(empty stack)'" |
+| pop subcommand | empty stack | `popCall` returns text | "/steering-flow pop returned '(empty stack)'" |
 | Stop hook | any exception | outer try/catch swallows | **silent** (hooks can't crash) |
 | | CorruptedStateError | inner try/catch | `ctx.ui.notify` if ctx.hasUI |
 

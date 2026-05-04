@@ -25,6 +25,7 @@ export interface VisualizerState {
 	id: string;
 	description: string;
 	isEpsilon: boolean;
+	isInteractive: boolean;
 	actions: VisualizerAction[];
 }
 

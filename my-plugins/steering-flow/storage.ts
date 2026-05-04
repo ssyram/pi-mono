@@ -179,7 +179,7 @@ interface FsmStructure {
 	states: Record<string, State>;
 }
 
-interface StateFile {
+export interface StateFile {
 	current_state_id: string;
 	entered_at: string;
 	last_transition_chain: TransitionRecord[];

@@ -32,6 +32,7 @@ export function toVisualizerState(state: State): VisualizerState {
 		id: state.state_id,
 		description: state.state_desc,
 		isEpsilon: state.is_epsilon,
+		isInteractive: state.interactive,
 		actions: state.actions.map(toVisualizerAction),
 	};
 }

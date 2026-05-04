@@ -92,7 +92,7 @@ Runtime limits: 30 s wall-clock timeout with process-group SIGKILL, 64 KiB stdou
 Per-FSM JSON file under `.pi/steering-flow/<session>/<fsm-id>/tape.json`. Writers:
 
 - The condition process itself (by reading/modifying/writing the path received via `${$TAPE_FILE}` in its `args`).
-- `/save-to-steering-flow <ID> <VALUE>` (user).
+- `/steering-flow save <ID> <VALUE>` (user).
 - `save-to-steering-flow` tool (LLM).
 
 Caps: ≤ 64 KiB per value, ≤ 1024 keys total. Tape ids must match `/^[A-Za-z_][A-Za-z0-9_]*$/`.
@@ -101,7 +101,7 @@ Caps: ≤ 64 KiB per value, ≤ 1024 keys total. Tape ids must match `/^[A-Za-z_
 
 ### Stack
 
-Multiple FSMs can be nested. Each load pushes; reaching `$END` pops. `/pop-steering-flow` (user-only) force-pops.
+Multiple FSMs can be nested. Each load pushes; reaching `$END` pops. `/steering-flow pop` (user-only) force-pops.
 
 ### On-disk state
 
@@ -120,14 +120,21 @@ All writes are atomic (tmp + rename). Orphan `.tmp.*` files are swept on `sessio
 
 | Command | Purpose |
 |---|---|
-| `/load-steering-flow <FILE>` | Parse + push a flow config onto the stack |
-| `/pop-steering-flow` | Pop the top FSM (user-only — LLM cannot) |
-| `/save-to-steering-flow <ID> <VALUE>` | Write a tape entry |
-| `/get-steering-flow-info` | Dump the stack, states, and tapes |
-| `/steering-flow-action <ACTION-ID> [ARGS...]` | Invoke an action |
-| `/visualize-steering-flow` | Visualize FSM states as a text diagram (user-only) |
+| `/steering-flow`, `/steering-flow help`, `/steering-flow h`, `/steering-flow --help` | Show command help |
+| `/steering-flow load <FILE>` | Parse + push a flow config onto the stack |
+| `/steering-flow pop` | Pop the top FSM (user-only — LLM cannot) |
+| `/steering-flow save <ID> <VALUE>` | Write a tape entry |
+| `/steering-flow context-info` | Dump the stack, states, and tapes into the model context |
+| `/steering-flow info` | Show the active stack, current state, tape summary, and available actions as UI info only |
+| `/steering-flow set-state <STATE-ID>` | User-only jump/reset of the top FSM's current state |
+| `/steering-flow reset-state` | User-only reset of the top FSM to `$START` |
+| `/steering-flow set-action <ACTION-ID> [ARGS...]` | User-only trigger of one currently available action |
+| `/steering-flow action <ACTION-ID> [ARGS...]` | Invoke an action through the model-visible command channel |
+| `/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]` | Visualize FSM states as a text diagram (user-only) |
 
-> **Design decision — visualizer is a command-only tool**: The visualizer is invoked exclusively via `/visualize-steering-flow` — it is not available as an LLM tool. Warnings about skipped FSMs or empty visualizations are surfaced to the user via `ctx.ui.notify`. Output paths are contained within `cwd` (no path traversal).
+`/steering-flow <unknown>` first shows a UI error, then falls back to the same help text as `/steering-flow help`.
+
+> **Design decision — visualizer is command-only**: The visualizer is invoked via `/steering-flow visualize` — it is not available as an LLM tool. Warnings about skipped FSMs or empty visualizations are surfaced to the user via `ctx.ui.notify`. Output paths are contained within `cwd` (no path traversal).
 
 ## Tools (LLM)
 
@@ -136,11 +143,11 @@ All writes are atomic (tmp + rename). Orphan `.tmp.*` files are swept on `sessio
 - `save-to-steering-flow(id, value)`
 - `get-steering-flow-info()`
 
-`pop-steering-flow` is intentionally **not** a tool (user-only per spec).
+`/steering-flow pop`, `/steering-flow info`, `/steering-flow set-state`, `/steering-flow reset-state`, `/steering-flow set-action`, and `/steering-flow visualize` are intentionally **not** tools (user-only per spec). The `info` and `set-*` subcommands report through `ctx.ui.notify(..., "info")` and do not inject their result into the model context.
 
 ## Transitions
 
-1. LLM calls `steering-flow-action` with `action_id` and positional `args`.
+1. The LLM calls `steering-flow-action`, or the user calls `/steering-flow set-action`, with `action_id` and positional `args`.
 2. Engine finds the action under the current state. Rejects if the action doesn't exist or the arg count doesn't match the declaration.
 3. Engine spawns the condition with argv built by interpolating `${$TAPE_FILE}` and `${arg-name}` placeholders in `cfg.args`.
 4. Stdout `true\n<reason>` → transition to `next_state_id`. Stdout `false\n<reason>` → stay, surface reason.
@@ -149,15 +156,23 @@ All writes are atomic (tmp + rename). Orphan `.tmp.*` files are swept on `sessio
 7. If the epsilon chain fails after the chosen action's condition already passed, `current_state_id` is **rolled back** to the pre-transition state and nothing is written to `state.json`. Note: any tape mutations written by conditions during the attempt are **preserved** — tape is cumulative and is never rolled back (see below).
 8. The in-memory tape is re-synced from disk after every condition so side-channel writes are visible next turn.
 
+## Interactive states
+
+A state may set `interactive: true` to become a gated pause. Interactive states are ordinary non-epsilon states: they must still have actions, cannot use `{ default: true }`, and must remain on a path to `$END`.
+
+When a successful action or epsilon chain lands on an interactive state, the state is persisted like any other `current_state_id`. The difference appears at `agent_end`: instead of sending a new user message to force another model turn, the stop hook shows a UI info notification with the current state and available actions, then returns. The flow remains active on the stack. It resumes when the user sends the next prompt, invokes `/steering-flow set-action`, jumps with `/steering-flow set-state`, or pops the flow.
+
+Interactive state metadata is control state, not tape. Tape remains cumulative and visible to conditions; pause bookkeeping belongs with `state.json` if runtime metadata is needed.
+
 ## Stop hook
 
-When `agent_end` fires with a non-empty stack and a non-$END top state, the plugin re-injects the current state view + legal actions + overall task via `pi.sendUserMessage(...)`. Guards (matching the ralph-loop / boulder pattern):
+When `agent_end` fires with a non-empty stack and a non-$END top state, the plugin checks whether the top state is interactive. Ordinary states re-inject the current state view + legal actions + overall task via `pi.sendUserMessage(...)`. Interactive states show the same operational status through `ctx.ui.notify(..., "info")` and stop there, so the model is not forced into another turn. Guards (matching the ralph-loop / boulder pattern):
 
 - User abort (`ctx.signal.aborted` or `AssistantMessage.stopReason === "aborted"`)
 - 30 s cooldown after `session_compact`
 - Stagnation limit: 3 consecutive identical-`(state, tape)` reminders → pause reminders, notify user
 
-> **Design decision — stop hook is fully automatic**: The stop hook **always** re-injects state when the LLM stops mid-flow (before `$END`). There is no question detection and no confirm-to-stop mechanism. The only way to stop the loop is reaching `$END` or the user manually calling `/pop-steering-flow`. The only guard beyond user abort is the 30-second compaction cooldown per session.
+> **Design decision — stop hook has an explicit gated-pause exception**: The stop hook automatically re-injects state for ordinary non-`$END` states. Interactive states are the exception: they are deliberate gates where the correct behavior is to notify the user and wait for the next prompt or a user-only command. This keeps the historical no-silent-exit behavior for normal states while allowing authored checkpoints that require human input.
 
 > **Stagnation counter freeze on ENOSPC accepted**: The stagnation counter (`reminder_count` in `state.json`) is written inside the stop hook's error-swallowing `try/catch`. If `writeState` fails (e.g., ENOSPC), the counter freezes and the user may receive repeated reminders. This is accepted because ENOSPC indicates a system-level failure beyond steering-flow's scope; propagating the error would risk crashing the agent on disk-full conditions.
 - Corrupted state surfaced to the user (not silently swallowed)
@@ -167,19 +182,19 @@ When `agent_end` fires with a non-empty stack and a non-$END top state, the plug
 See `@/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/steering-flow/examples/code-review.yaml` and `@/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/steering-flow/examples/scripts/`:
 
 ```
-/load-steering-flow examples/code-review.yaml
+/steering-flow load examples/code-review.yaml
 # → $START with action `plan`
-steering-flow-action plan "my plan text"
+/steering-flow action plan "my plan text"
 # → `implement` (save-plan.mjs wrote PLAN_TEXT to tape)
 # ...do the work...
-save-to-steering-flow CODE_WRITTEN 1
-steering-flow-action mark_done
+/steering-flow save CODE_WRITTEN 1
+/steering-flow action mark_done
 # → `test`
 # ...run tests...
-save-to-steering-flow TESTS_PASSED 1
-steering-flow-action tests_run
+/steering-flow save TESTS_PASSED 1
+/steering-flow action tests_run
 # → epsilon test_router → `review`
-steering-flow-action approve
+/steering-flow action approve
 # 🏁 $END, FSM popped.
 ```
 
