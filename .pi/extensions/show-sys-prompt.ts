@@ -1,1 +1,0 @@
-../../my-plugins/show-sys-prompt.ts
