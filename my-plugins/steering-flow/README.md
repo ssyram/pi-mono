@@ -130,11 +130,35 @@ All writes are atomic (tmp + rename). Orphan `.tmp.*` files are swept on `sessio
 | `/steering-flow reset-state` | User-only reset of the top FSM to `$START` |
 | `/steering-flow set-action <ACTION-ID> [ARGS...]` | User-only trigger of one currently available action |
 | `/steering-flow action <ACTION-ID> [ARGS...]` | Invoke an action through the model-visible command channel |
-| `/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]` | Visualize FSM states as a text diagram (user-only UI notification) |
+| `/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]` | Generate a static HTML visualizer artifact (user-only) |
 
 `/steering-flow <unknown>` first shows a UI error, then falls back to the same help text as `/steering-flow help`.
 
-> **Design decision — visualizer is command-only**: The visualizer is invoked via `/steering-flow visualize` — it is not available as an LLM tool and its result is displayed through UI notification, not injected into model context. Warnings about skipped FSMs or empty visualizations are surfaced to the user via `ctx.ui.notify`. Flow input and output paths are contained within `cwd`; output paths must end in `.html` and existing files are not overwritten.
+> **Design decision — visualizer is command-only in pi**: The in-session visualizer is invoked via `/steering-flow visualize` — it is not available as an LLM tool. Warnings about skipped FSMs or empty visualizations are surfaced to the user via `ctx.ui.notify`. Output paths are contained within `cwd` (no path traversal).
+
+### Direct visualizer CLI
+
+Primary invocation from this plugin directory:
+
+```bash
+npm run visualize -- examples/code-review.yaml -o .tmp-viz/code-review.html
+```
+
+This generates a static HTML visualization from a YAML, JSON, or Markdown-front-matter flow file without loading it into a pi session.
+
+Equivalent direct TypeScript entrypoint:
+
+```bash
+node --import tsx visualizer-cli.ts examples/code-review.yaml -o .tmp-viz/code-review.html
+```
+
+When the package is linked or installed as a command, the equivalent binary is:
+
+```bash
+steering-flow-visualize examples/code-review.yaml -o .tmp-viz/code-review.html
+```
+
+`-o`/`--output` is optional; without it the CLI writes `.pi/steering-flow-visualizer.html` under the current working directory. Input and output paths are resolved from the current working directory and must stay inside it.
 
 ## Tools (LLM)
 
@@ -196,6 +220,12 @@ See `@/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/steering-flow/examples
 # → epsilon test_router → `review`
 /steering-flow action approve
 # 🏁 $END, FSM popped.
+```
+
+Generate the same flow as standalone HTML without loading it into a session:
+
+```bash
+node --import tsx visualizer-cli.ts examples/code-review.yaml -o .tmp-viz/code-review.html
 ```
 
 ## Writing conditions

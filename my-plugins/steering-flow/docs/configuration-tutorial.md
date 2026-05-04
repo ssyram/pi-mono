@@ -643,6 +643,30 @@ When `nextCount > STOP_HOOK_STAGNATION_LIMIT` (i.e., more than 3 identical remin
 
 **`/steering-flow pop` is intentionally command-only and not registered as a tool** (`@index.ts:448`). The LLM cannot pop flows -- only the user can.
 
+### Direct Visualizer CLI
+
+Primary invocation from this plugin directory:
+
+```bash
+npm run visualize -- examples/code-review.yaml -o .tmp-viz/code-review.html
+```
+
+This generates a static HTML visualization from a YAML, JSON, or Markdown-front-matter flow file without loading it into a pi session.
+
+Equivalent direct TypeScript entrypoint:
+
+```bash
+node --import tsx visualizer-cli.ts examples/code-review.yaml -o .tmp-viz/code-review.html
+```
+
+When this package is linked or installed as a command, use the binary form:
+
+```bash
+steering-flow-visualize examples/code-review.yaml -o .tmp-viz/code-review.html
+```
+
+`-o`/`--output` is optional. Without it, output defaults to `.pi/steering-flow-visualizer.html` under the current working directory. The CLI resolves input and output paths from the current working directory and rejects paths outside it.
+
 ---
 
 ## 13. Complete Worked Example

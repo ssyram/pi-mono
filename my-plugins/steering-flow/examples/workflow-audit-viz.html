@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Steering-Flow · workflow-audit.yaml</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<style>
+:root { color-scheme:dark; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:#0d1117; color:#e6edf3; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; overflow:hidden; }
+
+/* header */
+header { position:fixed; inset:0 0 auto 0; height:56px; z-index:10; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 20px; background:rgba(13,17,23,.96); border-bottom:1px solid #30363d; backdrop-filter:blur(8px); }
+header h1 { font-size:16px; font-weight:600; color:#e6edf3; }
+header .sub { color:#8b949e; font-size:12px; margin-top:2px; }
+.pill { display:inline-block; padding:2px 8px; border:1px solid #30363d; border-radius:999px; color:#8b949e; font-size:11px; margin-left:6px; }
+
+/* layout */
+main { display:grid; grid-template-columns:1fr 360px; height:100vh; padding-top:56px; }
+#graph { width:100%; height:calc(100vh - 56px); background:radial-gradient(ellipse at 30% 20%, #161b22 0%, #0d1117 60%); cursor:grab; }
+#graph:active { cursor:grabbing; }
+
+/* sidebar */
+aside { border-left:1px solid #30363d; background:#161b22; overflow-y:auto; padding:14px; }
+select { width:100%; margin-bottom:12px; background:#0d1117; color:#e6edf3; border:1px solid #30363d; border-radius:6px; padding:8px 10px; font-size:13px; }
+.section { background:#0d1117; border:1px solid #30363d; border-radius:8px; padding:12px; margin-bottom:10px; }
+.section h2 { font-size:13px; font-weight:600; margin-bottom:8px; color:#e6edf3; }
+pre { white-space:pre-wrap; word-break:break-all; overflow:auto; max-height:240px; margin:0; color:#8b949e; font-size:12px; font-family:'SF Mono',Consolas,monospace; }
+.row { margin:6px 0; color:#c9d1d9; font-size:13px; }
+.muted { color:#8b949e; }
+.kv { display:grid; grid-template-columns:100px 1fr; gap:4px; font-size:12px; }
+
+/* nodes */
+.node { cursor:pointer; }
+.node circle { fill:#161b22; stroke:#30363d; stroke-width:2; transition:stroke .15s, fill .15s, opacity .15s; }
+.node text { fill:#e6edf3; font-size:11px; pointer-events:none; transition:opacity .15s; }
+.node .label { font-weight:600; font-size:12px; }
+.node .sublabel { fill:#8b949e; font-size:10px; }
+.node.current circle { stroke:#58a6ff; stroke-width:3; }
+.node.epsilon circle { stroke-dasharray:5 4; }
+.node.start circle { stroke:#3fb950; }
+.node.start.current circle { stroke:#3fb950; stroke-width:3; }
+.node.end circle { stroke:#f85149; }
+.node.end.current circle { stroke:#f85149; stroke-width:3; }
+
+/* highlight states */
+.node.highlight circle { stroke:#58a6ff; stroke-width:3; fill:#1f2937; }
+.node.highlight-1 circle { stroke:#58a6ff; stroke-width:2; fill:#1a2332; opacity:.38; transition-delay:.08s; }
+.node.highlight-2 circle { stroke:#58a6ff; stroke-width:1.5; fill:#171f2b; opacity:.22; transition-delay:.16s; }
+.node.highlight-3 circle { stroke:#58a6ff; stroke-width:1; fill:#151b24; opacity:.2; transition-delay:.24s; }
+.node.dim { opacity:.15; }
+.node.dim circle { stroke:#30363d; }
+
+/* edges */
+.edge-path { fill:none; stroke:#8b949e; stroke-width:1.5; opacity:.2; transition:stroke .15s, stroke-width .15s, opacity .15s; }
+.edge-path.highlight { stroke:#58a6ff; stroke-width:2.5; opacity:.85; }
+.edge-path.highlight-1 { stroke:#58a6ff; stroke-width:2; opacity:.38; transition-delay:.08s; }
+.edge-path.highlight-2 { stroke:#58a6ff; stroke-width:1.5; opacity:.22; transition-delay:.16s; }
+.edge-path.highlight-3 { stroke:#58a6ff; stroke-width:1; opacity:.2; transition-delay:.24s; }
+.edge-path.dim { opacity:.04; }
+
+/* edge labels */
+.edge-label { cursor:pointer; transition:opacity .15s; }
+.edge-label rect { fill:#2d1f0e; stroke:#d29922; stroke-width:1; rx:999; ry:999; }
+.edge-label text { fill:#e8b44a; font-size:11px; font-weight:600; pointer-events:none; letter-spacing:.3px; }
+.edge-label.highlight rect { stroke:#f5d060; stroke-width:2; fill:#3d2c0a; }
+.edge-label.highlight text { fill:#fde68a; }
+.edge-label.highlight-1 rect { stroke:#d29922; stroke-width:1; fill:#2d1f0e; opacity:.38; transition-delay:.08s; }
+.edge-label.highlight-1 text { fill:#e8b44a; opacity:.38; }
+.edge-label.highlight-2 rect { stroke:#d29922; stroke-width:1; fill:#2d1f0e; opacity:.22; transition-delay:.16s; }
+.edge-label.highlight-2 text { fill:#e8b44a; opacity:.22; }
+.edge-label.highlight-3 rect { stroke:#d29922; stroke-width:1; fill:#2d1f0e; opacity:.2; transition-delay:.24s; }
+.edge-label.highlight-3 text { fill:#e8b44a; opacity:.2; }
+.edge-label.dim { opacity:.12; }
+
+/* tooltip */
+.tooltip { position:fixed; pointer-events:none; z-index:20; background:rgba(13,17,23,.98); border:1px solid #30363d; border-radius:8px; padding:10px 12px; font-size:12px; color:#c9d1d9; max-width:280px; opacity:0; transition:opacity .12s; box-shadow:0 4px 12px rgba(0,0,0,.4); }
+.tooltip.visible { opacity:1; }
+.tooltip b { color:#e6edf3; }
+.tooltip .tt-muted { color:#8b949e; font-size:11px; }
+
+/* legend */
+.legend { position:fixed; left:14px; bottom:14px; color:#8b949e; font-size:11px; background:rgba(22,27,34,.9); border:1px solid #30363d; border-radius:8px; padding:10px 14px; z-index:5; line-height:1.8; }
+.legend kbd { background:#21262d; border:1px solid #30363d; border-radius:3px; padding:1px 5px; font-size:10px; font-family:inherit; }
+.legend-row { display:flex; align-items:center; gap:6px; }
+.legend-dot { display:inline-block; width:10px; height:10px; border-radius:50%; border:2px solid; flex-shrink:0; }
+.legend-line { display:inline-block; width:18px; height:0; border-top:2px solid; flex-shrink:0; }
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Steering-Flow · workflow-audit.yaml</h1><div class="sub" id="subtitle"></div></div>
+  <div><span class="pill" id="mode"></span><span class="pill" id="counts"></span></div>
+</header>
+<main>
+  <svg id="graph"></svg>
+  <aside>
+    <select id="fsmSelect"></select>
+    <div id="details"></div>
+  </aside>
+</main>
+<div class="tooltip" id="tooltip"></div>
+<div class="legend">
+  <div class="legend-row"><span class="legend-dot" style="border-color:#3fb950;background:#161b22"></span> Start</div>
+  <div class="legend-row"><span class="legend-dot" style="border-color:#f85149;background:#161b22"></span> End</div>
+  <div class="legend-row"><span class="legend-dot" style="border-color:#58a6ff;background:#161b22"></span> Current</div>
+  <div class="legend-row"><span class="legend-dot" style="border-color:#30363d;background:#161b22;border-style:dashed"></span> Epsilon</div>
+  <div class="legend-row" style="margin-top:4px"><span class="legend-line" style="border-color:#8b949e;opacity:.4"></span> Transition</div>
+  <div class="legend-row"><span class="legend-line" style="border-color:#58a6ff;border-width:2.5px"></span> Highlighted</div>
+  <div style="margin-top:6px;border-top:1px solid #30363d;padding-top:6px">
+    Hover/Click: highlight outgoing · <kbd>Esc</kbd> clear<br>
+    Drag to pan · Scroll to zoom
+  </div>
+  <button id="resetBtn" style="margin-top:8px;width:100%;padding:4px 0;background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit;transition:background .12s" onmouseover="this.style.background='#30363d'" onmouseout="this.style.background='#21262d'">Reset View</button>
+</div>
+<script>
+const DOC = {"title":"Steering-Flow · workflow-audit.yaml","generatedAt":"2026-05-04T09:48:16.362Z","sourceMode":"file","sourceLabel":"/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/steering-flow/examples/workflow-audit.yaml","fsms":[{"id":"workflow-audit.yaml","name":"workflow-audit.yaml","flowDir":"","taskDescription":"PR 审计工作流（驳回优先）。\n三方向并行审计 → 汇总 → 质疑循环 → 汇报 → 决策循环，直到所有项目清零。\n只读流程——禁止修改源代码，只产出 review 文档。\n\nTape 核心字段：\n  DECISION_COUNT      — 待决策项数量（需要人类判断的）\n  NON_DECISION_COUNT  — 非决策项数量（可独立处理的发现）\n  ROUND               — 当前大循环轮次\n\n每个阶段必须提交具体文档，系统才允许状态变迁。\n","sourceLabel":"/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/steering-flow/examples/workflow-audit.yaml","states":[{"id":"$START","description":"收集 PR 的全部上下文：commits、diff、描述、已有 review comments。\n方式不限（gh CLI、GitHub API、fetch_content、手动提供 diff 均可）。\n同时读取项目的 workflow/规范文档。\n\n完成后：\n1. 将收集结果写入文档，通过 save-to-steering-flow 设置 GATHER_DOC 为文档路径\n2. 设置 ROUND=1\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_gather","description":"提交数据收集文档。","nextStateId":"audit","arguments":[],"conditionSummary":"node ./scripts/require-doc-submitted.mjs GATHER_DOC ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-doc-submitted.mjs\",\n    \"GATHER_DOC\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"audit","description":"启动三个独立的审计方向（并行 subagent，fresh context）：\n- 方向 A：Hoare Logic + Workflow（逻辑正确性、安全属性、不变式）\n- 方向 B：Finegrained Check + Workflow（命题提取、跨文件矛盾）\n- 方向 C：Workflow Pure（纯流程审计）\n\n每个方向必须产出独立的审计文档。\n\n完成后：\n1. 将三个方向的文档路径分别设置为 AUDIT_DOC_A、AUDIT_DOC_B、AUDIT_DOC_C\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_audit","description":"提交三方向审计文档。三个文档必须全部存在。","nextStateId":"consolidate","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs AUDIT_DOC_A AUDIT_DOC_B AUDIT_DOC_C ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"AUDIT_DOC_A\",\n    \"AUDIT_DOC_B\",\n    \"AUDIT_DOC_C\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"consolidate","description":"汇总所有发现（含新一轮循环带入的剩余项）：\n1. 去重：合并重复项\n2. 分类：每条标注严重性和类型\n3. 区分：\n   - 决策项（DECISION）：需要人类判断的（多个合理方案、设计权衡、争议点）\n   - 非决策项（NON_DECISION）：可独立验证和处理的（明确的 bug、文档错误、流程缺失）\n4. 只汇总不删除\n\n完成后：\n1. 提交汇总文档，设置 CONSOLIDATE_DOC\n2. 设置 DECISION_COUNT 和 NON_DECISION_COUNT（数字）\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_consolidation","description":"提交汇总文档，含决策项/非决策项分类和计数。","nextStateId":"dispatch_router","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs CONSOLIDATE_DOC DECISION_COUNT NON_DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"CONSOLIDATE_DOC\",\n    \"DECISION_COUNT\",\n    \"NON_DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"dispatch_router","description":"自动路由：\n- NON_DECISION_COUNT > 0 → 进入质疑轮\n- DECISION_COUNT > 0 → 也进入质疑轮，先挑战其“真的需要人类判断”的前提\n- 两者均为 0 → 审计完成\n","isEpsilon":true,"isInteractive":false,"actions":[{"id":"has_non_decisions","description":"存在非决策项，进入质疑轮。","nextStateId":"challenge","arguments":[],"conditionSummary":"node ./scripts/require-key-gt-zero.mjs NON_DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-key-gt-zero.mjs\",\n    \"NON_DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"has_decisions_to_challenge","description":"存在决策项；先质疑其是否真的需要人类判断。","nextStateId":"challenge","arguments":[],"conditionSummary":"node ./scripts/require-key-gt-zero.mjs DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-key-gt-zero.mjs\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"all_clear","description":"无剩余项目，审计完成。","nextStateId":"$END","arguments":[],"conditionSummary":"default","conditionDetail":"{ default: true }","isDefault":true}]},{"id":"challenge","description":"对每条候选发现派出 ≥2 个独立 agent 进行质疑（fresh context，禁止 fork），包括非决策项和决策项。\n质疑者不看原始审计报告，只看具体的单条 claim + 相关源文件。\n显式指令：\"你的任务是找出这条发现错误的理由。保持对抗性。\"\n\n每条发现必须被 ≥2 个不同 agent 覆盖。\n对 Decisional 项，必须额外挑战：是否真的需要人类判断，还是存在明确工程答案？\n\n完成后：\n1. 提交质疑文档（包含所有质疑者的判定），设置 CHALLENGE_DOC\n2. 必要时更新 NON_DECISION_COUNT / DECISION_COUNT\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_challenge","description":"提交质疑文档，含所有质疑者判定。","nextStateId":"aggregate","arguments":[],"conditionSummary":"node ./scripts/require-doc-submitted.mjs CHALLENGE_DOC ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-doc-submitted.mjs\",\n    \"CHALLENGE_DOC\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"aggregate","description":"汇总质疑结果：\n- 全部 UPHELD → 进入反质疑\n- 全部 REJECTED → 丢弃并从对应计数移除\n- 判定分裂 → 派仲裁 agent（fresh context）做 tiebreak\n- 全部 WEAKENED → 调整严重程度和分类\n- Decisional 被证明有明确工程答案 → 降级为 NON_DECISION_COUNT 或直接移除\n\n任何发现存活时，都必须进入反质疑/验证，不能直接汇报。\n\n完成后：\n1. 提交聚合文档（含仲裁结果），设置 AGGREGATE_DOC\n2. 更新 NON_DECISION_COUNT\n3. 更新 DECISION_COUNT\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_aggregate","description":"提交聚合文档，含仲裁结果和更新后的计数。","nextStateId":"aggregate_router","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs AGGREGATE_DOC NON_DECISION_COUNT DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"AGGREGATE_DOC\",\n    \"NON_DECISION_COUNT\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"aggregate_router","description":"自动路由：任何非决策项或决策项存活 → 反质疑；全部清零 → 回分派路由器。","isEpsilon":true,"isInteractive":false,"actions":[{"id":"has_surviving_non_decisions","description":"有存活非决策项，进入反质疑。","nextStateId":"counter_challenge","arguments":[],"conditionSummary":"node ./scripts/require-key-gt-zero.mjs NON_DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-key-gt-zero.mjs\",\n    \"NON_DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"has_surviving_decisions","description":"有存活决策项，进入反质疑。","nextStateId":"counter_challenge","arguments":[],"conditionSummary":"node ./scripts/require-key-gt-zero.mjs DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-key-gt-zero.mjs\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"none_survived","description":"所有发现均被驳回，回到分派路由器。","nextStateId":"dispatch_router","arguments":[],"conditionSummary":"default","conditionDetail":"{ default: true }","isDefault":true}]},{"id":"counter_challenge","description":"对每条存活发现，再启动一个 fresh agent 做最终推翻尝试。\n反质疑者收到：原始 claim + 质疑者判定摘要。\n指令：\"之前的质疑者试图推翻此发现但未成功。做最后一次推翻尝试。\"\n\n对 Decisional 项，必须特别挑战：是否真的没有明确工程答案？是否只是缺少上下文？\n若可以明确处理，降级为 NON_DECISION_COUNT；只有无法自行裁决的才保留为 DECISION_COUNT。\n\n完成后：\n1. 提交反质疑文档，设置 COUNTER_DOC\n2. 更新 NON_DECISION_COUNT 和 DECISION_COUNT\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_counter","description":"提交反质疑文档，含更新后的计数。","nextStateId":"verify","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs COUNTER_DOC NON_DECISION_COUNT DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"COUNTER_DOC\",\n    \"NON_DECISION_COUNT\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"verify","description":"主审亲自阅读源码验证每条确认发现的关键证据。不能仅依赖 agent 报告。\n对每条发现声明：\"我在 file:line 验证了 [具体证据]\" 或 \"我无法验证 [主张]\"。\n对 Decisional 项也要验证其事实前提和“必须人类判断”的理由；只有验证后仍需裁决的项才进入 report。\n\n证据标准：\n- 代码类：必须有测试用例/PoC/逐步复现步骤\n- 文档类：三重确认无其他部分缓解该问题\n\n验证可能改变分类：\n- 无法验证的非决策项 → 升级为决策项\n- 验证中发现新问题 → 增加对应计数\n\n完成后：\n1. 提交验证文档，设置 VERIFY_DOC\n2. 最终更新 NON_DECISION_COUNT 和 DECISION_COUNT\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_verify","description":"提交主审验证文档，含最终计数。","nextStateId":"dispatch_router","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs VERIFY_DOC NON_DECISION_COUNT DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"VERIFY_DOC\",\n    \"NON_DECISION_COUNT\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"report","description":"生成 review 文档，呈报所有决策项给人类。\n文档结构：\n1. 概要\n2. 已确认的非决策项（已处理完毕的发现）\n3. 决策项（每项含：情况、选项、推荐、需要的决策）\n4. 争议项（正方+反方证据，不做裁决）\n5. 已驳回项\n6. 审计方法说明\n\n完成后：\n1. 提交 review 文档，设置 REPORT_DOC\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_report","description":"提交 review 文档。","nextStateId":"decision_gate","arguments":[],"conditionSummary":"node ./scripts/require-doc-submitted.mjs REPORT_DOC ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-doc-submitted.mjs\",\n    \"REPORT_DOC\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"decision_gate","description":"等待人类对决策项做出判断。人类可能：\n- 接受某些发现 → 该发现从决策项中移除\n- 拒绝某些发现 → 该发现从决策项中移除\n- 要求进一步调查 → 该发现转为非决策项进入新一轮\n\n根据人类决策更新计数：\n1. 设置 DECISION_DOC（决策记录文档路径）\n2. 更新 DECISION_COUNT 和 NON_DECISION_COUNT\n3. ROUND 递增\n","isEpsilon":false,"isInteractive":true,"actions":[{"id":"decisions_made","description":"人类已做出决策，提交决策记录。","nextStateId":"dispatch_router","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs DECISION_DOC DECISION_COUNT NON_DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"DECISION_DOC\",\n    \"DECISION_COUNT\",\n    \"NON_DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"$END","description":"审计完成。DECISION_COUNT=0 且 NON_DECISION_COUNT=0。\n所有发现已处理：确认的已记录，驳回的已记录，决策项已由人类裁决。\nReview 文档可用于回复 PR。\n","isEpsilon":false,"isInteractive":false,"actions":[]}],"currentStateId":"$START","tape":{},"transitionLog":[]}],"commands":[{"name":"/steering-flow help","description":"Show unified steering-flow command help."},{"name":"/steering-flow load \u003cFILE>","description":"Load a flow config and push it onto the FSM stack."},{"name":"/steering-flow pop","description":"Pop the active FSM from the stack. User-only escape hatch."},{"name":"/steering-flow save \u003cID> \u003cVALUE>","description":"Write a value to the active FSM tape."},{"name":"/steering-flow context-info","description":"Send stack, state, tape, and active actions to the model context."},{"name":"/steering-flow info","description":"Show stack, state, tape, and active actions as UI info only."},{"name":"/steering-flow set-state \u003cSTATE-ID>","description":"User-only jump/reset of the active FSM state."},{"name":"/steering-flow reset-state","description":"User-only reset of the active FSM state to $START."},{"name":"/steering-flow set-action \u003cACTION-ID> [ARGS...]","description":"User-only action trigger with UI notification output."},{"name":"/steering-flow action \u003cACTION-ID> [ARGS...]","description":"Invoke an action on the active FSM and send the result to the model context."},{"name":"/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]","description":"Generate this static HTML visualizer."}],"tools":[{"name":"load-steering-flow","description":"LLM tool for loading a flow config."},{"name":"steering-flow-action","description":"LLM tool for invoking an action with positional args."},{"name":"save-to-steering-flow","description":"LLM tool for writing tape values."},{"name":"get-steering-flow-info","description":"LLM tool for inspecting active flow state."},{"name":"visualize-steering-flow","description":"LLM tool for generating a static visualizer artifact."}]};
+var LAYOUTS = [{"nodes":[{"id":"$START","x":221,"y":78},{"id":"audit","x":221,"y":254},{"id":"consolidate","x":221,"y":430},{"id":"dispatch_router","x":314,"y":606},{"id":"challenge","x":108,"y":782},{"id":"aggregate","x":108,"y":958},{"id":"aggregate_router","x":267.5,"y":1134},{"id":"counter_challenge","x":267.5,"y":1310},{"id":"verify","x":324,"y":1486},{"id":"report","x":427,"y":254},{"id":"decision_gate","x":427,"y":430},{"id":"$END","x":314,"y":782}],"edges":[{"srcId":"$START","tgtId":"audit","actionId":"submit_gather","points":[{"x":221,"y":116},{"x":221,"y":166},{"x":221,"y":216}],"label":{"text":"submit_gather","idealX":221,"idealY":166,"x":221,"y":166,"w":111,"h":23}},{"srcId":"audit","tgtId":"consolidate","actionId":"submit_audit","points":[{"x":221,"y":292},{"x":221,"y":342},{"x":221,"y":392}],"label":{"text":"submit_audit","idealX":221,"idealY":342,"x":221,"y":342,"w":104,"h":23}},{"srcId":"consolidate","tgtId":"dispatch_router","actionId":"submit_consolidation","points":[{"x":221,"y":468},{"x":221,"y":518},{"x":273.8409090909091,"y":568}],"label":{"text":"submit_consolidation","idealX":229.2613788997956,"idealY":525.8172187438926,"x":229.2613788997956,"y":525.8172187438926,"w":160,"h":23}},{"srcId":"dispatch_router","tgtId":"challenge","actionId":"has_non_decisions","points":[{"x":246,"y":633.7037037037037},{"x":98,"y":694},{"x":103.68181818181819,"y":744}],"label":{"text":"has_non_decisions","idealX":148.69868503348593,"idealY":673.3449801715427,"x":148.69868503348593,"y":662.4111302500776,"w":139,"h":23}},{"srcId":"dispatch_router","tgtId":"challenge","actionId":"has_decisions_to_challenge","points":[{"x":265.20454545454544,"y":644},{"x":201,"y":694},{"x":148.1590909090909,"y":744}],"label":{"text":"has_decisions_to_challenge","idealX":204.40435346472682,"idealY":691.3488220805667,"x":204.40435346472682,"y":686.855359449467,"w":202,"h":23}},{"srcId":"dispatch_router","tgtId":"$END","actionId":"all_clear","points":[{"x":314,"y":644},{"x":314,"y":694},{"x":314,"y":744}],"label":{"text":"all_clear","idealX":314,"idealY":694,"x":314,"y":709.4273125525649,"w":83,"h":23}},{"srcId":"challenge","tgtId":"aggregate","actionId":"submit_challenge","points":[{"x":108,"y":820},{"x":108,"y":870},{"x":108,"y":920}],"label":{"text":"submit_challenge","idealX":108,"idealY":870,"x":108,"y":870,"w":132,"h":23}},{"srcId":"aggregate","tgtId":"aggregate_router","actionId":"submit_aggregate","points":[{"x":108,"y":996},{"x":108,"y":1046},{"x":199.5,"y":1096.4827586206898}],"label":{"text":"submit_aggregate","idealX":131.86055789933016,"idealY":1059.1644457375614,"x":131.86055789933016,"y":1059.1644457375614,"w":132,"h":23}},{"srcId":"aggregate_router","tgtId":"counter_challenge","actionId":"has_surviving_non_decisions","points":[{"x":263.1818181818182,"y":1172},{"x":257.5,"y":1222},{"x":263.1818181818182,"y":1272}],"label":{"text":"has_surviving_non_decisions","idealX":257.5,"idealY":1222,"x":257.5,"y":1210,"w":209,"h":23}},{"srcId":"aggregate_router","tgtId":"counter_challenge","actionId":"has_surviving_decisions","points":[{"x":335.5,"y":1171.5172413793102},{"x":427,"y":1222},{"x":335.5,"y":1272.4827586206898}],"label":{"text":"has_surviving_decisions","idealX":427,"idealY":1222,"x":427,"y":1234,"w":181,"h":23}},{"srcId":"aggregate_router","tgtId":"dispatch_router","actionId":"none_survived","points":[{"x":335.5,"y":1096.4827586206898},{"x":427,"y":1046},{"x":427,"y":958},{"x":427,"y":870},{"x":427,"y":782},{"x":427,"y":694},{"x":362.79545454545456,"y":644}],"label":{"text":"none_survived","idealX":427,"idealY":881.5626943658871,"x":427,"y":881.5626943658871,"w":111,"h":23}},{"srcId":"counter_challenge","tgtId":"verify","actionId":"submit_counter","points":[{"x":267.5,"y":1348},{"x":267.5,"y":1398},{"x":299.60227272727275,"y":1448}],"label":{"text":"submit_counter","idealX":270.0442812358114,"idealY":1401.9627743141841,"x":270.0442812358114,"y":1401.9627743141841,"w":118,"h":23}},{"srcId":"verify","tgtId":"dispatch_router","actionId":"submit_verify","points":[{"x":392,"y":1450.6961651917404},{"x":493.5,"y":1398},{"x":493.5,"y":1310},{"x":493.5,"y":1222},{"x":493.5,"y":1134},{"x":493.5,"y":1046},{"x":493.5,"y":958},{"x":493.5,"y":870},{"x":493.5,"y":782},{"x":493.5,"y":694},{"x":382,"y":639.3370473537605}],"label":{"text":"submit_verify","idealX":493.5,"idealY":1041.092797859475,"x":493.5,"y":1041.092797859475,"w":111,"h":23}},{"srcId":"report","tgtId":"decision_gate","actionId":"submit_report","points":[{"x":427,"y":292},{"x":427,"y":342},{"x":427,"y":392}],"label":{"text":"submit_report","idealX":427,"idealY":342,"x":427,"y":342,"w":111,"h":23}},{"srcId":"decision_gate","tgtId":"dispatch_router","actionId":"decisions_made","points":[{"x":427,"y":468},{"x":427,"y":518},{"x":362.79545454545456,"y":568}],"label":{"text":"decisions_made","idealX":414.62213004047754,"idealY":527.6394031543184,"x":414.62213004047754,"y":527.6394031543184,"w":118,"h":23}}],"graphWidth":535,"graphHeight":1564,"warnings":[]}];
+var NODE_R = 28;
+
+
+function enableDragNodes(nodeSelection, nodePos, edgeGroups, nodeR) {
+  var drag = d3.drag()
+    .clickDistance(4)
+    .on('start', function() { d3.select(this).raise(); svg.style('cursor','grabbing'); })
+    .on('drag', function(evt, d) {
+      var np = nodePos[d.id];
+      if (!np) return;
+      np.x = evt.x;
+      np.y = evt.y;
+      d3.select(this).attr('transform', 'translate(' + np.x + ',' + np.y + ')');
+
+      // Update connected edges — recompute label midpoint and use polylineSplit
+      edgeGroups.each(function(ed) {
+        if (ed.src !== d.id && ed.tgt !== d.id) return;
+        var group = d3.select(this);
+        var sn = nodePos[ed.src], tn = nodePos[ed.tgt];
+        if (!sn || !tn) return;
+        ed.srcNode.x = sn.x; ed.srcNode.y = sn.y;
+        ed.tgtNode.x = tn.x; ed.tgtNode.y = tn.y;
+        // Recompute label midpoint
+        ed.labelX = (sn.x + tn.x) / 2;
+        ed.labelY = (sn.y + tn.y) / 2;
+        // Fallback to simple 3-point path during drag (dagre points are stale)
+        var sy = sn.y < tn.y ? sn.y + nodeR : sn.y - nodeR;
+        var ty = sn.y < tn.y ? tn.y - nodeR : tn.y + nodeR;
+        var fallbackPts = [{x:sn.x,y:sy},{x:ed.labelX,y:ed.labelY},{x:tn.x,y:ty}];
+        var seg = polylineSplit(fallbackPts, ed.labelX, ed.labelY);
+        group.select('.edge-path-1').attr('d', seg.d1);
+        group.select('.edge-path-2').attr('d', seg.d2);
+        group.select('.edge-label').attr('transform', 'translate(' + ed.labelX + ',' + ed.labelY + ')');
+      });
+    })
+    .on('end', function() { svg.style('cursor','grab'); });
+  nodeSelection.call(drag);
+}
+
+
+/* refs */
+const svg = d3.select('#graph');
+const defs = svg.append('defs');
+const root = svg.append('g');
+const tooltip = document.getElementById('tooltip');
+const details = document.getElementById('details');
+const fsmSelect = document.getElementById('fsmSelect');
+
+/* arrowhead marker */
+defs.append('marker').attr('id','arrow').attr('viewBox','0 0 10 10').attr('refX',10).attr('refY',5)
+  .attr('markerWidth',8).attr('markerHeight',8).attr('orient','auto-start-reverse')
+  .append('path').attr('d','M 0 0 L 10 5 L 0 10 z').attr('fill','#8b949e');
+
+/* zoom */
+const zoom = d3.zoom().scaleExtent([0.2, 3]).on('zoom', e => root.attr('transform', e.transform));
+svg.call(zoom);
+svg.on('dblclick.zoom', null);
+
+/* header info */
+document.getElementById('subtitle').textContent = DOC.sourceLabel + ' \u00b7 ' + DOC.generatedAt;
+document.getElementById('mode').textContent = DOC.sourceMode;
+document.getElementById('counts').textContent = DOC.fsms.length + ' FSM(s)';
+DOC.fsms.forEach(function(fsm, i) {
+  var opt = document.createElement('option');
+  opt.value = String(i);
+  opt.textContent = (fsm.id === DOC.activeFsmId ? '\u25cf ' : '') + fsm.name;
+  fsmSelect.appendChild(opt);
+});
+fsmSelect.value = String(Math.max(0, DOC.fsms.findIndex(function(f) { return f.id === DOC.activeFsmId; })));
+fsmSelect.addEventListener('change', function() { renderFsm(Number(fsmSelect.value)); });
+
+/* helpers */
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function jsonBlock(v) { return '<pre>' + esc(JSON.stringify(v, null, 2)) + '</pre>'; }
+
+/* sidebar panels */
+function showOverview(fsm) {
+  details.innerHTML =
+    '<div class="section"><h2>' + esc(fsm.name) + '</h2>' +
+    '<div class="kv"><span class="muted">ID</span><span>' + esc(fsm.id) + '</span></div>' +
+    '<div class="kv"><span class="muted">Current</span><span style="color:#58a6ff">' + esc(fsm.currentStateId || 'n/a') + '</span></div>' +
+    '<div class="kv"><span class="muted">Flow dir</span><span>' + esc(fsm.flowDir || '(none)') + '</span></div>' +
+    '<div class="kv"><span class="muted">Tape path</span><span>' + esc(fsm.tapePath || 'static file') + '</span></div>' +
+    '</div>' +
+    '<div class="section"><h2>Task</h2><pre>' + esc(fsm.taskDescription) + '</pre></div>' +
+    '<div class="section"><h2>Tape</h2>' + jsonBlock(fsm.tape) + '</div>' +
+    '<div class="section"><h2>Transitions</h2>' + jsonBlock(fsm.transitionLog) + '</div>' +
+    '<div class="section"><h2>Commands (' + DOC.commands.length + ')</h2>' +
+      DOC.commands.map(function(c) { return '<div class="row"><b>' + esc(c.name) + '</b><br><span class="muted">' + esc(c.description) + '</span></div>'; }).join('') +
+    '</div>' +
+    '<div class="section"><h2>Tools (' + DOC.tools.length + ')</h2>' +
+      DOC.tools.map(function(t) { return '<div class="row"><b>' + esc(t.name) + '</b><br><span class="muted">' + esc(t.description) + '</span></div>'; }).join('') +
+    '</div>';
+}
+
+function showState(fsm, state) {
+  details.innerHTML =
+    '<div class="section"><h2>State \u00b7 ' + esc(state.id) + '</h2>' +
+    (state.isEpsilon ? '<span class="pill">\u03b5 epsilon</span> ' : '') +
+    (state.isInteractive ? '<span class="pill" style="border-color:#d2a8ff;color:#d2a8ff">interactive</span> ' : '') +
+    (state.id === fsm.currentStateId ? '<span class="pill" style="border-color:#58a6ff;color:#58a6ff">current</span>' : '') +
+    '<pre style="margin-top:8px">' + esc(state.description) + '</pre></div>' +
+    '<div class="section"><h2>Actions (' + state.actions.length + ')</h2>' +
+    (state.actions.length
+      ? state.actions.map(function(a) {
+          return '<div class="row"><b>' + esc(a.id) + '</b> \u2192 <span style="color:#58a6ff">' + esc(a.nextStateId) + '</span>' +
+          '<br><span class="muted">' + esc(a.description) + '</span>' +
+          '<br><span class="muted">condition: ' + esc(a.conditionSummary) + '</span></div>';
+        }).join('')
+      : '<div class="muted">Terminal state</div>') +
+    '</div>';
+}
+
+function showAction(action) {
+  details.innerHTML =
+    '<div class="section"><h2>Action \u00b7 ' + esc(action.id) + '</h2>' +
+    '<div class="kv"><span class="muted">Next state</span><span style="color:#58a6ff">' + esc(action.nextStateId) + '</span></div>' +
+    (action.isDefault ? '<span class="pill" style="border-color:#f0883e;color:#f0883e">default</span>' : '') +
+    '<pre style="margin-top:8px">' + esc(action.description) + '</pre></div>' +
+    '<div class="section"><h2>Arguments (' + action.arguments.length + ')</h2>' +
+    (action.arguments.length
+      ? action.arguments.map(function(a) { return '<div class="row"><b>' + esc(a.name) + '</b><br><span class="muted">' + esc(a.description) + '</span></div>'; }).join('')
+      : '<div class="muted">No arguments</div>') +
+    '</div>' +
+    '<div class="section"><h2>Condition</h2><pre>' + esc(action.conditionDetail) + '</pre></div>';
+}
+
+/* tooltip */
+function showTooltip(evt, html) {
+  tooltip.innerHTML = html;
+  tooltip.classList.add('visible');
+  var x = Math.min(evt.clientX + 14, window.innerWidth - 300);
+  var y = Math.min(evt.clientY + 14, window.innerHeight - 100);
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+function hideTooltip() { tooltip.classList.remove('visible'); }
+
+/* highlight state */
+var lockedNodeId = null;
+var currentFsmData = null;
+
+function buildAdjacency(fsm) {
+  var pred = {}, succ = {};
+  fsm.states.forEach(function(s) { pred[s.id] = []; succ[s.id] = []; });
+  fsm.states.forEach(function(s) {
+    s.actions.forEach(function(a) {
+      if (succ[s.id]) succ[s.id].push(a.nextStateId);
+      if (pred[a.nextStateId]) pred[a.nextStateId].push(s.id);
+    });
+  });
+  return { pred: pred, succ: succ };
+}
+
+var HL_LEVELS = ['highlight', 'highlight-1', 'highlight-2', 'highlight-3'];
+var MAX_CASCADE = 3;
+
+function buildEpsilonSet(fsm) {
+  var eps = new Set();
+  fsm.states.forEach(function(s) { if (s.isEpsilon) eps.add(s.id); });
+  return eps;
+}
+
+function getOutgoingLeveled(startId, adj, epsilonSet) {
+  var nodeLevel = {};
+  var edgeLevel = {};
+  nodeLevel[startId] = -1;
+
+  var queue = [];
+  (adj.succ[startId] || []).forEach(function(s) {
+    edgeLevel[startId + '→' + s] = 0;
+    if (!(s in nodeLevel)) { nodeLevel[s] = 0; queue.push({ id: s, level: 0 }); }
+  });
+
+  while (queue.length > 0) {
+    var cur = queue.shift();
+    if (!epsilonSet.has(cur.id) || cur.level >= MAX_CASCADE) continue;
+    var nextLevel = cur.level + 1;
+    (adj.succ[cur.id] || []).forEach(function(s) {
+      var eKey = cur.id + '→' + s;
+      if (!(eKey in edgeLevel)) {
+        edgeLevel[eKey] = nextLevel;
+        if (!(s in nodeLevel)) {
+          nodeLevel[s] = nextLevel;
+          queue.push({ id: s, level: nextLevel });
+        }
+      }
+    });
+  }
+
+  return { nodeLevel: nodeLevel, edgeLevel: edgeLevel };
+}
+
+function applyHighlight(stateId) {
+  if (!currentFsmData) return;
+  var epsilonSet = buildEpsilonSet(currentFsmData.fsm);
+  var result = getOutgoingLeveled(stateId, currentFsmData.adj, epsilonSet);
+  var nodeLevel = result.nodeLevel, edgeLevel = result.edgeLevel;
+
+  d3.selectAll('.node').each(function(d) {
+    var el = d3.select(this);
+    var level = nodeLevel[d.id];
+    var isHl = level !== undefined;
+    HL_LEVELS.forEach(function(cls) { el.classed(cls, false); });
+    el.classed('dim', !isHl);
+    if (isHl) {
+      var cls = level < 0 ? 'highlight' : (HL_LEVELS[Math.min(level, MAX_CASCADE)] || HL_LEVELS[MAX_CASCADE]);
+      el.classed(cls, true);
+    }
+  });
+  d3.selectAll('.edge-group').each(function(d) {
+    var key = d.src + '→' + d.tgt;
+    var level = edgeLevel[key];
+    var isHl = level !== undefined;
+    var paths = d3.select(this).selectAll('.edge-path');
+    var label = d3.select(this).select('.edge-label');
+    HL_LEVELS.forEach(function(cls) { paths.classed(cls, false); label.classed(cls, false); });
+    paths.classed('dim', !isHl);
+    label.classed('dim', !isHl);
+    if (isHl) {
+      var cls = HL_LEVELS[Math.min(level, MAX_CASCADE)] || HL_LEVELS[MAX_CASCADE];
+      paths.classed(cls, true);
+      label.classed(cls, true);
+    }
+  });
+}
+
+function clearHighlight() {
+  lockedNodeId = null;
+  d3.selectAll('.node').each(function() {
+    var el = d3.select(this);
+    HL_LEVELS.forEach(function(cls) { el.classed(cls, false); });
+    el.classed('dim', false);
+  });
+  d3.selectAll('.edge-path').each(function() {
+    var el = d3.select(this);
+    HL_LEVELS.forEach(function(cls) { el.classed(cls, false); });
+    el.classed('dim', false);
+  });
+  d3.selectAll('.edge-label').each(function() {
+    var el = d3.select(this);
+    HL_LEVELS.forEach(function(cls) { el.classed(cls, false); });
+    el.classed('dim', false);
+  });
+}
+
+/* background click */
+var _downPos = null;
+svg.node().addEventListener('pointerdown', function(e) { _downPos = { x: e.clientX, y: e.clientY }; });
+svg.node().addEventListener('pointerup', function(e) {
+  if (!_downPos) return;
+  var dx = e.clientX - _downPos.x, dy = e.clientY - _downPos.y;
+  var dist = Math.sqrt(dx * dx + dy * dy);
+  _downPos = null;
+  if (dist < 5 && !e.target.closest('.node') && !e.target.closest('.edge-group')) {
+    clearHighlight();
+    if (currentFsmData) showOverview(currentFsmData.fsm);
+  }
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') { clearHighlight(); if (currentFsmData) showOverview(currentFsmData.fsm); }
+});
+
+/* Build two SVG path strings from a dagre points array, split at the label position.
+     Segment 1: first point → ... → label (no arrowhead).
+     Segment 2: label → ... → last point (arrowhead). */
+function polylineSplit(pts, lx, ly) {
+  if (!pts || pts.length < 2) {
+    return { d1: 'M'+lx+','+ly, d2: 'M'+lx+','+ly };
+  }
+  /* Find the segment closest to the label midpoint and insert it */
+  var bestIdx = 0, bestDist = 1e9;
+  for (var i = 0; i < pts.length - 1; i++) {
+    /* project label onto segment i→i+1 */
+    var ax = pts[i].x, ay = pts[i].y, bx = pts[i+1].x, by = pts[i+1].y;
+    var dx = bx - ax, dy = by - ay;
+    var len2 = dx*dx + dy*dy;
+    var t = len2 > 0 ? Math.max(0, Math.min(1, ((lx-ax)*dx + (ly-ay)*dy) / len2)) : 0;
+    var px = ax + t*dx, py = ay + t*dy;
+    var dist = (lx-px)*(lx-px) + (ly-py)*(ly-py);
+    if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+  }
+  /* d1: pts[0..bestIdx] → label */
+  var d1 = 'M' + pts[0].x + ',' + pts[0].y;
+  for (var i = 1; i <= bestIdx; i++) d1 += ' L' + pts[i].x + ',' + pts[i].y;
+  d1 += ' L' + lx + ',' + ly;
+  /* d2: label → pts[bestIdx+1..end] */
+  var d2 = 'M' + lx + ',' + ly;
+  for (var i = bestIdx + 1; i < pts.length; i++) d2 += ' L' + pts[i].x + ',' + pts[i].y;
+  return { d1: d1, d2: d2 };
+}
+
+var _initPos = {}, _nodePos = {}, _edgeGroups = null;
+function renderFsm(fsmIndex) {
+  var fsm = DOC.fsms[fsmIndex];
+  var layout = LAYOUTS[fsmIndex];
+  if (!fsm || !layout) return;
+
+  root.selectAll('*').remove();
+  clearHighlight();
+  showOverview(fsm);
+
+  var adj = buildAdjacency(fsm);
+  currentFsmData = { fsm: fsm, adj: adj };
+
+  var nodeR = NODE_R;
+
+  /* build node position lookup */
+  var nodePos = {};
+  layout.nodes.forEach(function(n) { nodePos[n.id] = n; });
+
+  /* remember initial positions for reset */
+  var initPos = {};
+  layout.nodes.forEach(function(n) { initPos[n.id] = { x: n.x, y: n.y }; });
+  _initPos = initPos;
+  _nodePos = nodePos;
+
+  /* build action lookup for edge data */
+  var actionMap = {};
+  fsm.states.forEach(function(s) {
+    s.actions.forEach(function(a) { actionMap[s.id + '\0' + a.nextStateId + '\0' + a.id] = a; });
+  });
+
+  /* edges from pre-computed layout */
+  var edgeData = layout.edges.map(function(e) {
+    var src = nodePos[e.srcId], tgt = nodePos[e.tgtId];
+    if (!src || !tgt) return null;
+    var action = actionMap[e.srcId + '\0' + e.tgtId + '\0' + e.actionId];
+    return {
+      src: e.srcId, tgt: e.tgtId, name: e.actionId,
+      edge: { label: e.actionId, action: action },
+      srcNode: { x: src.x, y: src.y }, tgtNode: { x: tgt.x, y: tgt.y },
+      labelX: e.label.x, labelY: e.label.y,
+      labelW: e.label.w, labelH: e.label.h,
+      points: e.points
+    };
+  }).filter(Boolean);
+
+  var edgeGroups = root.append('g').attr('class','edges')
+    .selectAll('g').data(edgeData).enter().append('g').attr('class','edge-group');
+  _edgeGroups = edgeGroups;
+
+  edgeGroups.each(function(d) {
+    var g = d3.select(this);
+    /* Clamp first/last dagre point onto circle edge (radius = nodeR) */
+    var pts = d.points.slice();
+    if (pts.length >= 2) {
+      var s = d.srcNode, dx0 = pts[0].x - s.x, dy0 = pts[0].y - s.y;
+      var len0 = Math.sqrt(dx0*dx0 + dy0*dy0) || 1;
+      pts[0] = { x: s.x + dx0/len0*nodeR, y: s.y + dy0/len0*nodeR };
+      var t = d.tgtNode, last = pts.length-1, dx1 = pts[last].x - t.x, dy1 = pts[last].y - t.y;
+      var len1 = Math.sqrt(dx1*dx1 + dy1*dy1) || 1;
+      pts[last] = { x: t.x + dx1/len1*nodeR, y: t.y + dy1/len1*nodeR };
+    }
+    var seg = polylineSplit(pts, d.labelX, d.labelY);
+    g.append('path').attr('class','edge-path edge-path-1').attr('d', seg.d1);
+    g.append('path').attr('class','edge-path edge-path-2').attr('d', seg.d2).attr('marker-end','url(#arrow)');
+  });
+
+  /* edge labels at pre-computed positions */
+  var edgeLabels = edgeGroups.append('g').attr('class','edge-label')
+    .attr('transform', function(d) {
+      return 'translate(' + d.labelX + ',' + d.labelY + ')';
+    });
+  edgeLabels.each(function(d) {
+    var el = d3.select(this);
+    el.append('text').attr('text-anchor','middle').attr('dy','0.35em').text(d.edge.label);
+    var hw = d.labelW / 2, hh = d.labelH / 2;
+    el.insert('rect','text').attr('x', -hw).attr('y', -hh).attr('width', d.labelW).attr('height', d.labelH);
+  });
+  edgeLabels.on('mouseenter', function(evt, d) {
+    if (!lockedNodeId) {
+      clearHighlight();
+      var srcId = d.src, tgtId = d.tgt;
+      d3.selectAll('.node').each(function(nd) {
+        var el = d3.select(this);
+        var isHl = (nd.id === srcId || nd.id === tgtId);
+        el.classed('highlight', isHl).classed('dim', !isHl);
+      });
+      d3.selectAll('.edge-group').each(function(ed) {
+        var isHl = (ed.src === srcId && ed.tgt === tgtId);
+        d3.select(this).selectAll('.edge-path').classed('highlight', isHl).classed('dim', !isHl);
+        d3.select(this).select('.edge-label').classed('highlight', isHl).classed('dim', !isHl);
+      });
+    }
+    if (!d.edge.action) { hideTooltip(); return; }
+    showTooltip(evt, '<b>' + esc(d.edge.action.id) + '</b>' +
+      '<br><span class="tt-muted">' + esc(d.src) + ' \u2192 ' + esc(d.tgt) + '</span>' +
+      '<br><span class="tt-muted">' + esc(d.edge.action.conditionSummary || '') + '</span>');
+  });
+  edgeLabels.on('mousemove', function(evt) {
+    tooltip.style.left = Math.min(evt.clientX + 14, window.innerWidth - 300) + 'px';
+    tooltip.style.top = Math.min(evt.clientY + 14, window.innerHeight - 100) + 'px';
+  });
+  edgeLabels.on('mouseleave', function() {
+    hideTooltip();
+    if (!lockedNodeId) clearHighlight();
+  });
+  edgeLabels.on('click', function(_e, d) { if (!d.edge.action) return; showAction(d.edge.action); });
+
+  /* nodes */
+  var nodes = root.append('g').attr('class','nodes')
+    .selectAll('g').data(fsm.states).enter().append('g')
+    .attr('class', function(s) {
+      var c = 'node';
+      if (s.id === '$START') c += ' start';
+      if (s.id === '$END') c += ' end';
+      if (s.isEpsilon) c += ' epsilon';
+      if (s.id === fsm.currentStateId) c += ' current';
+      return c;
+    })
+    .attr('transform', function(s) { var n = nodePos[s.id]; if (!n) return 'translate(0,0)'; return 'translate(' + n.x + ',' + n.y + ')'; });
+
+  nodes.append('circle').attr('r', nodeR);
+  nodes.append('text').attr('class','label').attr('text-anchor','middle').attr('dy', '-0.15em')
+    .text(function(s) { return s.id.length > 12 ? s.id.slice(0, 11) + '\u2026' : s.id; });
+  nodes.append('text').attr('class','sublabel').attr('text-anchor','middle').attr('dy', '1.2em')
+    .text(function(s) { return s.actions.length + ' action' + (s.actions.length !== 1 ? 's' : ''); });
+
+  /* node interactions */
+  nodes.on('mouseenter', function(evt, s) {
+    if (!lockedNodeId) applyHighlight(s.id);
+    showTooltip(evt, '<b>' + esc(s.id) + '</b>' +
+      (s.isEpsilon ? ' <span class="tt-muted">\u03b5</span>' : '') +
+      '<br><span class="tt-muted">' + s.actions.length + ' action(s)</span>' +
+      (s.id === fsm.currentStateId ? '<br><span style="color:#58a6ff">\u25cf current state</span>' : ''));
+  });
+  nodes.on('mousemove', function(evt) {
+    tooltip.style.left = Math.min(evt.clientX + 14, window.innerWidth - 300) + 'px';
+    tooltip.style.top = Math.min(evt.clientY + 14, window.innerHeight - 100) + 'px';
+  });
+  nodes.on('mouseleave', function() {
+    hideTooltip();
+    if (!lockedNodeId) clearHighlight();
+  });
+  nodes.on('click', function(evt, s) {
+    evt.stopPropagation();
+    if (lockedNodeId === s.id) { clearHighlight(); showOverview(fsm); }
+    else { lockedNodeId = s.id; applyHighlight(s.id); showState(fsm, s); }
+  });
+  nodes.on('dblclick', function(evt, s) {
+    evt.stopPropagation();
+    lockedNodeId = s.id;
+    applyHighlight(s.id);
+    showState(fsm, s);
+  });
+
+  /* enable drag on nodes */
+  if (typeof enableDragNodes === 'function') enableDragNodes(nodes, nodePos, edgeGroups, nodeR);
+
+  /* auto-fit */
+  var gw = Math.max(layout.graphWidth, 1), gh = Math.max(layout.graphHeight, 1);
+  var svgEl = svg.node();
+  if (svgEl) {
+    var box = svgEl.getBoundingClientRect();
+    var scale = Math.min(1.4, Math.max(0.3, Math.min(box.width / gw, box.height / gh) * 0.85));
+    svg.call(zoom.transform, d3.zoomIdentity
+      .translate((box.width - gw * scale) / 2, (box.height - gh * scale) / 2)
+      .scale(scale));
+  }
+}
+
+renderFsm(Number(fsmSelect.value) || 0);
+
+document.getElementById('resetBtn').addEventListener('click', function() {
+  if (!currentFsmData) return;
+  clearHighlight();
+  showOverview(currentFsmData.fsm);
+
+  /* animate nodes back to initial positions */
+  var dur = 800;
+  d3.selectAll('.node').transition().duration(dur).ease(d3.easeCubicOut)
+    .attr('transform', function(s) {
+      var p = _initPos[s.id];
+      if (!p || !_nodePos[s.id]) return d3.select(this).attr('transform');
+      _nodePos[s.id].x = p.x;
+      _nodePos[s.id].y = p.y;
+      return 'translate(' + p.x + ',' + p.y + ')';
+    })
+    .on('end', function() {
+      /* redraw edges after nodes settle */
+      d3.selectAll('.edge-group').each(function(d) {
+        var g = d3.select(this);
+        /* restore original layout points regardless of whether nodes are positioned */
+        var layoutEdge = LAYOUTS[Number(fsmSelect.value) || 0].edges.find(function(e) {
+          return e.srcId === d.src && e.tgtId === d.tgt && e.actionId === d.name;
+        });
+        if (layoutEdge) {
+          d.points = layoutEdge.points;
+          d.labelX = layoutEdge.label.x;
+          d.labelY = layoutEdge.label.y;
+        }
+        var src = _nodePos[d.src], tgt = _nodePos[d.tgt];
+        if (!src || !tgt) return;
+        d.srcNode = { x: src.x, y: src.y };
+        d.tgtNode = { x: tgt.x, y: tgt.y };
+        var nodeR = NODE_R;
+        var pts = d.points.slice();
+        if (pts.length >= 2) {
+          var s = d.srcNode, dx0 = pts[0].x - s.x, dy0 = pts[0].y - s.y;
+          var len0 = Math.sqrt(dx0*dx0 + dy0*dy0) || 1;
+          pts[0] = { x: s.x + dx0/len0*nodeR, y: s.y + dy0/len0*nodeR };
+          var t = d.tgtNode, last = pts.length-1, dx1 = pts[last].x - t.x, dy1 = pts[last].y - t.y;
+          var len1 = Math.sqrt(dx1*dx1 + dy1*dy1) || 1;
+          pts[last] = { x: t.x + dx1/len1*nodeR, y: t.y + dy1/len1*nodeR };
+        }
+        var seg = polylineSplit(pts, d.labelX, d.labelY);
+        g.select('.edge-path-1').attr('d', seg.d1);
+        g.select('.edge-path-2').attr('d', seg.d2);
+        g.select('.edge-label').attr('transform', 'translate(' + d.labelX + ',' + d.labelY + ')');
+      });
+    });
+
+
+});
+</script>
+</body>
+</html>

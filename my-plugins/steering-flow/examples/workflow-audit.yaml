@@ -26,6 +26,7 @@ states:
       1. 将收集结果写入文档，通过 save-to-steering-flow 设置 GATHER_DOC 为文档路径
       2. 设置 ROUND=1
     is_epsilon: false
+    interactive: false
     actions:
       - action_id: "submit_gather"
         action_desc: "提交数据收集文档。"
@@ -49,6 +50,7 @@ states:
       完成后：
       1. 将三个方向的文档路径分别设置为 AUDIT_DOC_A、AUDIT_DOC_B、AUDIT_DOC_C
     is_epsilon: false
+    interactive: false
     actions:
       - action_id: "submit_audit"
         action_desc: "提交三方向审计文档。三个文档必须全部存在。"
@@ -74,6 +76,7 @@ states:
       1. 提交汇总文档，设置 CONSOLIDATE_DOC
       2. 设置 DECISION_COUNT 和 NON_DECISION_COUNT（数字）
     is_epsilon: false
+    interactive: false
     actions:
       - action_id: "submit_consolidation"
         action_desc: "提交汇总文档，含决策项/非决策项分类和计数。"
@@ -88,8 +91,8 @@ states:
   - state_id: "dispatch_router"
     state_desc: |
       自动路由：
-      - NON_DECISION_COUNT > 0 → 进入质疑轮处理非决策项
-      - NON_DECISION_COUNT = 0 且 DECISION_COUNT > 0 → 进入汇报期
+      - NON_DECISION_COUNT > 0 → 进入质疑轮
+      - DECISION_COUNT > 0 → 也进入质疑轮，先挑战其“真的需要人类判断”的前提
       - 两者均为 0 → 审计完成
     is_epsilon: true
     actions:
@@ -99,12 +102,12 @@ states:
           cmd: "node"
           args: ["./scripts/require-key-gt-zero.mjs", "NON_DECISION_COUNT", "${$TAPE_FILE}"]
         next_state_id: "challenge"
-      - action_id: "only_decisions"
-        action_desc: "仅剩决策项，进入汇报期。"
+      - action_id: "has_decisions_to_challenge"
+        action_desc: "存在决策项；先质疑其是否真的需要人类判断。"
         condition:
           cmd: "node"
           args: ["./scripts/require-key-gt-zero.mjs", "DECISION_COUNT", "${$TAPE_FILE}"]
-        next_state_id: "report"
+        next_state_id: "challenge"
       - action_id: "all_clear"
         action_desc: "无剩余项目，审计完成。"
         condition: { default: true }
@@ -115,15 +118,18 @@ states:
   # ═══════════════════════════════════════════════════════════════
   - state_id: "challenge"
     state_desc: |
-      对每条非决策项派出 ≥2 个独立 agent 进行质疑（fresh context，禁止 fork）。
+      对每条候选发现派出 ≥2 个独立 agent 进行质疑（fresh context，禁止 fork），包括非决策项和决策项。
       质疑者不看原始审计报告，只看具体的单条 claim + 相关源文件。
       显式指令："你的任务是找出这条发现错误的理由。保持对抗性。"
 
       每条发现必须被 ≥2 个不同 agent 覆盖。
+      对 Decisional 项，必须额外挑战：是否真的需要人类判断，还是存在明确工程答案？
 
       完成后：
       1. 提交质疑文档（包含所有质疑者的判定），设置 CHALLENGE_DOC
+      2. 必要时更新 NON_DECISION_COUNT / DECISION_COUNT
     is_epsilon: false
+    interactive: false
     actions:
       - action_id: "submit_challenge"
         action_desc: "提交质疑文档，含所有质疑者判定。"
@@ -139,15 +145,19 @@ states:
     state_desc: |
       汇总质疑结果：
       - 全部 UPHELD → 进入反质疑
-      - 全部 REJECTED → 丢弃
+      - 全部 REJECTED → 丢弃并从对应计数移除
       - 判定分裂 → 派仲裁 agent（fresh context）做 tiebreak
-      - 全部 WEAKENED → 调整严重程度
+      - 全部 WEAKENED → 调整严重程度和分类
+      - Decisional 被证明有明确工程答案 → 降级为 NON_DECISION_COUNT 或直接移除
+
+      任何发现存活时，都必须进入反质疑/验证，不能直接汇报。
 
       完成后：
       1. 提交聚合文档（含仲裁结果），设置 AGGREGATE_DOC
-      2. 更新 NON_DECISION_COUNT（剔除被 REJECTED 的）
-      3. 若有分裂判定升级为决策项，更新 DECISION_COUNT
+      2. 更新 NON_DECISION_COUNT
+      3. 更新 DECISION_COUNT
     is_epsilon: false
+    interactive: false
     actions:
       - action_id: "submit_aggregate"
         action_desc: "提交聚合文档，含仲裁结果和更新后的计数。"
@@ -157,20 +167,26 @@ states:
         next_state_id: "aggregate_router"
 
   # ═══════════════════════════════════════════════════════════════
-  # 聚合路由器（epsilon）
+  # Phase 6: 聚合路由器（epsilon）
   # ═══════════════════════════════════════════════════════════════
   - state_id: "aggregate_router"
-    state_desc: "自动路由：有存活的非决策项 → 反质疑，否则 → 回分派路由器。"
+    state_desc: "自动路由：任何非决策项或决策项存活 → 反质疑；全部清零 → 回分派路由器。"
     is_epsilon: true
     actions:
-      - action_id: "has_survivors"
+      - action_id: "has_surviving_non_decisions"
         action_desc: "有存活非决策项，进入反质疑。"
         condition:
           cmd: "node"
           args: ["./scripts/require-key-gt-zero.mjs", "NON_DECISION_COUNT", "${$TAPE_FILE}"]
         next_state_id: "counter_challenge"
+      - action_id: "has_surviving_decisions"
+        action_desc: "有存活决策项，进入反质疑。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key-gt-zero.mjs", "DECISION_COUNT", "${$TAPE_FILE}"]
+        next_state_id: "counter_challenge"
       - action_id: "none_survived"
-        action_desc: "非决策项全部驳回，回到分派路由器检查决策项。"
+        action_desc: "所有发现均被驳回，回到分派路由器。"
         condition: { default: true }
         next_state_id: "dispatch_router"
 
@@ -179,17 +195,18 @@ states:
   # ═══════════════════════════════════════════════════════════════
   - state_id: "counter_challenge"
     state_desc: |
-      对每条存活非决策项，再启动一个 fresh agent 做最终推翻尝试。
+      对每条存活发现，再启动一个 fresh agent 做最终推翻尝试。
       反质疑者收到：原始 claim + 质疑者判定摘要。
       指令："之前的质疑者试图推翻此发现但未成功。做最后一次推翻尝试。"
 
-      - 无法推翻 → 确认成立
-      - 有效推翻 → 升级为争议（决策项）
+      对 Decisional 项，必须特别挑战：是否真的没有明确工程答案？是否只是缺少上下文？
+      若可以明确处理，降级为 NON_DECISION_COUNT；只有无法自行裁决的才保留为 DECISION_COUNT。
 
       完成后：
       1. 提交反质疑文档，设置 COUNTER_DOC
-      2. 更新 NON_DECISION_COUNT（确认成立的保留）和 DECISION_COUNT（新增争议项）
+      2. 更新 NON_DECISION_COUNT 和 DECISION_COUNT
     is_epsilon: false
+    interactive: false
     actions:
       - action_id: "submit_counter"
         action_desc: "提交反质疑文档，含更新后的计数。"
@@ -205,6 +222,7 @@ states:
     state_desc: |
       主审亲自阅读源码验证每条确认发现的关键证据。不能仅依赖 agent 报告。
       对每条发现声明："我在 file:line 验证了 [具体证据]" 或 "我无法验证 [主张]"。
+      对 Decisional 项也要验证其事实前提和“必须人类判断”的理由；只有验证后仍需裁决的项才进入 report。
 
       证据标准：
       - 代码类：必须有测试用例/PoC/逐步复现步骤
@@ -218,6 +236,7 @@ states:
       1. 提交验证文档，设置 VERIFY_DOC
       2. 最终更新 NON_DECISION_COUNT 和 DECISION_COUNT
     is_epsilon: false
+    interactive: false
     actions:
       - action_id: "submit_verify"
         action_desc: "提交主审验证文档，含最终计数。"
@@ -243,6 +262,7 @@ states:
       完成后：
       1. 提交 review 文档，设置 REPORT_DOC
     is_epsilon: false
+    interactive: false
     actions:
       - action_id: "submit_report"
         action_desc: "提交 review 文档。"
@@ -266,6 +286,7 @@ states:
       2. 更新 DECISION_COUNT 和 NON_DECISION_COUNT
       3. ROUND 递增
     is_epsilon: false
+    interactive: true
     actions:
       - action_id: "decisions_made"
         action_desc: "人类已做出决策，提交决策记录。"
@@ -283,4 +304,5 @@ states:
       所有发现已处理：确认的已记录，驳回的已记录，决策项已由人类裁决。
       Review 文档可用于回复 PR。
     is_epsilon: false
+    interactive: false
     actions: []

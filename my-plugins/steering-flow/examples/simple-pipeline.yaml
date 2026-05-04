@@ -1,0 +1,62 @@
+# Simple pipeline demo
+#
+# This flow demonstrates cumulative tape behavior:
+# 1. A -> B rejects the first time while recording A_TO_B_ATTEMPTS on tape.
+# 2. Retrying the same action passes because the tape now records the first attempt.
+# 3. B -> CHECK only passes when PIPELINE_WORK is set to done.
+# 4. CHECK -> END intentionally fails until KNOWN_ISSUE is fixed, then clears it and reaches $END.
+
+task_description: "Simple steering-flow pipeline: retry through tape, then check before END."
+
+states:
+  - state_id: "$START"
+    state_desc: "A: start of the pipeline. Run submit_to_b once to record the first rejected attempt, then run it again to proceed."
+    is_epsilon: false
+    interactive: true
+    actions:
+      - action_id: submit_to_b
+        action_desc: "Submit A to B. The first attempt rejects and records tape; the second attempt passes."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/reject-first-attempt.mjs"
+            - "${$TAPE_FILE}"
+        next_state_id: B
+
+  - state_id: B
+    state_desc: "B: do the pipeline work. Save PIPELINE_WORK=done before running finish_work."
+    is_epsilon: false
+    interactive: true
+    actions:
+      - action_id: finish_work
+        action_desc: "Move to the final check only when PIPELINE_WORK=done is on tape."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-key.mjs"
+            - PIPELINE_WORK
+            - done
+            - "${$TAPE_FILE}"
+        next_state_id: CHECK
+
+  - state_id: CHECK
+    state_desc: "CHECK: final gate. Leave KNOWN_ISSUE=present first to see the deliberate failure, then save KNOWN_ISSUE=fixed and retry."
+    is_epsilon: false
+    interactive: true
+    actions:
+      - action_id: finish_pipeline
+        action_desc: "Reach END only after the known issue is fixed; successful check clears the issue from tape."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-key-and-clear.mjs"
+            - KNOWN_ISSUE
+            - fixed
+            - "${$TAPE_FILE}"
+        next_state_id: "$END"
+
+  - state_id: "$END"
+    state_desc: "Pipeline completed."
+    is_epsilon: false
+    interactive: false
+    actions: []

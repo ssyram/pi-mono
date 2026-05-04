@@ -34,14 +34,14 @@ import { registerStartWorkCommand } from "./commands/start-work.js";
 import { registerConsult } from "./commands/consult.js";
 import { registerReviewPlan } from "./commands/review-plan.js";
 import { registerUltrawork } from "./commands/ultrawork.js";
-import { ensureSubagentLinks } from "./subagent-links.js";
+import { ensureSubagentIntegration } from "./subagent-links.js";
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
 export default async function ohMyPiV2(pi: ExtensionAPI) {
 	const __dirname = dirname(fileURLToPath(import.meta.url));
 	const agentsDir = resolve(__dirname, "agents");
-	await ensureSubagentLinks(agentsDir);
+	await ensureSubagentIntegration(__dirname, agentsDir, process.cwd());
 	// 1. Load config (fallback to defaults on malformed config)
 	let config: Awaited<ReturnType<typeof loadConfig>>;
 	try {
