@@ -17,10 +17,12 @@
 - Always ask before removing functionality or code that appears to be intentional
 - Do not preserve backward compatibility unless the user explicitly asks for it
 - Never hardcode key checks with, eg. `matchesKey(keyData, "ctrl+x")`. All keybindings must be configurable. Add default to matching object (`DEFAULT_EDITOR_KEYBINDINGS` or `DEFAULT_APP_KEYBINDINGS`)
+- Extensions must not introduce extension-owned cross-session global mutable state. Store state in the owning session/session manager or key it by session-owned identity. Only allow intentional cross-session globals when the user explicitly requests cross-session behavior such as information transfer between sessions, and document that intent.
 - NEVER modify `packages/ai/src/models.generated.ts` directly. Update `packages/ai/scripts/generate-models.ts` instead.
 
 ## Commands
 
+- If `npm run check` reports errors in `packages/` that look like missing types or module resolution failures, run `rm -rf node_modules packages/*/node_modules && npm install` first to rule out stale dependency artifacts.
 - After code changes (not documentation changes): `npm run check` (get full output, no tail). Fix all errors, warnings, and infos before committing.
 - Note: `npm run check` does not run tests.
 - NEVER run: `npm run dev`, `npm run build`, `npm test`
@@ -245,3 +247,8 @@ git pull --rebase && git push
 ### User override
 
 If the user instructions conflict with rules set out here, ask for confirmation that they want to override the rules. Only then execute their instructions.
+
+## Project Memory
+
+- All development work goes in `my-plugins/`. Everything outside `my-plugins/` is pi's official source code -- used only for type checking, hooks/mechanism analysis, and reference. Do not modify.
+- `my-plugins/transcript/` -- intercepts ALL LLM calls (including impression distillation) at the `@mariozechner/pi-ai` provider level by wrapping `getApiProviders()` objects. Saves complete inputs to `.pi/transcripts/<SESSION-ID>/<TIMESTAMP>_<SEQ>.json`.

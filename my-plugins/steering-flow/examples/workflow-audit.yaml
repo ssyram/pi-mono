@@ -1,0 +1,498 @@
+# Workflow audit steering-flow example.
+#
+# This flow models adversarial PR/workflow review with fresh-agent signature gates.
+# Decision items do not bypass challenge. They are challenged like every other
+# finding; being Decisional only means the challenger must ask more precise
+# questions and verify whether human judgment is truly required.
+#
+# Fresh/signature protocol:
+# - Parent tape owns FINDING_IDS and the phase signature maps.
+# - Every fresh worker must self-check fresh context, then write per-finding
+#   signed comments.
+# - A signature entry shape is:
+#   { phase, actor_id, fresh: true, comment }
+# - Gates validate one-to-one coverage against FINDING_IDS.
+# - Runtime identity is available to condition args as `${$session.id}`; actor_id
+#   should use that session id when a fresh worker signs findings.
+# - Shared files may live under .pi/steering-flow/shared/, but the authoritative
+#   gate is the tape signature map.
+
+task_description: |
+  PR 审计工作流（驳回优先）。
+  三方向 fresh 审计 → confirmation 签名门禁 → 汇总 → 统一 challenge →
+  challenge 签名门禁 → 聚合 → counter-challenge → counter 签名门禁 → 主审验证 →
+  必要时汇报 Decisional 项给人类，直到所有项目清零。
+
+  Tape 核心字段：
+    GATHER_DOC               — PR/context 收集文档
+    AUDIT_DOC_A/B/C          — 三方向 fresh 审计文档
+    FINDING_IDS              — 当前发现 ID 列表（JSON array）
+    CONFIRM_SIGNATURES       — confirmation 阶段签名 map
+    CHALLENGE_SIGNATURES     — challenge 阶段签名 map
+    COUNTER_SIGNATURES       — counter-challenge 阶段签名 map
+    CONSOLIDATE_DOC          — 汇总/分类文档
+    NON_DECISION_COUNT       — 非决策项数量
+    DECISION_COUNT           — 决策项数量
+    TOTAL_FINDING_COUNT      — 当前待处理发现总数
+    FRESH_AGENT_CAPABILITY   — fresh agent 能力确认；缺失时进入 interactive 报错状态
+    FRESH_ERROR_DOC          — fresh 能力缺失报告
+    CHALLENGE_DOC            — challenge 判定文档
+    AGGREGATE_DOC            — challenge 聚合文档
+    COUNTER_DOC              — counter-challenge 文档
+    VERIFY_DOC               — 主审验证文档
+    REPORT_DOC               — 给人类的决策报告
+    DECISION_DOC             — 人类决策记录
+    ROUND                    — 当前大循环轮次
+
+states:
+  - state_id: "$START"
+    state_desc: |
+      Phase 1 — 收集 PR 的全部上下文：commits、diff、描述、已有 review comments。
+      同时读取项目 workflow/规范文档。
+
+      Required tape before submit_gather:
+      - GATHER_DOC
+      - ROUND
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_gather
+        action_desc: "提交数据收集文档。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - GATHER_DOC
+            - ROUND
+            - "${$TAPE_FILE}"
+        next_state_id: audit
+
+  - state_id: audit
+    state_desc: |
+      Phase 2 — 三方向 fresh 审计。
+
+      必须使用 fresh context，禁止 fork parent reasoning：
+      A. spec/workflow 对齐
+      B. implementation correctness
+      C. risk / regression / edge cases
+
+      每个 fresh worker 必须运行 `workflow-audit-fresh-worker.yaml` 或等价子流程：
+      - 自检 fresh context
+      - 写 ACTOR_ID
+      - 对负责的 finding 一一写评述和签名
+
+      Required tape before submit_audit:
+      - AUDIT_DOC_A
+      - AUDIT_DOC_B
+      - AUDIT_DOC_C
+      - FINDING_IDS
+      - CONFIRM_SIGNATURES
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_audit
+        action_desc: "提交三方向审计文档和 confirmation 签名。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - AUDIT_DOC_A
+            - AUDIT_DOC_B
+            - AUDIT_DOC_C
+            - FINDING_IDS
+            - CONFIRM_SIGNATURES
+            - "${$TAPE_FILE}"
+        next_state_id: confirm_signature_gate
+
+  - state_id: confirm_signature_gate
+    state_desc: "门禁：每个 finding 必须有至少 1 个 fresh confirmation 签名。"
+    is_epsilon: true
+    actions:
+      - action_id: confirmation_signed
+        action_desc: "confirmation 签名覆盖完整。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-fresh-signatures.mjs"
+            - FINDING_IDS
+            - CONFIRM_SIGNATURES
+            - "1"
+            - confirmation
+            - "${$TAPE_FILE}"
+        next_state_id: consolidate
+      - action_id: confirmation_signature_missing
+        action_desc: "confirmation 签名缺失，进入签名错误状态。"
+        condition:
+          default: true
+        next_state_id: signature_error
+
+  - state_id: consolidate
+    state_desc: |
+      Phase 3 — 汇总与分类。
+
+      汇总三方向审计和 confirmation 签名，形成当前 finding 列表。
+      Decisional 项不能直接汇报；它只表示 challenge 需要更详细问清楚。
+
+      Required tape before submit_consolidation:
+      - CONSOLIDATE_DOC
+      - NON_DECISION_COUNT
+      - DECISION_COUNT
+      - TOTAL_FINDING_COUNT
+      - FRESH_AGENT_CAPABILITY
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_consolidation
+        action_desc: "提交汇总分类和计数。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - CONSOLIDATE_DOC
+            - NON_DECISION_COUNT
+            - DECISION_COUNT
+            - TOTAL_FINDING_COUNT
+            - FRESH_AGENT_CAPABILITY
+            - "${$TAPE_FILE}"
+        next_state_id: dispatch_router
+
+  - state_id: dispatch_router
+    state_desc: |
+      统一路由：
+      - TOTAL_FINDING_COUNT > 0 → 进入统一 challenge
+      - TOTAL_FINDING_COUNT = 0 → 审计完成
+
+      不按是否有 Decisional 项分叉；Decisional 项也必须先被 challenge。
+    is_epsilon: true
+    actions:
+      - action_id: has_findings
+        action_desc: "存在待处理发现，检查 fresh 能力。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-key-gt-zero.mjs"
+            - TOTAL_FINDING_COUNT
+            - "${$TAPE_FILE}"
+        next_state_id: fresh_capability_gate
+      - action_id: all_clear
+        action_desc: "无剩余项目，审计完成。"
+        condition:
+          default: true
+        next_state_id: "$END"
+
+  - state_id: fresh_capability_gate
+    state_desc: "门禁：必须明确具备 fresh agent 能力，否则进入 interactive 报错状态。"
+    is_epsilon: true
+    actions:
+      - action_id: fresh_available
+        action_desc: "fresh agent 能力已确认。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-fresh-capability.mjs"
+            - FRESH_AGENT_CAPABILITY
+            - "${$TAPE_FILE}"
+        next_state_id: challenge
+      - action_id: fresh_missing
+        action_desc: "fresh agent 能力缺失或无法确认。"
+        condition:
+          default: true
+        next_state_id: fresh_capability_error
+
+  - state_id: fresh_capability_error
+    state_desc: |
+      报错：当前流程需要 fresh sub-agent 能力来保证独立质疑/确认。
+      如果没有对应功能，或无法明确证明 fresh context，不能继续自动审计。
+
+      Required tape before acknowledge_fresh_error:
+      - FRESH_ERROR_DOC
+    is_epsilon: false
+    interactive: true
+    actions:
+      - action_id: acknowledge_fresh_error
+        action_desc: "提交 fresh 能力缺失报告后停止流程。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-doc-submitted.mjs"
+            - FRESH_ERROR_DOC
+            - "${$TAPE_FILE}"
+        next_state_id: "$END"
+
+  - state_id: challenge
+    state_desc: |
+      Phase 4 — 统一 challenge（驳回优先）。
+
+      对每个 finding 派出至少 2 个不同 fresh agent。质疑者只看单条 claim 和相关源文件，
+      不看 parent reasoning。显式指令："你的任务是找出这条发现错误的理由。保持对抗性。"
+
+      对 Decisional 项，必须额外挑战：是否真的需要人类判断，还是存在明确工程答案？
+
+      Required tape before submit_challenge:
+      - CHALLENGE_DOC
+      - CHALLENGE_SIGNATURES
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_challenge
+        action_desc: "提交 challenge 文档和签名。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - CHALLENGE_DOC
+            - CHALLENGE_SIGNATURES
+            - "${$TAPE_FILE}"
+        next_state_id: challenge_signature_gate
+
+  - state_id: challenge_signature_gate
+    state_desc: "门禁：每个 finding 必须有至少 2 个不同 fresh actor 的 challenge 签名。"
+    is_epsilon: true
+    actions:
+      - action_id: challenge_signed
+        action_desc: "challenge 签名覆盖完整。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-fresh-signatures.mjs"
+            - FINDING_IDS
+            - CHALLENGE_SIGNATURES
+            - "2"
+            - challenge
+            - "${$TAPE_FILE}"
+        next_state_id: aggregate
+      - action_id: challenge_signature_missing
+        action_desc: "challenge 签名缺失，进入签名错误状态。"
+        condition:
+          default: true
+        next_state_id: signature_error
+
+
+  - state_id: signature_error
+    state_desc: |
+      报错：签名覆盖不足。
+
+      某个 confirmation/challenge/counter-challenge 阶段没有对 FINDING_IDS 中的每个 finding
+      提供所需数量的不同 fresh actor 签名。不能继续自动审计。
+
+      Required tape before acknowledge_signature_error:
+      - SIGNATURE_ERROR_DOC
+    is_epsilon: false
+    interactive: true
+    actions:
+      - action_id: acknowledge_signature_error
+        action_desc: "提交签名覆盖错误报告后停止流程。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-doc-submitted.mjs"
+            - SIGNATURE_ERROR_DOC
+            - "${$TAPE_FILE}"
+        next_state_id: "$END"
+
+  - state_id: aggregate
+    state_desc: |
+      Phase 5 — 判定聚合。
+
+      汇总 challenge 结果：
+      - 全部 REJECTED → 丢弃并从对应计数移除
+      - 全部 UPHELD → 进入 counter-challenge
+      - 判定分裂 → 派 fresh 仲裁，再更新分类
+      - Decisional 被证明有明确工程答案 → 降级为 NON_DECISION_COUNT 或直接移除
+
+      Required tape before submit_aggregate:
+      - AGGREGATE_DOC
+      - NON_DECISION_COUNT
+      - DECISION_COUNT
+      - TOTAL_FINDING_COUNT
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_aggregate
+        action_desc: "提交聚合文档和更新后的计数。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - AGGREGATE_DOC
+            - NON_DECISION_COUNT
+            - DECISION_COUNT
+            - TOTAL_FINDING_COUNT
+            - "${$TAPE_FILE}"
+        next_state_id: aggregate_router
+
+  - state_id: aggregate_router
+    state_desc: "聚合后路由：任何发现存活 → counter-challenge；全部清零 → 主路由。"
+    is_epsilon: true
+    actions:
+      - action_id: has_surviving_findings
+        action_desc: "仍有存活发现，进入 counter-challenge。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-key-gt-zero.mjs"
+            - TOTAL_FINDING_COUNT
+            - "${$TAPE_FILE}"
+        next_state_id: counter_challenge
+      - action_id: none_survived
+        action_desc: "所有发现均被驳回，回主路由。"
+        condition:
+          default: true
+        next_state_id: dispatch_router
+
+  - state_id: counter_challenge
+    state_desc: |
+      Phase 6 — counter-challenge。
+
+      对每个存活 finding，再启动 fresh agent 做最终推翻尝试。
+      对 Decisional 项，特别挑战：是否真的没有明确工程答案？是否只是缺少上下文？
+
+      Required tape before submit_counter:
+      - COUNTER_DOC
+      - COUNTER_SIGNATURES
+      - NON_DECISION_COUNT
+      - DECISION_COUNT
+      - TOTAL_FINDING_COUNT
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_counter
+        action_desc: "提交 counter-challenge 文档、签名和更新后的计数。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - COUNTER_DOC
+            - COUNTER_SIGNATURES
+            - NON_DECISION_COUNT
+            - DECISION_COUNT
+            - TOTAL_FINDING_COUNT
+            - "${$TAPE_FILE}"
+        next_state_id: counter_signature_gate
+
+  - state_id: counter_signature_gate
+    state_desc: "门禁：每个存活 finding 必须有至少 1 个 fresh counter-challenge 签名。"
+    is_epsilon: true
+    actions:
+      - action_id: counter_signed
+        action_desc: "counter-challenge 签名覆盖完整。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-fresh-signatures.mjs"
+            - FINDING_IDS
+            - COUNTER_SIGNATURES
+            - "1"
+            - counter_challenge
+            - "${$TAPE_FILE}"
+        next_state_id: verify
+      - action_id: counter_signature_missing
+        action_desc: "counter-challenge 签名缺失，进入签名错误状态。"
+        condition:
+          default: true
+        next_state_id: signature_error
+
+  - state_id: verify
+    state_desc: |
+      Phase 7 — 主审亲自验证。
+
+      主审阅读源码验证每条确认发现的关键证据，不能只信子代理。
+      对 Decisional 项也要验证事实前提和“必须人类判断”的理由。
+
+      Required tape before submit_verify:
+      - VERIFY_DOC
+      - NON_DECISION_COUNT
+      - DECISION_COUNT
+      - TOTAL_FINDING_COUNT
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_verify
+        action_desc: "提交主审验证文档和最终计数。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - VERIFY_DOC
+            - NON_DECISION_COUNT
+            - DECISION_COUNT
+            - TOTAL_FINDING_COUNT
+            - "${$TAPE_FILE}"
+        next_state_id: post_verify_router
+
+  - state_id: post_verify_router
+    state_desc: "验证后路由：仍有 Decisional 项则汇报给人类；否则回主路由检查是否清零。"
+    is_epsilon: true
+    actions:
+      - action_id: verified_decisions_remain
+        action_desc: "验证后仍有决策项，进入 report。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-key-gt-zero.mjs"
+            - DECISION_COUNT
+            - "${$TAPE_FILE}"
+        next_state_id: report
+      - action_id: no_verified_decisions
+        action_desc: "无决策项，回主路由。"
+        condition:
+          default: true
+        next_state_id: dispatch_router
+
+  - state_id: report
+    state_desc: |
+      Phase 8 — 汇报给人类。
+
+      只汇报已经经过 challenge、counter-challenge、主审验证后仍需人类判断的 Decisional 项。
+      报告必须包含：每项 claim、challenge/counter 签名摘要、验证证据、选项、推荐、需要用户回答的问题。
+
+      Required tape before submit_report:
+      - REPORT_DOC
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_report
+        action_desc: "提交人类决策报告。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-doc-submitted.mjs"
+            - REPORT_DOC
+            - "${$TAPE_FILE}"
+        next_state_id: decision_gate
+
+  - state_id: decision_gate
+    state_desc: |
+      Phase 9 — 等待人类决策。
+
+      人类可能接受、拒绝、或要求进一步调查。进一步调查的项返回 NON_DECISION_COUNT
+      进入下一轮统一 challenge；已接受/拒绝的项从计数中移除。
+
+      Required tape before decisions_made:
+      - DECISION_DOC
+      - NON_DECISION_COUNT
+      - DECISION_COUNT
+      - TOTAL_FINDING_COUNT
+    is_epsilon: false
+    interactive: true
+    actions:
+      - action_id: decisions_made
+        action_desc: "提交人类决策记录和更新后的计数。"
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - DECISION_DOC
+            - NON_DECISION_COUNT
+            - DECISION_COUNT
+            - TOTAL_FINDING_COUNT
+            - "${$TAPE_FILE}"
+        next_state_id: dispatch_router
+
+  - state_id: "$END"
+    state_desc: |
+      审计完成。TOTAL_FINDING_COUNT=0，所有发现已被驳回、确认处理、或由人类裁决。
+      Review 文档可用于回复 PR。
+    is_epsilon: false
+    interactive: false
+    actions: []

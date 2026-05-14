@@ -1,0 +1,12 @@
+{
+  "name": "pi-recap",
+  "version": "0.1.0",
+  "description": "Automatic session recap widget for pi — summarizes what's done, in progress, and next",
+  "private": false,
+  "type": "module",
+  "license": "MIT",
+  "keywords": ["pi-package", "pi", "pi-coding-agent", "recap", "summary"],
+  "pi": {
+    "extensions": ["index.ts"]
+  }
+}

@@ -1,0 +1,15 @@
+node_modules/
+*.js
+*.d.ts
+*.map
+.pi/
+/_*.md
+__pycache__/setup.cpython-311.pyc
+
+# Paper-only files — tracked on the `paper` branch only
+empirical-findings.md
+experiment_design.md
+experiments-design.md
+neurips2026_impression_draft.md
+neurips2026_impression_draft_finegrained_report.md
+prompt_evolution_analysis.md

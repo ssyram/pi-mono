@@ -1,0 +1,92 @@
+# submit-self-check example
+#
+# Demonstrates four builtin procedures in a single flow:
+#   - validate/non-empty-args : guard the required TASK_DESCRIPTION action arg
+#   - self-check/basic        : check a lightweight self-assessment string
+#   - soft-review/pi          : run a placeholder soft-review stub
+#   - submit/required-fields  : final tape gate before $END
+#
+# Condition argv note:
+#   Use ${$TAPE_FILE} in args to receive the tape path.
+#   Use ${arg-name} in args to receive an LLM-supplied action argument.
+
+task_description: >
+  Minimal flow showing builtin-driven quality gates: validate required input,
+  self-check a design doc, soft-review it, and require key tape fields before
+  reaching $END.
+
+states:
+  - state_id: $START
+    state_desc: Start by drafting the initial design doc.
+    is_epsilon: false
+    actions:
+      - action_id: draft
+        action_desc: >
+          Write a short design doc for the feature described in TASK_DESCRIPTION.
+          Save it to tape key DESIGN_DOC using save-to-steering-flow.
+        arguments:
+          - arg_name: TASK_DESCRIPTION
+            arg_desc: Feature or task description to design for
+        condition:
+          builtin: validate/non-empty-args
+        next_state_id: self_check
+
+  - state_id: self_check
+    state_desc: Self-check the drafted design doc before asking for review.
+    is_epsilon: false
+    actions:
+      - action_id: approve_self_check
+        action_desc: >
+          If DESIGN_DOC is ready, call steering-flow-action approve_self_check with
+          a short assessment such as "done" or "approved", then set SELF_CHECK_OK
+          to "true" on tape.
+        arguments:
+          - arg_name: assessment
+            arg_desc: Short self-assessment text such as "done" or "approved"
+        condition:
+          builtin: self-check/basic
+          args:
+            - "DESIGN_DOC is non-empty"
+            - "no TODO placeholders remain"
+            - "at least one concrete implementation step is listed"
+        next_state_id: soft_review
+      - action_id: revise_design
+        action_desc: >
+          Revise DESIGN_DOC to satisfy the self-check rubric, then retry.
+        condition:
+          cmd: "node"
+          args: ["./scripts/always-true.mjs", "revise"]
+        next_state_id: self_check
+
+  - state_id: soft_review
+    state_desc: Optional placeholder soft-review state.
+    is_epsilon: false
+    actions:
+      - action_id: skip_review
+        action_desc: >
+          The shipped soft-review/pi builtin is a placeholder that fails closed.
+          Skip it in this example after manually reviewing DESIGN_DOC, then set
+          REVIEW_OK to "true" on tape.
+        condition:
+          cmd: "node"
+          args: ["./scripts/always-true.mjs", "manual review complete"]
+        next_state_id: submit_gate
+
+  - state_id: submit_gate
+    state_desc: Check all required tape keys before finishing.
+    is_epsilon: true
+    actions:
+      - action_id: all_fields_present
+        action_desc: All required tape keys are present — advance to $END.
+        condition:
+          builtin: submit/required-fields
+          args: [DESIGN_DOC, SELF_CHECK_OK, REVIEW_OK]
+        next_state_id: $END
+      - action_id: missing_fields
+        action_desc: >
+          One or more required tape keys are missing or empty.
+          Go back and complete the missing steps.
+        condition:
+          default: true
+        next_state_id: self_check
+
