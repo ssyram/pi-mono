@@ -116,7 +116,7 @@ states:
 | **Transitions** | `transitions` array on each state; target-only (LLM sees targets as "available actions") | `actions` array on each state; each action has `action_id`, `action_desc`, `arguments`, `condition`, `next_state_id` |
 | **Action identity** | No named actions; transitions identified by target state name | Named `action_id` per transition; LLM invokes by `action_id` |
 | **LLM-supplied args** | None; the LLM has no way to pass arguments to a transition | Each action can declare `arguments: [{arg_name, arg_desc}]`; LLM passes positional args |
-| **Condition guards** | `guard.hard` (shell commands) + `guard.soft` (LLM reviewer) | `condition: {cmd, args?}` with `${$TAPE_FILE}` / `${arg-name}` tokens (subprocess, no shell) or `{default: true}` |
+| **Condition guards** | `guard.hard` (shell commands) + `guard.soft` (LLM reviewer) | `condition: {cmd, args?}` with `${$TAPE_FILE}` / `${$session.id}` / `${arg-name}` tokens (subprocess, no shell) or `{default: true}` |
 | **Liveness properties** | Per-state `liveness_properties` array; LLM must self-check against these before transitioning | Not present; conditions serve as the quality gate |
 | **Instructions** | Per-state `instructions` field (freeform text for the LLM) | Per-state `state_desc`; no separate instructions field |
 | **Tool permissions** | Per-state `tool_permissions: {mode: whitelist/blacklist, list: [...]}` (`@mcp-server-fsm/crates/server/src/automaton.rs:75-91`) | Not present |

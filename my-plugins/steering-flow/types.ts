@@ -8,8 +8,9 @@ export interface ActionArg {
  * last action of an epsilon state) or a concrete command invocation with
  * fixed positional args.
  *
- * If a condition script needs the tape file, reference it explicitly via
- * the `${$TAPE_FILE}` interpolation token in the `args` array.
+ * If a condition script needs runtime data, reference it explicitly via
+ * interpolation tokens in the `args` array, such as `${$TAPE_FILE}` for the
+ * tape file path or `${$session.id}` for the current pi session id.
  *
  * Stdout contract: first line is "true" or "false"; remaining lines are
  * the human-readable reason.

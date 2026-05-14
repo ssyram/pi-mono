@@ -195,8 +195,9 @@ async function loadAndPush(
 
 	const tapePath = tapePathFor(sessionDir, fsmId);
 	let entry;
+	const runtimeVars = { session: { id: sessionId } };
 	try {
-		entry = await enterStart(rt, tapePath, cwd);
+		entry = await enterStart(rt, tapePath, cwd, runtimeVars);
 		// Condition processes may have written to tape.json; re-sync the in-memory tape.
 		rt.tape = await readTape(sessionDir, fsmId);
 	} catch (e) {
@@ -298,7 +299,7 @@ async function actionCall(
 	}
 
 	const tapePath = tapePathFor(sessionDir, fsmId);
-	const result: TransitionResult = await executeAction(rt, actionId, args, tapePath, cwd);
+	const result: TransitionResult = await executeAction(rt, actionId, args, tapePath, cwd, { session: { id: sessionId } });
 	// Condition processes may have mutated tape.json; re-sync.
 	rt.tape = await readTape(sessionDir, fsmId);
 	rt.transition_log = result.chain;
@@ -361,7 +362,7 @@ async function saveCall(
 	}
 	tape[id] = value;
 	await writeTape(sessionDir, fsmId, tape);
-	return `✅ Saved tape[\`${id}\`] = ${JSON.stringify(value.length > 200 ? value.slice(0, 200) + "…" : value)} (accessible in condition scripts via \${$TAPE_FILE} in their args). Total tape keys: ${Object.keys(tape).length}.`;
+	return `✅ Saved tape[\`${id}\`] = ${JSON.stringify(value.length > 200 ? value.slice(0, 200) + "…" : value)} (condition scripts can access tape via \${$TAPE_FILE} and session id via \${$session.id}). Total tape keys: ${Object.keys(tape).length}.`;
 }
 
 async function infoCall(cwd: string, sessionId: string): Promise<string> {
@@ -503,7 +504,7 @@ export default async function steeringFlow(pi: ExtensionAPI) {
 		name: "save-to-steering-flow",
 		label: "Save to Steering-Flow Tape",
 		description:
-			"Write a key-value pair to the current (top) FSM's Turing tape (tape.json). Transition conditions read/write this file — condition scripts access it via ${$TAPE_FILE} in their args. Overwrites any existing value for the same id.",
+			"Write a key-value pair to the current (top) FSM's Turing tape (tape.json). Transition conditions read/write this file — condition scripts access it via ${$TAPE_FILE} and access the current session id via ${$session.id} in their args. Overwrites any existing value for the same id.",
 		parameters: Type.Object({
 			id: Type.String({ description: "Tape key (must match /^[A-Za-z_][A-Za-z0-9_]*$/)." }),
 			value: Type.String({ description: "The value to store (max 64 KiB)." }),

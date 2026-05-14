@@ -1,0 +1,89 @@
+# Per-agent fresh review signing flow.
+#
+# Intended as the child steering-flow loaded for each fresh confirmation,
+# challenge, or counter-challenge worker. The parent workflow owns the finding
+# list and final coverage gate. This child flow forces the worker to:
+# 1. attest that it is running fresh, with a stable actor/session id,
+# 2. review the assigned finding list one-by-one,
+# 3. write a per-finding signed comment back to the shared tape/signature store.
+#
+# Signature storage convention on parent tape:
+#   <SIGNATURES_KEY>[finding_id][] = {
+#     phase: "confirmation" | "challenge" | "counter_challenge",
+#     actor_id: "fresh worker identity/session id",
+#     fresh: true,
+#     comment: "specific review for this finding"
+#   }
+#
+# Actor/session id is available to condition args as `${$session.id}` and should
+# be used as ACTOR_ID when this subflow signs findings.
+
+task_description: |
+  Fresh worker signing subflow for workflow-audit. Attest fresh context, review
+  every assigned finding, and produce signed per-finding comments for the parent
+  coverage gate.
+
+states:
+  - state_id: "$START"
+    state_desc: "Auto-enter the fresh self-check."
+    is_epsilon: true
+    actions:
+      - action_id: enter_self_check
+        action_desc: "Start fresh self-check."
+        condition:
+          default: true
+        next_state_id: fresh_self_check
+
+  - state_id: fresh_self_check
+    state_desc: |
+      Confirm this worker is a fresh context, not forked from the parent reasoning.
+      The worker must write its actor/session identity and self-check result.
+
+      Required tape:
+      - ACTOR_ID
+      - FRESH_SELF_CHECK_DOC
+      - FRESH_CONFIRMED=1
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_fresh_self_check
+        action_desc: "Submit fresh-context self-check and actor id."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - ACTOR_ID
+            - FRESH_SELF_CHECK_DOC
+            - FRESH_CONFIRMED
+            - "${$TAPE_FILE}"
+        next_state_id: review_assigned_findings
+
+  - state_id: review_assigned_findings
+    state_desc: |
+      Review every assigned finding one-by-one. For each finding, write a concrete
+      comment and append the signature to the parent/shared signature location.
+
+      Required tape:
+      - ASSIGNED_FINDINGS
+      - SIGNED_REVIEW_DOC
+      - SIGNATURES_WRITTEN=1
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_signed_reviews
+        action_desc: "Submit signed per-finding reviews."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - ASSIGNED_FINDINGS
+            - SIGNED_REVIEW_DOC
+            - SIGNATURES_WRITTEN
+            - "${$TAPE_FILE}"
+        next_state_id: "$END"
+
+  - state_id: "$END"
+    state_desc: "Fresh worker completed signed per-finding review."
+    is_epsilon: false
+    interactive: false
+    actions: []

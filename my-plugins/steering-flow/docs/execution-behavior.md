@@ -294,12 +294,12 @@ fn withSessionLock<T>(sessionId, fn):
 ## F. 引擎：条件执行 `runCondition` @engine.ts:40
 
 ```pseudo
-fn runCondition(condition, tapePath, llmArgs, cwd, flowDir):
+fn runCondition(condition, tapePath, llmArgs, cwd, flowDir, runtimeVars):
     if condition.default: return { ok: true, reason: "default transition" }
-    cmd = resolveTokenRelToFlow(condition.cmd, flowDir)
-    configArgs = condition.args.map(resolveTokenRelToFlow)
-    argv = configArgs.map(tok => interpolate(tok, tapePath, llmArgMap))
-    // ${$TAPE_FILE} -> tapePath; ${arg-name} -> llmArgMap[arg-name]
+    cmd = resolveTokenRelToFlow(interpolate(condition.cmd, tapePath, llmArgMap, runtimeVars), flowDir)
+    configArgs = condition.args.map(tok => resolveTokenRelToFlow(interpolate(tok, tapePath, llmArgMap, runtimeVars), flowDir))
+    argv = configArgs + llmArgs
+    // ${$TAPE_FILE} -> tapePath; ${$session.id} -> runtimeVars.session.id; ${arg-name} -> llmArgMap[arg-name]
 ```
 
 ```pseudo

@@ -1,38 +1,10 @@
-import type { VisualizerDocument } from "./types.js";
-import { layoutFsm } from "./label-layout.js";
-import { dragNodesCode } from "./drag-nodes.js";
-
-function escapeHtml(value: string): string {
-	return value
-		.replaceAll("&", "&amp;")
-		.replaceAll("<", "&lt;")
-		.replaceAll(">", "&gt;")
-		.replaceAll('"', "&quot;")
-		.replaceAll("'", "&#39;");
-}
-
-function safeJson(value: unknown): string {
-	return JSON.stringify(value)
-		.replaceAll("<", "\\u003c")
-		.replaceAll("\u2028", "\\u2028")
-		.replaceAll("\u2029", "\\u2029");
-}
-
-const NODE_RADIUS = 28;
-
-export function renderVisualizerHtml(doc: VisualizerDocument): string {
-	const layouts = doc.fsms.map((fsm) => layoutFsm(fsm.states, NODE_RADIUS));
-	const data = safeJson(doc);
-	const layoutsJson = safeJson(layouts);
-	const title = escapeHtml(doc.title);
-
-	return `<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${title}</title>
-<script src="https://cdn.jsdelivr.net/npm/d3@7"><\/script>
+<title>Steering-Flow · session-runtime-variable.yaml</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <style>
 :root { color-scheme:dark; }
 * { box-sizing:border-box; margin:0; padding:0; }
@@ -61,25 +33,24 @@ pre { white-space:pre-wrap; word-break:break-all; overflow:auto; max-height:240p
 
 /* nodes */
 .node { cursor:pointer; }
-.node .node-fill { fill:#161b22; stroke:#30363d; stroke-width:2; transition:stroke .15s, fill .15s, opacity .15s; }
-.node .interactive-ring { fill:none; stroke:#b388ff; stroke-width:2; stroke-dasharray:4 5; opacity:.55; pointer-events:none; transition:opacity .15s; }
+.node circle { fill:#161b22; stroke:#30363d; stroke-width:2; transition:stroke .15s, fill .15s, opacity .15s; }
 .node text { fill:#e6edf3; font-size:11px; pointer-events:none; transition:opacity .15s; }
 .node .label { font-weight:600; font-size:12px; }
 .node .sublabel { fill:#8b949e; font-size:10px; }
-.node.current .node-fill { stroke:#58a6ff; stroke-width:3; }
-.node.epsilon .node-fill { stroke-dasharray:5 4; }
-.node.start .node-fill { stroke:#3fb950; }
-.node.start.current .node-fill { stroke:#3fb950; stroke-width:3; }
-.node.end .node-fill { stroke:#f85149; }
-.node.end.current .node-fill { stroke:#f85149; stroke-width:3; }
+.node.current circle { stroke:#58a6ff; stroke-width:3; }
+.node.epsilon circle { stroke-dasharray:5 4; }
+.node.start circle { stroke:#3fb950; }
+.node.start.current circle { stroke:#3fb950; stroke-width:3; }
+.node.end circle { stroke:#f85149; }
+.node.end.current circle { stroke:#f85149; stroke-width:3; }
 
 /* highlight states */
-.node.highlight .node-fill { stroke:#58a6ff; stroke-width:3; fill:#1f2937; }
-.node.highlight-1 .node-fill { stroke:#58a6ff; stroke-width:2; fill:#1a2332; opacity:.38; transition-delay:.08s; }
-.node.highlight-2 .node-fill { stroke:#58a6ff; stroke-width:1.5; fill:#171f2b; opacity:.22; transition-delay:.16s; }
-.node.highlight-3 .node-fill { stroke:#58a6ff; stroke-width:1; fill:#151b24; opacity:.2; transition-delay:.24s; }
+.node.highlight circle { stroke:#58a6ff; stroke-width:3; fill:#1f2937; }
+.node.highlight-1 circle { stroke:#58a6ff; stroke-width:2; fill:#1a2332; opacity:.38; transition-delay:.08s; }
+.node.highlight-2 circle { stroke:#58a6ff; stroke-width:1.5; fill:#171f2b; opacity:.22; transition-delay:.16s; }
+.node.highlight-3 circle { stroke:#58a6ff; stroke-width:1; fill:#151b24; opacity:.2; transition-delay:.24s; }
 .node.dim { opacity:.15; }
-.node.dim .node-fill { stroke:#30363d; }
+.node.dim circle { stroke:#30363d; }
 
 /* edges */
 .edge-path { fill:none; stroke:#8b949e; stroke-width:1.5; opacity:.2; transition:stroke .15s, stroke-width .15s, opacity .15s; }
@@ -119,7 +90,7 @@ pre { white-space:pre-wrap; word-break:break-all; overflow:auto; max-height:240p
 </head>
 <body>
 <header>
-  <div><h1>${title}</h1><div class="sub" id="subtitle"></div></div>
+  <div><h1>Steering-Flow · session-runtime-variable.yaml</h1><div class="sub" id="subtitle"></div></div>
   <div><span class="pill" id="mode"></span><span class="pill" id="counts"></span></div>
 </header>
 <main>
@@ -134,7 +105,6 @@ pre { white-space:pre-wrap; word-break:break-all; overflow:auto; max-height:240p
   <div class="legend-row"><span class="legend-dot" style="border-color:#3fb950;background:#161b22"></span> Start</div>
   <div class="legend-row"><span class="legend-dot" style="border-color:#f85149;background:#161b22"></span> End</div>
   <div class="legend-row"><span class="legend-dot" style="border-color:#58a6ff;background:#161b22"></span> Current</div>
-  <div class="legend-row"><span class="legend-dot" style="border-color:#b388ff;background:#161b22;border-style:dashed;opacity:.75"></span> Interactive</div>
   <div class="legend-row"><span class="legend-dot" style="border-color:#30363d;background:#161b22;border-style:dashed"></span> Epsilon</div>
   <div class="legend-row" style="margin-top:4px"><span class="legend-line" style="border-color:#8b949e;opacity:.4"></span> Transition</div>
   <div class="legend-row"><span class="legend-line" style="border-color:#58a6ff;border-width:2.5px"></span> Highlighted</div>
@@ -145,11 +115,47 @@ pre { white-space:pre-wrap; word-break:break-all; overflow:auto; max-height:240p
   <button id="resetBtn" style="margin-top:8px;width:100%;padding:4px 0;background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit;transition:background .12s" onmouseover="this.style.background='#30363d'" onmouseout="this.style.background='#21262d'">Reset View</button>
 </div>
 <script>
-const DOC = ${data};
-var LAYOUTS = ${layoutsJson};
-var NODE_R = ${NODE_RADIUS};
+const DOC = {"title":"Steering-Flow · session-runtime-variable.yaml","generatedAt":"2026-05-05T03:44:46.243Z","sourceMode":"file","sourceLabel":"/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/steering-flow/examples/session-runtime-variable.yaml","fsms":[{"id":"session-runtime-variable.yaml","name":"session-runtime-variable.yaml","flowDir":"","taskDescription":"Minimal example for steering-flow runtime variables. The condition receives\n`${$session.id}` in argv and compares it with EXPECTED_SESSION_ID on tape.\n","sourceLabel":"/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/steering-flow/examples/session-runtime-variable.yaml","states":[{"id":"$START","description":"Save EXPECTED_SESSION_ID to the current pi session id, then run\n`check_session_id` to verify `${$session.id}` interpolation.\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"check_session_id","description":"Verify `${$session.id}` against tape.","nextStateId":"$END","arguments":[],"conditionSummary":"node ./scripts/require-session-id.mjs ${$session.id} ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-session-id.mjs\",\n    \"${$session.id}\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"$END","description":"Session runtime variable matched tape.","isEpsilon":false,"isInteractive":false,"actions":[]}],"currentStateId":"$START","tape":{},"transitionLog":[]}],"commands":[{"name":"/steering-flow help","description":"Show unified steering-flow command help."},{"name":"/steering-flow load \u003cFILE>","description":"Load a flow config and push it onto the FSM stack."},{"name":"/steering-flow pop","description":"Pop the active FSM from the stack. User-only escape hatch."},{"name":"/steering-flow save \u003cID> \u003cVALUE>","description":"Write a value to the active FSM tape."},{"name":"/steering-flow context-info","description":"Send stack, state, tape, and active actions to the model context."},{"name":"/steering-flow info","description":"Show stack, state, tape, and active actions as UI info only."},{"name":"/steering-flow set-state \u003cSTATE-ID>","description":"User-only jump/reset of the active FSM state."},{"name":"/steering-flow reset-state","description":"User-only reset of the active FSM state to $START."},{"name":"/steering-flow set-action \u003cACTION-ID> [ARGS...]","description":"User-only action trigger with UI notification output."},{"name":"/steering-flow action \u003cACTION-ID> [ARGS...]","description":"Invoke an action on the active FSM and send the result to the model context."},{"name":"/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]","description":"Generate this static HTML visualizer."}],"tools":[{"name":"load-steering-flow","description":"LLM tool for loading a flow config."},{"name":"steering-flow-action","description":"LLM tool for invoking an action with positional args."},{"name":"save-to-steering-flow","description":"LLM tool for writing tape values."},{"name":"get-steering-flow-info","description":"LLM tool for inspecting active flow state."},{"name":"visualize-steering-flow","description":"LLM tool for generating a static visualizer artifact."}]};
+var LAYOUTS = [{"nodes":[{"id":"$START","x":108,"y":78},{"id":"$END","x":108,"y":254}],"edges":[{"srcId":"$START","tgtId":"$END","actionId":"check_session_id","points":[{"x":108,"y":116},{"x":108,"y":166},{"x":108,"y":216}],"label":{"text":"check_session_id","idealX":108,"idealY":166,"x":108,"y":166,"w":132,"h":23}}],"graphWidth":216,"graphHeight":332,"warnings":[]}];
+var NODE_R = 28;
 
-${dragNodesCode}
+
+function enableDragNodes(nodeSelection, nodePos, edgeGroups, nodeR) {
+  var drag = d3.drag()
+    .clickDistance(4)
+    .on('start', function() { d3.select(this).raise(); svg.style('cursor','grabbing'); })
+    .on('drag', function(evt, d) {
+      var np = nodePos[d.id];
+      if (!np) return;
+      np.x = evt.x;
+      np.y = evt.y;
+      d3.select(this).attr('transform', 'translate(' + np.x + ',' + np.y + ')');
+
+      // Update connected edges — recompute label midpoint and use polylineSplit
+      edgeGroups.each(function(ed) {
+        if (ed.src !== d.id && ed.tgt !== d.id) return;
+        var group = d3.select(this);
+        var sn = nodePos[ed.src], tn = nodePos[ed.tgt];
+        if (!sn || !tn) return;
+        ed.srcNode.x = sn.x; ed.srcNode.y = sn.y;
+        ed.tgtNode.x = tn.x; ed.tgtNode.y = tn.y;
+        // Recompute label midpoint
+        ed.labelX = (sn.x + tn.x) / 2;
+        ed.labelY = (sn.y + tn.y) / 2;
+        // Fallback to simple 3-point path during drag (dagre points are stale)
+        var sy = sn.y < tn.y ? sn.y + nodeR : sn.y - nodeR;
+        var ty = sn.y < tn.y ? tn.y - nodeR : tn.y + nodeR;
+        var fallbackPts = [{x:sn.x,y:sy},{x:ed.labelX,y:ed.labelY},{x:tn.x,y:ty}];
+        var seg = polylineSplit(fallbackPts, ed.labelX, ed.labelY);
+        group.select('.edge-path-1').attr('d', seg.d1);
+        group.select('.edge-path-2').attr('d', seg.d2);
+        group.select('.edge-label').attr('transform', 'translate(' + ed.labelX + ',' + ed.labelY + ')');
+      });
+    })
+    .on('end', function() { svg.style('cursor','grab'); });
+  nodeSelection.call(drag);
+}
+
 
 /* refs */
 const svg = d3.select('#graph');
@@ -170,13 +176,13 @@ svg.call(zoom);
 svg.on('dblclick.zoom', null);
 
 /* header info */
-document.getElementById('subtitle').textContent = DOC.sourceLabel + ' \\u00b7 ' + DOC.generatedAt;
+document.getElementById('subtitle').textContent = DOC.sourceLabel + ' \u00b7 ' + DOC.generatedAt;
 document.getElementById('mode').textContent = DOC.sourceMode;
 document.getElementById('counts').textContent = DOC.fsms.length + ' FSM(s)';
 DOC.fsms.forEach(function(fsm, i) {
   var opt = document.createElement('option');
   opt.value = String(i);
-  opt.textContent = (fsm.id === DOC.activeFsmId ? '\\u25cf ' : '') + fsm.name;
+  opt.textContent = (fsm.id === DOC.activeFsmId ? '\u25cf ' : '') + fsm.name;
   fsmSelect.appendChild(opt);
 });
 fsmSelect.value = String(Math.max(0, DOC.fsms.findIndex(function(f) { return f.id === DOC.activeFsmId; })));
@@ -208,15 +214,15 @@ function showOverview(fsm) {
 
 function showState(fsm, state) {
   details.innerHTML =
-    '<div class="section"><h2>State \\u00b7 ' + esc(state.id) + '</h2>' +
-    (state.isEpsilon ? '<span class="pill">\\u03b5 epsilon</span> ' : '') +
+    '<div class="section"><h2>State \u00b7 ' + esc(state.id) + '</h2>' +
+    (state.isEpsilon ? '<span class="pill">\u03b5 epsilon</span> ' : '') +
     (state.isInteractive ? '<span class="pill" style="border-color:#d2a8ff;color:#d2a8ff">interactive</span> ' : '') +
     (state.id === fsm.currentStateId ? '<span class="pill" style="border-color:#58a6ff;color:#58a6ff">current</span>' : '') +
     '<pre style="margin-top:8px">' + esc(state.description) + '</pre></div>' +
     '<div class="section"><h2>Actions (' + state.actions.length + ')</h2>' +
     (state.actions.length
       ? state.actions.map(function(a) {
-          return '<div class="row"><b>' + esc(a.id) + '</b> \\u2192 <span style="color:#58a6ff">' + esc(a.nextStateId) + '</span>' +
+          return '<div class="row"><b>' + esc(a.id) + '</b> \u2192 <span style="color:#58a6ff">' + esc(a.nextStateId) + '</span>' +
           '<br><span class="muted">' + esc(a.description) + '</span>' +
           '<br><span class="muted">condition: ' + esc(a.conditionSummary) + '</span></div>';
         }).join('')
@@ -226,7 +232,7 @@ function showState(fsm, state) {
 
 function showAction(action) {
   details.innerHTML =
-    '<div class="section"><h2>Action \\u00b7 ' + esc(action.id) + '</h2>' +
+    '<div class="section"><h2>Action \u00b7 ' + esc(action.id) + '</h2>' +
     '<div class="kv"><span class="muted">Next state</span><span style="color:#58a6ff">' + esc(action.nextStateId) + '</span></div>' +
     (action.isDefault ? '<span class="pill" style="border-color:#f0883e;color:#f0883e">default</span>' : '') +
     '<pre style="margin-top:8px">' + esc(action.description) + '</pre></div>' +
@@ -281,7 +287,7 @@ function getOutgoingLeveled(startId, adj, epsilonSet) {
 
   var queue = [];
   (adj.succ[startId] || []).forEach(function(s) {
-    edgeLevel[startId + '\u2192' + s] = 0;
+    edgeLevel[startId + '→' + s] = 0;
     if (!(s in nodeLevel)) { nodeLevel[s] = 0; queue.push({ id: s, level: 0 }); }
   });
 
@@ -290,7 +296,7 @@ function getOutgoingLeveled(startId, adj, epsilonSet) {
     if (!epsilonSet.has(cur.id) || cur.level >= MAX_CASCADE) continue;
     var nextLevel = cur.level + 1;
     (adj.succ[cur.id] || []).forEach(function(s) {
-      var eKey = cur.id + '\u2192' + s;
+      var eKey = cur.id + '→' + s;
       if (!(eKey in edgeLevel)) {
         edgeLevel[eKey] = nextLevel;
         if (!(s in nodeLevel)) {
@@ -322,7 +328,7 @@ function applyHighlight(stateId) {
     }
   });
   d3.selectAll('.edge-group').each(function(d) {
-    var key = d.src + '\u2192' + d.tgt;
+    var key = d.src + '→' + d.tgt;
     var level = edgeLevel[key];
     var isHl = level !== undefined;
     var paths = d3.select(this).selectAll('.edge-path');
@@ -431,14 +437,14 @@ function renderFsm(fsmIndex) {
   /* build action lookup for edge data */
   var actionMap = {};
   fsm.states.forEach(function(s) {
-    s.actions.forEach(function(a) { actionMap[s.id + '\\0' + a.nextStateId + '\\0' + a.id] = a; });
+    s.actions.forEach(function(a) { actionMap[s.id + '\0' + a.nextStateId + '\0' + a.id] = a; });
   });
 
   /* edges from pre-computed layout */
   var edgeData = layout.edges.map(function(e) {
     var src = nodePos[e.srcId], tgt = nodePos[e.tgtId];
     if (!src || !tgt) return null;
-    var action = actionMap[e.srcId + '\\0' + e.tgtId + '\\0' + e.actionId];
+    var action = actionMap[e.srcId + '\0' + e.tgtId + '\0' + e.actionId];
     return {
       src: e.srcId, tgt: e.tgtId, name: e.actionId,
       edge: { label: e.actionId, action: action },
@@ -498,7 +504,7 @@ function renderFsm(fsmIndex) {
     }
     if (!d.edge.action) { hideTooltip(); return; }
     showTooltip(evt, '<b>' + esc(d.edge.action.id) + '</b>' +
-      '<br><span class="tt-muted">' + esc(d.src) + ' \\u2192 ' + esc(d.tgt) + '</span>' +
+      '<br><span class="tt-muted">' + esc(d.src) + ' \u2192 ' + esc(d.tgt) + '</span>' +
       '<br><span class="tt-muted">' + esc(d.edge.action.conditionSummary || '') + '</span>');
   });
   edgeLabels.on('mousemove', function(evt) {
@@ -519,16 +525,14 @@ function renderFsm(fsmIndex) {
       if (s.id === '$START') c += ' start';
       if (s.id === '$END') c += ' end';
       if (s.isEpsilon) c += ' epsilon';
-      if (s.isInteractive) c += ' interactive';
       if (s.id === fsm.currentStateId) c += ' current';
       return c;
     })
     .attr('transform', function(s) { var n = nodePos[s.id]; if (!n) return 'translate(0,0)'; return 'translate(' + n.x + ',' + n.y + ')'; });
 
-  nodes.filter(function(s) { return s.isInteractive; }).append('circle').attr('class','interactive-ring').attr('r', nodeR + 7);
-  nodes.append('circle').attr('class','node-fill').attr('r', nodeR);
+  nodes.append('circle').attr('r', nodeR);
   nodes.append('text').attr('class','label').attr('text-anchor','middle').attr('dy', '-0.15em')
-    .text(function(s) { return s.id.length > 12 ? s.id.slice(0, 11) + '\\u2026' : s.id; });
+    .text(function(s) { return s.id.length > 12 ? s.id.slice(0, 11) + '\u2026' : s.id; });
   nodes.append('text').attr('class','sublabel').attr('text-anchor','middle').attr('dy', '1.2em')
     .text(function(s) { return s.actions.length + ' action' + (s.actions.length !== 1 ? 's' : ''); });
 
@@ -536,10 +540,9 @@ function renderFsm(fsmIndex) {
   nodes.on('mouseenter', function(evt, s) {
     if (!lockedNodeId) applyHighlight(s.id);
     showTooltip(evt, '<b>' + esc(s.id) + '</b>' +
-      (s.isEpsilon ? ' <span class="tt-muted">\\u03b5</span>' : '') +
-      (s.isInteractive ? ' <span style="color:#b388ff">interactive</span>' : '') +
+      (s.isEpsilon ? ' <span class="tt-muted">\u03b5</span>' : '') +
       '<br><span class="tt-muted">' + s.actions.length + ' action(s)</span>' +
-      (s.id === fsm.currentStateId ? '<br><span style="color:#58a6ff">\\u25cf current state</span>' : ''));
+      (s.id === fsm.currentStateId ? '<br><span style="color:#58a6ff">\u25cf current state</span>' : ''));
   });
   nodes.on('mousemove', function(evt) {
     tooltip.style.left = Math.min(evt.clientX + 14, window.innerWidth - 300) + 'px';
@@ -629,7 +632,6 @@ document.getElementById('resetBtn').addEventListener('click', function() {
 
 
 });
-<\/script>
+</script>
 </body>
-</html>`;
-}
+</html>

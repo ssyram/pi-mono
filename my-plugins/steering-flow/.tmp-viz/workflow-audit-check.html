@@ -1,38 +1,10 @@
-import type { VisualizerDocument } from "./types.js";
-import { layoutFsm } from "./label-layout.js";
-import { dragNodesCode } from "./drag-nodes.js";
-
-function escapeHtml(value: string): string {
-	return value
-		.replaceAll("&", "&amp;")
-		.replaceAll("<", "&lt;")
-		.replaceAll(">", "&gt;")
-		.replaceAll('"', "&quot;")
-		.replaceAll("'", "&#39;");
-}
-
-function safeJson(value: unknown): string {
-	return JSON.stringify(value)
-		.replaceAll("<", "\\u003c")
-		.replaceAll("\u2028", "\\u2028")
-		.replaceAll("\u2029", "\\u2029");
-}
-
-const NODE_RADIUS = 28;
-
-export function renderVisualizerHtml(doc: VisualizerDocument): string {
-	const layouts = doc.fsms.map((fsm) => layoutFsm(fsm.states, NODE_RADIUS));
-	const data = safeJson(doc);
-	const layoutsJson = safeJson(layouts);
-	const title = escapeHtml(doc.title);
-
-	return `<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${title}</title>
-<script src="https://cdn.jsdelivr.net/npm/d3@7"><\/script>
+<title>Steering-Flow · workflow-audit.yaml</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <style>
 :root { color-scheme:dark; }
 * { box-sizing:border-box; margin:0; padding:0; }
@@ -119,7 +91,7 @@ pre { white-space:pre-wrap; word-break:break-all; overflow:auto; max-height:240p
 </head>
 <body>
 <header>
-  <div><h1>${title}</h1><div class="sub" id="subtitle"></div></div>
+  <div><h1>Steering-Flow · workflow-audit.yaml</h1><div class="sub" id="subtitle"></div></div>
   <div><span class="pill" id="mode"></span><span class="pill" id="counts"></span></div>
 </header>
 <main>
@@ -145,11 +117,47 @@ pre { white-space:pre-wrap; word-break:break-all; overflow:auto; max-height:240p
   <button id="resetBtn" style="margin-top:8px;width:100%;padding:4px 0;background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit;transition:background .12s" onmouseover="this.style.background='#30363d'" onmouseout="this.style.background='#21262d'">Reset View</button>
 </div>
 <script>
-const DOC = ${data};
-var LAYOUTS = ${layoutsJson};
-var NODE_R = ${NODE_RADIUS};
+const DOC = {"title":"Steering-Flow · workflow-audit.yaml","generatedAt":"2026-05-05T03:07:07.294Z","sourceMode":"file","sourceLabel":"/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/steering-flow/examples/workflow-audit.yaml","fsms":[{"id":"workflow-audit.yaml","name":"workflow-audit.yaml","flowDir":"","taskDescription":"PR 审计工作流（驳回优先）。\n三方向并行审计 → 汇总 → 质疑循环 → 汇报 → 决策循环，直到所有项目清零。\n只读流程——禁止修改源代码，只产出 review 文档。\n\nTape 核心字段：\n  DECISION_COUNT      — 待决策项数量（需要人类判断的）\n  NON_DECISION_COUNT  — 非决策项数量（可独立处理的发现）\n  ROUND               — 当前大循环轮次\n\n每个阶段必须提交具体文档，系统才允许状态变迁。\n","sourceLabel":"/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/steering-flow/examples/workflow-audit.yaml","states":[{"id":"$START","description":"收集 PR 的全部上下文：commits、diff、描述、已有 review comments。\n方式不限（gh CLI、GitHub API、fetch_content、手动提供 diff 均可）。\n同时读取项目的 workflow/规范文档。\n\n完成后：\n1. 将收集结果写入文档，通过 save-to-steering-flow 设置 GATHER_DOC 为文档路径\n2. 设置 ROUND=1\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_gather","description":"提交数据收集文档。","nextStateId":"audit","arguments":[],"conditionSummary":"node ./scripts/require-doc-submitted.mjs GATHER_DOC ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-doc-submitted.mjs\",\n    \"GATHER_DOC\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"audit","description":"启动三个独立的审计方向（并行 subagent，fresh context）：\n- 方向 A：Hoare Logic + Workflow（逻辑正确性、安全属性、不变式）\n- 方向 B：Finegrained Check + Workflow（命题提取、跨文件矛盾）\n- 方向 C：Workflow Pure（纯流程审计）\n\n每个方向必须产出独立的审计文档。\n\n完成后：\n1. 将三个方向的文档路径分别设置为 AUDIT_DOC_A、AUDIT_DOC_B、AUDIT_DOC_C\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_audit","description":"提交三方向审计文档。三个文档必须全部存在。","nextStateId":"consolidate","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs AUDIT_DOC_A AUDIT_DOC_B AUDIT_DOC_C ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"AUDIT_DOC_A\",\n    \"AUDIT_DOC_B\",\n    \"AUDIT_DOC_C\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"consolidate","description":"汇总所有发现（含新一轮循环带入的剩余项）：\n1. 去重：合并重复项\n2. 分类：每条标注严重性和类型\n3. 区分：\n   - 决策项（DECISION）：需要人类判断的（多个合理方案、设计权衡、争议点）\n   - 非决策项（NON_DECISION）：可独立验证和处理的（明确的 bug、文档错误、流程缺失）\n4. 只汇总不删除\n\n完成后：\n1. 提交汇总文档，设置 CONSOLIDATE_DOC\n2. 设置 DECISION_COUNT 和 NON_DECISION_COUNT（数字）\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_consolidation","description":"提交汇总文档，含决策项/非决策项分类和计数。","nextStateId":"dispatch_router","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs CONSOLIDATE_DOC DECISION_COUNT NON_DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"CONSOLIDATE_DOC\",\n    \"DECISION_COUNT\",\n    \"NON_DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"dispatch_router","description":"自动路由：\n- NON_DECISION_COUNT > 0 → 进入质疑轮\n- DECISION_COUNT > 0 → 也进入质疑轮，先挑战其“真的需要人类判断”的前提\n- 两者均为 0 → 审计完成\n","isEpsilon":true,"isInteractive":false,"actions":[{"id":"has_non_decisions","description":"存在非决策项，进入质疑轮。","nextStateId":"challenge","arguments":[],"conditionSummary":"node ./scripts/require-key-gt-zero.mjs NON_DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-key-gt-zero.mjs\",\n    \"NON_DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"has_decisions_to_challenge","description":"存在决策项；先质疑其是否真的需要人类判断。","nextStateId":"challenge","arguments":[],"conditionSummary":"node ./scripts/require-key-gt-zero.mjs DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-key-gt-zero.mjs\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"all_clear","description":"无剩余项目，审计完成。","nextStateId":"$END","arguments":[],"conditionSummary":"default","conditionDetail":"{ default: true }","isDefault":true}]},{"id":"challenge","description":"对每条候选发现派出 ≥2 个独立 agent 进行质疑（fresh context，禁止 fork），包括非决策项和决策项。\n质疑者不看原始审计报告，只看具体的单条 claim + 相关源文件。\n显式指令：\"你的任务是找出这条发现错误的理由。保持对抗性。\"\n\n每条发现必须被 ≥2 个不同 agent 覆盖。\n对 Decisional 项，必须额外挑战：是否真的需要人类判断，还是存在明确工程答案？\n\n完成后：\n1. 提交质疑文档（包含所有质疑者的判定），设置 CHALLENGE_DOC\n2. 必要时更新 NON_DECISION_COUNT / DECISION_COUNT\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_challenge","description":"提交质疑文档，含所有质疑者判定。","nextStateId":"aggregate","arguments":[],"conditionSummary":"node ./scripts/require-doc-submitted.mjs CHALLENGE_DOC ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-doc-submitted.mjs\",\n    \"CHALLENGE_DOC\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"aggregate","description":"汇总质疑结果：\n- 全部 UPHELD → 进入反质疑\n- 全部 REJECTED → 丢弃并从对应计数移除\n- 判定分裂 → 派仲裁 agent（fresh context）做 tiebreak\n- 全部 WEAKENED → 调整严重程度和分类\n- Decisional 被证明有明确工程答案 → 降级为 NON_DECISION_COUNT 或直接移除\n\n任何发现存活时，都必须进入反质疑/验证，不能直接汇报。\n\n完成后：\n1. 提交聚合文档（含仲裁结果），设置 AGGREGATE_DOC\n2. 更新 NON_DECISION_COUNT\n3. 更新 DECISION_COUNT\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_aggregate","description":"提交聚合文档，含仲裁结果和更新后的计数。","nextStateId":"aggregate_router","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs AGGREGATE_DOC NON_DECISION_COUNT DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"AGGREGATE_DOC\",\n    \"NON_DECISION_COUNT\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"aggregate_router","description":"自动路由：任何非决策项或决策项存活 → 反质疑；全部清零 → 回分派路由器。","isEpsilon":true,"isInteractive":false,"actions":[{"id":"has_surviving_non_decisions","description":"有存活非决策项，进入反质疑。","nextStateId":"counter_challenge","arguments":[],"conditionSummary":"node ./scripts/require-key-gt-zero.mjs NON_DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-key-gt-zero.mjs\",\n    \"NON_DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"has_surviving_decisions","description":"有存活决策项，进入反质疑。","nextStateId":"counter_challenge","arguments":[],"conditionSummary":"node ./scripts/require-key-gt-zero.mjs DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-key-gt-zero.mjs\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"none_survived","description":"所有发现均被驳回，回到分派路由器。","nextStateId":"dispatch_router","arguments":[],"conditionSummary":"default","conditionDetail":"{ default: true }","isDefault":true}]},{"id":"counter_challenge","description":"对每条存活发现，再启动一个 fresh agent 做最终推翻尝试。\n反质疑者收到：原始 claim + 质疑者判定摘要。\n指令：\"之前的质疑者试图推翻此发现但未成功。做最后一次推翻尝试。\"\n\n对 Decisional 项，必须特别挑战：是否真的没有明确工程答案？是否只是缺少上下文？\n若可以明确处理，降级为 NON_DECISION_COUNT；只有无法自行裁决的才保留为 DECISION_COUNT。\n\n完成后：\n1. 提交反质疑文档，设置 COUNTER_DOC\n2. 更新 NON_DECISION_COUNT 和 DECISION_COUNT\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_counter","description":"提交反质疑文档，含更新后的计数。","nextStateId":"verify","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs COUNTER_DOC NON_DECISION_COUNT DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"COUNTER_DOC\",\n    \"NON_DECISION_COUNT\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"verify","description":"主审亲自阅读源码验证每条确认发现的关键证据。不能仅依赖 agent 报告。\n对每条发现声明：\"我在 file:line 验证了 [具体证据]\" 或 \"我无法验证 [主张]\"。\n对 Decisional 项也要验证其事实前提和“必须人类判断”的理由；只有验证后仍需裁决的项才进入 report。\n\n证据标准：\n- 代码类：必须有测试用例/PoC/逐步复现步骤\n- 文档类：三重确认无其他部分缓解该问题\n\n验证可能改变分类：\n- 无法验证的非决策项 → 升级为决策项\n- 验证中发现新问题 → 增加对应计数\n\n完成后：\n1. 提交验证文档，设置 VERIFY_DOC\n2. 最终更新 NON_DECISION_COUNT 和 DECISION_COUNT\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_verify","description":"提交主审验证文档，含最终计数。","nextStateId":"dispatch_router","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs VERIFY_DOC NON_DECISION_COUNT DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"VERIFY_DOC\",\n    \"NON_DECISION_COUNT\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"report","description":"生成 review 文档，呈报所有决策项给人类。\n文档结构：\n1. 概要\n2. 已确认的非决策项（已处理完毕的发现）\n3. 决策项（每项含：情况、选项、推荐、需要的决策）\n4. 争议项（正方+反方证据，不做裁决）\n5. 已驳回项\n6. 审计方法说明\n\n完成后：\n1. 提交 review 文档，设置 REPORT_DOC\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_report","description":"提交 review 文档。","nextStateId":"decision_gate","arguments":[],"conditionSummary":"node ./scripts/require-doc-submitted.mjs REPORT_DOC ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-doc-submitted.mjs\",\n    \"REPORT_DOC\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"decision_gate","description":"等待人类对决策项做出判断。人类可能：\n- 接受某些发现 → 该发现从决策项中移除\n- 拒绝某些发现 → 该发现从决策项中移除\n- 要求进一步调查 → 该发现转为非决策项进入新一轮\n\n根据人类决策更新计数：\n1. 设置 DECISION_DOC（决策记录文档路径）\n2. 更新 DECISION_COUNT 和 NON_DECISION_COUNT\n3. ROUND 递增\n","isEpsilon":false,"isInteractive":true,"actions":[{"id":"decisions_made","description":"人类已做出决策，提交决策记录。","nextStateId":"dispatch_router","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs DECISION_DOC DECISION_COUNT NON_DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"DECISION_DOC\",\n    \"DECISION_COUNT\",\n    \"NON_DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"$END","description":"审计完成。DECISION_COUNT=0 且 NON_DECISION_COUNT=0。\n所有发现已处理：确认的已记录，驳回的已记录，决策项已由人类裁决。\nReview 文档可用于回复 PR。\n","isEpsilon":false,"isInteractive":false,"actions":[]}],"currentStateId":"$START","tape":{},"transitionLog":[]}],"commands":[{"name":"/steering-flow help","description":"Show unified steering-flow command help."},{"name":"/steering-flow load \u003cFILE>","description":"Load a flow config and push it onto the FSM stack."},{"name":"/steering-flow pop","description":"Pop the active FSM from the stack. User-only escape hatch."},{"name":"/steering-flow save \u003cID> \u003cVALUE>","description":"Write a value to the active FSM tape."},{"name":"/steering-flow context-info","description":"Send stack, state, tape, and active actions to the model context."},{"name":"/steering-flow info","description":"Show stack, state, tape, and active actions as UI info only."},{"name":"/steering-flow set-state \u003cSTATE-ID>","description":"User-only jump/reset of the active FSM state."},{"name":"/steering-flow reset-state","description":"User-only reset of the active FSM state to $START."},{"name":"/steering-flow set-action \u003cACTION-ID> [ARGS...]","description":"User-only action trigger with UI notification output. May advance interactive states."},{"name":"/steering-flow action \u003cACTION-ID> [ARGS...]","description":"Invoke an action on the active FSM and send the result to the model context. Rejects interactive states."},{"name":"/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]","description":"Generate this static HTML visualizer as UI notification output."}],"tools":[{"name":"load-steering-flow","description":"LLM tool for loading a flow config."},{"name":"steering-flow-action","description":"LLM tool for invoking an action with positional args. Rejects interactive states."},{"name":"save-to-steering-flow","description":"LLM tool for writing tape values."},{"name":"get-steering-flow-info","description":"LLM tool for inspecting active flow state."}]};
+var LAYOUTS = [{"nodes":[{"id":"$START","x":221,"y":78},{"id":"audit","x":221,"y":254},{"id":"consolidate","x":221,"y":430},{"id":"dispatch_router","x":314,"y":606},{"id":"challenge","x":108,"y":782},{"id":"aggregate","x":108,"y":958},{"id":"aggregate_router","x":267.5,"y":1134},{"id":"counter_challenge","x":267.5,"y":1310},{"id":"verify","x":324,"y":1486},{"id":"report","x":427,"y":254},{"id":"decision_gate","x":427,"y":430},{"id":"$END","x":314,"y":782}],"edges":[{"srcId":"$START","tgtId":"audit","actionId":"submit_gather","points":[{"x":221,"y":116},{"x":221,"y":166},{"x":221,"y":216}],"label":{"text":"submit_gather","idealX":221,"idealY":166,"x":221,"y":166,"w":111,"h":23}},{"srcId":"audit","tgtId":"consolidate","actionId":"submit_audit","points":[{"x":221,"y":292},{"x":221,"y":342},{"x":221,"y":392}],"label":{"text":"submit_audit","idealX":221,"idealY":342,"x":221,"y":342,"w":104,"h":23}},{"srcId":"consolidate","tgtId":"dispatch_router","actionId":"submit_consolidation","points":[{"x":221,"y":468},{"x":221,"y":518},{"x":273.8409090909091,"y":568}],"label":{"text":"submit_consolidation","idealX":229.2613788997956,"idealY":525.8172187438926,"x":229.2613788997956,"y":525.8172187438926,"w":160,"h":23}},{"srcId":"dispatch_router","tgtId":"challenge","actionId":"has_non_decisions","points":[{"x":246,"y":633.7037037037037},{"x":98,"y":694},{"x":103.68181818181819,"y":744}],"label":{"text":"has_non_decisions","idealX":148.69868503348593,"idealY":673.3449801715427,"x":148.69868503348593,"y":662.4111302500776,"w":139,"h":23}},{"srcId":"dispatch_router","tgtId":"challenge","actionId":"has_decisions_to_challenge","points":[{"x":265.20454545454544,"y":644},{"x":201,"y":694},{"x":148.1590909090909,"y":744}],"label":{"text":"has_decisions_to_challenge","idealX":204.40435346472682,"idealY":691.3488220805667,"x":204.40435346472682,"y":686.855359449467,"w":202,"h":23}},{"srcId":"dispatch_router","tgtId":"$END","actionId":"all_clear","points":[{"x":314,"y":644},{"x":314,"y":694},{"x":314,"y":744}],"label":{"text":"all_clear","idealX":314,"idealY":694,"x":314,"y":709.4273125525649,"w":83,"h":23}},{"srcId":"challenge","tgtId":"aggregate","actionId":"submit_challenge","points":[{"x":108,"y":820},{"x":108,"y":870},{"x":108,"y":920}],"label":{"text":"submit_challenge","idealX":108,"idealY":870,"x":108,"y":870,"w":132,"h":23}},{"srcId":"aggregate","tgtId":"aggregate_router","actionId":"submit_aggregate","points":[{"x":108,"y":996},{"x":108,"y":1046},{"x":199.5,"y":1096.4827586206898}],"label":{"text":"submit_aggregate","idealX":131.86055789933016,"idealY":1059.1644457375614,"x":131.86055789933016,"y":1059.1644457375614,"w":132,"h":23}},{"srcId":"aggregate_router","tgtId":"counter_challenge","actionId":"has_surviving_non_decisions","points":[{"x":263.1818181818182,"y":1172},{"x":257.5,"y":1222},{"x":263.1818181818182,"y":1272}],"label":{"text":"has_surviving_non_decisions","idealX":257.5,"idealY":1222,"x":257.5,"y":1210,"w":209,"h":23}},{"srcId":"aggregate_router","tgtId":"counter_challenge","actionId":"has_surviving_decisions","points":[{"x":335.5,"y":1171.5172413793102},{"x":427,"y":1222},{"x":335.5,"y":1272.4827586206898}],"label":{"text":"has_surviving_decisions","idealX":427,"idealY":1222,"x":427,"y":1234,"w":181,"h":23}},{"srcId":"aggregate_router","tgtId":"dispatch_router","actionId":"none_survived","points":[{"x":335.5,"y":1096.4827586206898},{"x":427,"y":1046},{"x":427,"y":958},{"x":427,"y":870},{"x":427,"y":782},{"x":427,"y":694},{"x":362.79545454545456,"y":644}],"label":{"text":"none_survived","idealX":427,"idealY":881.5626943658871,"x":427,"y":881.5626943658871,"w":111,"h":23}},{"srcId":"counter_challenge","tgtId":"verify","actionId":"submit_counter","points":[{"x":267.5,"y":1348},{"x":267.5,"y":1398},{"x":299.60227272727275,"y":1448}],"label":{"text":"submit_counter","idealX":270.0442812358114,"idealY":1401.9627743141841,"x":270.0442812358114,"y":1401.9627743141841,"w":118,"h":23}},{"srcId":"verify","tgtId":"dispatch_router","actionId":"submit_verify","points":[{"x":392,"y":1450.6961651917404},{"x":493.5,"y":1398},{"x":493.5,"y":1310},{"x":493.5,"y":1222},{"x":493.5,"y":1134},{"x":493.5,"y":1046},{"x":493.5,"y":958},{"x":493.5,"y":870},{"x":493.5,"y":782},{"x":493.5,"y":694},{"x":382,"y":639.3370473537605}],"label":{"text":"submit_verify","idealX":493.5,"idealY":1041.092797859475,"x":493.5,"y":1041.092797859475,"w":111,"h":23}},{"srcId":"report","tgtId":"decision_gate","actionId":"submit_report","points":[{"x":427,"y":292},{"x":427,"y":342},{"x":427,"y":392}],"label":{"text":"submit_report","idealX":427,"idealY":342,"x":427,"y":342,"w":111,"h":23}},{"srcId":"decision_gate","tgtId":"dispatch_router","actionId":"decisions_made","points":[{"x":427,"y":468},{"x":427,"y":518},{"x":362.79545454545456,"y":568}],"label":{"text":"decisions_made","idealX":414.62213004047754,"idealY":527.6394031543184,"x":414.62213004047754,"y":527.6394031543184,"w":118,"h":23}}],"graphWidth":535,"graphHeight":1564,"warnings":[]}];
+var NODE_R = 28;
 
-${dragNodesCode}
+
+function enableDragNodes(nodeSelection, nodePos, edgeGroups, nodeR) {
+  var drag = d3.drag()
+    .clickDistance(4)
+    .on('start', function() { d3.select(this).raise(); svg.style('cursor','grabbing'); })
+    .on('drag', function(evt, d) {
+      var np = nodePos[d.id];
+      if (!np) return;
+      np.x = evt.x;
+      np.y = evt.y;
+      d3.select(this).attr('transform', 'translate(' + np.x + ',' + np.y + ')');
+
+      // Update connected edges — recompute label midpoint and use polylineSplit
+      edgeGroups.each(function(ed) {
+        if (ed.src !== d.id && ed.tgt !== d.id) return;
+        var group = d3.select(this);
+        var sn = nodePos[ed.src], tn = nodePos[ed.tgt];
+        if (!sn || !tn) return;
+        ed.srcNode.x = sn.x; ed.srcNode.y = sn.y;
+        ed.tgtNode.x = tn.x; ed.tgtNode.y = tn.y;
+        // Recompute label midpoint
+        ed.labelX = (sn.x + tn.x) / 2;
+        ed.labelY = (sn.y + tn.y) / 2;
+        // Fallback to simple 3-point path during drag (dagre points are stale)
+        var sy = sn.y < tn.y ? sn.y + nodeR : sn.y - nodeR;
+        var ty = sn.y < tn.y ? tn.y - nodeR : tn.y + nodeR;
+        var fallbackPts = [{x:sn.x,y:sy},{x:ed.labelX,y:ed.labelY},{x:tn.x,y:ty}];
+        var seg = polylineSplit(fallbackPts, ed.labelX, ed.labelY);
+        group.select('.edge-path-1').attr('d', seg.d1);
+        group.select('.edge-path-2').attr('d', seg.d2);
+        group.select('.edge-label').attr('transform', 'translate(' + ed.labelX + ',' + ed.labelY + ')');
+      });
+    })
+    .on('end', function() { svg.style('cursor','grab'); });
+  nodeSelection.call(drag);
+}
+
 
 /* refs */
 const svg = d3.select('#graph');
@@ -170,13 +178,13 @@ svg.call(zoom);
 svg.on('dblclick.zoom', null);
 
 /* header info */
-document.getElementById('subtitle').textContent = DOC.sourceLabel + ' \\u00b7 ' + DOC.generatedAt;
+document.getElementById('subtitle').textContent = DOC.sourceLabel + ' \u00b7 ' + DOC.generatedAt;
 document.getElementById('mode').textContent = DOC.sourceMode;
 document.getElementById('counts').textContent = DOC.fsms.length + ' FSM(s)';
 DOC.fsms.forEach(function(fsm, i) {
   var opt = document.createElement('option');
   opt.value = String(i);
-  opt.textContent = (fsm.id === DOC.activeFsmId ? '\\u25cf ' : '') + fsm.name;
+  opt.textContent = (fsm.id === DOC.activeFsmId ? '\u25cf ' : '') + fsm.name;
   fsmSelect.appendChild(opt);
 });
 fsmSelect.value = String(Math.max(0, DOC.fsms.findIndex(function(f) { return f.id === DOC.activeFsmId; })));
@@ -208,15 +216,15 @@ function showOverview(fsm) {
 
 function showState(fsm, state) {
   details.innerHTML =
-    '<div class="section"><h2>State \\u00b7 ' + esc(state.id) + '</h2>' +
-    (state.isEpsilon ? '<span class="pill">\\u03b5 epsilon</span> ' : '') +
+    '<div class="section"><h2>State \u00b7 ' + esc(state.id) + '</h2>' +
+    (state.isEpsilon ? '<span class="pill">\u03b5 epsilon</span> ' : '') +
     (state.isInteractive ? '<span class="pill" style="border-color:#d2a8ff;color:#d2a8ff">interactive</span> ' : '') +
     (state.id === fsm.currentStateId ? '<span class="pill" style="border-color:#58a6ff;color:#58a6ff">current</span>' : '') +
     '<pre style="margin-top:8px">' + esc(state.description) + '</pre></div>' +
     '<div class="section"><h2>Actions (' + state.actions.length + ')</h2>' +
     (state.actions.length
       ? state.actions.map(function(a) {
-          return '<div class="row"><b>' + esc(a.id) + '</b> \\u2192 <span style="color:#58a6ff">' + esc(a.nextStateId) + '</span>' +
+          return '<div class="row"><b>' + esc(a.id) + '</b> \u2192 <span style="color:#58a6ff">' + esc(a.nextStateId) + '</span>' +
           '<br><span class="muted">' + esc(a.description) + '</span>' +
           '<br><span class="muted">condition: ' + esc(a.conditionSummary) + '</span></div>';
         }).join('')
@@ -226,7 +234,7 @@ function showState(fsm, state) {
 
 function showAction(action) {
   details.innerHTML =
-    '<div class="section"><h2>Action \\u00b7 ' + esc(action.id) + '</h2>' +
+    '<div class="section"><h2>Action \u00b7 ' + esc(action.id) + '</h2>' +
     '<div class="kv"><span class="muted">Next state</span><span style="color:#58a6ff">' + esc(action.nextStateId) + '</span></div>' +
     (action.isDefault ? '<span class="pill" style="border-color:#f0883e;color:#f0883e">default</span>' : '') +
     '<pre style="margin-top:8px">' + esc(action.description) + '</pre></div>' +
@@ -281,7 +289,7 @@ function getOutgoingLeveled(startId, adj, epsilonSet) {
 
   var queue = [];
   (adj.succ[startId] || []).forEach(function(s) {
-    edgeLevel[startId + '\u2192' + s] = 0;
+    edgeLevel[startId + '→' + s] = 0;
     if (!(s in nodeLevel)) { nodeLevel[s] = 0; queue.push({ id: s, level: 0 }); }
   });
 
@@ -290,7 +298,7 @@ function getOutgoingLeveled(startId, adj, epsilonSet) {
     if (!epsilonSet.has(cur.id) || cur.level >= MAX_CASCADE) continue;
     var nextLevel = cur.level + 1;
     (adj.succ[cur.id] || []).forEach(function(s) {
-      var eKey = cur.id + '\u2192' + s;
+      var eKey = cur.id + '→' + s;
       if (!(eKey in edgeLevel)) {
         edgeLevel[eKey] = nextLevel;
         if (!(s in nodeLevel)) {
@@ -322,7 +330,7 @@ function applyHighlight(stateId) {
     }
   });
   d3.selectAll('.edge-group').each(function(d) {
-    var key = d.src + '\u2192' + d.tgt;
+    var key = d.src + '→' + d.tgt;
     var level = edgeLevel[key];
     var isHl = level !== undefined;
     var paths = d3.select(this).selectAll('.edge-path');
@@ -431,14 +439,14 @@ function renderFsm(fsmIndex) {
   /* build action lookup for edge data */
   var actionMap = {};
   fsm.states.forEach(function(s) {
-    s.actions.forEach(function(a) { actionMap[s.id + '\\0' + a.nextStateId + '\\0' + a.id] = a; });
+    s.actions.forEach(function(a) { actionMap[s.id + '\0' + a.nextStateId + '\0' + a.id] = a; });
   });
 
   /* edges from pre-computed layout */
   var edgeData = layout.edges.map(function(e) {
     var src = nodePos[e.srcId], tgt = nodePos[e.tgtId];
     if (!src || !tgt) return null;
-    var action = actionMap[e.srcId + '\\0' + e.tgtId + '\\0' + e.actionId];
+    var action = actionMap[e.srcId + '\0' + e.tgtId + '\0' + e.actionId];
     return {
       src: e.srcId, tgt: e.tgtId, name: e.actionId,
       edge: { label: e.actionId, action: action },
@@ -498,7 +506,7 @@ function renderFsm(fsmIndex) {
     }
     if (!d.edge.action) { hideTooltip(); return; }
     showTooltip(evt, '<b>' + esc(d.edge.action.id) + '</b>' +
-      '<br><span class="tt-muted">' + esc(d.src) + ' \\u2192 ' + esc(d.tgt) + '</span>' +
+      '<br><span class="tt-muted">' + esc(d.src) + ' \u2192 ' + esc(d.tgt) + '</span>' +
       '<br><span class="tt-muted">' + esc(d.edge.action.conditionSummary || '') + '</span>');
   });
   edgeLabels.on('mousemove', function(evt) {
@@ -528,7 +536,7 @@ function renderFsm(fsmIndex) {
   nodes.filter(function(s) { return s.isInteractive; }).append('circle').attr('class','interactive-ring').attr('r', nodeR + 7);
   nodes.append('circle').attr('class','node-fill').attr('r', nodeR);
   nodes.append('text').attr('class','label').attr('text-anchor','middle').attr('dy', '-0.15em')
-    .text(function(s) { return s.id.length > 12 ? s.id.slice(0, 11) + '\\u2026' : s.id; });
+    .text(function(s) { return s.id.length > 12 ? s.id.slice(0, 11) + '\u2026' : s.id; });
   nodes.append('text').attr('class','sublabel').attr('text-anchor','middle').attr('dy', '1.2em')
     .text(function(s) { return s.actions.length + ' action' + (s.actions.length !== 1 ? 's' : ''); });
 
@@ -536,10 +544,10 @@ function renderFsm(fsmIndex) {
   nodes.on('mouseenter', function(evt, s) {
     if (!lockedNodeId) applyHighlight(s.id);
     showTooltip(evt, '<b>' + esc(s.id) + '</b>' +
-      (s.isEpsilon ? ' <span class="tt-muted">\\u03b5</span>' : '') +
+      (s.isEpsilon ? ' <span class="tt-muted">\u03b5</span>' : '') +
       (s.isInteractive ? ' <span style="color:#b388ff">interactive</span>' : '') +
       '<br><span class="tt-muted">' + s.actions.length + ' action(s)</span>' +
-      (s.id === fsm.currentStateId ? '<br><span style="color:#58a6ff">\\u25cf current state</span>' : ''));
+      (s.id === fsm.currentStateId ? '<br><span style="color:#58a6ff">\u25cf current state</span>' : ''));
   });
   nodes.on('mousemove', function(evt) {
     tooltip.style.left = Math.min(evt.clientX + 14, window.innerWidth - 300) + 'px';
@@ -629,7 +637,6 @@ document.getElementById('resetBtn').addEventListener('click', function() {
 
 
 });
-<\/script>
+</script>
 </body>
-</html>`;
-}
+</html>

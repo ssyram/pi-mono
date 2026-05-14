@@ -222,6 +222,7 @@ This design eliminates shell injection from LLM-supplied arguments.
 Args are built by interpolating placeholder tokens in the YAML `args` array (`@engine.ts:53-58`):
 
 - **`${$TAPE_FILE}`** — replaced with the absolute path to the current FSM's `tape.json`.
+- **`${$session.id}`** — replaced with the current pi session id.
 - **`${arg-name}`** — replaced with the LLM-supplied value for the action argument named `arg-name`.
 
 The resolved list of interpolated strings is passed directly to the OS (no shell involved).
@@ -1023,7 +1024,8 @@ Design conditions so that re-running them after a rollback produces the same (or
 ### 5. Expecting environment variables
 
 There are no special environment variables injected by the engine. The child process inherits the parent's `process.env` (`@engine.ts:65`), but there are no `SF_*` variables or similar. All flow-specific data comes through:
-- The tape file path (argv)
+- The tape file path (argv via `${$TAPE_FILE}`)
+- Runtime variables (argv via placeholders such as `${$session.id}`)
 - LLM-supplied positional arguments (argv)
 - Config args from the YAML (argv)
 
@@ -1077,7 +1079,7 @@ The tape file path is passed as an argv element, not an environment variable. Pl
 // argv = [node, /abs/script.mjs, ...interpolated_args]
 // process.argv[0] = node binary path
 // process.argv[1] = script path
-// process.argv[2..] = args after ${$TAPE_FILE} and ${arg-name} substitution
+// process.argv[2..] = args after ${$TAPE_FILE}, ${$session.id}, and ${arg-name} substitution
 const args = process.argv.slice(2);
 // Positions are exactly what you declared in YAML args[]; use named tokens to avoid positional arithmetic
 ```

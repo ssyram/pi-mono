@@ -26,11 +26,21 @@ function resolveTokenRelToFlow(token: string, flowDir: string): string {
 }
 
 /**
+ * Runtime variables available to condition interpolation.
+ */
+type RuntimeVariables = {
+	session: {
+		id: string;
+	};
+};
+
+/**
  * Interpolate `${placeholder}` tokens in a single string.
  *
  * Recognised placeholders:
- *   `${$TAPE_FILE}` — absolute path to the current tape.json
- *   `${arg-name}`   — value of a named action argument (A-Za-z0-9_- prefix, no leading $)
+ *   `${$TAPE_FILE}`  — absolute path to the current tape.json
+ *   `${$session.id}` — current pi session id
+ *   `${arg-name}`    — value of a named action argument (A-Za-z0-9_- prefix, no leading $)
  *
  * Unknown placeholders are left as-is.
  */
@@ -38,9 +48,11 @@ function interpolatePlaceholders(
 	token: string,
 	tapePath: string,
 	namedArgs: Record<string, string>,
+	runtimeVars?: RuntimeVariables,
 ): string {
 	return token.replace(/\$\{([^}]+)\}/g, (match, key: string) => {
 		if (key === "$TAPE_FILE") return tapePath;
+		if (key === "$session.id") return runtimeVars?.session.id ?? "";
 		if (Object.prototype.hasOwnProperty.call(namedArgs, key)) return namedArgs[key]!;
 		return match;
 	});
@@ -50,7 +62,7 @@ function interpolatePlaceholders(
  * Run a condition command.
  *
  * The condition is spawned WITHOUT a shell (no injection surface).
- * Before path resolution, `${$TAPE_FILE}` and `${arg-name}` placeholders
+ * Before path resolution, `${$TAPE_FILE}`, `${$session.id}`, and `${arg-name}` placeholders
  * are interpolated in `cmd` and every element of `args`.
  *
  * Stdout contract: first line = "true" | "false"; remainder = reason.
@@ -65,6 +77,7 @@ export async function runCondition(
 	cwd: string,
 	flowDir: string,
 	namedArgs: Record<string, string> = {},
+	runtimeVars?: RuntimeVariables,
 ): Promise<ConditionResult> {
 	if ("default" in condition && condition.default === true) {
 		return { ok: true, reason: "default transition" };
@@ -72,9 +85,9 @@ export async function runCondition(
 	// Type narrowing: must be { cmd, args? }
 	const rawCmd = (condition as { cmd: string }).cmd;
 	const rawConfigArgs = (condition as { args?: string[] }).args ?? [];
-	const cmd = resolveTokenRelToFlow(interpolatePlaceholders(rawCmd, tapePath, namedArgs), flowDir);
+	const cmd = resolveTokenRelToFlow(interpolatePlaceholders(rawCmd, tapePath, namedArgs, runtimeVars), flowDir);
 	const configArgs = rawConfigArgs.map((a) =>
-		resolveTokenRelToFlow(interpolatePlaceholders(a, tapePath, namedArgs), flowDir),
+		resolveTokenRelToFlow(interpolatePlaceholders(a, tapePath, namedArgs, runtimeVars), flowDir),
 	);
 	const argv: string[] = [...configArgs, ...llmArgs];
 
@@ -192,6 +205,7 @@ export async function executeAction(
 	positionalArgs: string[],
 	tapePath: string,
 	cwd: string,
+	runtimeVars?: RuntimeVariables,
 ): Promise<TransitionResult> {
 	const current = runtime.states[runtime.current_state_id];
 	if (!current) {
@@ -243,7 +257,7 @@ export async function executeAction(
 		namedArgs[action.arguments[i]!.arg_name] = positionalArgs[i]!;
 	}
 
-	const condResult = await runCondition(action.condition, tapePath, positionalArgs, cwd, runtime.flow_dir, namedArgs);
+	const condResult = await runCondition(action.condition, tapePath, positionalArgs, cwd, runtime.flow_dir, namedArgs, runtimeVars);
 
 	if (!condResult.ok) {
 		return {
@@ -283,7 +297,7 @@ export async function executeAction(
 	}
 
 	// Chain through epsilon states
-	const epsilonResult = await chainEpsilon(runtime, chain, tapePath, cwd);
+	const epsilonResult = await chainEpsilon(runtime, chain, tapePath, cwd, runtimeVars);
 	if (!epsilonResult.ok) {
 		// Rollback: restore state but preserve tape (tape is cumulative, never rolled back)
 		runtime.current_state_id = snapshotStateId;
@@ -321,6 +335,7 @@ export async function chainEpsilon(
 	chain: TransitionRecord[],
 	tapePath: string,
 	cwd: string,
+	runtimeVars?: RuntimeVariables,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
 	let depth = 0;
 	while (depth < MAX_EPSILON_DEPTH) {
@@ -337,7 +352,7 @@ export async function chainEpsilon(
 		const failReasons: string[] = [];
 		for (const act of state.actions) {
 			// NDA-04: pass explicit empty namedArgs (epsilon states have no declared args)
-			const res = await runCondition(act.condition, tapePath, [], cwd, runtime.flow_dir, {});
+			const res = await runCondition(act.condition, tapePath, [], cwd, runtime.flow_dir, {}, runtimeVars);
 			if (res.ok) {
 				matched = act;
 				matchedReason = res.reason;
@@ -367,14 +382,10 @@ export async function chainEpsilon(
 }
 
 /** Initial entry: after loading, run epsilon chain from $START. */
-export async function enterStart(
-	runtime: FSMRuntime,
-	tapePath: string,
-	cwd: string,
-): Promise<TransitionResult> {
+export async function enterStart(runtime: FSMRuntime, tapePath: string, cwd: string, runtimeVars?: RuntimeVariables): Promise<TransitionResult> {
 	const snapshot = runtime.current_state_id;
 	const chain: TransitionRecord[] = [];
-	const epsilonResult = await chainEpsilon(runtime, chain, tapePath, cwd);
+	const epsilonResult = await chainEpsilon(runtime, chain, tapePath, cwd, runtimeVars);
 	if (!epsilonResult.ok) {
 		runtime.current_state_id = snapshot;
 		return {
@@ -472,7 +483,7 @@ export function renderTransitionResult(runtime: FSMRuntime, result: TransitionRe
 		lines.push("");
 		lines.push(renderStateView(runtime));
 		lines.push("");
-		lines.push("_Hint: use `save-to-steering-flow` to write context into tape.json; condition commands can reference the tape path via `${$TAPE_FILE}` in their `cmd` or `args`._");
+		lines.push("_Hint: use `save-to-steering-flow` to write context into tape.json; condition commands can reference the tape path via `${$TAPE_FILE}` and the session id via `${$session.id}` in their `cmd` or `args`._");
 	}
 	return lines.join("\n");
 }
