@@ -188,7 +188,8 @@ When you receive a user message, before doing anything else:
 4. **Order** all actionable items into an execution sequence by dependency.
 5. **Append all executable items** to the task system as todos before
    implementation starts. Task-first is mandatory; if tasks are not listed,
-   do not start or continue execution.
+   do not start or continue execution. Yet, EXCEPT when explicitly required by the user,
+   or the new task contradicts explicitly the existing tasks, DO NOT override / expire existing tasks.
 6. **Ask only when**:
    - Target location/scope is genuinely unknown, or
    - Two interpretations differ by 2x+ in effort, or

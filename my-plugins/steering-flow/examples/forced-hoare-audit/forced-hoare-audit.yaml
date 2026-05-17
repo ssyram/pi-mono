@@ -1,0 +1,680 @@
+# Forced /hoare-audit steering-flow (v4).
+#
+# Charter: ./design.md  (sections 9, 10, 10b, 11 are the v4 deltas)
+#
+# Tape (Lv2 D9: still position-only, plus two count keys that are NOT state):
+#   TARGET_DIR              # absolute path to the audited target directory
+#   WORKING_DIR             # absolute path to the audit work directory
+#   NON_DECISION_COUNT      # current-round confirmed Non-Decisional count.
+#                           # Engine forces -1 on entry to count_gate (D10);
+#                           # LLM must explicitly save the integer value.
+#   DECISION_COUNT          # current-round confirmed Decisional count.
+#                           # Same entry-clear / explicit-submit rule.
+#
+# Every other fact lives as a markdown file under WORKING_DIR. Gates verify
+# files exist relative to WORKING_DIR and read frontmatter when routing.
+#
+# Working Dir skeleton (D3 + D12 v4 additions):
+#   setup.md
+#   lessons.md                        (D13: append-only cross-round memory)
+#   spec/{lv3-design-report.md, index.md, …optional originals or Lv1/Lv2 refs}
+#   audit/<perspective>.md            (>= 2; index.md lists them)
+#   findings/{candidates.md,rejected.md,confirmed.md,
+#             non-decisional.md,decisional.md}
+#   challenge/<finding-id>.md         (per candidate; index.md lists them)
+#   counter/<finding-id>.md           (per surviving finding; index.md lists them)
+#   confirm/<confirmer-id>.md         (P14 / D12: ≤3 改动点 per confirmer)
+#   fix/{plan.md,patch-report.md,pinning.md}
+#   verify/verify.md                  (frontmatter `verify_status: pass|fail|blocked`)
+#   decision/{request.md,answer.md}   (answer.md frontmatter `status: answered|deferred`)
+#   correctness-audit.md
+#
+# Routing facts that cannot be expressed by file existence are encoded as
+# YAML frontmatter values (`verify_status`, `boundary_changed`, `status`,
+# `has_items`) and read by `require-frontmatter-eq.mjs`. Round-counter
+# routing reads the two tape count keys via `require-key-zero.mjs` and
+# `require-key-gt-zero.mjs`.
+
+task_description: |
+  Forced Hoare audit (v4). Establish absolute TARGET_DIR / WORKING_DIR
+  (both must exist), build Lv3 design report under spec/, run >= 2
+  multi-path Whole Audits, compile candidates, challenge,
+  counter-challenge (with regression-aware double-edged disprove, P13),
+  reduce/classify, run an independent Non-Decisional plan-confirm round
+  (each confirmer owns ≤ 3 改动点, P14), fix+pin+verify, then enter
+  count_gate where the LLM MUST submit NON_DECISION_COUNT and
+  DECISION_COUNT for the round. Routing is mechanical: ND > 0 → redo
+  fix; ND=0, D>0 → decision_gate; ND=0, D=0 → final_synthesis. Every
+  fresh agent (audit / challenge / counter / confirm) must declare
+  lessons.md in its frontmatter inputs (D13).
+
+states:
+  # 1. setup ─ pin Target Dir / Working Dir; create setup.md and empty lessons.md.
+  - state_id: "$START"
+    state_desc: |
+      Step 1 — setup. Pick Target Dir (audit subject) and Working Dir
+      (where all audit artifacts live). Working Dir search order:
+        1. user-specified
+        2. <TARGET_DIR>/audit/  or  <TARGET_DIR>/.audit/
+        3. <repo-root>/docs/audit/<audit-id>/  or  .pi/audits/<audit-id>/
+
+      Both TARGET_DIR and WORKING_DIR must be ABSOLUTE paths to EXISTING
+      directories. The setup gate enforces this; relative paths or
+      missing directories fail immediately rather than silently looping.
+
+      Create:
+        WORKING_DIR/setup.md     - audit_id, target dir, working-dir choice
+                                   and reasoning, plus the audit intent
+                                   (one-paragraph Lv0-style anchor).
+        WORKING_DIR/lessons.md   - empty append-only memory file. May be
+                                   pre-seeded with a "## Notes" header but
+                                   no entries are required at setup time.
+                                   Future fresh agents (audit / challenge /
+                                   counter / confirm) MUST list it in
+                                   frontmatter inputs (D13).
+
+      After this step, only the count keys (NON_DECISION_COUNT,
+      DECISION_COUNT) ever mutate on the tape; TARGET_DIR / WORKING_DIR
+      are immutable.
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_setup
+        action_desc: "Submit setup: tape carries absolute existing TARGET_DIR / WORKING_DIR; setup.md and lessons.md exist."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-all.mjs"
+            - "require-absolute-existing-dir.mjs"
+            - TARGET_DIR
+            - "--"
+            - "require-absolute-existing-dir.mjs"
+            - WORKING_DIR
+            - "--"
+            - "require-file-in-workdir.mjs"
+            - "setup.md,lessons.md"
+            - "${$TAPE_FILE}"
+        next_state_id: spec_gate
+
+  # 2. spec-gate ─ Lv3 design report floor.
+  - state_id: spec_gate
+    state_desc: |
+      Step 2 — spec gate. Build WORKING_DIR/spec/ as the Lv3 contract source.
+
+      Required files under spec/:
+        lv3-design-report.md  - Lv3 design report (方案层) describing what
+                                Lv4 should do.
+        index.md              - lists every spec file with origin tag.
+
+      `/hoare-audit` works on Lv3 ↔ Lv4. Lv0 / Lv1 / Lv2 are not audit
+      inputs; they only enter as optional reference materials when the
+      user wants extra arbitration leverage. They live under spec/ with
+      `origin: original` and are NOT checked here.
+
+      Every spec file must carry frontmatter `origin: original` (cp from
+      project) or `origin: reconstructed` (derived via /hoare-design).
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_spec
+        action_desc: "Submit spec gate."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-file-in-workdir.mjs"
+            - "spec/lv3-design-report.md,spec/index.md"
+            - "${$TAPE_FILE}"
+        next_state_id: audits
+
+  # 3. audits ─ multi-path Whole Audit; every report must list lessons.md.
+  - state_id: audits
+    state_desc: |
+      Step 3 — multi-path Whole Audit (D5 + D13).
+
+      Launch >= 2 fresh agents. Each agent reads spec/, TARGET_DIR fully,
+      AND lessons.md (cross-round memory of rejected/overruled/resolved
+      forms — DO NOT re-raise findings whose form already appears there
+      as rejected or overruled, P15).
+
+      Each report at audit/<perspective>.md MUST carry frontmatter:
+        actor_id, fresh: true, inputs: [spec/, <TARGET_DIR>, lessons.md]
+      and end with a "Candidate Findings" section listing finding_id,
+      contract_kind, violated_contract, counterexample, and reachability.
+
+      Required artifacts:
+        audit/index.md  - lists perspectives included in this round
+        audit/*.md      - >= 2 perspective reports, each with lessons.md
+                          in inputs.
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_audits
+        action_desc: "Submit multi-path Whole Audits with lessons.md declared in every report's inputs."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-all.mjs"
+            - "require-file-in-workdir.mjs"
+            - "audit/index.md"
+            - "--"
+            - "require-dir-frontmatter-input.mjs"
+            - "audit"
+            - "lessons.md"
+            - "${$TAPE_FILE}"
+        next_state_id: compile
+
+  # 4. compile ─ structured candidate findings.
+  - state_id: compile
+    state_desc: |
+      Step 4 — compile candidates.
+
+      Merge audit/<perspective>.md "Candidate Findings" into:
+        findings/candidates.md  - structured candidate findings
+        findings/rejected.md    - precompile rejections (no contract,
+                                  unreachable, off-threat-model, style nits)
+
+      Each candidate must reference at least one violated contract in
+      spec/lv3-design-report.md plus a concrete counterexample.
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_compile
+        action_desc: "Submit compiled candidates."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-file-in-workdir.mjs"
+            - "findings/candidates.md,findings/rejected.md"
+            - "${$TAPE_FILE}"
+        next_state_id: challenge
+
+  # 5. challenge ─ fresh disprove-first; lessons.md mandatory in inputs.
+  - state_id: challenge
+    state_desc: |
+      Step 5 — disprove-first challenge (P6 + D6 + D13).
+
+      For every candidate finding, a fresh agent writes
+      challenge/<finding-id>.md attempting to refute it. Default inputs
+      are spec/ + TARGET_DIR + the single finding claim + lessons.md.
+      Frontmatter MUST record:
+        actor_id, fresh: true,
+        inputs: [spec/, <TARGET_DIR>, lessons.md, …]
+        verdict: upheld | weakened | rejected | inconclusive
+
+      lessons.md is mandatory so this round does not re-walk reasoning
+      that prior rounds already settled (P15).
+
+      Required: challenge/index.md listing every challenged finding-id
+      with its verdict; every challenge/<finding-id>.md carries
+      lessons.md in inputs.
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_challenge
+        action_desc: "Submit challenge results; every report's frontmatter inputs includes lessons.md."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-all.mjs"
+            - "require-file-in-workdir.mjs"
+            - "challenge/index.md"
+            - "--"
+            - "require-dir-frontmatter-input.mjs"
+            - "challenge"
+            - "lessons.md"
+            - "${$TAPE_FILE}"
+        next_state_id: counter_and_verify
+
+  # 6. counter + lead verify ─ regression-aware double-edged disprove (P13).
+  - state_id: counter_and_verify
+    state_desc: |
+      Step 6 — counter-challenge + lead verification (P13 + D13).
+
+      For every finding still alive after challenge (upheld, weakened,
+      or inconclusive), a DIFFERENT fresh agent writes
+      counter/<finding-id>.md. The counter MUST simultaneously check
+      both failure modes:
+        (a) Is the finding actually rooted in a Lv3 contract violation?
+        (b) Is the prior challenge itself flawed (does it construct a
+            counterexample or cite Lv3 / Lv4 line numbers)?
+
+      "Spec did not say so" by itself is NOT a valid rejection. Honest
+      ambiguity → mark `verdict: inconclusive` and route to lead review,
+      NOT `verdict: rejected`.
+
+      Every counter/<finding-id>.md frontmatter:
+        actor_id, fresh: true,
+        inputs: [spec/, <TARGET_DIR>, lessons.md, challenge/<id>.md]
+        verdict: upheld | weakened | rejected | inconclusive
+
+      Then the lead auditor records what was personally verified in
+      findings/confirmed.md and updates findings/rejected.md if more
+      candidates die here.
+
+      Required artifacts: counter/index.md, findings/confirmed.md;
+      every counter/*.md carries lessons.md in inputs.
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_counter
+        action_desc: "Submit counter-challenges and confirmation."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-all.mjs"
+            - "require-file-in-workdir.mjs"
+            - "counter/index.md,findings/confirmed.md"
+            - "--"
+            - "require-dir-frontmatter-input.mjs"
+            - "counter"
+            - "lessons.md"
+            - "${$TAPE_FILE}"
+        next_state_id: reduce_and_classify
+
+  # 7. reduce + classify ─ root cause then split.
+  - state_id: reduce_and_classify
+    state_desc: |
+      Step 7 — reduce and classify (P8).
+
+      Deduplicate confirmed findings, isolate root causes, drop symptoms
+      whose root is also confirmed, then split:
+        findings/non-decisional.md  - unambiguous fixes the agent will
+                                      implement
+        findings/decisional.md      - root findings that need human
+                                      judgment
+
+      Both files MUST exist with frontmatter:
+        ---
+        has_items: true | false
+        ---
+      `has_items: true` if the file lists one or more findings; `false`
+      if the body is exactly the explicit phrase
+      "No items in this round.".
+
+      The count_gate (step 9) reads the integer counts the LLM submits
+      to the tape; has_items is a fast secondary check used by the
+      decision-gate router (step 10).
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_classification
+        action_desc: "Submit classification."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-file-in-workdir.mjs"
+            - "findings/non-decisional.md,findings/decisional.md"
+            - "${$TAPE_FILE}"
+        next_state_id: nondecisional_confirm
+
+  # 8. nondecisional_confirm ─ independent plan-confirm round (P14 + D13).
+  - state_id: nondecisional_confirm
+    state_desc: |
+      Step 8 — Non-Decisional plan-confirm (P14, new in v4).
+
+      Plan-confirm is independent from plan-execute. Spawn fresh
+      confirmers; each owns AT MOST 3 改动点 from
+      findings/non-decisional.md. For every owned 改动点 the confirmer
+      must produce three explicit judgments in its
+      confirm/<confirmer-id>.md report:
+        1. Necessity   - why the change is required by Lv3 contracts in
+                         spec/lv3-design-report.md (cite contract id).
+        2. Regression  - whether the change risks weakening any
+                         currently-honored contract; cite the contract.
+        3. Spec cover  - is the proposed fix shape directly entailed by
+                         existing Lv3? If NOT, the confirmer MAY
+                         conservatively recommend up-classifying the
+                         改动点 to Decisional, but MUST NOT silently
+                         delete or rewrite findings/non-decisional.md.
+
+      "Doc did not mention it" is the DEFAULT trigger for moving an item
+      to Decisional, not a default green light to proceed.
+
+      Every confirm/<confirmer-id>.md frontmatter:
+        actor_id, fresh: true,
+        inputs: [spec/, <TARGET_DIR>, lessons.md, findings/non-decisional.md]
+        owned_findings: [<id>, …]   # length ≤ 3
+        verdict: confirm-all | partial | escalate-to-decisional
+        upclassify_recommendations: [<id>, …]   # may be empty
+
+      Required artifacts: confirm/index.md (lists confirmer-ids and the
+      改动点 each owns; the union of owned sets must cover every entry
+      in findings/non-decisional.md exactly once); each confirm/*.md
+      carries lessons.md in inputs.
+
+      If any confirmer recommends up-classify, the lead auditor MUST
+      update findings/decisional.md and findings/non-decisional.md
+      before submitting this gate.
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_confirm
+        action_desc: "Submit independent Non-Decisional plan confirmations; lessons.md present in every confirmer's inputs."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-all.mjs"
+            - "require-file-in-workdir.mjs"
+            - "confirm/index.md"
+            - "--"
+            - "require-dir-frontmatter-input.mjs"
+            - "confirm"
+            - "lessons.md"
+            - "${$TAPE_FILE}"
+        next_state_id: fix_pin_verify
+
+  # 9. fix + pin + verify.
+  - state_id: fix_pin_verify
+    state_desc: |
+      Step 9 — fix, pin, verify (P9).
+
+      Implement minimal root-cause fixes for findings/non-decisional.md
+      (only items confirmed in step 8). For every confirmed code
+      finding, add a deterministic regression test or property test, OR
+      explicitly state in fix/pinning.md why it cannot be pinned. Verify
+      the patch and the pins.
+
+      Required artifacts:
+        fix/plan.md           - mapping each non-decisional finding to a fix
+        fix/patch-report.md   - changed files and rationale
+                                FRONTMATTER must include:
+                                  boundary_changed: true | false
+        fix/pinning.md        - per code finding: test path or non-pinnable rationale
+        verify/verify.md      - commands, results, failures, pre-existing noise
+                                FRONTMATTER must include:
+                                  verify_status: pass | fail | blocked
+
+      If there are zero non-decisional findings, all four files must
+      still exist with explicit "Nothing to fix this round." content
+      and frontmatter (verify_status: pass, boundary_changed: false),
+      so the audit trail is uniform.
+
+      After this submission, verify_router routes by verify_status and
+      boundary_changed BEFORE the LLM is allowed to submit counts.
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_fix
+        action_desc: "Submit fix+pin+verify."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-file-in-workdir.mjs"
+            - "fix/plan.md,fix/patch-report.md,fix/pinning.md,verify/verify.md"
+            - "${$TAPE_FILE}"
+        next_state_id: verify_router
+
+  # verify_router ─ epsilon. fail/blocked → redo; boundary changed → spec_gate;
+  # pass and clean → count_gate. Entering count_gate carries the entry-clear
+  # side effect (D10): both count keys are forced to -1 BEFORE the LLM is
+  # asked to submit the round counts.
+  - state_id: verify_router
+    state_desc: "Route after verify: fail/blocked → redo; boundary changed → spec_gate; pass → count_gate (with entry-clear)."
+    is_epsilon: true
+    actions:
+      - action_id: redo_fix
+        action_desc: "verify_status fail or blocked → redo fix_pin_verify."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-frontmatter-eq.mjs"
+            - "verify/verify.md"
+            - "verify_status"
+            - "fail,blocked"
+            - "${$TAPE_FILE}"
+        next_state_id: fix_pin_verify
+      - action_id: boundary_then_spec
+        action_desc: "verify pass + boundary_changed=true → reset counts and re-enter spec_gate."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-all.mjs"
+            - "require-frontmatter-eq.mjs"
+            - "fix/patch-report.md"
+            - "boundary_changed"
+            - "true"
+            - "--"
+            - "tape-key-set.mjs"
+            - "NON_DECISION_COUNT"
+            - "-1"
+            - "--"
+            - "tape-key-set.mjs"
+            - "DECISION_COUNT"
+            - "-1"
+            - "${$TAPE_FILE}"
+        next_state_id: spec_gate
+      - action_id: pass_to_count_gate
+        action_desc: "Default: verify pass, no boundary change → enter count_gate via entry-clear."
+        condition:
+          default: true
+        next_state_id: count_gate_entry_clear
+
+  # count_gate_entry_clear ─ epsilon. Side-effect-only state that forces
+  # NON_DECISION_COUNT and DECISION_COUNT to -1 before the LLM-facing
+  # count_gate. Existence is required by D10 entry-clear protocol: a
+  # mechanical clear must precede every LLM-driven count submission.
+  - state_id: count_gate_entry_clear
+    state_desc: "Entry-clear: forces NON_DECISION_COUNT=DECISION_COUNT=-1 (D10), then routes to count_gate."
+    is_epsilon: true
+    actions:
+      - action_id: clear_and_enter
+        action_desc: "Set both count keys to -1 and route to count_gate."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-all.mjs"
+            - "tape-key-set.mjs"
+            - "NON_DECISION_COUNT"
+            - "-1"
+            - "--"
+            - "tape-key-set.mjs"
+            - "DECISION_COUNT"
+            - "-1"
+            - "${$TAPE_FILE}"
+        next_state_id: count_gate
+      - action_id: clear_default
+        action_desc: "Default fallback (must never trigger; tape-key-set always returns true)."
+        condition:
+          default: true
+        next_state_id: count_gate
+
+  # 10. count_gate ─ LLM MUST submit NON_DECISION_COUNT and DECISION_COUNT
+  #    via save-to-steering-flow. The two keys were forced to -1 by the
+  #    inbound transitions; the gate refuses to advance until both are
+  #    integers other than -1 (D10 entry-clear protocol).
+  - state_id: count_gate
+    state_desc: |
+      Step 10 — round-counter gate (P11 + P12 + D10, new in v4).
+
+      The two count keys NON_DECISION_COUNT and DECISION_COUNT have been
+      forced to -1 on entry. You MUST submit BOTH via:
+
+        save-to-steering-flow NON_DECISION_COUNT <integer>
+        save-to-steering-flow DECISION_COUNT <integer>
+
+      Where:
+        NON_DECISION_COUNT  = number of confirmed Non-Decisional findings
+                              still requiring fix in THIS round (post
+                              fix-pin-verify). Should be 0 unless a
+                              regression or follow-up emerged during
+                              fix-pin-verify.
+        DECISION_COUNT      = number of confirmed Decisional findings
+                              still pending human judgment in THIS round.
+
+      Both numbers are mechanical — count entries in
+      findings/non-decisional.md and findings/decisional.md (taking
+      `has_items` and the up-classify recommendations from step 8 into
+      account). LLM-narrative does not advance the gate; the literal
+      integer values do.
+
+      Once both keys are submitted with values ≠ -1, action
+      submit_counts routes to count_router which mechanically picks the
+      next state.
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_counts
+        action_desc: "Submit NON_DECISION_COUNT and DECISION_COUNT (both must be integers other than -1)."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-all.mjs"
+            - "require-key-not-eq.mjs"
+            - "NON_DECISION_COUNT"
+            - "-1"
+            - "--"
+            - "require-key-not-eq.mjs"
+            - "DECISION_COUNT"
+            - "-1"
+            - "${$TAPE_FILE}"
+        next_state_id: count_router
+
+  # count_router ─ epsilon. Mechanical convergence (D11).
+  #   ND > 0                  → fix_pin_verify
+  #   ND = 0 ∧ D > 0          → decision_gate
+  #   ND = 0 ∧ D = 0          → final_synthesis
+  - state_id: count_router
+    state_desc: "Route by submitted counts (D11 mechanical convergence)."
+    is_epsilon: true
+    actions:
+      - action_id: nd_remaining
+        action_desc: "NON_DECISION_COUNT > 0 → return to fix_pin_verify."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-key-gt-zero.mjs"
+            - "NON_DECISION_COUNT"
+            - "${$TAPE_FILE}"
+        next_state_id: fix_pin_verify
+      - action_id: d_remaining
+        action_desc: "NON_DECISION_COUNT = 0 ∧ DECISION_COUNT > 0 → decision_gate."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-all.mjs"
+            - "require-key-zero.mjs"
+            - "NON_DECISION_COUNT"
+            - "--"
+            - "require-key-gt-zero.mjs"
+            - "DECISION_COUNT"
+            - "${$TAPE_FILE}"
+        next_state_id: decision_gate
+      - action_id: all_clear
+        action_desc: "Both counts zero → final_synthesis."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-both-zero.mjs"
+            - "NON_DECISION_COUNT"
+            - "DECISION_COUNT"
+            - "${$TAPE_FILE}"
+        next_state_id: final_synthesis
+      - action_id: count_invalid
+        action_desc: "Default fallback: counts present but neither >0 nor =0 — send back to fix_pin_verify."
+        condition:
+          default: true
+        next_state_id: fix_pin_verify
+
+  # 11. decision_gate ─ human decides; route resets count keys when answered.
+  - state_id: decision_gate
+    state_desc: |
+      Step 11 — decision gate (interactive, P10).
+
+      Present findings/decisional.md as a structured request. Required:
+        decision/request.md   - situation, options, recommendation,
+                                spec/architecture impact, exact questions
+        decision/answer.md    - human answers; frontmatter:
+                                  status: answered | deferred
+
+      "answered" → flow returns to spec_gate so any contract change is
+                  reflected before the next round; count keys reset to -1.
+      "deferred" → finalizes the audit as blocked_decision in
+                  final_synthesis.
+
+      After the human answers, append the overruled / accepted decision
+      to lessons.md so future fresh rounds do not re-litigate the same
+      shape (P15 overruled bucket).
+    is_epsilon: false
+    interactive: true
+    actions:
+      - action_id: submit_decision_answered
+        action_desc: "Human answered. Reset counts and re-enter spec_gate."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-all.mjs"
+            - "require-file-in-workdir.mjs"
+            - "decision/request.md,decision/answer.md"
+            - "--"
+            - "require-frontmatter-eq.mjs"
+            - "decision/answer.md"
+            - "status"
+            - "answered"
+            - "--"
+            - "tape-key-set.mjs"
+            - "NON_DECISION_COUNT"
+            - "-1"
+            - "--"
+            - "tape-key-set.mjs"
+            - "DECISION_COUNT"
+            - "-1"
+            - "${$TAPE_FILE}"
+        next_state_id: spec_gate
+      - action_id: submit_decision_deferred
+        action_desc: "Human deferred. Finalize audit with blocked_decision marker."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-all.mjs"
+            - "require-file-in-workdir.mjs"
+            - "decision/request.md,decision/answer.md"
+            - "--"
+            - "require-frontmatter-eq.mjs"
+            - "decision/answer.md"
+            - "status"
+            - "deferred"
+            - "${$TAPE_FILE}"
+        next_state_id: final_synthesis
+
+  # 12. final_synthesis ─ correctness-audit.md.
+  - state_id: final_synthesis
+    state_desc: |
+      Step 12 — final synthesis (D8).
+
+      Write WORKING_DIR/correctness-audit.md as a synthesis of artifacts
+      already on disk. Required sections:
+        - Executive Summary
+        - Spec Sources (with origin tags)
+        - Target Profile
+        - Confirmed Findings & Fixes
+        - Rejected / Inconclusive
+        - Decision Log (mark deferred decisions explicitly)
+        - Test Pinning Map
+        - Remaining Limitations
+        - Assumptions
+        - Lessons Index (cite lessons.md sections)
+        - Artifact Index (relative paths)
+
+      The final report must reference real files in WORKING_DIR; it
+      does not replace them.
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_final
+        action_desc: "Submit final correctness-audit.md."
+        condition:
+          cmd: "node"
+          args:
+            - "../scripts/require-file-in-workdir.mjs"
+            - "correctness-audit.md"
+            - "${$TAPE_FILE}"
+        next_state_id: "$END"
+
+  - state_id: "$END"
+    state_desc: |
+      Audit complete. Working Dir holds the full evidence chain;
+      correctness-audit.md is the synthesis; lessons.md is the
+      cross-round memory for future audits of the same TARGET_DIR.
+    is_epsilon: false
+    interactive: false
+    actions: []

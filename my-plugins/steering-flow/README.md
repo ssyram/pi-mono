@@ -249,3 +249,27 @@ See [`docs/builtin-procedures.md`](docs/builtin-procedures.md) for the full regi
 argument contracts, and authoring notes. Note that `soft-review/*` builtins are
 placeholder stubs and fail closed until you replace their helper scripts with
 real reviewer implementations.
+
+## Known limitations
+
+### Windows: condition timeouts can leak grandchildren
+
+The engine kills runaway condition processes by sending `SIGKILL` to the
+whole process group via `process.kill(-pid, "SIGKILL")`. This relies on
+POSIX process-group semantics (we spawn with `detached: true`).
+
+On Windows there is no negative-PID process-group concept. The neg-PID
+call throws and the engine falls back to `child.kill("SIGKILL")`, which
+only signals the direct child. If the condition helper itself spawned
+grandchildren (for example, an `npm run test` invocation that started
+vitest workers), those grandchildren survive the timeout. The engine
+still reports the timeout and advances; the orphaned subtree leaks
+into the user's process table.
+
+Workaround: write condition helpers that do not spawn long-running
+subprocesses, or run on Linux / macOS. The engine emits a one-shot
+`[steering-flow] WARNING: ... grandchildren on timeout on Windows ...`
+to stderr the first time a condition spawns on a Windows host.
+
+This is decision **D-001** in `.pi/audits/forced-flow-self-test/decision/`
+(option 3: "accept the leak with a warning").

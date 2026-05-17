@@ -98,9 +98,14 @@ export function registerSteeringFlowCommand(options: SteeringFlowCommandOptions)
 					return;
 				}
 				if (subcommand === "pop") {
+					// pop is a user-initiated stack op. Show the result in the UI but
+					// do NOT inject it as a user message: the agent may still be
+					// mid-turn (the runtime would then reject the queued message),
+					// and a popped FSM has no continuation the agent needs to see.
+					// If a parent FSM remains, the agent_end stop-hook will surface
+					// its state on the next turn boundary.
 					const text = await core.pop();
 					ctx.ui.notify(text.split("\n")[0], "info");
-					pi.sendUserMessage(text);
 					return;
 				}
 				if (subcommand === "save") {

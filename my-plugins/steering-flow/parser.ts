@@ -312,6 +312,22 @@ export function buildFSM(config: FlowConfig): ParsedFSM {
 		throw new ParseError("$END is not reachable from $START — flow would deadlock");
 	}
 
+	// Every defined state must be forward-reachable from $START. Unreachable
+	// states would otherwise survive parse-time checks (the dead-end pass
+	// below only iterates `fwdVisited`) and could later be entered via
+	// `/steering-flow set-state`, dropping the runtime into a closed
+	// component with no path back to $END.
+	const unreachable: string[] = [];
+	for (const id of stateMap.keys()) {
+		if (!fwdVisited.has(id)) unreachable.push(id);
+	}
+	if (unreachable.length > 0) {
+		throw new ParseError(
+			`Unreachable states detected (not forward-reachable from $START): ${unreachable.join(", ")}. ` +
+			"Every defined state must be reachable from $START so it can be entered through ordinary transitions.",
+		);
+	}
+
 	// Reverse BFS from $END: every state reachable from $START must be able to reach $END.
 	// Build reverse adjacency (if state A has an action with next_state_id B, then B → A in reverse).
 	const reverseAdj = new Map<string, string[]>();

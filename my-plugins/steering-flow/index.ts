@@ -8,8 +8,7 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";import { Type } from "@sinclair/typebox";
 
 import { parseFlowConfig, buildFSM, ParseError, isReservedJsName } from "./parser.js";
 import type { State, FSMRuntime, TransitionResult } from "./types.js";
@@ -453,6 +452,29 @@ function friendlyError(e: unknown): string {
 // Plugin entry point
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * One-shot platform notice: on Windows, condition processes that spawn
+ * grandchildren may leak when timed out, because killTree relies on POSIX
+ * negative-PID `process.kill` to terminate the whole process group. This is
+ * a documented limitation (D-001 in the forced-hoare-audit dogfood; see
+ * README ‘Known limitations’). We surface it once per Node process via
+ * `ctx.ui.notify`, on the first `load-steering-flow` invocation.
+ */
+let windowsKillTreeNoticed = false;
+function maybeNotifyWindowsKillTreeLimitation(ctx: ExtensionContext): void {
+	if (windowsKillTreeNoticed) return;
+	if (process.platform !== "win32") return;
+	windowsKillTreeNoticed = true;
+	if (!ctx.hasUI) return;
+	ctx.ui.notify(
+		"steering-flow: condition timeouts may leak grandchildren on Windows. " +
+		"killTree only signals the direct child here. See README ‘Known limitations’.",
+		"warning",
+	);
+}
+
 export default async function steeringFlow(pi: ExtensionAPI) {
 	// ── Tools ─────────────────────────────────────────────────────────────
 
@@ -467,6 +489,7 @@ export default async function steeringFlow(pi: ExtensionAPI) {
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const sessionId = ctx.sessionManager.getSessionId();
 			const cwd = ctx.sessionManager.getCwd();
+			maybeNotifyWindowsKillTreeLimitation(ctx);
 			try {
 				const res = await withSessionLock(sessionId, () => loadAndPush(cwd, sessionId, params.file));
 				const text = res.ok ? res.text : res.error;
