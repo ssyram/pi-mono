@@ -441,6 +441,38 @@ describe("openai-completions tool_choice", () => {
 		expect(response.content).toEqual([{ type: "text", text: "OK" }]);
 	});
 
+	it("errors when a stream ends after only null finish_reason chunks", async () => {
+		mockState.chunks = [
+			{
+				id: "chatcmpl-truncated",
+				choices: [{ delta: { content: "partial answer" }, finish_reason: null }],
+			},
+			{
+				id: "chatcmpl-truncated",
+				choices: [{ delta: { content: "partial answer" }, finish_reason: null }],
+			},
+		];
+
+		const { compat: _compat, ...baseModel } = getModel("openai", "gpt-4o-mini")!;
+		const model = { ...baseModel, api: "openai-completions" } as const;
+		const response = await streamSimple(
+			model,
+			{
+				messages: [
+					{
+						role: "user",
+						content: "Reply with a longer sentence",
+						timestamp: Date.now(),
+					},
+				],
+			},
+			{ apiKey: "test" },
+		).result();
+
+		expect(response.stopReason).toBe("error");
+		expect(response.errorMessage).toBe("Stream ended without finish_reason");
+	});
+
 	it("coalesces tool call deltas by stable index when provider mutates ids mid-stream", async () => {
 		mockState.chunks = [
 			{
@@ -819,7 +851,7 @@ describe("openai-completions tool_choice", () => {
 		expect(response.usage.totalTokens).toBe(43);
 	});
 
-	it("preserves prompt_tokens_details.cache_write_tokens from chunk usage", async () => {
+	it("preserves prompt_tokens_details cache read/write fields from chunk usage", async () => {
 		mockState.chunks = [
 			{
 				id: "chatcmpl-cache-write",
@@ -853,13 +885,14 @@ describe("openai-completions tool_choice", () => {
 			{ apiKey: "test" },
 		).result();
 
-		expect(response.usage.input).toBe(50);
-		expect(response.usage.cacheRead).toBe(20);
+		// cached_tokens is documented as cache reads; cache_write_tokens is separate.
+		expect(response.usage.input).toBe(20);
+		expect(response.usage.cacheRead).toBe(50);
 		expect(response.usage.cacheWrite).toBe(30);
 		expect(response.usage.totalTokens).toBe(105);
 	});
 
-	it("preserves prompt_tokens_details.cache_write_tokens from choice usage fallback", async () => {
+	it("preserves prompt_tokens_details cache read/write fields from choice usage fallback", async () => {
 		mockState.chunks = [
 			{
 				id: "chatcmpl-cache-write-choice",
@@ -898,8 +931,9 @@ describe("openai-completions tool_choice", () => {
 			{ apiKey: "test" },
 		).result();
 
-		expect(response.usage.input).toBe(50);
-		expect(response.usage.cacheRead).toBe(20);
+		// cached_tokens is documented as cache reads; cache_write_tokens is separate.
+		expect(response.usage.input).toBe(20);
+		expect(response.usage.cacheRead).toBe(50);
 		expect(response.usage.cacheWrite).toBe(30);
 		expect(response.usage.totalTokens).toBe(105);
 	});
