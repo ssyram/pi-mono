@@ -9,7 +9,7 @@
  * - Stage 4: Completion report
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { ULTRAWORK_ENTRY_TYPE } from "../commands/ultrawork.js";
 import type { UltraWorkStateData } from "../commands/ultrawork.js";
 

@@ -6,9 +6,9 @@
  * UI change callback for persistent TUI widget.
  */
 
-import { StringEnum } from "@mariozechner/pi-ai";
-import type { BeforeAgentStartEvent, ExtensionAPI, ExtensionContext, SessionEntry } from "@mariozechner/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { StringEnum } from "@earendil-works/pi-ai";
+import type { BeforeAgentStartEvent, ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 import { executeAdd, executeClear, executeDoneOrExpire, executeList, executeStart, executeUpdateDeps } from "./task-actions.js";
 import type { Task, TaskChangeCallback, TaskDetails } from "./task-helpers.js";
 import { cloneTasks, type TaskStateEntry, validateTaskStateEntryData } from "./task-state-entry.js";

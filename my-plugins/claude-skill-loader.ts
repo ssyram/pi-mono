@@ -34,7 +34,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, extname, join } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const CLAUDE_DIR = join(homedir(), ".claude");
 const PLUGINS_JSON = join(CLAUDE_DIR, "plugins", "installed_plugins.json");

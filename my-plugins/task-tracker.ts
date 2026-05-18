@@ -20,11 +20,11 @@
  *   - Agent then decides: keep working, mark done, or expire stale tasks
  */
 
-import type { AssistantMessage } from "@mariozechner/pi-ai";
-import { StringEnum } from "@mariozechner/pi-ai";
-import type { BeforeAgentStartEvent, ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
-import { matchesKey, Text, truncateToWidth } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { StringEnum } from "@earendil-works/pi-ai";
+import type { BeforeAgentStartEvent, ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
+import { matchesKey, Text, truncateToWidth } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
 
 const CONFIRM_STOP_TAG = "<CONFIRM-TO-STOP/>";
 

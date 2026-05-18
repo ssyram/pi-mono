@@ -12,7 +12,7 @@ import { join } from "node:path";
 import type {
   ExtensionAPI,
   ToolResultEvent,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 // ─── Lazy comment content patterns ─────────────────────────────────────────
 // These match the *content* of a comment (text after stripping the comment

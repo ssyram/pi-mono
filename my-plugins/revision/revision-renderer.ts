@@ -1,6 +1,6 @@
-import type { MessageRenderer, Theme } from "@mariozechner/pi-coding-agent";
-import { Box, Text } from "@mariozechner/pi-tui";
-import type { Component } from "@mariozechner/pi-tui";
+import type { MessageRenderer, Theme } from "@earendil-works/pi-coding-agent";
+import { Box, Text } from "@earendil-works/pi-tui";
+import type { Component } from "@earendil-works/pi-tui";
 import type { RevisionDetails } from "./types.js";
 
 const VALID_MODES: Set<string> = new Set(["default", "visible-summary", "no-summary"]);

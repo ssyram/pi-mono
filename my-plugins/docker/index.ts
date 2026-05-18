@@ -12,9 +12,9 @@
  *   ctrl+shift+down   - scroll sidebar down
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import type { OverlayHandle } from "@mariozechner/pi-tui";
-import { Key } from "@mariozechner/pi-tui";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { OverlayHandle } from "@earendil-works/pi-tui";
+import { Key } from "@earendil-works/pi-tui";
 import { DOCKER_MAX_HEIGHT_PERCENT, DockerComponent } from "./component.js";
 import type { DockerSection } from "./component.js";
 import { DockerWidthWarningComponent } from "./width-warning.js";

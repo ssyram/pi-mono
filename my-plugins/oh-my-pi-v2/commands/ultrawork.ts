@@ -5,7 +5,7 @@
  * Reading state back happens in hooks/ultrawork-prompt.ts via ctx.sessionManager.
  */
 
-import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
 export const ULTRAWORK_ENTRY_TYPE = "omp-ultrawork-state";
 

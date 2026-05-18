@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getAgentDir } from "@mariozechner/pi-coding-agent";
-import type { OverlayOptions, OverlayMargin, SizeValue } from "@mariozechner/pi-tui";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import type { OverlayOptions, OverlayMargin, SizeValue } from "@earendil-works/pi-tui";
 import {
 	CONFIG_FILE_NAME,
 	DEFAULT_MIN_CONTENT_LINES,

@@ -1,4 +1,4 @@
-import type { OverlayAnchor, OverlayMargin, SizeValue } from "@mariozechner/pi-tui";
+import type { OverlayAnchor, OverlayMargin, SizeValue } from "@earendil-works/pi-tui";
 
 export const CONFIG_FILE_NAME = "docker.json";
 export const DEFAULT_MIN_TERM_WIDTH = 50;

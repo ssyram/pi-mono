@@ -2,7 +2,7 @@
  * TUI renderers for the task tool — renderCall and renderResult.
  */
 
-import { Text } from "@mariozechner/pi-tui";
+import { Text } from "@earendil-works/pi-tui";
 import type { Task, TaskDetails } from "./task-helpers.js";
 import { formatTaskContent, statusTag } from "./task-helpers.js";
 

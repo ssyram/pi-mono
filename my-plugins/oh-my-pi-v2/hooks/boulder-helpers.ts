@@ -3,7 +3,7 @@
  * Message inspection heuristics for restart suppression.
  */
 
-import type { AssistantMessage } from "@mariozechner/pi-ai";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 
 import { CONFIRM_STOP_TAG } from "../tools/task.js";
 

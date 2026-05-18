@@ -6,8 +6,8 @@
  * Activation = symlink into .pi/extensions/ or ~/.pi/agent/extensions/.
  */
 
-import type { ExtensionAPI, KeybindingsManager } from "@mariozechner/pi-coding-agent";
-import { getAgentDir } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, KeybindingsManager } from "@earendil-works/pi-coding-agent";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { join } from "path";
 
 import { discoverExtensions, findNameConflicts } from "./discover-extensions.js";

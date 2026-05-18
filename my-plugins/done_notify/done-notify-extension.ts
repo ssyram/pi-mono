@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { collectMessages } from "../recap/collect.js";
 import { loadRecapConfig } from "../recap/config.js";

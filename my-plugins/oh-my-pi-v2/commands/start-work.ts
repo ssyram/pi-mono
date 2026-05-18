@@ -16,9 +16,9 @@
  *   - Read existing plan, detect stage, continue from current state
  */
 
-import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
-import { SessionManager, createAgentSession } from "@mariozechner/pi-coding-agent";
-import type { AgentSession } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { SessionManager, createAgentSession } from "@earendil-works/pi-coding-agent";
+import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { writeFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 

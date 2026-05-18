@@ -7,7 +7,7 @@ import {
 	type ExtensionCommandContext,
 	SessionManager,
 	createAgentSession,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 import { readAgentPrompt, extractLastAssistantText } from "./utils.js";
 

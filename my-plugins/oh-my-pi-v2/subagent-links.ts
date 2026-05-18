@@ -1,5 +1,5 @@
 import { lstat, mkdir, readFile, readlink, realpath, readdir, rm, writeFile } from "node:fs/promises";
-import { getAgentDir } from "@mariozechner/pi-coding-agent";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { dirname, join, relative, resolve } from "node:path";
 
 const FRONTMATTER_SEPARATOR = "---\n";

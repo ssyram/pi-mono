@@ -9,8 +9,8 @@
  * - Displays per-role char counts in docker when available, otherwise in the footer status.
  * - Purely visual — does NOT affect model behavior or conversation context.
  */
-import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@mariozechner/pi-coding-agent";
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 
 const ENTRY_TYPE = "sys-prompt-last";
 const STATUS_KEY = "ctx-chars";

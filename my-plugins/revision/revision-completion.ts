@@ -1,6 +1,6 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { AssistantMessage, Message } from "@mariozechner/pi-ai";
-import type { ExtensionContext, SessionEntry, SessionMessageEntry } from "@mariozechner/pi-coding-agent";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AssistantMessage, Message } from "@earendil-works/pi-ai";
+import type { ExtensionContext, SessionEntry, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
 import type { RevisionSessionState } from "./revision-session-state.js";
 import { clearRevisionSessionState } from "./revision-session-state.js";
 import {

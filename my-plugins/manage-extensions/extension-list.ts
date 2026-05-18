@@ -1,5 +1,5 @@
-import type { KeybindingsManager, Theme } from "@mariozechner/pi-coding-agent";
-import { Component, Input, truncateToWidth } from "@mariozechner/pi-tui";
+import type { KeybindingsManager, Theme } from "@earendil-works/pi-coding-agent";
+import { Component, Input, truncateToWidth } from "@earendil-works/pi-tui";
 import { buildChanges } from "./build-changes.js";
 import type { PreflightIssue } from "./apply-changes.js";
 import { preflightChanges } from "./apply-changes.js";

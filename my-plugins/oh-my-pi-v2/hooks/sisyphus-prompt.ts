@@ -5,7 +5,7 @@
  * Injects: Sisyphus core prompt + code enforcement rules + agent list + category guidance
  */
 
-import type { BeforeAgentStartEvent, ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { BeforeAgentStartEvent, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DEFAULT_CATEGORIES, type OhMyPiConfig } from "../config.js";

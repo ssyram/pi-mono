@@ -3,7 +3,7 @@
  * Adapted from oh-my-pi-v2/hooks/boulder-helpers.ts.
  */
 
-import type { AssistantMessage } from "@mariozechner/pi-ai";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 
 function findLastAssistant(
 	messages: readonly { role: string; content?: unknown }[],

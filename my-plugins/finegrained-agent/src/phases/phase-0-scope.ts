@@ -4,9 +4,9 @@
  * Runs a single sub-session to analyze the target and produce a ScopeResult.
  */
 
-import { Type } from "@sinclair/typebox";
-import { defineTool, type ModelRegistry } from "@mariozechner/pi-coding-agent";
-import type { Api, Model } from "@mariozechner/pi-ai";
+import { Type } from "typebox";
+import { defineTool, type ModelRegistry } from "@earendil-works/pi-coding-agent";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import { loadPrompt, runPhase, type PhaseRunResult } from "../phase-runner.js";
 import type { ScopeResult, ScopeFile } from "../types.js";
 

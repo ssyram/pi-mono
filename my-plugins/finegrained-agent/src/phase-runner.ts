@@ -8,7 +8,7 @@
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Api, Model } from "@mariozechner/pi-ai";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import {
 	createAgentSession,
 	createExtensionRuntime,
@@ -18,8 +18,8 @@ import {
 	type ModelRegistry,
 	type ResourceLoader,
 	type ToolDefinition,
-} from "@mariozechner/pi-coding-agent";
-import type { TSchema } from "@sinclair/typebox";
+} from "@earendil-works/pi-coding-agent";
+import type { TSchema } from "typebox";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

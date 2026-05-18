@@ -19,7 +19,7 @@
  * Named after Sisyphus' boulder — it keeps rolling back.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import type { CountdownHandle } from "./boulder-countdown.js";
 import { startCountdown, startSilentCountdown } from "./boulder-countdown.js";

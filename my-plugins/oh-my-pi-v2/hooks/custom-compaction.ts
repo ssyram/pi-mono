@@ -9,13 +9,13 @@
 import type {
   ExtensionAPI,
   SessionBeforeCompactEvent,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import {
   convertToLlm,
   serializeConversation,
-} from "@mariozechner/pi-coding-agent";
-import { completeSimple } from "@mariozechner/pi-ai";
-import type { Api, Model, SimpleStreamOptions } from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-coding-agent";
+import { completeSimple } from "@earendil-works/pi-ai";
+import type { Api, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
 
 import type { Task } from "../tools/task.js";
 

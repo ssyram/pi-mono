@@ -1,5 +1,5 @@
-import type { ModelRegistry } from "@mariozechner/pi-coding-agent";
-import { completeSimple } from "@mariozechner/pi-ai";
+import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
+import { completeSimple } from "@earendil-works/pi-ai";
 import { REVISION_RECAP_MODEL } from "./revision-state.js";
 
 const SYSTEM_PROMPT = `You are summarizing what changed between an original assistant response and its revised version.

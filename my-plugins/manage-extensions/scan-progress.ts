@@ -1,6 +1,6 @@
-import type { Theme } from "@mariozechner/pi-coding-agent";
-import type { Component } from "@mariozechner/pi-tui";
-import { getKeybindings, truncateToWidth } from "@mariozechner/pi-tui";
+import type { Theme } from "@earendil-works/pi-coding-agent";
+import type { Component } from "@earendil-works/pi-tui";
+import { getKeybindings, truncateToWidth } from "@earendil-works/pi-tui";
 import { getCurrentProgress } from "./scan-cache.js";
 
 export function buildScanProgressComponent(theme: Theme, done: () => void): Component {

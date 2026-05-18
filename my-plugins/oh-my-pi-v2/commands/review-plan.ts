@@ -2,13 +2,13 @@
  * /omp-review — Momus plan review for executability.
  */
 
-import type { AssistantMessage } from "@mariozechner/pi-ai";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
 	type ExtensionAPI,
 	type ExtensionCommandContext,
 	SessionManager,
 	createAgentSession,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 import { readAgentPrompt, extractLastAssistantText } from "./utils.js";
 

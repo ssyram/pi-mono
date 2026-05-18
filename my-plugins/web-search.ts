@@ -20,9 +20,9 @@
  *   - preferred: prioritize live crawling for fresher results
  */
 
-import { StringEnum } from "@mariozechner/pi-ai";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { StringEnum } from "@earendil-works/pi-ai";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 
 const EXA_MCP_URL = "https://mcp.exa.ai/mcp";
 const DEFAULT_NUM_RESULTS = 8;

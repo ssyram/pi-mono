@@ -8,7 +8,7 @@
  * Read with: tail -f /tmp/pi-500-diag.log
  */
 import { appendFileSync } from "node:fs";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const LOG = "/tmp/pi-500-diag.log";
 

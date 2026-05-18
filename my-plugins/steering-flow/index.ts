@@ -8,7 +8,8 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";import { Type } from "@sinclair/typebox";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 
 import { parseFlowConfig, buildFSM, ParseError, isReservedJsName } from "./parser.js";
 import type { State, FSMRuntime, TransitionResult } from "./types.js";

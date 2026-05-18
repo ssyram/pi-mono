@@ -5,8 +5,8 @@
  * consistency analysis pipeline with parallel sub-agent sessions.
  */
 
-import { getModel } from "@mariozechner/pi-ai";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { getModel } from "@earendil-works/pi-ai";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { runPipeline } from "./src/pipeline.js";
 
 const NANO_PROVIDER = "openai";

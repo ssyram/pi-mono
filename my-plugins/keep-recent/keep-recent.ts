@@ -1,8 +1,8 @@
-import { completeSimple } from "@mariozechner/pi-ai";
-import type { Context, Message } from "@mariozechner/pi-ai";
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { ExtensionAPI, ExtensionCommandContext, SessionEntry } from "@mariozechner/pi-coding-agent";
-import { convertToLlm, serializeConversation } from "@mariozechner/pi-coding-agent";
+import { completeSimple } from "@earendil-works/pi-ai";
+import type { Context, Message } from "@earendil-works/pi-ai";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { ExtensionAPI, ExtensionCommandContext, SessionEntry } from "@earendil-works/pi-coding-agent";
+import { convertToLlm, serializeConversation } from "@earendil-works/pi-coding-agent";
 import { boundLlmInput, formatTruncationNotice, parseMaxChars } from "./bounded-llm-input.js";
 import { findFirstKeptEntryId } from "./find-cut-point.js";
 import { parseArgs, type KeepRecentOptions } from "./parse-args.js";
