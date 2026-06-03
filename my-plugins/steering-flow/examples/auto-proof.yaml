@@ -1,0 +1,199 @@
+task_description: |
+  自动定理证明工作流。Agent 生成证明，Verifier 形式验证。
+  核心机制：迭代修复 + 策略升级 + 草图分解 + 人工升级出口。
+
+states:
+  # ═══════════════════════════════════════════════════════════════
+  # S0: 规划
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "$START"
+    state_desc: "规划：理解定理、分解子目标、写 proof sketch。输出 proof-plan.md。"
+    is_epsilon: false
+    actions:
+      - action_id: "submit_plan"
+        action_desc: "提交证明计划。将 PLAN_TEXT 写入 proof-plan.md。"
+        arguments:
+          - arg_name: "PLAN_TEXT"
+            arg_desc: "证明计划：包含定理陈述、子目标分解、每个子目标的策略说明。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/save-plan.mjs", "${$TAPE_FILE}", "${PLAN_TEXT}"]
+        next_state_id: "check_plan"
+
+  # ═══════════════════════════════════════════════════════════════
+  # G0: 计划门禁（epsilon — 自动路由）
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "check_plan"
+    state_desc: "门禁：检查 proof-plan.md 是否包含证明目标。通过→实现，不通过→回规划。"
+    is_epsilon: true
+    actions:
+      - action_id: "plan_ok"
+        action_desc: "计划包含证明目标，进入实现阶段。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key.mjs", "PLAN_HAS_GOAL", "1", "${$TAPE_FILE}"]
+        next_state_id: "impl"
+      - action_id: "plan_reject"
+        action_desc: "计划不完整：缺少证明目标陈述或子目标分解，回到规划。"
+        condition: { default: true }
+        next_state_id: "$START"
+
+  # ═══════════════════════════════════════════════════════════════
+  # S1: 实现
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "impl"
+    state_desc: "根据计划生成证明候选。禁止使用 sorry/Admitted/oops。输出证明文件。"
+    is_epsilon: false
+    actions:
+      - action_id: "submit_proof"
+        action_desc: "提交证明候选，进入验证。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key.mjs", "PROOF_WRITTEN", "1", "${$TAPE_FILE}"]
+        next_state_id: "verify"
+
+  # ═══════════════════════════════════════════════════════════════
+  # G1: 验证门禁（epsilon — 自动路由）
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "verify"
+    state_desc: "门禁：运行形式验证器。通过→清理，失败→修复。"
+    is_epsilon: true
+    actions:
+      - action_id: "verify_pass"
+        action_desc: "验证器通过，进入清理归档。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key.mjs", "VERIFY_RESULT", "pass", "${$TAPE_FILE}"]
+        next_state_id: "clean"
+      - action_id: "verify_fail"
+        action_desc: "验证失败，进入迭代修复（保留错误上下文）。"
+        condition: { default: true }
+        next_state_id: "repair"
+
+  # ═══════════════════════════════════════════════════════════════
+  # S2: 迭代修复
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "repair"
+    state_desc: "带编译器错误反馈的迭代修复。读取 verify-output.txt，分类错误，应用修复。"
+    is_epsilon: false
+    actions:
+      - action_id: "submit_repair"
+        action_desc: "提交修复后的证明，进入预算检查。"
+        arguments:
+          - arg_name: "REPAIR_STRATEGY"
+            arg_desc: "修复策略说明：引理替换/策略切换/类型标注/重写。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key.mjs", "REPAIR_SUBMITTED", "1", "${$TAPE_FILE}"]
+        next_state_id: "budget_check"
+
+  # ═══════════════════════════════════════════════════════════════
+  # G2: 修复预算门禁（epsilon — 自动路由）
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "budget_check"
+    state_desc: "门禁：检查修复轮次是否超过预算（≤5轮）。未超→重试实现，超了→失败分析。"
+    is_epsilon: true
+    actions:
+      - action_id: "budget_ok"
+        action_desc: "修复预算未耗尽，回到实现重试。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key-lte.mjs", "REPAIR_COUNT", "5", "${$TAPE_FILE}"]
+        next_state_id: "impl"
+      - action_id: "budget_exhausted"
+        action_desc: "修复预算耗尽（>5轮），进入失败分析。"
+        condition: { default: true }
+        next_state_id: "triage"
+
+  # ═══════════════════════════════════════════════════════════════
+  # S3: 失败分析（三路分支）
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "triage"
+    state_desc: "分析失败模式，决定升级策略：换策略修复 / 草图分解 / 人工升级。"
+    is_epsilon: false
+    actions:
+      - action_id: "triage_repair"
+        action_desc: "浅层错误，换策略继续修复。"
+        arguments:
+          - arg_name: "NEW_STRATEGY"
+            arg_desc: "新的修复策略说明。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key.mjs", "TRIAGE_DECISION", "repair", "${$TAPE_FILE}"]
+        next_state_id: "repair"
+      - action_id: "triage_sketch"
+        action_desc: "结构性错误，走草图分解路径。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key.mjs", "TRIAGE_DECISION", "sketch", "${$TAPE_FILE}"]
+        next_state_id: "sketch"
+      - action_id: "triage_escalate"
+        action_desc: "所有策略耗尽，升级人工审阅。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key.mjs", "TRIAGE_DECISION", "escalate", "${$TAPE_FILE}"]
+        next_state_id: "escalate"
+
+  # ═══════════════════════════════════════════════════════════════
+  # S4: 草图生成
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "sketch"
+    state_desc: "生成带 sorry 占位符的证明骨架。这是唯一允许 sorry 的状态。输出 subgoals.md。"
+    is_epsilon: false
+    actions:
+      - action_id: "submit_sketch"
+        action_desc: "提交证明草图和子目标列表，进入组装。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key.mjs", "SKETCH_READY", "1", "${$TAPE_FILE}"]
+        next_state_id: "assemble"
+
+  # ═══════════════════════════════════════════════════════════════
+  # S5: 组装
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "assemble"
+    state_desc: "将已证明的子目标组装为完整证明，替换所有 sorry 占位符。"
+    is_epsilon: false
+    actions:
+      - action_id: "submit_assembled"
+        action_desc: "组装完成（无 sorry 残留），回到验证门禁。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key.mjs", "NO_SORRY", "1", "${$TAPE_FILE}"]
+        next_state_id: "verify"
+
+  # ═══════════════════════════════════════════════════════════════
+  # S6: 人工升级
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "escalate"
+    state_desc: "记录失败证据，准备 escalation-bundle.md 供人工审阅。"
+    is_epsilon: false
+    actions:
+      - action_id: "submit_bundle"
+        action_desc: "升级包已准备，进入清理。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key.mjs", "BUNDLE_READY", "1", "${$TAPE_FILE}"]
+        next_state_id: "clean"
+
+  # ═══════════════════════════════════════════════════════════════
+  # S7: 清理归档
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "clean"
+    state_desc: "归档结果，记录元数据（策略、验证命令、耗时、修复轮次），清理临时文件。"
+    is_epsilon: false
+    actions:
+      - action_id: "finish"
+        action_desc: "归档完成，结束工作流。"
+        condition:
+          cmd: "node"
+          args: ["./scripts/require-key.mjs", "ARCHIVED", "1", "${$TAPE_FILE}"]
+        next_state_id: "$END"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 终态
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "$END"
+    state_desc: "工作流完成。PROVED 或 ESCALATED。"
+    is_epsilon: false
+    actions: []

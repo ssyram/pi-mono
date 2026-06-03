@@ -1,16 +1,18 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
 
-const ignoredDirectories = new Set([".git", "coverage", "dist", "node_modules"]);
+const ignoredDirectories = new Set([".git", "coverage", "dist", "node_modules", "my-plugins", "third-party-plugins"]);
 const files = [];
 
 function collectTypescriptFiles(directory) {
 	for (const entry of readdirSync(directory, { withFileTypes: true })) {
 		if (entry.isDirectory()) {
-			if (!ignoredDirectories.has(entry.name)) {
-				collectTypescriptFiles(join(directory, entry.name));
-			}
+			if (ignoredDirectories.has(entry.name)) continue;
+			const subdir = join(directory, entry.name);
+			// Skip embedded git repos (submodules, third-party repos)
+			if (existsSync(join(subdir, ".git"))) continue;
+			collectTypescriptFiles(subdir);
 			continue;
 		}
 

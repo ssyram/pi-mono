@@ -22,9 +22,11 @@
 - Do not preserve backward compatibility unless the user asks for it.
 - Never hardcode key checks (e.g. `matchesKey(keyData, "ctrl+x")`). Add defaults to `DEFAULT_EDITOR_KEYBINDINGS` or `DEFAULT_APP_KEYBINDINGS` so they stay configurable.
 - Never modify `packages/ai/src/models.generated.ts` directly; update `packages/ai/scripts/generate-models.ts` instead, then regenerate. Including the resulting `models.generated.ts` diff is always OK, even if regeneration includes unrelated upstream model metadata changes.
+- Extensions must not introduce extension-owned cross-session global mutable state. Store state in the owning session/session manager or key it by session-owned identity. Only allow intentional cross-session globals when the user explicitly requests cross-session behavior such as information transfer between sessions, and document that intent.
 
 ## Commands
 
+- If `npm run check` reports errors in `packages/` that look like missing types or module resolution failures, run `rm -rf node_modules packages/*/node_modules && npm install` first to rule out stale dependency artifacts.
 - After code changes (not docs): `npm run check` (full output, no tail). Fix all errors, warnings, and infos before committing. Does not run tests.
 - Never run `npm run build` or `npm test` unless requested by the user.
 - Never run the full vitest suite directly: it includes e2e tests that activate when endpoint/auth env vars are present. For all non-e2e tests, run `./test.sh` from the repo root. Otherwise run specific tests from the package root: `node ../../node_modules/vitest/dist/cli.js --run test/specific.test.ts`.
@@ -159,3 +161,8 @@ Attribution:
 ## User Override
 
 If the user's instructions conflict with any rule in this document, ask for explicit confirmation before overriding. Only then execute their instructions.
+
+## Project Memory
+
+- All development work goes in `my-plugins/`. Everything outside `my-plugins/` is pi's official source code -- used only for type checking, hooks/mechanism analysis, and reference. Do not modify.
+- `my-plugins/transcript/` -- intercepts ALL LLM calls (including impression distillation) at the `@mariozechner/pi-ai` provider level by wrapping `getApiProviders()` objects. Saves complete inputs to `.pi/transcripts/<SESSION-ID>/<TIMESTAMP>_<SEQ>.json`.

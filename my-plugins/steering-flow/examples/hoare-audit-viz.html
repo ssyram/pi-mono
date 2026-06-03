@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Steering-Flow · hoare-audit.yaml</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<style>
+:root { color-scheme:dark; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:#0d1117; color:#e6edf3; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; overflow:hidden; }
+
+/* header */
+header { position:fixed; inset:0 0 auto 0; height:56px; z-index:10; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 20px; background:rgba(13,17,23,.96); border-bottom:1px solid #30363d; backdrop-filter:blur(8px); }
+header h1 { font-size:16px; font-weight:600; color:#e6edf3; }
+header .sub { color:#8b949e; font-size:12px; margin-top:2px; }
+.pill { display:inline-block; padding:2px 8px; border:1px solid #30363d; border-radius:999px; color:#8b949e; font-size:11px; margin-left:6px; }
+
+/* layout */
+main { display:grid; grid-template-columns:1fr 360px; height:100vh; padding-top:56px; }
+#graph { width:100%; height:calc(100vh - 56px); background:radial-gradient(ellipse at 30% 20%, #161b22 0%, #0d1117 60%); cursor:grab; }
+#graph:active { cursor:grabbing; }
+
+/* sidebar */
+aside { border-left:1px solid #30363d; background:#161b22; overflow-y:auto; padding:14px; }
+select { width:100%; margin-bottom:12px; background:#0d1117; color:#e6edf3; border:1px solid #30363d; border-radius:6px; padding:8px 10px; font-size:13px; }
+.section { background:#0d1117; border:1px solid #30363d; border-radius:8px; padding:12px; margin-bottom:10px; }
+.section h2 { font-size:13px; font-weight:600; margin-bottom:8px; color:#e6edf3; }
+pre { white-space:pre-wrap; word-break:break-all; overflow:auto; max-height:240px; margin:0; color:#8b949e; font-size:12px; font-family:'SF Mono',Consolas,monospace; }
+.row { margin:6px 0; color:#c9d1d9; font-size:13px; }
+.muted { color:#8b949e; }
+.kv { display:grid; grid-template-columns:100px 1fr; gap:4px; font-size:12px; }
+
+/* nodes */
+.node { cursor:pointer; }
+.node .node-fill { fill:#161b22; stroke:#30363d; stroke-width:2; transition:stroke .15s, fill .15s, opacity .15s; }
+.node .interactive-ring { fill:none; stroke:#b388ff; stroke-width:2; stroke-dasharray:4 5; opacity:.55; pointer-events:none; transition:opacity .15s; }
+.node text { fill:#e6edf3; font-size:11px; pointer-events:none; transition:opacity .15s; }
+.node .label { font-weight:600; font-size:12px; }
+.node .sublabel { fill:#8b949e; font-size:10px; }
+.node.current .node-fill { stroke:#58a6ff; stroke-width:3; }
+.node.epsilon .node-fill { stroke-dasharray:5 4; }
+.node.start .node-fill { stroke:#3fb950; }
+.node.start.current .node-fill { stroke:#3fb950; stroke-width:3; }
+.node.end .node-fill { stroke:#f85149; }
+.node.end.current .node-fill { stroke:#f85149; stroke-width:3; }
+
+/* highlight states */
+.node.highlight .node-fill { stroke:#58a6ff; stroke-width:3; fill:#1f2937; }
+.node.highlight-1 .node-fill { stroke:#58a6ff; stroke-width:2; fill:#1a2332; opacity:.38; transition-delay:.08s; }
+.node.highlight-2 .node-fill { stroke:#58a6ff; stroke-width:1.5; fill:#171f2b; opacity:.22; transition-delay:.16s; }
+.node.highlight-3 .node-fill { stroke:#58a6ff; stroke-width:1; fill:#151b24; opacity:.2; transition-delay:.24s; }
+.node.dim { opacity:.15; }
+.node.dim .node-fill { stroke:#30363d; }
+
+/* edges */
+.edge-path { fill:none; stroke:#8b949e; stroke-width:1.5; opacity:.2; transition:stroke .15s, stroke-width .15s, opacity .15s; }
+.edge-path.highlight { stroke:#58a6ff; stroke-width:2.5; opacity:.85; }
+.edge-path.highlight-1 { stroke:#58a6ff; stroke-width:2; opacity:.38; transition-delay:.08s; }
+.edge-path.highlight-2 { stroke:#58a6ff; stroke-width:1.5; opacity:.22; transition-delay:.16s; }
+.edge-path.highlight-3 { stroke:#58a6ff; stroke-width:1; opacity:.2; transition-delay:.24s; }
+.edge-path.dim { opacity:.04; }
+
+/* edge labels */
+.edge-label { cursor:pointer; transition:opacity .15s; }
+.edge-label rect { fill:#2d1f0e; stroke:#d29922; stroke-width:1; rx:999; ry:999; }
+.edge-label text { fill:#e8b44a; font-size:11px; font-weight:600; pointer-events:none; letter-spacing:.3px; }
+.edge-label.highlight rect { stroke:#f5d060; stroke-width:2; fill:#3d2c0a; }
+.edge-label.highlight text { fill:#fde68a; }
+.edge-label.highlight-1 rect { stroke:#d29922; stroke-width:1; fill:#2d1f0e; opacity:.38; transition-delay:.08s; }
+.edge-label.highlight-1 text { fill:#e8b44a; opacity:.38; }
+.edge-label.highlight-2 rect { stroke:#d29922; stroke-width:1; fill:#2d1f0e; opacity:.22; transition-delay:.16s; }
+.edge-label.highlight-2 text { fill:#e8b44a; opacity:.22; }
+.edge-label.highlight-3 rect { stroke:#d29922; stroke-width:1; fill:#2d1f0e; opacity:.2; transition-delay:.24s; }
+.edge-label.highlight-3 text { fill:#e8b44a; opacity:.2; }
+.edge-label.dim { opacity:.12; }
+
+/* tooltip */
+.tooltip { position:fixed; pointer-events:none; z-index:20; background:rgba(13,17,23,.98); border:1px solid #30363d; border-radius:8px; padding:10px 12px; font-size:12px; color:#c9d1d9; max-width:280px; opacity:0; transition:opacity .12s; box-shadow:0 4px 12px rgba(0,0,0,.4); }
+.tooltip.visible { opacity:1; }
+.tooltip b { color:#e6edf3; }
+.tooltip .tt-muted { color:#8b949e; font-size:11px; }
+
+/* legend */
+.legend { position:fixed; left:14px; bottom:14px; color:#8b949e; font-size:11px; background:rgba(22,27,34,.9); border:1px solid #30363d; border-radius:8px; padding:10px 14px; z-index:5; line-height:1.8; }
+.legend kbd { background:#21262d; border:1px solid #30363d; border-radius:3px; padding:1px 5px; font-size:10px; font-family:inherit; }
+.legend-row { display:flex; align-items:center; gap:6px; }
+.legend-dot { display:inline-block; width:10px; height:10px; border-radius:50%; border:2px solid; flex-shrink:0; }
+.legend-line { display:inline-block; width:18px; height:0; border-top:2px solid; flex-shrink:0; }
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Steering-Flow · hoare-audit.yaml</h1><div class="sub" id="subtitle"></div></div>
+  <div><span class="pill" id="mode"></span><span class="pill" id="counts"></span></div>
+</header>
+<main>
+  <svg id="graph"></svg>
+  <aside>
+    <select id="fsmSelect"></select>
+    <div id="details"></div>
+  </aside>
+</main>
+<div class="tooltip" id="tooltip"></div>
+<div class="legend">
+  <div class="legend-row"><span class="legend-dot" style="border-color:#3fb950;background:#161b22"></span> Start</div>
+  <div class="legend-row"><span class="legend-dot" style="border-color:#f85149;background:#161b22"></span> End</div>
+  <div class="legend-row"><span class="legend-dot" style="border-color:#58a6ff;background:#161b22"></span> Current</div>
+  <div class="legend-row"><span class="legend-dot" style="border-color:#b388ff;background:#161b22;border-style:dashed;opacity:.75"></span> Interactive</div>
+  <div class="legend-row"><span class="legend-dot" style="border-color:#30363d;background:#161b22;border-style:dashed"></span> Epsilon</div>
+  <div class="legend-row" style="margin-top:4px"><span class="legend-line" style="border-color:#8b949e;opacity:.4"></span> Transition</div>
+  <div class="legend-row"><span class="legend-line" style="border-color:#58a6ff;border-width:2.5px"></span> Highlighted</div>
+  <div style="margin-top:6px;border-top:1px solid #30363d;padding-top:6px">
+    Hover/Click: highlight outgoing · <kbd>Esc</kbd> clear<br>
+    Drag to pan · Scroll to zoom
+  </div>
+  <button id="resetBtn" style="margin-top:8px;width:100%;padding:4px 0;background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit;transition:background .12s" onmouseover="this.style.background='#30363d'" onmouseout="this.style.background='#21262d'">Reset View</button>
+</div>
+<script>
+const DOC = {"title":"Steering-Flow · hoare-audit.yaml","generatedAt":"2026-05-05T03:06:25.770Z","sourceMode":"file","sourceLabel":"/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/steering-flow/examples/hoare-audit.yaml","fsms":[{"id":"hoare-audit.yaml","name":"hoare-audit.yaml","flowDir":"","taskDescription":"Hoare correctness audit workflow for `/hoare-audit`.\nFirst find or build concrete design/spec docs. Then run an outer Decisional loop.\nInside each outer round, repeatedly run Step 1-4 checks and fix Non-Decisional\nfindings until none remain. Compile Decisional findings, ask the human only at\nthe decision gate, fix those decisions, then repeat until no Decisional findings\nremain. Finish with docs/correctness-audit.md.\n","sourceLabel":"/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/steering-flow/examples/hoare-audit.yaml","states":[{"id":"$START","description":"Step 0 — interactive docs/intent adequacy check.\n\nThis state is responsible for checking whether the current task has enough\ndocumentation to support a Hoare audit:\n- the user has provided or confirmed an intent document for this exact task\n- the docs describe the complete current intent, not just old implementation behavior\n- the docs/specs are complete enough to derive Requires / Ensures / Invariants\n- the docs match the target scope and current user intent\n- any gaps, stale sections, or Decisional intent conflicts are recorded\n\nIf the docs are sufficient, set DOCS_READY=1 and provide SPEC_SOURCE.\nIf not, set DOCS_READY=0 and enter `/hoare-design`.\n\nRequired tape before submit_docs_check:\n- TARGET_SCOPE\n- INTENT_DOC: user-provided or user-confirmed intent doc sufficient for this task\n- DOC_CHECK_DOC: adequacy checklist and confirmation notes\n- DOCS_READY: 1 when docs/specs are sufficient, otherwise 0\n- SPEC_SOURCE: required when DOCS_READY=1\n","isEpsilon":false,"isInteractive":true,"actions":[{"id":"submit_docs_check","description":"Submit user-confirmed docs/intent adequacy check.","nextStateId":"docs_router","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs TARGET_SCOPE INTENT_DOC DOC_CHECK_DOC DOCS_READY ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"TARGET_SCOPE\",\n    \"INTENT_DOC\",\n    \"DOC_CHECK_DOC\",\n    \"DOCS_READY\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"docs_router","description":"Route Step 0: confirmed docs ready enters Step 1; otherwise run /hoare-design and return to the interactive check.","isEpsilon":true,"isInteractive":false,"actions":[{"id":"docs_ready","description":"User-confirmed docs/specs are sufficient; enter Step 1.","nextStateId":"step1_context","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs DOCS_READY SPEC_SOURCE INTENT_DOC ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"DOCS_READY\",\n    \"SPEC_SOURCE\",\n    \"INTENT_DOC\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"docs_missing","description":"Docs/specs are missing, stale, incomplete, or intent-mismatched; run /hoare-design.","nextStateId":"hoare_design","arguments":[],"conditionSummary":"default","conditionDetail":"{ default: true }","isDefault":true}]},{"id":"hoare_design","description":"Step 0B — run `/hoare-design`.\n\nMissing, stale, incomplete, or intent-mismatched specs must be handled by\n`/hoare-design`. Use the user-provided intent doc as the current task intent;\nif it is insufficient, ask for enough intent documentation before deriving specs.\n\nDerive the descriptive spec from current code and all call sites: weakest common\nPre-conditions, union Post-conditions, module invariants, responsibility chains,\nside effects, intentional omissions, and Decisional intent conflicts. The result\nmust be sufficient for the current audit target, not merely a generic overview.\n\nDefault output: docs/design/hoare-derived-spec.md unless a target-specific path\nis better. Decisional conflicts from `/hoare-design` do not block this round;\nrecord them in the derived spec and use the weakest common denominator.\n\nRequired tape before submit_hoare_design:\n- HOARE_DESIGN_DOC\n- SPEC_SOURCE\n- SPEC_REVISION\n- DOCS_READY: usually 0 or pending; final readiness is confirmed back in Step 0\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_hoare_design","description":"Submit /hoare-design output for user confirmation.","nextStateId":"$START","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs HOARE_DESIGN_DOC SPEC_SOURCE SPEC_REVISION DOCS_READY ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"HOARE_DESIGN_DOC\",\n    \"SPEC_SOURCE\",\n    \"SPEC_REVISION\",\n    \"DOCS_READY\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"step1_context","description":"Step 1 — declare deployment context and select 3-6 relevant audit dimensions.\n\nRecord execution model, trust boundary, persistence model, concurrency model,\nand threat model. Dimensions are selected per target, not from a fixed list.\n\nRequired tape before submit_context:\n- ROUND\n- NON_DECISION_ROUND\n- DEPLOYMENT_PROFILE\n- AUDIT_DIMENSIONS\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_context","description":"Submit deployment profile and selected audit dimensions.","nextStateId":"step2_dimension_audits","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs ROUND NON_DECISION_ROUND DEPLOYMENT_PROFILE AUDIT_DIMENSIONS ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"ROUND\",\n    \"NON_DECISION_ROUND\",\n    \"DEPLOYMENT_PROFILE\",\n    \"AUDIT_DIMENSIONS\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"step2_dimension_audits","description":"Step 2 — launch one fresh auditor per selected dimension, preferably in parallel.\n\nEach report must apply HoarePrompt: CFG decomposition, NSP annotation,\nbranch/loop analysis, external assumption checks, and concrete counterexamples.\n\nTypical agents: functional-correctness-auditor, spec-impl-auditor,\ncrash-safety-auditor, cross-boundary-auditor, resource-auditor,\nadversarial-auditor.\n\nRequired tape before submit_audits:\n- DIMENSION_AUDITS_DOC\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_audits","description":"Submit per-dimension audit outputs.","nextStateId":"step3_compile_findings","arguments":[],"conditionSummary":"node ./scripts/require-doc-submitted.mjs DIMENSION_AUDITS_DOC ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-doc-submitted.mjs\",\n    \"DIMENSION_AUDITS_DOC\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"step3_compile_findings","description":"Step 3 — compile candidate findings.\n\nKeep only findings with violated Pre/Post/Invariant, concrete counterexample,\nruntime reachability, and deployment-context applicability. Reject summaries,\nstyle nits, unreachable paths, and findings without spec/counterexample evidence.\n\nRequired tape before submit_findings:\n- FINDINGS_DOC\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_findings","description":"Submit compiled candidate findings.","nextStateId":"step4_confirmation","arguments":[],"conditionSummary":"node ./scripts/require-doc-submitted.mjs FINDINGS_DOC ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-doc-submitted.mjs\",\n    \"FINDINGS_DOC\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"step4_confirmation","description":"Step 4 — independently confirm candidate findings with fresh eyes.\n\nUse strict verdicts: CONFIRMED triggering, CONFIRMED solid rationale,\nREJECTED deployment mismatch, REJECTED not reachable, REJECTED misreading,\nREJECTED lesson precondition unmet, or INCONCLUSIVE. Only CONFIRMED findings\ncontinue.\n\nRequired tape before submit_confirmation:\n- CONFIRMATION_DOC\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_confirmation","description":"Submit fresh-eye confirmation results.","nextStateId":"gather_non_decisionals","arguments":[],"conditionSummary":"node ./scripts/require-doc-submitted.mjs CONFIRMATION_DOC ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-doc-submitted.mjs\",\n    \"CONFIRMATION_DOC\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"gather_non_decisionals","description":"Gather confirmed Non-Decisional findings and compile Decisional findings.\n\nThis is the boundary after Step 1-4 checks:\n- nonDecisionals \u003c- gatherNonDecisionals\n- setDecisionals =\u003c\u003c compiledDecisionals\n\nRequired tape before submit_classification:\n- NON_DECISION_DOC\n- NON_DECISION_COUNT\n- DECISION_DOC\n- DECISION_COUNT\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_classification","description":"Submit confirmed finding classification and counts.","nextStateId":"non_decision_router","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs NON_DECISION_DOC NON_DECISION_COUNT DECISION_DOC DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"NON_DECISION_DOC\",\n    \"NON_DECISION_COUNT\",\n    \"DECISION_DOC\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"non_decision_router","description":"doWhileM checkAndFixNonDecisionals foundNonDecisionals: fix autonomous findings while any remain; otherwise exit inner loop.","isEpsilon":true,"isInteractive":false,"actions":[{"id":"found_non_decisionals","description":"Non-Decisional findings remain; fix them.","nextStateId":"fix_non_decisionals","arguments":[],"conditionSummary":"node ./scripts/require-key-gt-zero.mjs NON_DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-key-gt-zero.mjs\",\n    \"NON_DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"no_non_decisionals","description":"Inner loop complete; compile Decisional findings.","nextStateId":"compiled_decisionals","arguments":[],"conditionSummary":"default","conditionDetail":"{ default: true }","isDefault":true}]},{"id":"fix_non_decisionals","description":"fixNonDecisionals nonDecisionals.\n\nImplement only confirmed Non-Decisional root-cause fixes. Do not decide API,\narchitecture, or spec trade-offs. Run the required verification and update\ndocs/spec revision when the fix changes contracts.\n\nAfter this state, return directly to Step 1, not Step 0: docs have already\nbeen established by checkOrBuildDocs.\n\nRequired tape before submit_non_decisional_fix:\n- FIX_PLAN_DOC\n- VERIFY_DOC\n- NON_DECISION_COUNT: updated remaining autonomous fixes\n- DECISION_COUNT: updated compiled decisionals\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_non_decisional_fix","description":"Submit Non-Decisional fix plan, verification, and updated counts.","nextStateId":"step1_context","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs FIX_PLAN_DOC VERIFY_DOC NON_DECISION_COUNT DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"FIX_PLAN_DOC\",\n    \"VERIFY_DOC\",\n    \"NON_DECISION_COUNT\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"compiled_decisionals","description":"decisionals \u003c- compiledDecisionals.\n\nRecompile the Decisional list after the Non-Decisional inner loop has reached\nzero. Include only findings that still require human judgment after evidence,\nconfirmation, autonomous fixes, and spec checks.\n\nRequired tape before submit_decisionals:\n- DECISION_DOC\n- DECISION_COUNT\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_decisionals","description":"Submit compiled Decisional findings and count.","nextStateId":"decisional_router","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs DECISION_DOC DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"DECISION_DOC\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"decisional_router","description":"doWhileM checkAndFixDecisionals foundDecisionals: if decisionals remain, ask the human and fix decisions; otherwise write final report.","isEpsilon":true,"isInteractive":false,"actions":[{"id":"found_decisionals","description":"Decisional findings remain; enter human decision gate.","nextStateId":"human_decide","arguments":[],"conditionSummary":"node ./scripts/require-key-gt-zero.mjs DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-key-gt-zero.mjs\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"no_decisionals","description":"No Decisional findings remain; write final audit report.","nextStateId":"final_report","arguments":[],"conditionSummary":"default","conditionDetail":"{ default: true }","isDefault":true}]},{"id":"human_decide","description":"decisions \u003c- humanDecide decisionals.\n\nPresent exact Decisional findings, options, recommendations, and required\nanswers. This is the human decision interactive state; Step 0 is also interactive for docs/intent confirmation.\n\nRequired tape before submit_human_decisions:\n- DECISION_DOC: updated with human decisions\n- DECISION_COUNT\n","isEpsilon":false,"isInteractive":true,"actions":[{"id":"submit_human_decisions","description":"Submit human decisions for the compiled Decisional findings.","nextStateId":"fix_decisionals","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs DECISION_DOC DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"DECISION_DOC\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"fix_decisionals","description":"fixDecisionals decisions.\n\nApply the human decisions exactly. Update specs/docs if the decision changes\ncontracts, run verification, and set DECISION_COUNT to the remaining Decisional\nfindings after the fix. New autonomous issues discovered here should become\nNON_DECISION_COUNT for the next Step 1 pass.\n\nRequired tape before submit_decisional_fix:\n- DECISION_FIX_PLAN_DOC\n- DECISION_VERIFY_DOC\n- DECISION_COUNT\n- NON_DECISION_COUNT\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_decisional_fix","description":"Submit Decisional fix plan, verification, and updated counts.","nextStateId":"step1_context","arguments":[],"conditionSummary":"node ./scripts/submit-required-fields.mjs DECISION_FIX_PLAN_DOC DECISION_VERIFY_DOC DECISION_COUNT NON_DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/submit-required-fields.mjs\",\n    \"DECISION_FIX_PLAN_DOC\",\n    \"DECISION_VERIFY_DOC\",\n    \"DECISION_COUNT\",\n    \"NON_DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"final_report","description":"Write the final correctness audit report, normally docs/correctness-audit.md.\n\nRequired sections:\n1. Executive Summary\n2. Proven Objects\n3. Cross-boundary Contracts\n4. Issues Found and Fixed\n5. Rejected/Inconclusive Findings\n6. Decisional Findings Log\n7. Remaining Limitations\n8. Assumptions Registry\n\nRequired tape before submit_final:\n- FINAL_AUDIT_DOC\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_final","description":"Submit final correctness audit report.","nextStateId":"$END","arguments":[],"conditionSummary":"node ./scripts/require-doc-submitted.mjs FINAL_AUDIT_DOC ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"./scripts/require-doc-submitted.mjs\",\n    \"FINAL_AUDIT_DOC\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"$END","description":"Hoare audit complete. Docs exist, Non-Decisional and Decisional loops are\nexhausted, and the final correctness-audit report has been written.\n","isEpsilon":false,"isInteractive":false,"actions":[]}],"currentStateId":"$START","tape":{},"transitionLog":[]}],"commands":[{"name":"/steering-flow help","description":"Show unified steering-flow command help."},{"name":"/steering-flow load \u003cFILE>","description":"Load a flow config and push it onto the FSM stack."},{"name":"/steering-flow pop","description":"Pop the active FSM from the stack. User-only escape hatch."},{"name":"/steering-flow save \u003cID> \u003cVALUE>","description":"Write a value to the active FSM tape."},{"name":"/steering-flow context-info","description":"Send stack, state, tape, and active actions to the model context."},{"name":"/steering-flow info","description":"Show stack, state, tape, and active actions as UI info only."},{"name":"/steering-flow set-state \u003cSTATE-ID>","description":"User-only jump/reset of the active FSM state."},{"name":"/steering-flow reset-state","description":"User-only reset of the active FSM state to $START."},{"name":"/steering-flow set-action \u003cACTION-ID> [ARGS...]","description":"User-only action trigger with UI notification output. May advance interactive states."},{"name":"/steering-flow action \u003cACTION-ID> [ARGS...]","description":"Invoke an action on the active FSM and send the result to the model context. Rejects interactive states."},{"name":"/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]","description":"Generate this static HTML visualizer as UI notification output."}],"tools":[{"name":"load-steering-flow","description":"LLM tool for loading a flow config."},{"name":"steering-flow-action","description":"LLM tool for invoking an action with positional args. Rejects interactive states."},{"name":"save-to-steering-flow","description":"LLM tool for writing tape values."},{"name":"get-steering-flow-info","description":"LLM tool for inspecting active flow state."}]};
+var LAYOUTS = [{"nodes":[{"id":"$START","x":174.5,"y":78},{"id":"docs_router","x":294,"y":254},{"id":"hoare_design","x":108,"y":430},{"id":"step1_context","x":314,"y":430},{"id":"step2_dimension_audits","x":550,"y":606},{"id":"step3_compile_findings","x":550,"y":782},{"id":"step4_confirmation","x":550,"y":958},{"id":"gather_non_decisionals","x":550,"y":1134},{"id":"non_decision_router","x":550,"y":1310},{"id":"fix_non_decisionals","x":164.5,"y":1486},{"id":"compiled_decisionals","x":550,"y":1486},{"id":"decisional_router","x":550,"y":1662},{"id":"human_decide","x":390.5,"y":1838},{"id":"fix_decisionals","x":354,"y":2014},{"id":"final_report","x":596.5,"y":1838},{"id":"$END","x":596.5,"y":2014}],"edges":[{"srcId":"$START","tgtId":"docs_router","actionId":"submit_docs_check","points":[{"x":226.10227272727272,"y":116},{"x":294,"y":166},{"x":294,"y":216}],"label":{"text":"submit_docs_check","idealX":280.1817655886054,"idealY":155.82422905269686,"x":280.1817655886054,"y":155.82422905269686,"w":139,"h":23}},{"srcId":"docs_router","tgtId":"step1_context","actionId":"docs_ready","points":[{"x":302.6363636363636,"y":292},{"x":314,"y":342},{"x":314,"y":392}],"label":{"text":"docs_ready","idealX":313.858709407906,"idealY":341.3783213947865,"x":313.858709407906,"y":336.76202279277913,"w":90,"h":23}},{"srcId":"docs_router","tgtId":"hoare_design","actionId":"docs_missing","points":[{"x":294,"y":292},{"x":294,"y":342},{"x":176,"y":397.8279569892473}],"label":{"text":"docs_missing","idealX":257.5983913883186,"idealY":359.2222664399353,"x":257.5983913883186,"y":363.8385650419427,"w":104,"h":23}},{"srcId":"hoare_design","tgtId":"$START","actionId":"submit_hoare_design","points":[{"x":108,"y":392},{"x":108,"y":342},{"x":108,"y":254},{"x":108,"y":166},{"x":145.7840909090909,"y":116}],"label":{"text":"submit_hoare_design","idealX":108,"idealY":247.66456667833344,"x":108,"y":247.66456667833344,"w":153,"h":23}},{"srcId":"step1_context","tgtId":"step2_dimension_audits","actionId":"submit_context","points":[{"x":382,"y":455.35593220338984},{"x":550,"y":518},{"x":550,"y":568}],"label":{"text":"submit_context","idealX":489.42450511965797,"idealY":495.4125273327538,"x":489.42450511965797,"y":495.4125273327538,"w":118,"h":23}},{"srcId":"step2_dimension_audits","tgtId":"step3_compile_findings","actionId":"submit_audits","points":[{"x":550,"y":644},{"x":550,"y":694},{"x":550,"y":744}],"label":{"text":"submit_audits","idealX":550,"idealY":694,"x":550,"y":694,"w":111,"h":23}},{"srcId":"step3_compile_findings","tgtId":"step4_confirmation","actionId":"submit_findings","points":[{"x":550,"y":820},{"x":550,"y":870},{"x":550,"y":920}],"label":{"text":"submit_findings","idealX":550,"idealY":870,"x":550,"y":870,"w":125,"h":23}},{"srcId":"step4_confirmation","tgtId":"gather_non_decisionals","actionId":"submit_confirmation","points":[{"x":550,"y":996},{"x":550,"y":1046},{"x":550,"y":1096}],"label":{"text":"submit_confirmation","idealX":550,"idealY":1046,"x":550,"y":1046,"w":153,"h":23}},{"srcId":"gather_non_decisionals","tgtId":"non_decision_router","actionId":"submit_classification","points":[{"x":550,"y":1172},{"x":550,"y":1222},{"x":550,"y":1272}],"label":{"text":"submit_classification","idealX":550,"idealY":1222,"x":550,"y":1222,"w":167,"h":23}},{"srcId":"non_decision_router","tgtId":"fix_non_decisionals","actionId":"found_non_decisionals","points":[{"x":482,"y":1327.6519174041298},{"x":211,"y":1398},{"x":184.57954545454544,"y":1448}],"label":{"text":"found_non_decisionals","idealX":319.1314779666253,"idealY":1369.9304717962743,"x":319.1314779666253,"y":1369.9304717962743,"w":167,"h":23}},{"srcId":"non_decision_router","tgtId":"compiled_decisionals","actionId":"no_non_decisionals","points":[{"x":550,"y":1348},{"x":550,"y":1398},{"x":550,"y":1448}],"label":{"text":"no_non_decisionals","idealX":550,"idealY":1398,"x":550,"y":1398,"w":146,"h":23}},{"srcId":"fix_non_decisionals","tgtId":"step1_context","actionId":"submit_non_decisional_fix","points":[{"x":160.1818181818182,"y":1448},{"x":154.5,"y":1398},{"x":154.5,"y":1310},{"x":154.5,"y":1222},{"x":154.5,"y":1134},{"x":154.5,"y":1046},{"x":154.5,"y":958},{"x":154.5,"y":870},{"x":154.5,"y":782},{"x":154.5,"y":694},{"x":154.5,"y":606},{"x":154.5,"y":518},{"x":246,"y":467.51724137931035}],"label":{"text":"submit_non_decisional_fix","idealX":154.5,"idealY":930.9096800360753,"x":154.5,"y":930.9096800360753,"w":195,"h":23}},{"srcId":"compiled_decisionals","tgtId":"decisional_router","actionId":"submit_decisionals","points":[{"x":550,"y":1524},{"x":550,"y":1574},{"x":550,"y":1624}],"label":{"text":"submit_decisionals","idealX":550,"idealY":1574,"x":550,"y":1574,"w":146,"h":23}},{"srcId":"decisional_router","tgtId":"human_decide","actionId":"found_decisionals","points":[{"x":482,"y":1699.5172413793102},{"x":390.5,"y":1750},{"x":390.5,"y":1800}],"label":{"text":"found_decisionals","idealX":414.36055789933016,"idealY":1736.8355542624386,"x":414.36055789933016,"y":1736.8355542624386,"w":139,"h":23}},{"srcId":"decisional_router","tgtId":"final_report","actionId":"no_decisionals","points":[{"x":570.0795454545455,"y":1700},{"x":596.5,"y":1750},{"x":596.5,"y":1800}],"label":{"text":"no_decisionals","idealX":594.9696510810751,"idealY":1747.1038558093464,"x":594.9696510810751,"y":1747.1038558093464,"w":118,"h":23}},{"srcId":"human_decide","tgtId":"fix_decisionals","actionId":"submit_human_decisions","points":[{"x":390.5,"y":1876},{"x":390.5,"y":1926},{"x":369.7613636363636,"y":1976}],"label":{"text":"submit_human_decisions","idealX":389.7087880214449,"idealY":1927.9075795647357,"x":389.7087880214449,"y":1927.9075795647357,"w":174,"h":23}},{"srcId":"fix_decisionals","tgtId":"step1_context","actionId":"submit_decisional_fix","points":[{"x":320.9659090909091,"y":1976},{"x":277.5,"y":1926},{"x":277.5,"y":1838},{"x":277.5,"y":1750},{"x":277.5,"y":1662},{"x":277.5,"y":1574},{"x":277.5,"y":1486},{"x":277.5,"y":1398},{"x":277.5,"y":1310},{"x":277.5,"y":1222},{"x":277.5,"y":1134},{"x":277.5,"y":1046},{"x":277.5,"y":958},{"x":277.5,"y":870},{"x":277.5,"y":782},{"x":277.5,"y":694},{"x":277.5,"y":606},{"x":277.5,"y":518},{"x":298.2386363636364,"y":468}],"label":{"text":"submit_decisional_fix","idealX":277.5,"idealY":1228.0606828997682,"x":277.5,"y":1228.0606828997682,"w":167,"h":23}},{"srcId":"final_report","tgtId":"$END","actionId":"submit_final","points":[{"x":596.5,"y":1876},{"x":596.5,"y":1926},{"x":596.5,"y":1976}],"label":{"text":"submit_final","idealX":596.5,"idealY":1926,"x":596.5,"y":1926,"w":104,"h":23}}],"graphWidth":704.5,"graphHeight":2092,"warnings":[]}];
+var NODE_R = 28;
+
+
+function enableDragNodes(nodeSelection, nodePos, edgeGroups, nodeR) {
+  var drag = d3.drag()
+    .clickDistance(4)
+    .on('start', function() { d3.select(this).raise(); svg.style('cursor','grabbing'); })
+    .on('drag', function(evt, d) {
+      var np = nodePos[d.id];
+      if (!np) return;
+      np.x = evt.x;
+      np.y = evt.y;
+      d3.select(this).attr('transform', 'translate(' + np.x + ',' + np.y + ')');
+
+      // Update connected edges — recompute label midpoint and use polylineSplit
+      edgeGroups.each(function(ed) {
+        if (ed.src !== d.id && ed.tgt !== d.id) return;
+        var group = d3.select(this);
+        var sn = nodePos[ed.src], tn = nodePos[ed.tgt];
+        if (!sn || !tn) return;
+        ed.srcNode.x = sn.x; ed.srcNode.y = sn.y;
+        ed.tgtNode.x = tn.x; ed.tgtNode.y = tn.y;
+        // Recompute label midpoint
+        ed.labelX = (sn.x + tn.x) / 2;
+        ed.labelY = (sn.y + tn.y) / 2;
+        // Fallback to simple 3-point path during drag (dagre points are stale)
+        var sy = sn.y < tn.y ? sn.y + nodeR : sn.y - nodeR;
+        var ty = sn.y < tn.y ? tn.y - nodeR : tn.y + nodeR;
+        var fallbackPts = [{x:sn.x,y:sy},{x:ed.labelX,y:ed.labelY},{x:tn.x,y:ty}];
+        var seg = polylineSplit(fallbackPts, ed.labelX, ed.labelY);
+        group.select('.edge-path-1').attr('d', seg.d1);
+        group.select('.edge-path-2').attr('d', seg.d2);
+        group.select('.edge-label').attr('transform', 'translate(' + ed.labelX + ',' + ed.labelY + ')');
+      });
+    })
+    .on('end', function() { svg.style('cursor','grab'); });
+  nodeSelection.call(drag);
+}
+
+
+/* refs */
+const svg = d3.select('#graph');
+const defs = svg.append('defs');
+const root = svg.append('g');
+const tooltip = document.getElementById('tooltip');
+const details = document.getElementById('details');
+const fsmSelect = document.getElementById('fsmSelect');
+
+/* arrowhead marker */
+defs.append('marker').attr('id','arrow').attr('viewBox','0 0 10 10').attr('refX',10).attr('refY',5)
+  .attr('markerWidth',8).attr('markerHeight',8).attr('orient','auto-start-reverse')
+  .append('path').attr('d','M 0 0 L 10 5 L 0 10 z').attr('fill','#8b949e');
+
+/* zoom */
+const zoom = d3.zoom().scaleExtent([0.2, 3]).on('zoom', e => root.attr('transform', e.transform));
+svg.call(zoom);
+svg.on('dblclick.zoom', null);
+
+/* header info */
+document.getElementById('subtitle').textContent = DOC.sourceLabel + ' \u00b7 ' + DOC.generatedAt;
+document.getElementById('mode').textContent = DOC.sourceMode;
+document.getElementById('counts').textContent = DOC.fsms.length + ' FSM(s)';
+DOC.fsms.forEach(function(fsm, i) {
+  var opt = document.createElement('option');
+  opt.value = String(i);
+  opt.textContent = (fsm.id === DOC.activeFsmId ? '\u25cf ' : '') + fsm.name;
+  fsmSelect.appendChild(opt);
+});
+fsmSelect.value = String(Math.max(0, DOC.fsms.findIndex(function(f) { return f.id === DOC.activeFsmId; })));
+fsmSelect.addEventListener('change', function() { renderFsm(Number(fsmSelect.value)); });
+
+/* helpers */
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function jsonBlock(v) { return '<pre>' + esc(JSON.stringify(v, null, 2)) + '</pre>'; }
+
+/* sidebar panels */
+function showOverview(fsm) {
+  details.innerHTML =
+    '<div class="section"><h2>' + esc(fsm.name) + '</h2>' +
+    '<div class="kv"><span class="muted">ID</span><span>' + esc(fsm.id) + '</span></div>' +
+    '<div class="kv"><span class="muted">Current</span><span style="color:#58a6ff">' + esc(fsm.currentStateId || 'n/a') + '</span></div>' +
+    '<div class="kv"><span class="muted">Flow dir</span><span>' + esc(fsm.flowDir || '(none)') + '</span></div>' +
+    '<div class="kv"><span class="muted">Tape path</span><span>' + esc(fsm.tapePath || 'static file') + '</span></div>' +
+    '</div>' +
+    '<div class="section"><h2>Task</h2><pre>' + esc(fsm.taskDescription) + '</pre></div>' +
+    '<div class="section"><h2>Tape</h2>' + jsonBlock(fsm.tape) + '</div>' +
+    '<div class="section"><h2>Transitions</h2>' + jsonBlock(fsm.transitionLog) + '</div>' +
+    '<div class="section"><h2>Commands (' + DOC.commands.length + ')</h2>' +
+      DOC.commands.map(function(c) { return '<div class="row"><b>' + esc(c.name) + '</b><br><span class="muted">' + esc(c.description) + '</span></div>'; }).join('') +
+    '</div>' +
+    '<div class="section"><h2>Tools (' + DOC.tools.length + ')</h2>' +
+      DOC.tools.map(function(t) { return '<div class="row"><b>' + esc(t.name) + '</b><br><span class="muted">' + esc(t.description) + '</span></div>'; }).join('') +
+    '</div>';
+}
+
+function showState(fsm, state) {
+  details.innerHTML =
+    '<div class="section"><h2>State \u00b7 ' + esc(state.id) + '</h2>' +
+    (state.isEpsilon ? '<span class="pill">\u03b5 epsilon</span> ' : '') +
+    (state.isInteractive ? '<span class="pill" style="border-color:#d2a8ff;color:#d2a8ff">interactive</span> ' : '') +
+    (state.id === fsm.currentStateId ? '<span class="pill" style="border-color:#58a6ff;color:#58a6ff">current</span>' : '') +
+    '<pre style="margin-top:8px">' + esc(state.description) + '</pre></div>' +
+    '<div class="section"><h2>Actions (' + state.actions.length + ')</h2>' +
+    (state.actions.length
+      ? state.actions.map(function(a) {
+          return '<div class="row"><b>' + esc(a.id) + '</b> \u2192 <span style="color:#58a6ff">' + esc(a.nextStateId) + '</span>' +
+          '<br><span class="muted">' + esc(a.description) + '</span>' +
+          '<br><span class="muted">condition: ' + esc(a.conditionSummary) + '</span></div>';
+        }).join('')
+      : '<div class="muted">Terminal state</div>') +
+    '</div>';
+}
+
+function showAction(action) {
+  details.innerHTML =
+    '<div class="section"><h2>Action \u00b7 ' + esc(action.id) + '</h2>' +
+    '<div class="kv"><span class="muted">Next state</span><span style="color:#58a6ff">' + esc(action.nextStateId) + '</span></div>' +
+    (action.isDefault ? '<span class="pill" style="border-color:#f0883e;color:#f0883e">default</span>' : '') +
+    '<pre style="margin-top:8px">' + esc(action.description) + '</pre></div>' +
+    '<div class="section"><h2>Arguments (' + action.arguments.length + ')</h2>' +
+    (action.arguments.length
+      ? action.arguments.map(function(a) { return '<div class="row"><b>' + esc(a.name) + '</b><br><span class="muted">' + esc(a.description) + '</span></div>'; }).join('')
+      : '<div class="muted">No arguments</div>') +
+    '</div>' +
+    '<div class="section"><h2>Condition</h2><pre>' + esc(action.conditionDetail) + '</pre></div>';
+}
+
+/* tooltip */
+function showTooltip(evt, html) {
+  tooltip.innerHTML = html;
+  tooltip.classList.add('visible');
+  var x = Math.min(evt.clientX + 14, window.innerWidth - 300);
+  var y = Math.min(evt.clientY + 14, window.innerHeight - 100);
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+function hideTooltip() { tooltip.classList.remove('visible'); }
+
+/* highlight state */
+var lockedNodeId = null;
+var currentFsmData = null;
+
+function buildAdjacency(fsm) {
+  var pred = {}, succ = {};
+  fsm.states.forEach(function(s) { pred[s.id] = []; succ[s.id] = []; });
+  fsm.states.forEach(function(s) {
+    s.actions.forEach(function(a) {
+      if (succ[s.id]) succ[s.id].push(a.nextStateId);
+      if (pred[a.nextStateId]) pred[a.nextStateId].push(s.id);
+    });
+  });
+  return { pred: pred, succ: succ };
+}
+
+var HL_LEVELS = ['highlight', 'highlight-1', 'highlight-2', 'highlight-3'];
+var MAX_CASCADE = 3;
+
+function buildEpsilonSet(fsm) {
+  var eps = new Set();
+  fsm.states.forEach(function(s) { if (s.isEpsilon) eps.add(s.id); });
+  return eps;
+}
+
+function getOutgoingLeveled(startId, adj, epsilonSet) {
+  var nodeLevel = {};
+  var edgeLevel = {};
+  nodeLevel[startId] = -1;
+
+  var queue = [];
+  (adj.succ[startId] || []).forEach(function(s) {
+    edgeLevel[startId + '→' + s] = 0;
+    if (!(s in nodeLevel)) { nodeLevel[s] = 0; queue.push({ id: s, level: 0 }); }
+  });
+
+  while (queue.length > 0) {
+    var cur = queue.shift();
+    if (!epsilonSet.has(cur.id) || cur.level >= MAX_CASCADE) continue;
+    var nextLevel = cur.level + 1;
+    (adj.succ[cur.id] || []).forEach(function(s) {
+      var eKey = cur.id + '→' + s;
+      if (!(eKey in edgeLevel)) {
+        edgeLevel[eKey] = nextLevel;
+        if (!(s in nodeLevel)) {
+          nodeLevel[s] = nextLevel;
+          queue.push({ id: s, level: nextLevel });
+        }
+      }
+    });
+  }
+
+  return { nodeLevel: nodeLevel, edgeLevel: edgeLevel };
+}
+
+function applyHighlight(stateId) {
+  if (!currentFsmData) return;
+  var epsilonSet = buildEpsilonSet(currentFsmData.fsm);
+  var result = getOutgoingLeveled(stateId, currentFsmData.adj, epsilonSet);
+  var nodeLevel = result.nodeLevel, edgeLevel = result.edgeLevel;
+
+  d3.selectAll('.node').each(function(d) {
+    var el = d3.select(this);
+    var level = nodeLevel[d.id];
+    var isHl = level !== undefined;
+    HL_LEVELS.forEach(function(cls) { el.classed(cls, false); });
+    el.classed('dim', !isHl);
+    if (isHl) {
+      var cls = level < 0 ? 'highlight' : (HL_LEVELS[Math.min(level, MAX_CASCADE)] || HL_LEVELS[MAX_CASCADE]);
+      el.classed(cls, true);
+    }
+  });
+  d3.selectAll('.edge-group').each(function(d) {
+    var key = d.src + '→' + d.tgt;
+    var level = edgeLevel[key];
+    var isHl = level !== undefined;
+    var paths = d3.select(this).selectAll('.edge-path');
+    var label = d3.select(this).select('.edge-label');
+    HL_LEVELS.forEach(function(cls) { paths.classed(cls, false); label.classed(cls, false); });
+    paths.classed('dim', !isHl);
+    label.classed('dim', !isHl);
+    if (isHl) {
+      var cls = HL_LEVELS[Math.min(level, MAX_CASCADE)] || HL_LEVELS[MAX_CASCADE];
+      paths.classed(cls, true);
+      label.classed(cls, true);
+    }
+  });
+}
+
+function clearHighlight() {
+  lockedNodeId = null;
+  d3.selectAll('.node').each(function() {
+    var el = d3.select(this);
+    HL_LEVELS.forEach(function(cls) { el.classed(cls, false); });
+    el.classed('dim', false);
+  });
+  d3.selectAll('.edge-path').each(function() {
+    var el = d3.select(this);
+    HL_LEVELS.forEach(function(cls) { el.classed(cls, false); });
+    el.classed('dim', false);
+  });
+  d3.selectAll('.edge-label').each(function() {
+    var el = d3.select(this);
+    HL_LEVELS.forEach(function(cls) { el.classed(cls, false); });
+    el.classed('dim', false);
+  });
+}
+
+/* background click */
+var _downPos = null;
+svg.node().addEventListener('pointerdown', function(e) { _downPos = { x: e.clientX, y: e.clientY }; });
+svg.node().addEventListener('pointerup', function(e) {
+  if (!_downPos) return;
+  var dx = e.clientX - _downPos.x, dy = e.clientY - _downPos.y;
+  var dist = Math.sqrt(dx * dx + dy * dy);
+  _downPos = null;
+  if (dist < 5 && !e.target.closest('.node') && !e.target.closest('.edge-group')) {
+    clearHighlight();
+    if (currentFsmData) showOverview(currentFsmData.fsm);
+  }
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') { clearHighlight(); if (currentFsmData) showOverview(currentFsmData.fsm); }
+});
+
+/* Build two SVG path strings from a dagre points array, split at the label position.
+     Segment 1: first point → ... → label (no arrowhead).
+     Segment 2: label → ... → last point (arrowhead). */
+function polylineSplit(pts, lx, ly) {
+  if (!pts || pts.length < 2) {
+    return { d1: 'M'+lx+','+ly, d2: 'M'+lx+','+ly };
+  }
+  /* Find the segment closest to the label midpoint and insert it */
+  var bestIdx = 0, bestDist = 1e9;
+  for (var i = 0; i < pts.length - 1; i++) {
+    /* project label onto segment i→i+1 */
+    var ax = pts[i].x, ay = pts[i].y, bx = pts[i+1].x, by = pts[i+1].y;
+    var dx = bx - ax, dy = by - ay;
+    var len2 = dx*dx + dy*dy;
+    var t = len2 > 0 ? Math.max(0, Math.min(1, ((lx-ax)*dx + (ly-ay)*dy) / len2)) : 0;
+    var px = ax + t*dx, py = ay + t*dy;
+    var dist = (lx-px)*(lx-px) + (ly-py)*(ly-py);
+    if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+  }
+  /* d1: pts[0..bestIdx] → label */
+  var d1 = 'M' + pts[0].x + ',' + pts[0].y;
+  for (var i = 1; i <= bestIdx; i++) d1 += ' L' + pts[i].x + ',' + pts[i].y;
+  d1 += ' L' + lx + ',' + ly;
+  /* d2: label → pts[bestIdx+1..end] */
+  var d2 = 'M' + lx + ',' + ly;
+  for (var i = bestIdx + 1; i < pts.length; i++) d2 += ' L' + pts[i].x + ',' + pts[i].y;
+  return { d1: d1, d2: d2 };
+}
+
+var _initPos = {}, _nodePos = {}, _edgeGroups = null;
+function renderFsm(fsmIndex) {
+  var fsm = DOC.fsms[fsmIndex];
+  var layout = LAYOUTS[fsmIndex];
+  if (!fsm || !layout) return;
+
+  root.selectAll('*').remove();
+  clearHighlight();
+  showOverview(fsm);
+
+  var adj = buildAdjacency(fsm);
+  currentFsmData = { fsm: fsm, adj: adj };
+
+  var nodeR = NODE_R;
+
+  /* build node position lookup */
+  var nodePos = {};
+  layout.nodes.forEach(function(n) { nodePos[n.id] = n; });
+
+  /* remember initial positions for reset */
+  var initPos = {};
+  layout.nodes.forEach(function(n) { initPos[n.id] = { x: n.x, y: n.y }; });
+  _initPos = initPos;
+  _nodePos = nodePos;
+
+  /* build action lookup for edge data */
+  var actionMap = {};
+  fsm.states.forEach(function(s) {
+    s.actions.forEach(function(a) { actionMap[s.id + '\0' + a.nextStateId + '\0' + a.id] = a; });
+  });
+
+  /* edges from pre-computed layout */
+  var edgeData = layout.edges.map(function(e) {
+    var src = nodePos[e.srcId], tgt = nodePos[e.tgtId];
+    if (!src || !tgt) return null;
+    var action = actionMap[e.srcId + '\0' + e.tgtId + '\0' + e.actionId];
+    return {
+      src: e.srcId, tgt: e.tgtId, name: e.actionId,
+      edge: { label: e.actionId, action: action },
+      srcNode: { x: src.x, y: src.y }, tgtNode: { x: tgt.x, y: tgt.y },
+      labelX: e.label.x, labelY: e.label.y,
+      labelW: e.label.w, labelH: e.label.h,
+      points: e.points
+    };
+  }).filter(Boolean);
+
+  var edgeGroups = root.append('g').attr('class','edges')
+    .selectAll('g').data(edgeData).enter().append('g').attr('class','edge-group');
+  _edgeGroups = edgeGroups;
+
+  edgeGroups.each(function(d) {
+    var g = d3.select(this);
+    /* Clamp first/last dagre point onto circle edge (radius = nodeR) */
+    var pts = d.points.slice();
+    if (pts.length >= 2) {
+      var s = d.srcNode, dx0 = pts[0].x - s.x, dy0 = pts[0].y - s.y;
+      var len0 = Math.sqrt(dx0*dx0 + dy0*dy0) || 1;
+      pts[0] = { x: s.x + dx0/len0*nodeR, y: s.y + dy0/len0*nodeR };
+      var t = d.tgtNode, last = pts.length-1, dx1 = pts[last].x - t.x, dy1 = pts[last].y - t.y;
+      var len1 = Math.sqrt(dx1*dx1 + dy1*dy1) || 1;
+      pts[last] = { x: t.x + dx1/len1*nodeR, y: t.y + dy1/len1*nodeR };
+    }
+    var seg = polylineSplit(pts, d.labelX, d.labelY);
+    g.append('path').attr('class','edge-path edge-path-1').attr('d', seg.d1);
+    g.append('path').attr('class','edge-path edge-path-2').attr('d', seg.d2).attr('marker-end','url(#arrow)');
+  });
+
+  /* edge labels at pre-computed positions */
+  var edgeLabels = edgeGroups.append('g').attr('class','edge-label')
+    .attr('transform', function(d) {
+      return 'translate(' + d.labelX + ',' + d.labelY + ')';
+    });
+  edgeLabels.each(function(d) {
+    var el = d3.select(this);
+    el.append('text').attr('text-anchor','middle').attr('dy','0.35em').text(d.edge.label);
+    var hw = d.labelW / 2, hh = d.labelH / 2;
+    el.insert('rect','text').attr('x', -hw).attr('y', -hh).attr('width', d.labelW).attr('height', d.labelH);
+  });
+  edgeLabels.on('mouseenter', function(evt, d) {
+    if (!lockedNodeId) {
+      clearHighlight();
+      var srcId = d.src, tgtId = d.tgt;
+      d3.selectAll('.node').each(function(nd) {
+        var el = d3.select(this);
+        var isHl = (nd.id === srcId || nd.id === tgtId);
+        el.classed('highlight', isHl).classed('dim', !isHl);
+      });
+      d3.selectAll('.edge-group').each(function(ed) {
+        var isHl = (ed.src === srcId && ed.tgt === tgtId);
+        d3.select(this).selectAll('.edge-path').classed('highlight', isHl).classed('dim', !isHl);
+        d3.select(this).select('.edge-label').classed('highlight', isHl).classed('dim', !isHl);
+      });
+    }
+    if (!d.edge.action) { hideTooltip(); return; }
+    showTooltip(evt, '<b>' + esc(d.edge.action.id) + '</b>' +
+      '<br><span class="tt-muted">' + esc(d.src) + ' \u2192 ' + esc(d.tgt) + '</span>' +
+      '<br><span class="tt-muted">' + esc(d.edge.action.conditionSummary || '') + '</span>');
+  });
+  edgeLabels.on('mousemove', function(evt) {
+    tooltip.style.left = Math.min(evt.clientX + 14, window.innerWidth - 300) + 'px';
+    tooltip.style.top = Math.min(evt.clientY + 14, window.innerHeight - 100) + 'px';
+  });
+  edgeLabels.on('mouseleave', function() {
+    hideTooltip();
+    if (!lockedNodeId) clearHighlight();
+  });
+  edgeLabels.on('click', function(_e, d) { if (!d.edge.action) return; showAction(d.edge.action); });
+
+  /* nodes */
+  var nodes = root.append('g').attr('class','nodes')
+    .selectAll('g').data(fsm.states).enter().append('g')
+    .attr('class', function(s) {
+      var c = 'node';
+      if (s.id === '$START') c += ' start';
+      if (s.id === '$END') c += ' end';
+      if (s.isEpsilon) c += ' epsilon';
+      if (s.isInteractive) c += ' interactive';
+      if (s.id === fsm.currentStateId) c += ' current';
+      return c;
+    })
+    .attr('transform', function(s) { var n = nodePos[s.id]; if (!n) return 'translate(0,0)'; return 'translate(' + n.x + ',' + n.y + ')'; });
+
+  nodes.filter(function(s) { return s.isInteractive; }).append('circle').attr('class','interactive-ring').attr('r', nodeR + 7);
+  nodes.append('circle').attr('class','node-fill').attr('r', nodeR);
+  nodes.append('text').attr('class','label').attr('text-anchor','middle').attr('dy', '-0.15em')
+    .text(function(s) { return s.id.length > 12 ? s.id.slice(0, 11) + '\u2026' : s.id; });
+  nodes.append('text').attr('class','sublabel').attr('text-anchor','middle').attr('dy', '1.2em')
+    .text(function(s) { return s.actions.length + ' action' + (s.actions.length !== 1 ? 's' : ''); });
+
+  /* node interactions */
+  nodes.on('mouseenter', function(evt, s) {
+    if (!lockedNodeId) applyHighlight(s.id);
+    showTooltip(evt, '<b>' + esc(s.id) + '</b>' +
+      (s.isEpsilon ? ' <span class="tt-muted">\u03b5</span>' : '') +
+      (s.isInteractive ? ' <span style="color:#b388ff">interactive</span>' : '') +
+      '<br><span class="tt-muted">' + s.actions.length + ' action(s)</span>' +
+      (s.id === fsm.currentStateId ? '<br><span style="color:#58a6ff">\u25cf current state</span>' : ''));
+  });
+  nodes.on('mousemove', function(evt) {
+    tooltip.style.left = Math.min(evt.clientX + 14, window.innerWidth - 300) + 'px';
+    tooltip.style.top = Math.min(evt.clientY + 14, window.innerHeight - 100) + 'px';
+  });
+  nodes.on('mouseleave', function() {
+    hideTooltip();
+    if (!lockedNodeId) clearHighlight();
+  });
+  nodes.on('click', function(evt, s) {
+    evt.stopPropagation();
+    if (lockedNodeId === s.id) { clearHighlight(); showOverview(fsm); }
+    else { lockedNodeId = s.id; applyHighlight(s.id); showState(fsm, s); }
+  });
+  nodes.on('dblclick', function(evt, s) {
+    evt.stopPropagation();
+    lockedNodeId = s.id;
+    applyHighlight(s.id);
+    showState(fsm, s);
+  });
+
+  /* enable drag on nodes */
+  if (typeof enableDragNodes === 'function') enableDragNodes(nodes, nodePos, edgeGroups, nodeR);
+
+  /* auto-fit */
+  var gw = Math.max(layout.graphWidth, 1), gh = Math.max(layout.graphHeight, 1);
+  var svgEl = svg.node();
+  if (svgEl) {
+    var box = svgEl.getBoundingClientRect();
+    var scale = Math.min(1.4, Math.max(0.3, Math.min(box.width / gw, box.height / gh) * 0.85));
+    svg.call(zoom.transform, d3.zoomIdentity
+      .translate((box.width - gw * scale) / 2, (box.height - gh * scale) / 2)
+      .scale(scale));
+  }
+}
+
+renderFsm(Number(fsmSelect.value) || 0);
+
+document.getElementById('resetBtn').addEventListener('click', function() {
+  if (!currentFsmData) return;
+  clearHighlight();
+  showOverview(currentFsmData.fsm);
+
+  /* animate nodes back to initial positions */
+  var dur = 800;
+  d3.selectAll('.node').transition().duration(dur).ease(d3.easeCubicOut)
+    .attr('transform', function(s) {
+      var p = _initPos[s.id];
+      if (!p || !_nodePos[s.id]) return d3.select(this).attr('transform');
+      _nodePos[s.id].x = p.x;
+      _nodePos[s.id].y = p.y;
+      return 'translate(' + p.x + ',' + p.y + ')';
+    })
+    .on('end', function() {
+      /* redraw edges after nodes settle */
+      d3.selectAll('.edge-group').each(function(d) {
+        var g = d3.select(this);
+        /* restore original layout points regardless of whether nodes are positioned */
+        var layoutEdge = LAYOUTS[Number(fsmSelect.value) || 0].edges.find(function(e) {
+          return e.srcId === d.src && e.tgtId === d.tgt && e.actionId === d.name;
+        });
+        if (layoutEdge) {
+          d.points = layoutEdge.points;
+          d.labelX = layoutEdge.label.x;
+          d.labelY = layoutEdge.label.y;
+        }
+        var src = _nodePos[d.src], tgt = _nodePos[d.tgt];
+        if (!src || !tgt) return;
+        d.srcNode = { x: src.x, y: src.y };
+        d.tgtNode = { x: tgt.x, y: tgt.y };
+        var nodeR = NODE_R;
+        var pts = d.points.slice();
+        if (pts.length >= 2) {
+          var s = d.srcNode, dx0 = pts[0].x - s.x, dy0 = pts[0].y - s.y;
+          var len0 = Math.sqrt(dx0*dx0 + dy0*dy0) || 1;
+          pts[0] = { x: s.x + dx0/len0*nodeR, y: s.y + dy0/len0*nodeR };
+          var t = d.tgtNode, last = pts.length-1, dx1 = pts[last].x - t.x, dy1 = pts[last].y - t.y;
+          var len1 = Math.sqrt(dx1*dx1 + dy1*dy1) || 1;
+          pts[last] = { x: t.x + dx1/len1*nodeR, y: t.y + dy1/len1*nodeR };
+        }
+        var seg = polylineSplit(pts, d.labelX, d.labelY);
+        g.select('.edge-path-1').attr('d', seg.d1);
+        g.select('.edge-path-2').attr('d', seg.d2);
+        g.select('.edge-label').attr('transform', 'translate(' + d.labelX + ',' + d.labelY + ')');
+      });
+    });
+
+
+});
+</script>
+</body>
+</html>

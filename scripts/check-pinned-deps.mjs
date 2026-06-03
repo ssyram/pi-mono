@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const dependencySections = ["dependencies", "devDependencies", "optionalDependencies"];
@@ -9,9 +9,11 @@ const packageJsonFiles = [];
 function collectPackageJsonFiles(directory) {
 	for (const entry of readdirSync(directory, { withFileTypes: true })) {
 		if (entry.isDirectory()) {
-			if (!ignoredDirectories.has(entry.name)) {
-				collectPackageJsonFiles(join(directory, entry.name));
-			}
+			if (ignoredDirectories.has(entry.name)) continue;
+			const subdir = join(directory, entry.name);
+			// Skip embedded git repos (submodules, third-party repos)
+			if (existsSync(join(subdir, ".git"))) continue;
+			collectPackageJsonFiles(subdir);
 			continue;
 		}
 

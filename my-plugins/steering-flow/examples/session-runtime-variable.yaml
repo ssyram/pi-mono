@@ -1,0 +1,27 @@
+task_description: |
+  Minimal example for steering-flow runtime variables. The condition receives
+  `${$session.id}` in argv and compares it with EXPECTED_SESSION_ID on tape.
+
+states:
+  - state_id: "$START"
+    state_desc: |
+      Save EXPECTED_SESSION_ID to the current pi session id, then run
+      `check_session_id` to verify `${$session.id}` interpolation.
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: check_session_id
+        action_desc: "Verify `${$session.id}` against tape."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-session-id.mjs"
+            - "${$session.id}"
+            - "${$TAPE_FILE}"
+        next_state_id: "$END"
+
+  - state_id: "$END"
+    state_desc: "Session runtime variable matched tape."
+    is_epsilon: false
+    interactive: false
+    actions: []

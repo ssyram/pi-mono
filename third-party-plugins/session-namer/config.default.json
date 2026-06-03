@@ -1,0 +1,8 @@
+{
+	"enabled": true,
+	"sizeThreshold": 10240,
+	"maxLength": 40,
+	"separator": " | ",
+	"autoRename": true,
+	"renameOnCompact": true
+}

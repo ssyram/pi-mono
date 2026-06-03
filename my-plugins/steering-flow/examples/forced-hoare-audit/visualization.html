@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Steering-Flow · forced-hoare-audit.yaml</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<style>
+:root { color-scheme:dark; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:#0d1117; color:#e6edf3; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; overflow:hidden; }
+
+/* header */
+header { position:fixed; inset:0 0 auto 0; height:56px; z-index:10; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 20px; background:rgba(13,17,23,.96); border-bottom:1px solid #30363d; backdrop-filter:blur(8px); }
+header h1 { font-size:16px; font-weight:600; color:#e6edf3; }
+header .sub { color:#8b949e; font-size:12px; margin-top:2px; }
+.pill { display:inline-block; padding:2px 8px; border:1px solid #30363d; border-radius:999px; color:#8b949e; font-size:11px; margin-left:6px; }
+
+/* layout */
+main { display:grid; grid-template-columns:1fr 360px; height:100vh; padding-top:56px; }
+#graph { width:100%; height:calc(100vh - 56px); background:radial-gradient(ellipse at 30% 20%, #161b22 0%, #0d1117 60%); cursor:grab; }
+#graph:active { cursor:grabbing; }
+
+/* sidebar */
+aside { border-left:1px solid #30363d; background:#161b22; overflow-y:auto; padding:14px; }
+select { width:100%; margin-bottom:12px; background:#0d1117; color:#e6edf3; border:1px solid #30363d; border-radius:6px; padding:8px 10px; font-size:13px; }
+.section { background:#0d1117; border:1px solid #30363d; border-radius:8px; padding:12px; margin-bottom:10px; }
+.section h2 { font-size:13px; font-weight:600; margin-bottom:8px; color:#e6edf3; }
+pre { white-space:pre-wrap; word-break:break-all; overflow:auto; max-height:240px; margin:0; color:#8b949e; font-size:12px; font-family:'SF Mono',Consolas,monospace; }
+.row { margin:6px 0; color:#c9d1d9; font-size:13px; }
+.muted { color:#8b949e; }
+.kv { display:grid; grid-template-columns:100px 1fr; gap:4px; font-size:12px; }
+
+/* nodes */
+.node { cursor:pointer; }
+.node .node-fill { fill:#161b22; stroke:#30363d; stroke-width:2; transition:stroke .15s, fill .15s, opacity .15s; }
+.node .interactive-ring { fill:none; stroke:#b388ff; stroke-width:2; stroke-dasharray:4 5; opacity:.55; pointer-events:none; transition:opacity .15s; }
+.node text { fill:#e6edf3; font-size:11px; pointer-events:none; transition:opacity .15s; }
+.node .label { font-weight:600; font-size:12px; }
+.node .sublabel { fill:#8b949e; font-size:10px; }
+.node.current .node-fill { stroke:#58a6ff; stroke-width:3; }
+.node.epsilon .node-fill { stroke-dasharray:5 4; }
+.node.start .node-fill { stroke:#3fb950; }
+.node.start.current .node-fill { stroke:#3fb950; stroke-width:3; }
+.node.end .node-fill { stroke:#f85149; }
+.node.end.current .node-fill { stroke:#f85149; stroke-width:3; }
+
+/* highlight states */
+.node.highlight .node-fill { stroke:#58a6ff; stroke-width:3; fill:#1f2937; }
+.node.highlight-1 .node-fill { stroke:#58a6ff; stroke-width:2; fill:#1a2332; opacity:.38; transition-delay:.08s; }
+.node.highlight-2 .node-fill { stroke:#58a6ff; stroke-width:1.5; fill:#171f2b; opacity:.22; transition-delay:.16s; }
+.node.highlight-3 .node-fill { stroke:#58a6ff; stroke-width:1; fill:#151b24; opacity:.2; transition-delay:.24s; }
+.node.dim { opacity:.15; }
+.node.dim .node-fill { stroke:#30363d; }
+
+/* edges */
+.edge-path { fill:none; stroke:#8b949e; stroke-width:1.5; opacity:.2; transition:stroke .15s, stroke-width .15s, opacity .15s; }
+.edge-path.highlight { stroke:#58a6ff; stroke-width:2.5; opacity:.85; }
+.edge-path.highlight-1 { stroke:#58a6ff; stroke-width:2; opacity:.38; transition-delay:.08s; }
+.edge-path.highlight-2 { stroke:#58a6ff; stroke-width:1.5; opacity:.22; transition-delay:.16s; }
+.edge-path.highlight-3 { stroke:#58a6ff; stroke-width:1; opacity:.2; transition-delay:.24s; }
+.edge-path.dim { opacity:.04; }
+
+/* edge labels */
+.edge-label { cursor:pointer; transition:opacity .15s; }
+.edge-label rect { fill:#2d1f0e; stroke:#d29922; stroke-width:1; rx:999; ry:999; }
+.edge-label text { fill:#e8b44a; font-size:11px; font-weight:600; pointer-events:none; letter-spacing:.3px; }
+.edge-label.highlight rect { stroke:#f5d060; stroke-width:2; fill:#3d2c0a; }
+.edge-label.highlight text { fill:#fde68a; }
+.edge-label.highlight-1 rect { stroke:#d29922; stroke-width:1; fill:#2d1f0e; opacity:.38; transition-delay:.08s; }
+.edge-label.highlight-1 text { fill:#e8b44a; opacity:.38; }
+.edge-label.highlight-2 rect { stroke:#d29922; stroke-width:1; fill:#2d1f0e; opacity:.22; transition-delay:.16s; }
+.edge-label.highlight-2 text { fill:#e8b44a; opacity:.22; }
+.edge-label.highlight-3 rect { stroke:#d29922; stroke-width:1; fill:#2d1f0e; opacity:.2; transition-delay:.24s; }
+.edge-label.highlight-3 text { fill:#e8b44a; opacity:.2; }
+.edge-label.dim { opacity:.12; }
+
+/* tooltip */
+.tooltip { position:fixed; pointer-events:none; z-index:20; background:rgba(13,17,23,.98); border:1px solid #30363d; border-radius:8px; padding:10px 12px; font-size:12px; color:#c9d1d9; max-width:280px; opacity:0; transition:opacity .12s; box-shadow:0 4px 12px rgba(0,0,0,.4); }
+.tooltip.visible { opacity:1; }
+.tooltip b { color:#e6edf3; }
+.tooltip .tt-muted { color:#8b949e; font-size:11px; }
+
+/* legend */
+.legend { position:fixed; left:14px; bottom:14px; color:#8b949e; font-size:11px; background:rgba(22,27,34,.9); border:1px solid #30363d; border-radius:8px; padding:10px 14px; z-index:5; line-height:1.8; }
+.legend kbd { background:#21262d; border:1px solid #30363d; border-radius:3px; padding:1px 5px; font-size:10px; font-family:inherit; }
+.legend-row { display:flex; align-items:center; gap:6px; }
+.legend-dot { display:inline-block; width:10px; height:10px; border-radius:50%; border:2px solid; flex-shrink:0; }
+.legend-line { display:inline-block; width:18px; height:0; border-top:2px solid; flex-shrink:0; }
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Steering-Flow · forced-hoare-audit.yaml</h1><div class="sub" id="subtitle"></div></div>
+  <div><span class="pill" id="mode"></span><span class="pill" id="counts"></span></div>
+</header>
+<main>
+  <svg id="graph"></svg>
+  <aside>
+    <select id="fsmSelect"></select>
+    <div id="details"></div>
+  </aside>
+</main>
+<div class="tooltip" id="tooltip"></div>
+<div class="legend">
+  <div class="legend-row"><span class="legend-dot" style="border-color:#3fb950;background:#161b22"></span> Start</div>
+  <div class="legend-row"><span class="legend-dot" style="border-color:#f85149;background:#161b22"></span> End</div>
+  <div class="legend-row"><span class="legend-dot" style="border-color:#58a6ff;background:#161b22"></span> Current</div>
+  <div class="legend-row"><span class="legend-dot" style="border-color:#b388ff;background:#161b22;border-style:dashed;opacity:.75"></span> Interactive</div>
+  <div class="legend-row"><span class="legend-dot" style="border-color:#30363d;background:#161b22;border-style:dashed"></span> Epsilon</div>
+  <div class="legend-row" style="margin-top:4px"><span class="legend-line" style="border-color:#8b949e;opacity:.4"></span> Transition</div>
+  <div class="legend-row"><span class="legend-line" style="border-color:#58a6ff;border-width:2.5px"></span> Highlighted</div>
+  <div style="margin-top:6px;border-top:1px solid #30363d;padding-top:6px">
+    Hover/Click: highlight outgoing · <kbd>Esc</kbd> clear<br>
+    Drag to pan · Scroll to zoom
+  </div>
+  <button id="resetBtn" style="margin-top:8px;width:100%;padding:4px 0;background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit;transition:background .12s" onmouseover="this.style.background='#30363d'" onmouseout="this.style.background='#21262d'">Reset View</button>
+</div>
+<script>
+const DOC = {"title":"Steering-Flow · forced-hoare-audit.yaml","generatedAt":"2026-05-17T18:23:51.495Z","sourceMode":"file","sourceLabel":"/home/ssyram/ai-tools/pi-mono/my-plugins/steering-flow/examples/forced-hoare-audit/forced-hoare-audit.yaml","fsms":[{"id":"forced-hoare-audit.yaml","name":"forced-hoare-audit.yaml","flowDir":"","taskDescription":"Forced Hoare audit (v4). Establish absolute TARGET_DIR / WORKING_DIR\n(both must exist), build Lv3 design report under spec/, run >= 2\nmulti-path Whole Audits, compile candidates, challenge,\ncounter-challenge (with regression-aware double-edged disprove, P13),\nreduce/classify, run an independent Non-Decisional plan-confirm round\n(each confirmer owns ≤ 3 改动点, P14), fix+pin+verify, then enter\ncount_gate where the LLM MUST submit NON_DECISION_COUNT and\nDECISION_COUNT for the round. Routing is mechanical: ND > 0 → redo\nfix; ND=0, D>0 → decision_gate; ND=0, D=0 → final_synthesis. Every\nfresh agent (audit / challenge / counter / confirm) must declare\nlessons.md in its frontmatter inputs (D13).\n","sourceLabel":"/home/ssyram/ai-tools/pi-mono/my-plugins/steering-flow/examples/forced-hoare-audit/forced-hoare-audit.yaml","states":[{"id":"$START","description":"Step 1 — setup. Pick Target Dir (audit subject) and Working Dir\n(where all audit artifacts live). Working Dir search order:\n  1. user-specified\n  2. \u003cTARGET_DIR>/audit/  or  \u003cTARGET_DIR>/.audit/\n  3. \u003crepo-root>/docs/audit/\u003caudit-id>/  or  .pi/audits/\u003caudit-id>/\n\nBoth TARGET_DIR and WORKING_DIR must be ABSOLUTE paths to EXISTING\ndirectories. The setup gate enforces this; relative paths or\nmissing directories fail immediately rather than silently looping.\n\nCreate:\n  WORKING_DIR/setup.md     - audit_id, target dir, working-dir choice\n                             and reasoning, plus the audit intent\n                             (one-paragraph Lv0-style anchor).\n  WORKING_DIR/lessons.md   - empty append-only memory file. May be\n                             pre-seeded with a \"## Notes\" header but\n                             no entries are required at setup time.\n                             Future fresh agents (audit / challenge /\n                             counter / confirm) MUST list it in\n                             frontmatter inputs (D13).\n\nAfter this step, only the count keys (NON_DECISION_COUNT,\nDECISION_COUNT) ever mutate on the tape; TARGET_DIR / WORKING_DIR\nare immutable.\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_setup","description":"Submit setup: tape carries absolute existing TARGET_DIR / WORKING_DIR; setup.md and lessons.md exist.","nextStateId":"spec_gate","arguments":[],"conditionSummary":"node ../scripts/require-all.mjs require-absolute-existing-dir.mjs TARGET_DIR -- require-absolute-existing-dir.mjs WORKING_DIR -- require-file-in-workdir.mjs setup.md,lessons.md ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-all.mjs\",\n    \"require-absolute-existing-dir.mjs\",\n    \"TARGET_DIR\",\n    \"--\",\n    \"require-absolute-existing-dir.mjs\",\n    \"WORKING_DIR\",\n    \"--\",\n    \"require-file-in-workdir.mjs\",\n    \"setup.md,lessons.md\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"spec_gate","description":"Step 2 — spec gate. Build WORKING_DIR/spec/ as the Lv3 contract source.\n\nRequired files under spec/:\n  lv3-design-report.md  - Lv3 design report (方案层) describing what\n                          Lv4 should do.\n  index.md              - lists every spec file with origin tag.\n\n`/hoare-audit` works on Lv3 ↔ Lv4. Lv0 / Lv1 / Lv2 are not audit\ninputs; they only enter as optional reference materials when the\nuser wants extra arbitration leverage. They live under spec/ with\n`origin: original` and are NOT checked here.\n\nEvery spec file must carry frontmatter `origin: original` (cp from\nproject) or `origin: reconstructed` (derived via /hoare-design).\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_spec","description":"Submit spec gate.","nextStateId":"audits","arguments":[],"conditionSummary":"node ../scripts/require-file-in-workdir.mjs spec/lv3-design-report.md,spec/index.md ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-file-in-workdir.mjs\",\n    \"spec/lv3-design-report.md,spec/index.md\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"audits","description":"Step 3 — multi-path Whole Audit (D5 + D13).\n\nLaunch >= 2 fresh agents. Each agent reads spec/, TARGET_DIR fully,\nAND lessons.md (cross-round memory of rejected/overruled/resolved\nforms — DO NOT re-raise findings whose form already appears there\nas rejected or overruled, P15).\n\nEach report at audit/\u003cperspective>.md MUST carry frontmatter:\n  actor_id, fresh: true, inputs: [spec/, \u003cTARGET_DIR>, lessons.md]\nand end with a \"Candidate Findings\" section listing finding_id,\ncontract_kind, violated_contract, counterexample, and reachability.\n\nRequired artifacts:\n  audit/index.md  - lists perspectives included in this round\n  audit/*.md      - >= 2 perspective reports, each with lessons.md\n                    in inputs.\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_audits","description":"Submit multi-path Whole Audits with lessons.md declared in every report's inputs.","nextStateId":"compile","arguments":[],"conditionSummary":"node ../scripts/require-all.mjs require-file-in-workdir.mjs audit/index.md -- require-dir-frontmatter-input.mjs audit lessons.md ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-all.mjs\",\n    \"require-file-in-workdir.mjs\",\n    \"audit/index.md\",\n    \"--\",\n    \"require-dir-frontmatter-input.mjs\",\n    \"audit\",\n    \"lessons.md\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"compile","description":"Step 4 — compile candidates.\n\nMerge audit/\u003cperspective>.md \"Candidate Findings\" into:\n  findings/candidates.md  - structured candidate findings\n  findings/rejected.md    - precompile rejections (no contract,\n                            unreachable, off-threat-model, style nits)\n\nEach candidate must reference at least one violated contract in\nspec/lv3-design-report.md plus a concrete counterexample.\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_compile","description":"Submit compiled candidates.","nextStateId":"challenge","arguments":[],"conditionSummary":"node ../scripts/require-file-in-workdir.mjs findings/candidates.md,findings/rejected.md ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-file-in-workdir.mjs\",\n    \"findings/candidates.md,findings/rejected.md\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"challenge","description":"Step 5 — disprove-first challenge (P6 + D6 + D13).\n\nFor every candidate finding, a fresh agent writes\nchallenge/\u003cfinding-id>.md attempting to refute it. Default inputs\nare spec/ + TARGET_DIR + the single finding claim + lessons.md.\nFrontmatter MUST record:\n  actor_id, fresh: true,\n  inputs: [spec/, \u003cTARGET_DIR>, lessons.md, …]\n  verdict: upheld | weakened | rejected | inconclusive\n\nlessons.md is mandatory so this round does not re-walk reasoning\nthat prior rounds already settled (P15).\n\nRequired: challenge/index.md listing every challenged finding-id\nwith its verdict; every challenge/\u003cfinding-id>.md carries\nlessons.md in inputs.\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_challenge","description":"Submit challenge results; every report's frontmatter inputs includes lessons.md.","nextStateId":"counter_and_verify","arguments":[],"conditionSummary":"node ../scripts/require-all.mjs require-file-in-workdir.mjs challenge/index.md -- require-dir-frontmatter-input.mjs challenge lessons.md ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-all.mjs\",\n    \"require-file-in-workdir.mjs\",\n    \"challenge/index.md\",\n    \"--\",\n    \"require-dir-frontmatter-input.mjs\",\n    \"challenge\",\n    \"lessons.md\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"counter_and_verify","description":"Step 6 — counter-challenge + lead verification (P13 + D13).\n\nFor every finding still alive after challenge (upheld, weakened,\nor inconclusive), a DIFFERENT fresh agent writes\ncounter/\u003cfinding-id>.md. The counter MUST simultaneously check\nboth failure modes:\n  (a) Is the finding actually rooted in a Lv3 contract violation?\n  (b) Is the prior challenge itself flawed (does it construct a\n      counterexample or cite Lv3 / Lv4 line numbers)?\n\n\"Spec did not say so\" by itself is NOT a valid rejection. Honest\nambiguity → mark `verdict: inconclusive` and route to lead review,\nNOT `verdict: rejected`.\n\nEvery counter/\u003cfinding-id>.md frontmatter:\n  actor_id, fresh: true,\n  inputs: [spec/, \u003cTARGET_DIR>, lessons.md, challenge/\u003cid>.md]\n  verdict: upheld | weakened | rejected | inconclusive\n\nThen the lead auditor records what was personally verified in\nfindings/confirmed.md and updates findings/rejected.md if more\ncandidates die here.\n\nRequired artifacts: counter/index.md, findings/confirmed.md;\nevery counter/*.md carries lessons.md in inputs.\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_counter","description":"Submit counter-challenges and confirmation.","nextStateId":"reduce_and_classify","arguments":[],"conditionSummary":"node ../scripts/require-all.mjs require-file-in-workdir.mjs counter/index.md,findings/confirmed.md -- require-dir-frontmatter-input.mjs counter lessons.md ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-all.mjs\",\n    \"require-file-in-workdir.mjs\",\n    \"counter/index.md,findings/confirmed.md\",\n    \"--\",\n    \"require-dir-frontmatter-input.mjs\",\n    \"counter\",\n    \"lessons.md\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"reduce_and_classify","description":"Step 7 — reduce and classify (P8).\n\nDeduplicate confirmed findings, isolate root causes, drop symptoms\nwhose root is also confirmed, then split:\n  findings/non-decisional.md  - unambiguous fixes the agent will\n                                implement\n  findings/decisional.md      - root findings that need human\n                                judgment\n\nBoth files MUST exist with frontmatter:\n  ---\n  has_items: true | false\n  ---\n`has_items: true` if the file lists one or more findings; `false`\nif the body is exactly the explicit phrase\n\"No items in this round.\".\n\nThe count_gate (step 9) reads the integer counts the LLM submits\nto the tape; has_items is a fast secondary check used by the\ndecision-gate router (step 10).\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_classification","description":"Submit classification.","nextStateId":"nondecisional_confirm","arguments":[],"conditionSummary":"node ../scripts/require-file-in-workdir.mjs findings/non-decisional.md,findings/decisional.md ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-file-in-workdir.mjs\",\n    \"findings/non-decisional.md,findings/decisional.md\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"nondecisional_confirm","description":"Step 8 — Non-Decisional plan-confirm (P14, new in v4).\n\nPlan-confirm is independent from plan-execute. Spawn fresh\nconfirmers; each owns AT MOST 3 改动点 from\nfindings/non-decisional.md. For every owned 改动点 the confirmer\nmust produce three explicit judgments in its\nconfirm/\u003cconfirmer-id>.md report:\n  1. Necessity   - why the change is required by Lv3 contracts in\n                   spec/lv3-design-report.md (cite contract id).\n  2. Regression  - whether the change risks weakening any\n                   currently-honored contract; cite the contract.\n  3. Spec cover  - is the proposed fix shape directly entailed by\n                   existing Lv3? If NOT, the confirmer MAY\n                   conservatively recommend up-classifying the\n                   改动点 to Decisional, but MUST NOT silently\n                   delete or rewrite findings/non-decisional.md.\n\n\"Doc did not mention it\" is the DEFAULT trigger for moving an item\nto Decisional, not a default green light to proceed.\n\nEvery confirm/\u003cconfirmer-id>.md frontmatter:\n  actor_id, fresh: true,\n  inputs: [spec/, \u003cTARGET_DIR>, lessons.md, findings/non-decisional.md]\n  owned_findings: [\u003cid>, …]   # length ≤ 3\n  verdict: confirm-all | partial | escalate-to-decisional\n  upclassify_recommendations: [\u003cid>, …]   # may be empty\n\nRequired artifacts: confirm/index.md (lists confirmer-ids and the\n改动点 each owns; the union of owned sets must cover every entry\nin findings/non-decisional.md exactly once); each confirm/*.md\ncarries lessons.md in inputs.\n\nIf any confirmer recommends up-classify, the lead auditor MUST\nupdate findings/decisional.md and findings/non-decisional.md\nbefore submitting this gate.\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_confirm","description":"Submit independent Non-Decisional plan confirmations; lessons.md present in every confirmer's inputs.","nextStateId":"fix_pin_verify","arguments":[],"conditionSummary":"node ../scripts/require-all.mjs require-file-in-workdir.mjs confirm/index.md -- require-dir-frontmatter-input.mjs confirm lessons.md ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-all.mjs\",\n    \"require-file-in-workdir.mjs\",\n    \"confirm/index.md\",\n    \"--\",\n    \"require-dir-frontmatter-input.mjs\",\n    \"confirm\",\n    \"lessons.md\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"fix_pin_verify","description":"Step 9 — fix, pin, verify (P9).\n\nImplement minimal root-cause fixes for findings/non-decisional.md\n(only items confirmed in step 8). For every confirmed code\nfinding, add a deterministic regression test or property test, OR\nexplicitly state in fix/pinning.md why it cannot be pinned. Verify\nthe patch and the pins.\n\nRequired artifacts:\n  fix/plan.md           - mapping each non-decisional finding to a fix\n  fix/patch-report.md   - changed files and rationale\n                          FRONTMATTER must include:\n                            boundary_changed: true | false\n  fix/pinning.md        - per code finding: test path or non-pinnable rationale\n  verify/verify.md      - commands, results, failures, pre-existing noise\n                          FRONTMATTER must include:\n                            verify_status: pass | fail | blocked\n\nIf there are zero non-decisional findings, all four files must\nstill exist with explicit \"Nothing to fix this round.\" content\nand frontmatter (verify_status: pass, boundary_changed: false),\nso the audit trail is uniform.\n\nAfter this submission, verify_router routes by verify_status and\nboundary_changed BEFORE the LLM is allowed to submit counts.\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_fix","description":"Submit fix+pin+verify.","nextStateId":"verify_router","arguments":[],"conditionSummary":"node ../scripts/require-file-in-workdir.mjs fix/plan.md,fix/patch-report.md,fix/pinning.md,verify/verify.md ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-file-in-workdir.mjs\",\n    \"fix/plan.md,fix/patch-report.md,fix/pinning.md,verify/verify.md\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"verify_router","description":"Route after verify: fail/blocked → redo; boundary changed → spec_gate; pass → count_gate (with entry-clear).","isEpsilon":true,"isInteractive":false,"actions":[{"id":"redo_fix","description":"verify_status fail or blocked → redo fix_pin_verify.","nextStateId":"fix_pin_verify","arguments":[],"conditionSummary":"node ../scripts/require-frontmatter-eq.mjs verify/verify.md verify_status fail,blocked ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-frontmatter-eq.mjs\",\n    \"verify/verify.md\",\n    \"verify_status\",\n    \"fail,blocked\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"boundary_then_spec","description":"verify pass + boundary_changed=true → reset counts and re-enter spec_gate.","nextStateId":"spec_gate","arguments":[],"conditionSummary":"node ../scripts/require-all.mjs require-frontmatter-eq.mjs fix/patch-report.md boundary_changed true -- tape-key-set.mjs NON_DECISION_COUNT -1 -- tape-key-set.mjs DECISION_COUNT -1 ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-all.mjs\",\n    \"require-frontmatter-eq.mjs\",\n    \"fix/patch-report.md\",\n    \"boundary_changed\",\n    \"true\",\n    \"--\",\n    \"tape-key-set.mjs\",\n    \"NON_DECISION_COUNT\",\n    \"-1\",\n    \"--\",\n    \"tape-key-set.mjs\",\n    \"DECISION_COUNT\",\n    \"-1\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"pass_to_count_gate","description":"Default: verify pass, no boundary change → enter count_gate via entry-clear.","nextStateId":"count_gate_entry_clear","arguments":[],"conditionSummary":"default","conditionDetail":"{ default: true }","isDefault":true}]},{"id":"count_gate_entry_clear","description":"Entry-clear: forces NON_DECISION_COUNT=DECISION_COUNT=-1 (D10), then routes to count_gate.","isEpsilon":true,"isInteractive":false,"actions":[{"id":"clear_and_enter","description":"Set both count keys to -1 and route to count_gate.","nextStateId":"count_gate","arguments":[],"conditionSummary":"node ../scripts/require-all.mjs tape-key-set.mjs NON_DECISION_COUNT -1 -- tape-key-set.mjs DECISION_COUNT -1 ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-all.mjs\",\n    \"tape-key-set.mjs\",\n    \"NON_DECISION_COUNT\",\n    \"-1\",\n    \"--\",\n    \"tape-key-set.mjs\",\n    \"DECISION_COUNT\",\n    \"-1\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"clear_default","description":"Default fallback (must never trigger; tape-key-set always returns true).","nextStateId":"count_gate","arguments":[],"conditionSummary":"default","conditionDetail":"{ default: true }","isDefault":true}]},{"id":"count_gate","description":"Step 10 — round-counter gate (P11 + P12 + D10, new in v4).\n\nThe two count keys NON_DECISION_COUNT and DECISION_COUNT have been\nforced to -1 on entry. You MUST submit BOTH via:\n\n  save-to-steering-flow NON_DECISION_COUNT \u003cinteger>\n  save-to-steering-flow DECISION_COUNT \u003cinteger>\n\nWhere:\n  NON_DECISION_COUNT  = number of confirmed Non-Decisional findings\n                        still requiring fix in THIS round (post\n                        fix-pin-verify). Should be 0 unless a\n                        regression or follow-up emerged during\n                        fix-pin-verify.\n  DECISION_COUNT      = number of confirmed Decisional findings\n                        still pending human judgment in THIS round.\n\nBoth numbers are mechanical — count entries in\nfindings/non-decisional.md and findings/decisional.md (taking\n`has_items` and the up-classify recommendations from step 8 into\naccount). LLM-narrative does not advance the gate; the literal\ninteger values do.\n\nOnce both keys are submitted with values ≠ -1, action\nsubmit_counts routes to count_router which mechanically picks the\nnext state.\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_counts","description":"Submit NON_DECISION_COUNT and DECISION_COUNT (both must be integers other than -1).","nextStateId":"count_router","arguments":[],"conditionSummary":"node ../scripts/require-all.mjs require-key-not-eq.mjs NON_DECISION_COUNT -1 -- require-key-not-eq.mjs DECISION_COUNT -1 ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-all.mjs\",\n    \"require-key-not-eq.mjs\",\n    \"NON_DECISION_COUNT\",\n    \"-1\",\n    \"--\",\n    \"require-key-not-eq.mjs\",\n    \"DECISION_COUNT\",\n    \"-1\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"count_router","description":"Route by submitted counts (D11 mechanical convergence).","isEpsilon":true,"isInteractive":false,"actions":[{"id":"nd_remaining","description":"NON_DECISION_COUNT > 0 → return to fix_pin_verify.","nextStateId":"fix_pin_verify","arguments":[],"conditionSummary":"node ../scripts/require-key-gt-zero.mjs NON_DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-key-gt-zero.mjs\",\n    \"NON_DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"d_remaining","description":"NON_DECISION_COUNT = 0 ∧ DECISION_COUNT > 0 → decision_gate.","nextStateId":"decision_gate","arguments":[],"conditionSummary":"node ../scripts/require-all.mjs require-key-zero.mjs NON_DECISION_COUNT -- require-key-gt-zero.mjs DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-all.mjs\",\n    \"require-key-zero.mjs\",\n    \"NON_DECISION_COUNT\",\n    \"--\",\n    \"require-key-gt-zero.mjs\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"all_clear","description":"Both counts zero → final_synthesis.","nextStateId":"final_synthesis","arguments":[],"conditionSummary":"node ../scripts/require-both-zero.mjs NON_DECISION_COUNT DECISION_COUNT ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-both-zero.mjs\",\n    \"NON_DECISION_COUNT\",\n    \"DECISION_COUNT\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"count_invalid","description":"Default fallback: counts present but neither >0 nor =0 — send back to fix_pin_verify.","nextStateId":"fix_pin_verify","arguments":[],"conditionSummary":"default","conditionDetail":"{ default: true }","isDefault":true}]},{"id":"decision_gate","description":"Step 11 — decision gate (interactive, P10).\n\nPresent findings/decisional.md as a structured request. Required:\n  decision/request.md   - situation, options, recommendation,\n                          spec/architecture impact, exact questions\n  decision/answer.md    - human answers; frontmatter:\n                            status: answered | deferred\n\n\"answered\" → flow returns to spec_gate so any contract change is\n            reflected before the next round; count keys reset to -1.\n\"deferred\" → finalizes the audit as blocked_decision in\n            final_synthesis.\n\nAfter the human answers, append the overruled / accepted decision\nto lessons.md so future fresh rounds do not re-litigate the same\nshape (P15 overruled bucket).\n","isEpsilon":false,"isInteractive":true,"actions":[{"id":"submit_decision_answered","description":"Human answered. Reset counts and re-enter spec_gate.","nextStateId":"spec_gate","arguments":[],"conditionSummary":"node ../scripts/require-all.mjs require-file-in-workdir.mjs decision/request.md,decision/answer.md -- require-frontmatter-eq.mjs decision/answer.md status answered -- tape-key-set.mjs NON_DECISION_COUNT -1 -- tape-key-set.mjs DECISION_COUNT -1 ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-all.mjs\",\n    \"require-file-in-workdir.mjs\",\n    \"decision/request.md,decision/answer.md\",\n    \"--\",\n    \"require-frontmatter-eq.mjs\",\n    \"decision/answer.md\",\n    \"status\",\n    \"answered\",\n    \"--\",\n    \"tape-key-set.mjs\",\n    \"NON_DECISION_COUNT\",\n    \"-1\",\n    \"--\",\n    \"tape-key-set.mjs\",\n    \"DECISION_COUNT\",\n    \"-1\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false},{"id":"submit_decision_deferred","description":"Human deferred. Finalize audit with blocked_decision marker.","nextStateId":"final_synthesis","arguments":[],"conditionSummary":"node ../scripts/require-all.mjs require-file-in-workdir.mjs decision/request.md,decision/answer.md -- require-frontmatter-eq.mjs decision/answer.md status deferred ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-all.mjs\",\n    \"require-file-in-workdir.mjs\",\n    \"decision/request.md,decision/answer.md\",\n    \"--\",\n    \"require-frontmatter-eq.mjs\",\n    \"decision/answer.md\",\n    \"status\",\n    \"deferred\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"final_synthesis","description":"Step 12 — final synthesis (D8).\n\nWrite WORKING_DIR/correctness-audit.md as a synthesis of artifacts\nalready on disk. Required sections:\n  - Executive Summary\n  - Spec Sources (with origin tags)\n  - Target Profile\n  - Confirmed Findings & Fixes\n  - Rejected / Inconclusive\n  - Decision Log (mark deferred decisions explicitly)\n  - Test Pinning Map\n  - Remaining Limitations\n  - Assumptions\n  - Lessons Index (cite lessons.md sections)\n  - Artifact Index (relative paths)\n\nThe final report must reference real files in WORKING_DIR; it\ndoes not replace them.\n","isEpsilon":false,"isInteractive":false,"actions":[{"id":"submit_final","description":"Submit final correctness-audit.md.","nextStateId":"$END","arguments":[],"conditionSummary":"node ../scripts/require-file-in-workdir.mjs correctness-audit.md ${$TAPE_FILE}","conditionDetail":"{\n  \"cmd\": \"node\",\n  \"args\": [\n    \"../scripts/require-file-in-workdir.mjs\",\n    \"correctness-audit.md\",\n    \"${$TAPE_FILE}\"\n  ]\n}","isDefault":false}]},{"id":"$END","description":"Audit complete. Working Dir holds the full evidence chain;\ncorrectness-audit.md is the synthesis; lessons.md is the\ncross-round memory for future audits of the same TARGET_DIR.\n","isEpsilon":false,"isInteractive":false,"actions":[]}],"currentStateId":"$START","tape":{},"transitionLog":[]}],"commands":[{"name":"/steering-flow help","description":"Show unified steering-flow command help."},{"name":"/steering-flow load \u003cFILE>","description":"Load a flow config and push it onto the FSM stack."},{"name":"/steering-flow pop","description":"Pop the active FSM from the stack. User-only escape hatch."},{"name":"/steering-flow save \u003cID> \u003cVALUE>","description":"Write a value to the active FSM tape."},{"name":"/steering-flow context-info","description":"Send stack, state, tape, and active actions to the model context."},{"name":"/steering-flow info","description":"Show stack, state, tape, and active actions as UI info only."},{"name":"/steering-flow set-state \u003cSTATE-ID>","description":"User-only jump/reset of the active FSM state."},{"name":"/steering-flow reset-state","description":"User-only reset of the active FSM state to $START."},{"name":"/steering-flow set-action \u003cACTION-ID> [ARGS...]","description":"User-only action trigger with UI notification output. May advance interactive states."},{"name":"/steering-flow action \u003cACTION-ID> [ARGS...]","description":"Invoke an action on the active FSM and send the result to the model context. Rejects interactive states."},{"name":"/steering-flow visualize [FLOW_FILE] [-o OUTPUT.html]","description":"Generate this static HTML visualizer as UI notification output."}],"tools":[{"name":"load-steering-flow","description":"LLM tool for loading a flow config."},{"name":"steering-flow-action","description":"LLM tool for invoking an action with positional args. Rejects interactive states."},{"name":"save-to-steering-flow","description":"LLM tool for writing tape values."},{"name":"get-steering-flow-info","description":"LLM tool for inspecting active flow state."}]};
+var LAYOUTS = [{"nodes":[{"id":"$START","x":201,"y":78},{"id":"spec_gate","x":201,"y":254},{"id":"audits","x":108,"y":430},{"id":"compile","x":108,"y":606},{"id":"challenge","x":108,"y":782},{"id":"counter_and_verify","x":108,"y":958},{"id":"reduce_and_classify","x":108,"y":1134},{"id":"nondecisional_confirm","x":108,"y":1310},{"id":"fix_pin_verify","x":108,"y":1486},{"id":"verify_router","x":108,"y":1662},{"id":"count_gate_entry_clear","x":108,"y":1838},{"id":"count_gate","x":108,"y":2014},{"id":"count_router","x":214.5,"y":2190},{"id":"decision_gate","x":327.5,"y":2366},{"id":"final_synthesis","x":297.5,"y":2542},{"id":"$END","x":297.5,"y":2718}],"edges":[{"srcId":"$START","tgtId":"spec_gate","actionId":"submit_setup","points":[{"x":201,"y":116},{"x":201,"y":166},{"x":201,"y":216}],"label":{"text":"submit_setup","idealX":201,"idealY":166,"x":201,"y":166,"w":104,"h":23}},{"srcId":"spec_gate","tgtId":"audits","actionId":"submit_spec","points":[{"x":160.8409090909091,"y":292},{"x":108,"y":342},{"x":108,"y":392}],"label":{"text":"submit_spec","idealX":116.26137889979559,"idealY":334.1827812561074,"x":116.26137889979559,"y":334.1827812561074,"w":97,"h":23}},{"srcId":"audits","tgtId":"compile","actionId":"submit_audits","points":[{"x":108,"y":468},{"x":108,"y":518},{"x":108,"y":568}],"label":{"text":"submit_audits","idealX":108,"idealY":518,"x":108,"y":518,"w":111,"h":23}},{"srcId":"compile","tgtId":"challenge","actionId":"submit_compile","points":[{"x":108,"y":644},{"x":108,"y":694},{"x":108,"y":744}],"label":{"text":"submit_compile","idealX":108,"idealY":694,"x":108,"y":694,"w":118,"h":23}},{"srcId":"challenge","tgtId":"counter_and_verify","actionId":"submit_challenge","points":[{"x":108,"y":820},{"x":108,"y":870},{"x":108,"y":920}],"label":{"text":"submit_challenge","idealX":108,"idealY":870,"x":108,"y":870,"w":132,"h":23}},{"srcId":"counter_and_verify","tgtId":"reduce_and_classify","actionId":"submit_counter","points":[{"x":108,"y":996},{"x":108,"y":1046},{"x":108,"y":1096}],"label":{"text":"submit_counter","idealX":108,"idealY":1046,"x":108,"y":1046,"w":118,"h":23}},{"srcId":"reduce_and_classify","tgtId":"nondecisional_confirm","actionId":"submit_classification","points":[{"x":108,"y":1172},{"x":108,"y":1222},{"x":108,"y":1272}],"label":{"text":"submit_classification","idealX":108,"idealY":1222,"x":108,"y":1222,"w":167,"h":23}},{"srcId":"nondecisional_confirm","tgtId":"fix_pin_verify","actionId":"submit_confirm","points":[{"x":108,"y":1348},{"x":108,"y":1398},{"x":108,"y":1448}],"label":{"text":"submit_confirm","idealX":108,"idealY":1398,"x":108,"y":1398,"w":118,"h":23}},{"srcId":"fix_pin_verify","tgtId":"verify_router","actionId":"submit_fix","points":[{"x":103.68181818181819,"y":1524},{"x":98,"y":1574},{"x":103.68181818181819,"y":1624}],"label":{"text":"submit_fix","idealX":98,"idealY":1574,"x":98,"y":1562,"w":90,"h":23}},{"srcId":"verify_router","tgtId":"fix_pin_verify","actionId":"redo_fix","points":[{"x":112.31818181818181,"y":1624},{"x":118,"y":1574},{"x":112.31818181818181,"y":1524}],"label":{"text":"redo_fix","idealX":118,"idealY":1574,"x":118,"y":1586,"w":76,"h":23}},{"srcId":"verify_router","tgtId":"spec_gate","actionId":"boundary_then_spec","points":[{"x":156.79545454545456,"y":1624},{"x":221,"y":1574},{"x":221,"y":1486},{"x":221,"y":1398},{"x":221,"y":1310},{"x":221,"y":1222},{"x":221,"y":1134},{"x":221,"y":1046},{"x":221,"y":958},{"x":221,"y":870},{"x":221,"y":782},{"x":221,"y":694},{"x":221,"y":606},{"x":221,"y":518},{"x":221,"y":430},{"x":221,"y":342},{"x":209.63636363636363,"y":292}],"label":{"text":"boundary_then_spec","idealX":221,"idealY":973.0509909163644,"x":221,"y":973.0509909163644,"w":146,"h":23}},{"srcId":"verify_router","tgtId":"count_gate_entry_clear","actionId":"pass_to_count_gate","points":[{"x":108,"y":1700},{"x":108,"y":1750},{"x":108,"y":1800}],"label":{"text":"pass_to_count_gate","idealX":108,"idealY":1750,"x":108,"y":1750,"w":146,"h":23}},{"srcId":"count_gate_entry_clear","tgtId":"count_gate","actionId":"clear_and_enter","points":[{"x":103.68181818181819,"y":1876},{"x":98,"y":1926},{"x":103.68181818181819,"y":1976}],"label":{"text":"clear_and_enter","idealX":98,"idealY":1926,"x":98,"y":1914,"w":125,"h":23}},{"srcId":"count_gate_entry_clear","tgtId":"count_gate","actionId":"clear_default","points":[{"x":132.39772727272728,"y":1876},{"x":164.5,"y":1926},{"x":132.39772727272728,"y":1976}],"label":{"text":"clear_default","idealX":164.5,"idealY":1926,"x":164.5,"y":1938,"w":111,"h":23}},{"srcId":"count_gate","tgtId":"count_router","actionId":"submit_counts","points":[{"x":108,"y":2052},{"x":108,"y":2102},{"x":168.51136363636363,"y":2152}],"label":{"text":"submit_counts","idealX":118.98356975201915,"idealY":2111.0756257105886,"x":118.98356975201915,"y":2111.0756257105886,"w":111,"h":23}},{"srcId":"count_router","tgtId":"fix_pin_verify","actionId":"nd_remaining","points":[{"x":225.9431818181818,"y":2152},{"x":241,"y":2102},{"x":241,"y":2014},{"x":241,"y":1926},{"x":241,"y":1838},{"x":241,"y":1750},{"x":241,"y":1662},{"x":241,"y":1574},{"x":165.4318181818182,"y":1524}],"label":{"text":"nd_remaining","idealX":241,"idealY":1818.8029008158833,"x":241,"y":1828.7033281762303,"w":104,"h":23}},{"srcId":"count_router","tgtId":"decision_gate","actionId":"d_remaining","points":[{"x":234.57954545454544,"y":2228},{"x":261,"y":2278},{"x":298.78409090909093,"y":2328}],"label":{"text":"d_remaining","idealX":262.84475913000426,"idealY":2280.441185014141,"x":262.84475913000426,"y":2280.441185014141,"w":97,"h":23}},{"srcId":"count_router","tgtId":"final_synthesis","actionId":"all_clear","points":[{"x":205.86363636363637,"y":2228},{"x":194.5,"y":2278},{"x":194.5,"y":2366},{"x":194.5,"y":2454},{"x":253.02272727272728,"y":2504}],"label":{"text":"all_clear","idealX":194.5,"idealY":2378.849185002706,"x":194.5,"y":2378.849185002706,"w":83,"h":23}},{"srcId":"count_router","tgtId":"fix_pin_verify","actionId":"count_invalid","points":[{"x":238.89772727272728,"y":2152},{"x":271,"y":2102},{"x":271,"y":2014},{"x":271,"y":1926},{"x":271,"y":1838},{"x":271,"y":1750},{"x":271,"y":1662},{"x":271,"y":1574},{"x":176,"y":1522.7116564417179}],"label":{"text":"count_invalid","idealX":271,"idealY":1813.7289336033887,"x":271,"y":1803.8285062430416,"w":111,"h":23}},{"srcId":"decision_gate","tgtId":"spec_gate","actionId":"submit_decision_answered","points":[{"x":327.5,"y":2328},{"x":327.5,"y":2278},{"x":327.5,"y":2190},{"x":327.5,"y":2102},{"x":327.5,"y":2014},{"x":327.5,"y":1926},{"x":327.5,"y":1838},{"x":327.5,"y":1750},{"x":327.5,"y":1662},{"x":327.5,"y":1574},{"x":327.5,"y":1486},{"x":327.5,"y":1398},{"x":327.5,"y":1310},{"x":327.5,"y":1222},{"x":327.5,"y":1134},{"x":327.5,"y":1046},{"x":327.5,"y":958},{"x":327.5,"y":870},{"x":327.5,"y":782},{"x":327.5,"y":694},{"x":327.5,"y":606},{"x":327.5,"y":518},{"x":327.5,"y":430},{"x":327.5,"y":342},{"x":255.625,"y":292}],"label":{"text":"submit_decision_answered","idealX":327.5,"idealY":1291.222107105869,"x":327.5,"y":1291.222107105869,"w":188,"h":23}},{"srcId":"decision_gate","tgtId":"final_synthesis","actionId":"submit_decision_deferred","points":[{"x":327.5,"y":2404},{"x":327.5,"y":2454},{"x":310.45454545454544,"y":2504}],"label":{"text":"submit_decision_deferred","idealX":327.0441209219762,"idealY":2455.3372452955364,"x":327.0441209219762,"y":2455.3372452955364,"w":188,"h":23}},{"srcId":"final_synthesis","tgtId":"$END","actionId":"submit_final","points":[{"x":297.5,"y":2580},{"x":297.5,"y":2630},{"x":297.5,"y":2680}],"label":{"text":"submit_final","idealX":297.5,"idealY":2630,"x":297.5,"y":2630,"w":104,"h":23}}],"graphWidth":435.5,"graphHeight":2796,"warnings":[]}];
+var NODE_R = 28;
+
+
+function enableDragNodes(nodeSelection, nodePos, edgeGroups, nodeR) {
+  var drag = d3.drag()
+    .clickDistance(4)
+    .on('start', function() { d3.select(this).raise(); svg.style('cursor','grabbing'); })
+    .on('drag', function(evt, d) {
+      var np = nodePos[d.id];
+      if (!np) return;
+      np.x = evt.x;
+      np.y = evt.y;
+      d3.select(this).attr('transform', 'translate(' + np.x + ',' + np.y + ')');
+
+      // Update connected edges — recompute label midpoint and use polylineSplit
+      edgeGroups.each(function(ed) {
+        if (ed.src !== d.id && ed.tgt !== d.id) return;
+        var group = d3.select(this);
+        var sn = nodePos[ed.src], tn = nodePos[ed.tgt];
+        if (!sn || !tn) return;
+        ed.srcNode.x = sn.x; ed.srcNode.y = sn.y;
+        ed.tgtNode.x = tn.x; ed.tgtNode.y = tn.y;
+        // Recompute label midpoint
+        ed.labelX = (sn.x + tn.x) / 2;
+        ed.labelY = (sn.y + tn.y) / 2;
+        // Fallback to simple 3-point path during drag (dagre points are stale)
+        var sy = sn.y < tn.y ? sn.y + nodeR : sn.y - nodeR;
+        var ty = sn.y < tn.y ? tn.y - nodeR : tn.y + nodeR;
+        var fallbackPts = [{x:sn.x,y:sy},{x:ed.labelX,y:ed.labelY},{x:tn.x,y:ty}];
+        var seg = polylineSplit(fallbackPts, ed.labelX, ed.labelY);
+        group.select('.edge-path-1').attr('d', seg.d1);
+        group.select('.edge-path-2').attr('d', seg.d2);
+        group.select('.edge-label').attr('transform', 'translate(' + ed.labelX + ',' + ed.labelY + ')');
+      });
+    })
+    .on('end', function() { svg.style('cursor','grab'); });
+  nodeSelection.call(drag);
+}
+
+
+/* refs */
+const svg = d3.select('#graph');
+const defs = svg.append('defs');
+const root = svg.append('g');
+const tooltip = document.getElementById('tooltip');
+const details = document.getElementById('details');
+const fsmSelect = document.getElementById('fsmSelect');
+
+/* arrowhead marker */
+defs.append('marker').attr('id','arrow').attr('viewBox','0 0 10 10').attr('refX',10).attr('refY',5)
+  .attr('markerWidth',8).attr('markerHeight',8).attr('orient','auto-start-reverse')
+  .append('path').attr('d','M 0 0 L 10 5 L 0 10 z').attr('fill','#8b949e');
+
+/* zoom */
+const zoom = d3.zoom().scaleExtent([0.2, 3]).on('zoom', e => root.attr('transform', e.transform));
+svg.call(zoom);
+svg.on('dblclick.zoom', null);
+
+/* header info */
+document.getElementById('subtitle').textContent = DOC.sourceLabel + ' \u00b7 ' + DOC.generatedAt;
+document.getElementById('mode').textContent = DOC.sourceMode;
+document.getElementById('counts').textContent = DOC.fsms.length + ' FSM(s)';
+DOC.fsms.forEach(function(fsm, i) {
+  var opt = document.createElement('option');
+  opt.value = String(i);
+  opt.textContent = (fsm.id === DOC.activeFsmId ? '\u25cf ' : '') + fsm.name;
+  fsmSelect.appendChild(opt);
+});
+fsmSelect.value = String(Math.max(0, DOC.fsms.findIndex(function(f) { return f.id === DOC.activeFsmId; })));
+fsmSelect.addEventListener('change', function() { renderFsm(Number(fsmSelect.value)); });
+
+/* helpers */
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function jsonBlock(v) { return '<pre>' + esc(JSON.stringify(v, null, 2)) + '</pre>'; }
+
+/* sidebar panels */
+function showOverview(fsm) {
+  details.innerHTML =
+    '<div class="section"><h2>' + esc(fsm.name) + '</h2>' +
+    '<div class="kv"><span class="muted">ID</span><span>' + esc(fsm.id) + '</span></div>' +
+    '<div class="kv"><span class="muted">Current</span><span style="color:#58a6ff">' + esc(fsm.currentStateId || 'n/a') + '</span></div>' +
+    '<div class="kv"><span class="muted">Flow dir</span><span>' + esc(fsm.flowDir || '(none)') + '</span></div>' +
+    '<div class="kv"><span class="muted">Tape path</span><span>' + esc(fsm.tapePath || 'static file') + '</span></div>' +
+    '</div>' +
+    '<div class="section"><h2>Task</h2><pre>' + esc(fsm.taskDescription) + '</pre></div>' +
+    '<div class="section"><h2>Tape</h2>' + jsonBlock(fsm.tape) + '</div>' +
+    '<div class="section"><h2>Transitions</h2>' + jsonBlock(fsm.transitionLog) + '</div>' +
+    '<div class="section"><h2>Commands (' + DOC.commands.length + ')</h2>' +
+      DOC.commands.map(function(c) { return '<div class="row"><b>' + esc(c.name) + '</b><br><span class="muted">' + esc(c.description) + '</span></div>'; }).join('') +
+    '</div>' +
+    '<div class="section"><h2>Tools (' + DOC.tools.length + ')</h2>' +
+      DOC.tools.map(function(t) { return '<div class="row"><b>' + esc(t.name) + '</b><br><span class="muted">' + esc(t.description) + '</span></div>'; }).join('') +
+    '</div>';
+}
+
+function showState(fsm, state) {
+  details.innerHTML =
+    '<div class="section"><h2>State \u00b7 ' + esc(state.id) + '</h2>' +
+    (state.isEpsilon ? '<span class="pill">\u03b5 epsilon</span> ' : '') +
+    (state.isInteractive ? '<span class="pill" style="border-color:#d2a8ff;color:#d2a8ff">interactive</span> ' : '') +
+    (state.id === fsm.currentStateId ? '<span class="pill" style="border-color:#58a6ff;color:#58a6ff">current</span>' : '') +
+    '<pre style="margin-top:8px">' + esc(state.description) + '</pre></div>' +
+    '<div class="section"><h2>Actions (' + state.actions.length + ')</h2>' +
+    (state.actions.length
+      ? state.actions.map(function(a) {
+          return '<div class="row"><b>' + esc(a.id) + '</b> \u2192 <span style="color:#58a6ff">' + esc(a.nextStateId) + '</span>' +
+          '<br><span class="muted">' + esc(a.description) + '</span>' +
+          '<br><span class="muted">condition: ' + esc(a.conditionSummary) + '</span></div>';
+        }).join('')
+      : '<div class="muted">Terminal state</div>') +
+    '</div>';
+}
+
+function showAction(action) {
+  details.innerHTML =
+    '<div class="section"><h2>Action \u00b7 ' + esc(action.id) + '</h2>' +
+    '<div class="kv"><span class="muted">Next state</span><span style="color:#58a6ff">' + esc(action.nextStateId) + '</span></div>' +
+    (action.isDefault ? '<span class="pill" style="border-color:#f0883e;color:#f0883e">default</span>' : '') +
+    '<pre style="margin-top:8px">' + esc(action.description) + '</pre></div>' +
+    '<div class="section"><h2>Arguments (' + action.arguments.length + ')</h2>' +
+    (action.arguments.length
+      ? action.arguments.map(function(a) { return '<div class="row"><b>' + esc(a.name) + '</b><br><span class="muted">' + esc(a.description) + '</span></div>'; }).join('')
+      : '<div class="muted">No arguments</div>') +
+    '</div>' +
+    '<div class="section"><h2>Condition</h2><pre>' + esc(action.conditionDetail) + '</pre></div>';
+}
+
+/* tooltip */
+function showTooltip(evt, html) {
+  tooltip.innerHTML = html;
+  tooltip.classList.add('visible');
+  var x = Math.min(evt.clientX + 14, window.innerWidth - 300);
+  var y = Math.min(evt.clientY + 14, window.innerHeight - 100);
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+function hideTooltip() { tooltip.classList.remove('visible'); }
+
+/* highlight state */
+var lockedNodeId = null;
+var currentFsmData = null;
+
+function buildAdjacency(fsm) {
+  var pred = {}, succ = {};
+  fsm.states.forEach(function(s) { pred[s.id] = []; succ[s.id] = []; });
+  fsm.states.forEach(function(s) {
+    s.actions.forEach(function(a) {
+      if (succ[s.id]) succ[s.id].push(a.nextStateId);
+      if (pred[a.nextStateId]) pred[a.nextStateId].push(s.id);
+    });
+  });
+  return { pred: pred, succ: succ };
+}
+
+var HL_LEVELS = ['highlight', 'highlight-1', 'highlight-2', 'highlight-3'];
+var MAX_CASCADE = 3;
+
+function buildEpsilonSet(fsm) {
+  var eps = new Set();
+  fsm.states.forEach(function(s) { if (s.isEpsilon) eps.add(s.id); });
+  return eps;
+}
+
+function getOutgoingLeveled(startId, adj, epsilonSet) {
+  var nodeLevel = {};
+  var edgeLevel = {};
+  nodeLevel[startId] = -1;
+
+  var queue = [];
+  (adj.succ[startId] || []).forEach(function(s) {
+    edgeLevel[startId + '→' + s] = 0;
+    if (!(s in nodeLevel)) { nodeLevel[s] = 0; queue.push({ id: s, level: 0 }); }
+  });
+
+  while (queue.length > 0) {
+    var cur = queue.shift();
+    if (!epsilonSet.has(cur.id) || cur.level >= MAX_CASCADE) continue;
+    var nextLevel = cur.level + 1;
+    (adj.succ[cur.id] || []).forEach(function(s) {
+      var eKey = cur.id + '→' + s;
+      if (!(eKey in edgeLevel)) {
+        edgeLevel[eKey] = nextLevel;
+        if (!(s in nodeLevel)) {
+          nodeLevel[s] = nextLevel;
+          queue.push({ id: s, level: nextLevel });
+        }
+      }
+    });
+  }
+
+  return { nodeLevel: nodeLevel, edgeLevel: edgeLevel };
+}
+
+function applyHighlight(stateId) {
+  if (!currentFsmData) return;
+  var epsilonSet = buildEpsilonSet(currentFsmData.fsm);
+  var result = getOutgoingLeveled(stateId, currentFsmData.adj, epsilonSet);
+  var nodeLevel = result.nodeLevel, edgeLevel = result.edgeLevel;
+
+  d3.selectAll('.node').each(function(d) {
+    var el = d3.select(this);
+    var level = nodeLevel[d.id];
+    var isHl = level !== undefined;
+    HL_LEVELS.forEach(function(cls) { el.classed(cls, false); });
+    el.classed('dim', !isHl);
+    if (isHl) {
+      var cls = level < 0 ? 'highlight' : (HL_LEVELS[Math.min(level, MAX_CASCADE)] || HL_LEVELS[MAX_CASCADE]);
+      el.classed(cls, true);
+    }
+  });
+  d3.selectAll('.edge-group').each(function(d) {
+    var key = d.src + '→' + d.tgt;
+    var level = edgeLevel[key];
+    var isHl = level !== undefined;
+    var paths = d3.select(this).selectAll('.edge-path');
+    var label = d3.select(this).select('.edge-label');
+    HL_LEVELS.forEach(function(cls) { paths.classed(cls, false); label.classed(cls, false); });
+    paths.classed('dim', !isHl);
+    label.classed('dim', !isHl);
+    if (isHl) {
+      var cls = HL_LEVELS[Math.min(level, MAX_CASCADE)] || HL_LEVELS[MAX_CASCADE];
+      paths.classed(cls, true);
+      label.classed(cls, true);
+    }
+  });
+}
+
+function clearHighlight() {
+  lockedNodeId = null;
+  d3.selectAll('.node').each(function() {
+    var el = d3.select(this);
+    HL_LEVELS.forEach(function(cls) { el.classed(cls, false); });
+    el.classed('dim', false);
+  });
+  d3.selectAll('.edge-path').each(function() {
+    var el = d3.select(this);
+    HL_LEVELS.forEach(function(cls) { el.classed(cls, false); });
+    el.classed('dim', false);
+  });
+  d3.selectAll('.edge-label').each(function() {
+    var el = d3.select(this);
+    HL_LEVELS.forEach(function(cls) { el.classed(cls, false); });
+    el.classed('dim', false);
+  });
+}
+
+/* background click */
+var _downPos = null;
+svg.node().addEventListener('pointerdown', function(e) { _downPos = { x: e.clientX, y: e.clientY }; });
+svg.node().addEventListener('pointerup', function(e) {
+  if (!_downPos) return;
+  var dx = e.clientX - _downPos.x, dy = e.clientY - _downPos.y;
+  var dist = Math.sqrt(dx * dx + dy * dy);
+  _downPos = null;
+  if (dist < 5 && !e.target.closest('.node') && !e.target.closest('.edge-group')) {
+    clearHighlight();
+    if (currentFsmData) showOverview(currentFsmData.fsm);
+  }
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') { clearHighlight(); if (currentFsmData) showOverview(currentFsmData.fsm); }
+});
+
+/* Build two SVG path strings from a dagre points array, split at the label position.
+     Segment 1: first point → ... → label (no arrowhead).
+     Segment 2: label → ... → last point (arrowhead). */
+function polylineSplit(pts, lx, ly) {
+  if (!pts || pts.length < 2) {
+    return { d1: 'M'+lx+','+ly, d2: 'M'+lx+','+ly };
+  }
+  /* Find the segment closest to the label midpoint and insert it */
+  var bestIdx = 0, bestDist = 1e9;
+  for (var i = 0; i < pts.length - 1; i++) {
+    /* project label onto segment i→i+1 */
+    var ax = pts[i].x, ay = pts[i].y, bx = pts[i+1].x, by = pts[i+1].y;
+    var dx = bx - ax, dy = by - ay;
+    var len2 = dx*dx + dy*dy;
+    var t = len2 > 0 ? Math.max(0, Math.min(1, ((lx-ax)*dx + (ly-ay)*dy) / len2)) : 0;
+    var px = ax + t*dx, py = ay + t*dy;
+    var dist = (lx-px)*(lx-px) + (ly-py)*(ly-py);
+    if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+  }
+  /* d1: pts[0..bestIdx] → label */
+  var d1 = 'M' + pts[0].x + ',' + pts[0].y;
+  for (var i = 1; i <= bestIdx; i++) d1 += ' L' + pts[i].x + ',' + pts[i].y;
+  d1 += ' L' + lx + ',' + ly;
+  /* d2: label → pts[bestIdx+1..end] */
+  var d2 = 'M' + lx + ',' + ly;
+  for (var i = bestIdx + 1; i < pts.length; i++) d2 += ' L' + pts[i].x + ',' + pts[i].y;
+  return { d1: d1, d2: d2 };
+}
+
+var _initPos = {}, _nodePos = {}, _edgeGroups = null;
+function renderFsm(fsmIndex) {
+  var fsm = DOC.fsms[fsmIndex];
+  var layout = LAYOUTS[fsmIndex];
+  if (!fsm || !layout) return;
+
+  root.selectAll('*').remove();
+  clearHighlight();
+  showOverview(fsm);
+
+  var adj = buildAdjacency(fsm);
+  currentFsmData = { fsm: fsm, adj: adj };
+
+  var nodeR = NODE_R;
+
+  /* build node position lookup */
+  var nodePos = {};
+  layout.nodes.forEach(function(n) { nodePos[n.id] = n; });
+
+  /* remember initial positions for reset */
+  var initPos = {};
+  layout.nodes.forEach(function(n) { initPos[n.id] = { x: n.x, y: n.y }; });
+  _initPos = initPos;
+  _nodePos = nodePos;
+
+  /* build action lookup for edge data */
+  var actionMap = {};
+  fsm.states.forEach(function(s) {
+    s.actions.forEach(function(a) { actionMap[s.id + '\0' + a.nextStateId + '\0' + a.id] = a; });
+  });
+
+  /* edges from pre-computed layout */
+  var edgeData = layout.edges.map(function(e) {
+    var src = nodePos[e.srcId], tgt = nodePos[e.tgtId];
+    if (!src || !tgt) return null;
+    var action = actionMap[e.srcId + '\0' + e.tgtId + '\0' + e.actionId];
+    return {
+      src: e.srcId, tgt: e.tgtId, name: e.actionId,
+      edge: { label: e.actionId, action: action },
+      srcNode: { x: src.x, y: src.y }, tgtNode: { x: tgt.x, y: tgt.y },
+      labelX: e.label.x, labelY: e.label.y,
+      labelW: e.label.w, labelH: e.label.h,
+      points: e.points
+    };
+  }).filter(Boolean);
+
+  var edgeGroups = root.append('g').attr('class','edges')
+    .selectAll('g').data(edgeData).enter().append('g').attr('class','edge-group');
+  _edgeGroups = edgeGroups;
+
+  edgeGroups.each(function(d) {
+    var g = d3.select(this);
+    /* Clamp first/last dagre point onto circle edge (radius = nodeR) */
+    var pts = d.points.slice();
+    if (pts.length >= 2) {
+      var s = d.srcNode, dx0 = pts[0].x - s.x, dy0 = pts[0].y - s.y;
+      var len0 = Math.sqrt(dx0*dx0 + dy0*dy0) || 1;
+      pts[0] = { x: s.x + dx0/len0*nodeR, y: s.y + dy0/len0*nodeR };
+      var t = d.tgtNode, last = pts.length-1, dx1 = pts[last].x - t.x, dy1 = pts[last].y - t.y;
+      var len1 = Math.sqrt(dx1*dx1 + dy1*dy1) || 1;
+      pts[last] = { x: t.x + dx1/len1*nodeR, y: t.y + dy1/len1*nodeR };
+    }
+    var seg = polylineSplit(pts, d.labelX, d.labelY);
+    g.append('path').attr('class','edge-path edge-path-1').attr('d', seg.d1);
+    g.append('path').attr('class','edge-path edge-path-2').attr('d', seg.d2).attr('marker-end','url(#arrow)');
+  });
+
+  /* edge labels at pre-computed positions */
+  var edgeLabels = edgeGroups.append('g').attr('class','edge-label')
+    .attr('transform', function(d) {
+      return 'translate(' + d.labelX + ',' + d.labelY + ')';
+    });
+  edgeLabels.each(function(d) {
+    var el = d3.select(this);
+    el.append('text').attr('text-anchor','middle').attr('dy','0.35em').text(d.edge.label);
+    var hw = d.labelW / 2, hh = d.labelH / 2;
+    el.insert('rect','text').attr('x', -hw).attr('y', -hh).attr('width', d.labelW).attr('height', d.labelH);
+  });
+  edgeLabels.on('mouseenter', function(evt, d) {
+    if (!lockedNodeId) {
+      clearHighlight();
+      var srcId = d.src, tgtId = d.tgt;
+      d3.selectAll('.node').each(function(nd) {
+        var el = d3.select(this);
+        var isHl = (nd.id === srcId || nd.id === tgtId);
+        el.classed('highlight', isHl).classed('dim', !isHl);
+      });
+      d3.selectAll('.edge-group').each(function(ed) {
+        var isHl = (ed.src === srcId && ed.tgt === tgtId);
+        d3.select(this).selectAll('.edge-path').classed('highlight', isHl).classed('dim', !isHl);
+        d3.select(this).select('.edge-label').classed('highlight', isHl).classed('dim', !isHl);
+      });
+    }
+    if (!d.edge.action) { hideTooltip(); return; }
+    showTooltip(evt, '<b>' + esc(d.edge.action.id) + '</b>' +
+      '<br><span class="tt-muted">' + esc(d.src) + ' \u2192 ' + esc(d.tgt) + '</span>' +
+      '<br><span class="tt-muted">' + esc(d.edge.action.conditionSummary || '') + '</span>');
+  });
+  edgeLabels.on('mousemove', function(evt) {
+    tooltip.style.left = Math.min(evt.clientX + 14, window.innerWidth - 300) + 'px';
+    tooltip.style.top = Math.min(evt.clientY + 14, window.innerHeight - 100) + 'px';
+  });
+  edgeLabels.on('mouseleave', function() {
+    hideTooltip();
+    if (!lockedNodeId) clearHighlight();
+  });
+  edgeLabels.on('click', function(_e, d) { if (!d.edge.action) return; showAction(d.edge.action); });
+
+  /* nodes */
+  var nodes = root.append('g').attr('class','nodes')
+    .selectAll('g').data(fsm.states).enter().append('g')
+    .attr('class', function(s) {
+      var c = 'node';
+      if (s.id === '$START') c += ' start';
+      if (s.id === '$END') c += ' end';
+      if (s.isEpsilon) c += ' epsilon';
+      if (s.isInteractive) c += ' interactive';
+      if (s.id === fsm.currentStateId) c += ' current';
+      return c;
+    })
+    .attr('transform', function(s) { var n = nodePos[s.id]; if (!n) return 'translate(0,0)'; return 'translate(' + n.x + ',' + n.y + ')'; });
+
+  nodes.filter(function(s) { return s.isInteractive; }).append('circle').attr('class','interactive-ring').attr('r', nodeR + 7);
+  nodes.append('circle').attr('class','node-fill').attr('r', nodeR);
+  nodes.append('text').attr('class','label').attr('text-anchor','middle').attr('dy', '-0.15em')
+    .text(function(s) { return s.id.length > 12 ? s.id.slice(0, 11) + '\u2026' : s.id; });
+  nodes.append('text').attr('class','sublabel').attr('text-anchor','middle').attr('dy', '1.2em')
+    .text(function(s) { return s.actions.length + ' action' + (s.actions.length !== 1 ? 's' : ''); });
+
+  /* node interactions */
+  nodes.on('mouseenter', function(evt, s) {
+    if (!lockedNodeId) applyHighlight(s.id);
+    showTooltip(evt, '<b>' + esc(s.id) + '</b>' +
+      (s.isEpsilon ? ' <span class="tt-muted">\u03b5</span>' : '') +
+      (s.isInteractive ? ' <span style="color:#b388ff">interactive</span>' : '') +
+      '<br><span class="tt-muted">' + s.actions.length + ' action(s)</span>' +
+      (s.id === fsm.currentStateId ? '<br><span style="color:#58a6ff">\u25cf current state</span>' : ''));
+  });
+  nodes.on('mousemove', function(evt) {
+    tooltip.style.left = Math.min(evt.clientX + 14, window.innerWidth - 300) + 'px';
+    tooltip.style.top = Math.min(evt.clientY + 14, window.innerHeight - 100) + 'px';
+  });
+  nodes.on('mouseleave', function() {
+    hideTooltip();
+    if (!lockedNodeId) clearHighlight();
+  });
+  nodes.on('click', function(evt, s) {
+    evt.stopPropagation();
+    if (lockedNodeId === s.id) { clearHighlight(); showOverview(fsm); }
+    else { lockedNodeId = s.id; applyHighlight(s.id); showState(fsm, s); }
+  });
+  nodes.on('dblclick', function(evt, s) {
+    evt.stopPropagation();
+    lockedNodeId = s.id;
+    applyHighlight(s.id);
+    showState(fsm, s);
+  });
+
+  /* enable drag on nodes */
+  if (typeof enableDragNodes === 'function') enableDragNodes(nodes, nodePos, edgeGroups, nodeR);
+
+  /* auto-fit */
+  var gw = Math.max(layout.graphWidth, 1), gh = Math.max(layout.graphHeight, 1);
+  var svgEl = svg.node();
+  if (svgEl) {
+    var box = svgEl.getBoundingClientRect();
+    var scale = Math.min(1.4, Math.max(0.3, Math.min(box.width / gw, box.height / gh) * 0.85));
+    svg.call(zoom.transform, d3.zoomIdentity
+      .translate((box.width - gw * scale) / 2, (box.height - gh * scale) / 2)
+      .scale(scale));
+  }
+}
+
+renderFsm(Number(fsmSelect.value) || 0);
+
+document.getElementById('resetBtn').addEventListener('click', function() {
+  if (!currentFsmData) return;
+  clearHighlight();
+  showOverview(currentFsmData.fsm);
+
+  /* animate nodes back to initial positions */
+  var dur = 800;
+  d3.selectAll('.node').transition().duration(dur).ease(d3.easeCubicOut)
+    .attr('transform', function(s) {
+      var p = _initPos[s.id];
+      if (!p || !_nodePos[s.id]) return d3.select(this).attr('transform');
+      _nodePos[s.id].x = p.x;
+      _nodePos[s.id].y = p.y;
+      return 'translate(' + p.x + ',' + p.y + ')';
+    })
+    .on('end', function() {
+      /* redraw edges after nodes settle */
+      d3.selectAll('.edge-group').each(function(d) {
+        var g = d3.select(this);
+        /* restore original layout points regardless of whether nodes are positioned */
+        var layoutEdge = LAYOUTS[Number(fsmSelect.value) || 0].edges.find(function(e) {
+          return e.srcId === d.src && e.tgtId === d.tgt && e.actionId === d.name;
+        });
+        if (layoutEdge) {
+          d.points = layoutEdge.points;
+          d.labelX = layoutEdge.label.x;
+          d.labelY = layoutEdge.label.y;
+        }
+        var src = _nodePos[d.src], tgt = _nodePos[d.tgt];
+        if (!src || !tgt) return;
+        d.srcNode = { x: src.x, y: src.y };
+        d.tgtNode = { x: tgt.x, y: tgt.y };
+        var nodeR = NODE_R;
+        var pts = d.points.slice();
+        if (pts.length >= 2) {
+          var s = d.srcNode, dx0 = pts[0].x - s.x, dy0 = pts[0].y - s.y;
+          var len0 = Math.sqrt(dx0*dx0 + dy0*dy0) || 1;
+          pts[0] = { x: s.x + dx0/len0*nodeR, y: s.y + dy0/len0*nodeR };
+          var t = d.tgtNode, last = pts.length-1, dx1 = pts[last].x - t.x, dy1 = pts[last].y - t.y;
+          var len1 = Math.sqrt(dx1*dx1 + dy1*dy1) || 1;
+          pts[last] = { x: t.x + dx1/len1*nodeR, y: t.y + dy1/len1*nodeR };
+        }
+        var seg = polylineSplit(pts, d.labelX, d.labelY);
+        g.select('.edge-path-1').attr('d', seg.d1);
+        g.select('.edge-path-2').attr('d', seg.d2);
+        g.select('.edge-label').attr('transform', 'translate(' + d.labelX + ',' + d.labelY + ')');
+      });
+    });
+
+
+});
+</script>
+</body>
+</html>

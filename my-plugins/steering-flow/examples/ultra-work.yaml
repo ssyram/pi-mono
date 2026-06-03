@@ -1,0 +1,232 @@
+task_description: "Ultra Work（极限工作模式）完整流程：先判断是否已有足够设计意图；不足则补设计；随后实现；进行审查循环；自动修复非决策项；汇总决策点；落实用户决策；产出最终报告；最后结束。"
+
+states:
+  - state_id: "$START"
+    state_desc: "记录 Ultra Work 总目标，并启动 intent/spec 识别。"
+    is_epsilon: false
+    actions:
+      - action_id: "capture_brief"
+        action_desc: "把本次 Ultra Work brief 写入 tape。"
+        arguments:
+          - arg_name: "BRIEF_TEXT"
+            arg_desc: "Ultra Work 的总目标或项目 brief。"
+        condition:
+          cmd: "node"
+          args:
+            - "./examples/scripts/save-plan.mjs"
+            - "${$TAPE_FILE}"
+            - "${BRIEF_TEXT}"
+        next_state_id: "uw0_detect"
+
+  - state_id: "uw0_detect"
+    state_desc: "判断 intent/spec 是否已足够完整。"
+    is_epsilon: false
+    actions:
+      - action_id: "mark_complete"
+        action_desc: "标记 intent/spec 已完整，可直接进入实现。"
+        arguments:
+          - arg_name: "INTENT_SUMMARY"
+            arg_desc: "说明为何可直接进入实现。"
+        condition:
+          cmd: "node"
+          args:
+            - "./examples/scripts/save-plan.mjs"
+            - "${$TAPE_FILE}"
+            - "${INTENT_SUMMARY}"
+        next_state_id: "uw2_implement"
+      - action_id: "mark_incomplete"
+        action_desc: "标记 intent/spec 不完整，需要进入设计阶段。"
+        arguments:
+          - arg_name: "GAP_SUMMARY"
+            arg_desc: "说明哪些内容缺失或不清晰。"
+        condition:
+          cmd: "node"
+          args:
+            - "./examples/scripts/save-plan.mjs"
+            - "${$TAPE_FILE}"
+            - "${GAP_SUMMARY}"
+        next_state_id: "uw1_design"
+
+  - state_id: "uw1_design"
+    state_desc: "编写或补齐设计文档。"
+    is_epsilon: false
+    actions:
+      - action_id: "submit_design"
+        action_desc: "提交设计文档摘要。"
+        arguments:
+          - arg_name: "DESIGN_DOC"
+            arg_desc: "设计文档正文或指针。"
+          - arg_name: "DESIGN_STATUS"
+            arg_desc: "设计是否准备完成的状态说明。"
+        condition:
+          cmd: "node"
+          args:
+            - "./examples/scripts/submit-required-fields.mjs"
+            - "DESIGN_DOC"
+            - "DESIGN_STATUS"
+            - "${$TAPE_FILE}"
+        next_state_id: "uw2_implement"
+
+  - state_id: "uw2_implement"
+    state_desc: "实现阶段：按设计完成代码或工作产物。"
+    is_epsilon: false
+    actions:
+      - action_id: "submit_implementation"
+        action_desc: "提交实现摘要。"
+        arguments:
+          - arg_name: "IMPLEMENTATION_SUMMARY"
+            arg_desc: "实现摘要或完成说明。"
+          - arg_name: "IMPLEMENTATION_STATUS"
+            arg_desc: "实现是否准备完成的状态说明。"
+        condition:
+          cmd: "node"
+          args:
+            - "./examples/scripts/submit-required-fields.mjs"
+            - "IMPLEMENTATION_SUMMARY"
+            - "IMPLEMENTATION_STATUS"
+            - "${$TAPE_FILE}"
+        next_state_id: "uw3_audit"
+
+  - state_id: "uw3_audit"
+    state_desc: "记录当前轮审查结果，并决定后续路径。"
+    is_epsilon: false
+    actions:
+      - action_id: "record_audit"
+        action_desc: "写入审查轮次与摘要。"
+        arguments:
+          - arg_name: "AUDIT_ROUND"
+            arg_desc: "审查轮次编号。"
+          - arg_name: "AUDIT_SUMMARY"
+            arg_desc: "本轮审查摘要。"
+          - arg_name: "NON_DECISIONAL_OPEN"
+            arg_desc: "是否仍有非决策项，0 或 1。"
+          - arg_name: "DECISIONAL_OPEN"
+            arg_desc: "是否仍有决策项，0 或 1。"
+        condition:
+          cmd: "node"
+          args:
+            - "./examples/scripts/submit-required-fields.mjs"
+            - "AUDIT_ROUND"
+            - "AUDIT_SUMMARY"
+            - "NON_DECISIONAL_OPEN"
+            - "DECISIONAL_OPEN"
+            - "${$TAPE_FILE}"
+        next_state_id: "uw3_router"
+
+  - state_id: "uw3_router"
+    state_desc: "epsilon 路由：先修非决策项，再进入决策门，否则收敛结束。"
+    is_epsilon: true
+    actions:
+      - action_id: "route_fix"
+        action_desc: "如果仍有非决策项，进入自动修复。"
+        arguments: []
+        condition:
+          cmd: "node"
+          args:
+            - "./examples/scripts/require-key.mjs"
+            - "NON_DECISIONAL_OPEN"
+            - "1"
+            - "${$TAPE_FILE}"
+        next_state_id: "uw3_fix"
+      - action_id: "route_decision"
+        action_desc: "如果没有非决策项但仍有决策项，进入用户拍板门。"
+        arguments: []
+        condition:
+          cmd: "node"
+          args:
+            - "./examples/scripts/require-key.mjs"
+            - "DECISIONAL_OPEN"
+            - "1"
+            - "${$TAPE_FILE}"
+        next_state_id: "uw4_decision"
+      - action_id: "route_report"
+        action_desc: "如果已无待处理事项，进入最终报告阶段。"
+        arguments: []
+        condition:
+          default: true
+        next_state_id: "uw6_report"
+
+  - state_id: "uw3_fix"
+    state_desc: "自动修复非决策项，然后重新审查。"
+    is_epsilon: false
+    actions:
+      - action_id: "submit_fix"
+        action_desc: "提交自动修复摘要。"
+        arguments:
+          - arg_name: "FIX_SUMMARY"
+            arg_desc: "本轮自动修复摘要。"
+          - arg_name: "NON_DECISIONAL_OPEN"
+            arg_desc: "修复后非决策项是否清零，0 或 1。"
+        condition:
+          cmd: "node"
+          args:
+            - "./examples/scripts/submit-required-fields.mjs"
+            - "FIX_SUMMARY"
+            - "NON_DECISIONAL_OPEN"
+            - "${$TAPE_FILE}"
+        next_state_id: "uw3_audit"
+
+  - state_id: "uw4_decision"
+    state_desc: "汇总所有需要用户拍板的点。"
+    is_epsilon: false
+    actions:
+      - action_id: "submit_decisions"
+        action_desc: "提交决策批次摘要。"
+        arguments:
+          - arg_name: "DECISION_BATCH_SUMMARY"
+            arg_desc: "待用户拍板的问题清单。"
+          - arg_name: "DECISION_BATCH_STATUS"
+            arg_desc: "决策材料是否已汇总完成。"
+        condition:
+          cmd: "node"
+          args:
+            - "./examples/scripts/submit-required-fields.mjs"
+            - "DECISION_BATCH_SUMMARY"
+            - "DECISION_BATCH_STATUS"
+            - "${$TAPE_FILE}"
+        next_state_id: "uw5_apply"
+
+  - state_id: "uw5_apply"
+    state_desc: "执行用户决策；若规格变化则重启到 Stage 0。"
+    is_epsilon: false
+    actions:
+      - action_id: "apply_decisions"
+        action_desc: "落实用户决策并记录是否需要重启。"
+        arguments:
+          - arg_name: "DECISIONS_APPLIED"
+            arg_desc: "用户决策是否已落实。"
+          - arg_name: "RESTART_REASON"
+            arg_desc: "为何需要重新判断 intent/spec。"
+        condition:
+          cmd: "node"
+          args:
+            - "./examples/scripts/submit-required-fields.mjs"
+            - "DECISIONS_APPLIED"
+            - "RESTART_REASON"
+            - "${$TAPE_FILE}"
+        next_state_id: "uw0_detect"
+
+  - state_id: "uw6_report"
+    state_desc: "产出最终报告并准备结束。"
+    is_epsilon: false
+    actions:
+      - action_id: "submit_report"
+        action_desc: "提交最终报告材料。"
+        arguments:
+          - arg_name: "FINAL_REPORT"
+            arg_desc: "最终报告正文或路径。"
+          - arg_name: "FINAL_REPORT_STATUS"
+            arg_desc: "最终报告是否准备完成。"
+        condition:
+          cmd: "node"
+          args:
+            - "./examples/scripts/submit-required-fields.mjs"
+            - "FINAL_REPORT"
+            - "FINAL_REPORT_STATUS"
+            - "${$TAPE_FILE}"
+        next_state_id: "$END"
+
+  - state_id: "$END"
+    state_desc: "Ultra Work 流程结束。"
+    is_epsilon: false
+    actions: []

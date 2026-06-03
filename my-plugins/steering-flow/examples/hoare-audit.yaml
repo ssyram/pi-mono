@@ -1,0 +1,479 @@
+# Hoare audit steering-flow example.
+#
+# This models `/hoare-audit` as:
+#
+# hoareAudit = do
+#   checkOrBuildDocs
+#   doWhileM checkAndFixDecisionals foundDecisionals
+#
+# checkAndFixDecisionals = do
+#   doWhileM checkAndFixNonDecisionals foundNonDecisionals
+#   decisionals <- compiledDecisionals
+#   decisions <- humanDecide decisionals
+#   fixDecisionals decisions
+#
+# checkAndFixNonDecisionals = do
+#   step1ToStep4Checks
+#   nonDecisionals <- gatherNonDecisionals
+#   fixNonDecisionals nonDecisionals
+#   setDecisionals =<< compiledDecisionals
+#
+# Condition scripts live in ./scripts/. Conditions read tape via ${$TAPE_FILE}.
+
+# Core tape keys:
+#   TARGET_SCOPE             — audited target path/module/request
+#   DOC_CHECK_DOC            — docs/intent completeness check and user confirmation
+#   INTENT_DOC               — user-provided complete intent doc for the current task
+#   DOCS_READY               — 1 when docs/specs are usable and confirmed; otherwise 0
+#   HOARE_DESIGN_DOC         — `/hoare-design` output, usually docs/design/hoare-derived-spec.md
+#   SPEC_SOURCE              — concrete non-NONE design/spec source
+#   SPEC_REVISION            — docs/spec revision identifier after build/fix
+#   ROUND                    — outer decisional loop round
+#   NON_DECISION_ROUND       — inner non-decisional loop round
+#   DEPLOYMENT_PROFILE       — execution/trust/persistence/concurrency/threat model
+#   AUDIT_DIMENSIONS         — selected dimensions, 3-6 items
+#   DIMENSION_AUDITS_DOC     — per-dimension Step 1-2 audit outputs
+#   FINDINGS_DOC             — Step 3 compiled candidate findings
+#   CONFIRMATION_DOC         — Step 4 fresh-eye confirmation results
+#   NON_DECISION_DOC         — confirmed Non-Decisional finding bundle
+#   NON_DECISION_COUNT       — confirmed autonomous fixes remaining
+#   DECISION_DOC             — compiled Decisional finding/decision record
+#   DECISION_COUNT           — confirmed human-decision fixes remaining
+#   FIX_PLAN_DOC             — Non-Decisional fix plan
+#   VERIFY_DOC               — verification evidence after Non-Decisional fixes
+#   DECISION_FIX_PLAN_DOC    — fix plan derived from human decisions
+#   DECISION_VERIFY_DOC      — verification evidence after Decisional fixes
+#   FINAL_AUDIT_DOC          — final docs/correctness-audit.md path
+
+task_description: |
+  Hoare correctness audit workflow for `/hoare-audit`.
+  First find or build concrete design/spec docs. Then run an outer Decisional loop.
+  Inside each outer round, repeatedly run Step 1-4 checks and fix Non-Decisional
+  findings until none remain. Compile Decisional findings, ask the human only at
+  the decision gate, fix those decisions, then repeat until no Decisional findings
+  remain. Finish with docs/correctness-audit.md.
+
+states:
+  # ═══════════════════════════════════════════════════════════════
+  # Step 0: checkOrBuildDocs small loop
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: "$START"
+    state_desc: |
+      Step 0 — interactive docs/intent adequacy check.
+
+      This state is responsible for checking whether the current task has enough
+      documentation to support a Hoare audit:
+      - the user has provided or confirmed an intent document for this exact task
+      - the docs describe the complete current intent, not just old implementation behavior
+      - the docs/specs are complete enough to derive Requires / Ensures / Invariants
+      - the docs match the target scope and current user intent
+      - any gaps, stale sections, or Decisional intent conflicts are recorded
+
+      If the docs are sufficient, set DOCS_READY=1 and provide SPEC_SOURCE.
+      If not, set DOCS_READY=0 and enter `/hoare-design`.
+
+      Required tape before submit_docs_check:
+      - TARGET_SCOPE
+      - INTENT_DOC: user-provided or user-confirmed intent doc sufficient for this task
+      - DOC_CHECK_DOC: adequacy checklist and confirmation notes
+      - DOCS_READY: 1 when docs/specs are sufficient, otherwise 0
+      - SPEC_SOURCE: required when DOCS_READY=1
+    is_epsilon: false
+    interactive: true
+    actions:
+      - action_id: submit_docs_check
+        action_desc: "Submit user-confirmed docs/intent adequacy check."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - TARGET_SCOPE
+            - INTENT_DOC
+            - DOC_CHECK_DOC
+            - DOCS_READY
+            - "${$TAPE_FILE}"
+        next_state_id: docs_router
+
+  - state_id: docs_router
+    state_desc: "Route Step 0: confirmed docs ready enters Step 1; otherwise run /hoare-design and return to the interactive check."
+    is_epsilon: true
+    actions:
+      - action_id: docs_ready
+        action_desc: "User-confirmed docs/specs are sufficient; enter Step 1."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - DOCS_READY
+            - SPEC_SOURCE
+            - INTENT_DOC
+            - "${$TAPE_FILE}"
+        next_state_id: step1_context
+      - action_id: docs_missing
+        action_desc: "Docs/specs are missing, stale, incomplete, or intent-mismatched; run /hoare-design."
+        condition:
+          default: true
+        next_state_id: hoare_design
+
+  - state_id: hoare_design
+    state_desc: |
+      Step 0B — run `/hoare-design`.
+
+      Missing, stale, incomplete, or intent-mismatched specs must be handled by
+      `/hoare-design`. Use the user-provided intent doc as the current task intent;
+      if it is insufficient, ask for enough intent documentation before deriving specs.
+
+      Derive the descriptive spec from current code and all call sites: weakest common
+      Pre-conditions, union Post-conditions, module invariants, responsibility chains,
+      side effects, intentional omissions, and Decisional intent conflicts. The result
+      must be sufficient for the current audit target, not merely a generic overview.
+
+      Default output: docs/design/hoare-derived-spec.md unless a target-specific path
+      is better. Decisional conflicts from `/hoare-design` do not block this round;
+      record them in the derived spec and use the weakest common denominator.
+
+      Required tape before submit_hoare_design:
+      - HOARE_DESIGN_DOC
+      - SPEC_SOURCE
+      - SPEC_REVISION
+      - DOCS_READY: usually 0 or pending; final readiness is confirmed back in Step 0
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_hoare_design
+        action_desc: "Submit /hoare-design output for user confirmation."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - HOARE_DESIGN_DOC
+            - SPEC_SOURCE
+            - SPEC_REVISION
+            - DOCS_READY
+            - "${$TAPE_FILE}"
+        next_state_id: "$START"
+
+  # ═══════════════════════════════════════════════════════════════
+  # checkAndFixNonDecisionals inner loop: Step 1-4 checks
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: step1_context
+    state_desc: |
+      Step 1 — declare deployment context and select 3-6 relevant audit dimensions.
+
+      Record execution model, trust boundary, persistence model, concurrency model,
+      and threat model. Dimensions are selected per target, not from a fixed list.
+
+      Required tape before submit_context:
+      - ROUND
+      - NON_DECISION_ROUND
+      - DEPLOYMENT_PROFILE
+      - AUDIT_DIMENSIONS
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_context
+        action_desc: "Submit deployment profile and selected audit dimensions."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - ROUND
+            - NON_DECISION_ROUND
+            - DEPLOYMENT_PROFILE
+            - AUDIT_DIMENSIONS
+            - "${$TAPE_FILE}"
+        next_state_id: step2_dimension_audits
+
+  - state_id: step2_dimension_audits
+    state_desc: |
+      Step 2 — launch one fresh auditor per selected dimension, preferably in parallel.
+
+      Each report must apply HoarePrompt: CFG decomposition, NSP annotation,
+      branch/loop analysis, external assumption checks, and concrete counterexamples.
+
+      Typical agents: functional-correctness-auditor, spec-impl-auditor,
+      crash-safety-auditor, cross-boundary-auditor, resource-auditor,
+      adversarial-auditor.
+
+      Required tape before submit_audits:
+      - DIMENSION_AUDITS_DOC
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_audits
+        action_desc: "Submit per-dimension audit outputs."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-doc-submitted.mjs"
+            - DIMENSION_AUDITS_DOC
+            - "${$TAPE_FILE}"
+        next_state_id: step3_compile_findings
+
+  - state_id: step3_compile_findings
+    state_desc: |
+      Step 3 — compile candidate findings.
+
+      Keep only findings with violated Pre/Post/Invariant, concrete counterexample,
+      runtime reachability, and deployment-context applicability. Reject summaries,
+      style nits, unreachable paths, and findings without spec/counterexample evidence.
+
+      Required tape before submit_findings:
+      - FINDINGS_DOC
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_findings
+        action_desc: "Submit compiled candidate findings."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-doc-submitted.mjs"
+            - FINDINGS_DOC
+            - "${$TAPE_FILE}"
+        next_state_id: step4_confirmation
+
+  - state_id: step4_confirmation
+    state_desc: |
+      Step 4 — independently confirm candidate findings with fresh eyes.
+
+      Use strict verdicts: CONFIRMED triggering, CONFIRMED solid rationale,
+      REJECTED deployment mismatch, REJECTED not reachable, REJECTED misreading,
+      REJECTED lesson precondition unmet, or INCONCLUSIVE. Only CONFIRMED findings
+      continue.
+
+      Required tape before submit_confirmation:
+      - CONFIRMATION_DOC
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_confirmation
+        action_desc: "Submit fresh-eye confirmation results."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-doc-submitted.mjs"
+            - CONFIRMATION_DOC
+            - "${$TAPE_FILE}"
+        next_state_id: gather_non_decisionals
+
+  - state_id: gather_non_decisionals
+    state_desc: |
+      Gather confirmed Non-Decisional findings and compile Decisional findings.
+
+      This is the boundary after Step 1-4 checks:
+      - nonDecisionals <- gatherNonDecisionals
+      - setDecisionals =<< compiledDecisionals
+
+      Required tape before submit_classification:
+      - NON_DECISION_DOC
+      - NON_DECISION_COUNT
+      - DECISION_DOC
+      - DECISION_COUNT
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_classification
+        action_desc: "Submit confirmed finding classification and counts."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - NON_DECISION_DOC
+            - NON_DECISION_COUNT
+            - DECISION_DOC
+            - DECISION_COUNT
+            - "${$TAPE_FILE}"
+        next_state_id: non_decision_router
+
+  - state_id: non_decision_router
+    state_desc: "doWhileM checkAndFixNonDecisionals foundNonDecisionals: fix autonomous findings while any remain; otherwise exit inner loop."
+    is_epsilon: true
+    actions:
+      - action_id: found_non_decisionals
+        action_desc: "Non-Decisional findings remain; fix them."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-key-gt-zero.mjs"
+            - NON_DECISION_COUNT
+            - "${$TAPE_FILE}"
+        next_state_id: fix_non_decisionals
+      - action_id: no_non_decisionals
+        action_desc: "Inner loop complete; compile Decisional findings."
+        condition:
+          default: true
+        next_state_id: compiled_decisionals
+
+  - state_id: fix_non_decisionals
+    state_desc: |
+      fixNonDecisionals nonDecisionals.
+
+      Implement only confirmed Non-Decisional root-cause fixes. Do not decide API,
+      architecture, or spec trade-offs. Run the required verification and update
+      docs/spec revision when the fix changes contracts.
+
+      After this state, return directly to Step 1, not Step 0: docs have already
+      been established by checkOrBuildDocs.
+
+      Required tape before submit_non_decisional_fix:
+      - FIX_PLAN_DOC
+      - VERIFY_DOC
+      - NON_DECISION_COUNT: updated remaining autonomous fixes
+      - DECISION_COUNT: updated compiled decisionals
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_non_decisional_fix
+        action_desc: "Submit Non-Decisional fix plan, verification, and updated counts."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - FIX_PLAN_DOC
+            - VERIFY_DOC
+            - NON_DECISION_COUNT
+            - DECISION_COUNT
+            - "${$TAPE_FILE}"
+        next_state_id: step1_context
+
+  # ═══════════════════════════════════════════════════════════════
+  # checkAndFixDecisionals outer loop
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: compiled_decisionals
+    state_desc: |
+      decisionals <- compiledDecisionals.
+
+      Recompile the Decisional list after the Non-Decisional inner loop has reached
+      zero. Include only findings that still require human judgment after evidence,
+      confirmation, autonomous fixes, and spec checks.
+
+      Required tape before submit_decisionals:
+      - DECISION_DOC
+      - DECISION_COUNT
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_decisionals
+        action_desc: "Submit compiled Decisional findings and count."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - DECISION_DOC
+            - DECISION_COUNT
+            - "${$TAPE_FILE}"
+        next_state_id: decisional_router
+
+  - state_id: decisional_router
+    state_desc: "doWhileM checkAndFixDecisionals foundDecisionals: if decisionals remain, ask the human and fix decisions; otherwise write final report."
+    is_epsilon: true
+    actions:
+      - action_id: found_decisionals
+        action_desc: "Decisional findings remain; enter human decision gate."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-key-gt-zero.mjs"
+            - DECISION_COUNT
+            - "${$TAPE_FILE}"
+        next_state_id: human_decide
+      - action_id: no_decisionals
+        action_desc: "No Decisional findings remain; write final audit report."
+        condition:
+          default: true
+        next_state_id: final_report
+
+  - state_id: human_decide
+    state_desc: |
+      decisions <- humanDecide decisionals.
+
+      Present exact Decisional findings, options, recommendations, and required
+      answers. This is the human decision interactive state; Step 0 is also interactive for docs/intent confirmation.
+
+      Required tape before submit_human_decisions:
+      - DECISION_DOC: updated with human decisions
+      - DECISION_COUNT
+    is_epsilon: false
+    interactive: true
+    actions:
+      - action_id: submit_human_decisions
+        action_desc: "Submit human decisions for the compiled Decisional findings."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - DECISION_DOC
+            - DECISION_COUNT
+            - "${$TAPE_FILE}"
+        next_state_id: fix_decisionals
+
+  - state_id: fix_decisionals
+    state_desc: |
+      fixDecisionals decisions.
+
+      Apply the human decisions exactly. Update specs/docs if the decision changes
+      contracts, run verification, and set DECISION_COUNT to the remaining Decisional
+      findings after the fix. New autonomous issues discovered here should become
+      NON_DECISION_COUNT for the next Step 1 pass.
+
+      Required tape before submit_decisional_fix:
+      - DECISION_FIX_PLAN_DOC
+      - DECISION_VERIFY_DOC
+      - DECISION_COUNT
+      - NON_DECISION_COUNT
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_decisional_fix
+        action_desc: "Submit Decisional fix plan, verification, and updated counts."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/submit-required-fields.mjs"
+            - DECISION_FIX_PLAN_DOC
+            - DECISION_VERIFY_DOC
+            - DECISION_COUNT
+            - NON_DECISION_COUNT
+            - "${$TAPE_FILE}"
+        next_state_id: step1_context
+
+  # ═══════════════════════════════════════════════════════════════
+  # Final report
+  # ═══════════════════════════════════════════════════════════════
+  - state_id: final_report
+    state_desc: |
+      Write the final correctness audit report, normally docs/correctness-audit.md.
+
+      Required sections:
+      1. Executive Summary
+      2. Proven Objects
+      3. Cross-boundary Contracts
+      4. Issues Found and Fixed
+      5. Rejected/Inconclusive Findings
+      6. Decisional Findings Log
+      7. Remaining Limitations
+      8. Assumptions Registry
+
+      Required tape before submit_final:
+      - FINAL_AUDIT_DOC
+    is_epsilon: false
+    interactive: false
+    actions:
+      - action_id: submit_final
+        action_desc: "Submit final correctness audit report."
+        condition:
+          cmd: "node"
+          args:
+            - "./scripts/require-doc-submitted.mjs"
+            - FINAL_AUDIT_DOC
+            - "${$TAPE_FILE}"
+        next_state_id: "$END"
+
+  - state_id: "$END"
+    state_desc: |
+      Hoare audit complete. Docs exist, Non-Decisional and Decisional loops are
+      exhausted, and the final correctness-audit report has been written.
+    is_epsilon: false
+    interactive: false
+    actions: []
