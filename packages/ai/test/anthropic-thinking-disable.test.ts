@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { streamSimple } from "../src/index.ts";
 import { getModel } from "../src/models.ts";
-import { streamSimple } from "../src/stream.ts";
 import type { Context, Model, SimpleStreamOptions } from "../src/types.ts";
 
 interface AnthropicThinkingPayload {
@@ -129,6 +129,13 @@ describe("Anthropic thinking disable payload", () => {
 		const payload = await capturePayload(getModel("anthropic", "claude-opus-4-8"));
 
 		expect(payload.thinking).toEqual({ type: "disabled" });
+		expect(payload.output_config).toBeUndefined();
+	});
+
+	it("omits thinking.type=disabled for Claude Fable 5 when thinking is off", async () => {
+		const payload = await capturePayload(getModel("anthropic", "claude-fable-5"));
+
+		expect(payload.thinking).toBeUndefined();
 		expect(payload.output_config).toBeUndefined();
 	});
 

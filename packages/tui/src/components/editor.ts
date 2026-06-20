@@ -4,7 +4,14 @@ import { decodePrintableKey, matchesKey } from "../keys.ts";
 import { KillRing } from "../kill-ring.ts";
 import { type Component, CURSOR_MARKER, type Focusable, type TUI } from "../tui.ts";
 import { UndoStack } from "../undo-stack.ts";
-import { getGraphemeSegmenter, getWordSegmenter, isWhitespaceChar, truncateToWidth, visibleWidth } from "../utils.ts";
+import {
+	cjkBreakRegex,
+	getGraphemeSegmenter,
+	getWordSegmenter,
+	isWhitespaceChar,
+	truncateToWidth,
+	visibleWidth,
+} from "../utils.ts";
 import { findWordBackward, findWordForward } from "../word-navigation.ts";
 import { SelectList, type SelectListLayoutOptions, type SelectListTheme } from "./select-list.ts";
 
@@ -174,13 +181,21 @@ export function wordWrapLine(line: string, maxWidth: number, preSegmented?: Intl
 		// Advance.
 		currentWidth += gWidth;
 
-		// Record wrap opportunity: whitespace followed by non-whitespace.
-		// Multiple spaces join (no break between them); the break point is
-		// after the last space before the next word.
+		// Record wrap opportunity: whitespace followed by non-whitespace
+		// (multiple spaces join; the break point is after the last space),
+		// or at a boundary where either side is CJK (CJK allows breaking
+		// between any adjacent characters).
 		const next = segments[i + 1];
 		if (isWs && next && (isPasteMarker(next.segment) || !isWhitespaceChar(next.segment))) {
 			wrapOppIndex = next.index;
 			wrapOppWidth = currentWidth;
+		} else if (!isWs && next && !isWhitespaceChar(next.segment)) {
+			const isCjk = !isPasteMarker(grapheme) && cjkBreakRegex.test(grapheme);
+			const nextIsCjk = !isPasteMarker(next.segment) && cjkBreakRegex.test(next.segment);
+			if (isCjk || nextIsCjk) {
+				wrapOppIndex = next.index;
+				wrapOppWidth = currentWidth;
+			}
 		}
 	}
 
@@ -373,6 +388,10 @@ export class Editor implements Component, Focusable {
 		if (this.history.length > 100) {
 			this.history.pop();
 		}
+	}
+
+	private isEditorEmpty(): boolean {
+		return this.state.lines.length === 1 && this.state.lines[0] === "";
 	}
 
 	private isOnFirstVisualLine(): boolean {
@@ -788,7 +807,10 @@ export class Editor implements Component, Focusable {
 
 		// Arrow key navigation (with history support)
 		if (kb.matches(data, "tui.editor.cursorUp")) {
-			if (this.isOnFirstVisualLine() && this.history.length > 0) {
+			if (
+				this.isOnFirstVisualLine() &&
+				(this.isEditorEmpty() || this.historyIndex > -1 || this.state.cursorCol === 0)
+			) {
 				this.navigateHistory(-1);
 			} else if (this.isOnFirstVisualLine()) {
 				// Already at top - jump to start of line
