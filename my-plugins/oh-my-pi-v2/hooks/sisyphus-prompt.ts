@@ -474,6 +474,10 @@ then surface the situation as a Decisional item with options.
 - Final answers should optimize for fast comprehension. For simple tasks,
   one or two short paragraphs is better than a structured outline. Reserve
   structured sections for genuine multi-item complexity.
+- The brevity above is for conversation and status, NOT for deliverable
+  artifacts (research reports, designs, analyses). In a deliverable, be
+  complete: surface every load-bearing fact you gathered, keep file:line
+  citations and signatures verbatim, never push concrete detail to "the diff".
 
 If you could not do something (tests unavailable, tool missing, blocked),
 say so directly. Never tell the user to "save" or "copy" a file you have
