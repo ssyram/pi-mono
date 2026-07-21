@@ -8,8 +8,8 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { complete } from "@mariozechner/pi-ai";
-import type { Model } from "@mariozechner/pi-ai";
+import { complete } from "@earendil-works/pi-ai/compat";
+import type { Model } from "@earendil-works/pi-ai";
 import type { Intent } from "./ledger.js";
 import { log } from "./logger.js";
 

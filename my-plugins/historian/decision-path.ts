@@ -6,8 +6,8 @@
  * Session-level storage via `pi.appendEntry(CUSTOM_TYPE, snapshot)`.
  */
 
-import { complete } from "@mariozechner/pi-ai";
-import type { Model } from "@mariozechner/pi-ai";
+import { complete } from "@earendil-works/pi-ai/compat";
+import type { Model } from "@earendil-works/pi-ai";
 
 // ---------------------------------------------------------------------------
 // Types

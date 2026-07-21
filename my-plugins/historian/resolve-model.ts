@@ -2,7 +2,7 @@
  * Resolve a model ID string to a Model object from the registry.
  */
 
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { log } from "./logger.js";
 
 /**

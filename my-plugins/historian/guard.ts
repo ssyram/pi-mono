@@ -6,9 +6,9 @@
  * clears the memory, so continued violations keep getting warned.
  */
 
-import { complete } from "@mariozechner/pi-ai";
-import type { Model } from "@mariozechner/pi-ai";
-import type { ExtensionContext, ToolCallEvent } from "@mariozechner/pi-coding-agent";
+import { complete } from "@earendil-works/pi-ai/compat";
+import type { Model } from "@earendil-works/pi-ai";
+import type { ExtensionContext, ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import type { Ledger } from "./ledger.js";
 import { log } from "./logger.js";
 

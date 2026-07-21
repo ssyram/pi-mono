@@ -3,7 +3,7 @@
  * Test modification to trigger historian guard.
  */
 
-import type { ToolCallEvent } from "@mariozechner/pi-coding-agent";
+import type { ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import type { Rule, Decision } from "./ledger.js";
 
 // ---------------------------------------------------------------------------

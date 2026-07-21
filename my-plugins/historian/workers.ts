@@ -2,10 +2,10 @@
  * Workers — deterministic (RuleWorker) and LLM-based (SemanticWorker) compliance checkers.
  */
 
-import { complete } from "@mariozechner/pi-ai";
-import type { Model } from "@mariozechner/pi-ai";
-import type { ExtensionContext, ToolCallEvent } from "@mariozechner/pi-coding-agent";
-import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
+import { complete } from "@earendil-works/pi-ai/compat";
+import type { Model } from "@earendil-works/pi-ai";
+import type { ExtensionContext, ToolCallEvent } from "@earendil-works/pi-coding-agent";
+import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import type { Ledger, Rule, Severity } from "./ledger.js";
 import { Severity as SeverityEnum } from "./ledger.js";
 import { log } from "./logger.js";
