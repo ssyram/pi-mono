@@ -1,3 +1,4 @@
+import { uuidv7 } from "@earendil-works/pi-ai";
 import {
 	type LeafEntry,
 	SessionError,
@@ -5,7 +6,6 @@ import {
 	type SessionStorage,
 	type SessionTreeEntry,
 } from "../types.ts";
-import { uuidv7 } from "./uuid.ts";
 
 function updateLabelCache(labelsById: Map<string, string>, entry: SessionTreeEntry): void {
 	if (entry.type !== "label") return;
@@ -27,7 +27,9 @@ function buildLabelsById(entries: SessionTreeEntry[]): Map<string, string> {
 
 function generateEntryId(byId: { has(id: string): boolean }): string {
 	for (let i = 0; i < 100; i++) {
-		const id = uuidv7().slice(0, 8);
+		// The uuidv7 prefix is timestamp-derived and nearly constant between calls,
+		// so short ids must come from the random tail.
+		const id = uuidv7().slice(-8);
 		if (!byId.has(id)) return id;
 	}
 	return uuidv7();

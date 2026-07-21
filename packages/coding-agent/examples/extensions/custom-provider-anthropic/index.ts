@@ -46,7 +46,7 @@ import {
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 // =============================================================================
-// OAuth Implementation (copied from packages/ai/src/utils/oauth/anthropic.ts)
+// OAuth implementation adapted for the legacy extension compatibility interface.
 // =============================================================================
 
 const decode = (s: string) => atob(s);
@@ -153,7 +153,7 @@ async function refreshAnthropicToken(credentials: OAuthCredentials): Promise<OAu
 }
 
 // =============================================================================
-// Streaming Implementation (simplified from packages/ai/src/providers/anthropic.ts)
+// Streaming Implementation (simplified from packages/ai/src/api/anthropic-messages.ts)
 // =============================================================================
 
 // Claude Code tool names for OAuth stealth mode

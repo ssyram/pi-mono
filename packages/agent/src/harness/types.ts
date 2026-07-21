@@ -1,5 +1,13 @@
-import type { ImageContent, Model, SimpleStreamOptions, TextContent, Transport } from "@earendil-works/pi-ai/base";
-import type { AgentEvent, AgentMessage, AgentTool, QueueMode, ThinkingLevel } from "../types.ts";
+import type {
+	ImageContent,
+	Model,
+	Models,
+	SimpleStreamOptions,
+	TextContent,
+	Transport,
+	Usage,
+} from "@earendil-works/pi-ai";
+import type { AgentEvent, AgentMessage, AgentTool, QueueMode, ThinkingLevel } from "../index.ts";
 import type { Session } from "./session/session.ts";
 
 /** Result of a fallible operation. Expected failures are returned as `ok: false` instead of thrown. */
@@ -240,22 +248,6 @@ export interface FileInfo {
 	mtimeMs: number;
 }
 
-/** Options for {@link Shell.exec}. */
-export interface ExecutionEnvExecOptions {
-	/** Working directory for the command. Relative paths are resolved against {@link ExecutionEnv.cwd}. Defaults to {@link ExecutionEnv.cwd}. */
-	cwd?: string;
-	/** Additional environment variables for the command. Values override the environment defaults. Defaults to no overrides. */
-	env?: Record<string, string>;
-	/** Timeout in seconds. Implementations should return a timeout error when the command exceeds this duration. Defaults to no timeout. */
-	timeout?: number;
-	/** Abort signal used to terminate the command. Defaults to no abort signal. */
-	abortSignal?: AbortSignal;
-	/** Called with stdout chunks as they are produced. */
-	onStdout?: (chunk: string) => void;
-	/** Called with stderr chunks as they are produced. */
-	onStderr?: (chunk: string) => void;
-}
-
 /**
  * Filesystem capability used by the harness.
  *
@@ -317,12 +309,28 @@ export interface FileSystem {
 	cleanup(): Promise<void>;
 }
 
+/** Options for {@link Shell.exec}. */
+export interface ShellExecOptions {
+	/** Working directory for the command. Relative paths are resolved against {@link ExecutionEnv.cwd}. Defaults to {@link ExecutionEnv.cwd}. */
+	cwd?: string;
+	/** Additional environment variables for the command. Values override the environment defaults. Defaults to no overrides. */
+	env?: Record<string, string>;
+	/** Timeout in seconds. Implementations should return a timeout error when the command exceeds this duration. Defaults to no timeout. */
+	timeout?: number;
+	/** Abort signal used to terminate the command. Defaults to no abort signal. */
+	abortSignal?: AbortSignal;
+	/** Called with stdout chunks as they are produced. */
+	onStdout?: (chunk: string) => void;
+	/** Called with stderr chunks as they are produced. */
+	onStderr?: (chunk: string) => void;
+}
+
 /** Shell execution capability used by the harness. */
 export interface Shell {
 	/** Execute a shell command in {@link FileSystem.cwd} unless `options.cwd` is provided. */
 	exec(
 		command: string,
-		options?: ExecutionEnvExecOptions,
+		options?: ShellExecOptions,
 	): Promise<Result<{ stdout: string; stderr: string; exitCode: number }, ExecutionError>>;
 	/** Release shell resources. Must be best-effort and must not throw or reject. */
 	cleanup(): Promise<void>;
@@ -365,6 +373,7 @@ export interface CompactionEntry<T = unknown> extends SessionTreeEntryBase {
 	firstKeptEntryId: string;
 	tokensBefore: number;
 	details?: T;
+	usage?: Usage;
 	fromHook?: boolean;
 }
 
@@ -373,6 +382,7 @@ export interface BranchSummaryEntry<T = unknown> extends SessionTreeEntryBase {
 	fromId: string;
 	summary: string;
 	details?: T;
+	usage?: Usage;
 	fromHook?: boolean;
 }
 
@@ -435,6 +445,7 @@ export interface JsonlSessionMetadata extends SessionMetadata {
 	cwd: string;
 	path: string;
 	parentSessionPath?: string;
+	metadata?: Record<string, unknown>;
 }
 
 export interface SessionStorage<TMetadata extends SessionMetadata = SessionMetadata> {
@@ -480,6 +491,7 @@ export interface SessionRepo<
 export interface JsonlSessionCreateOptions extends SessionCreateOptions {
 	cwd: string;
 	parentSessionPath?: string;
+	metadata?: Record<string, unknown>;
 }
 
 export interface JsonlSessionListOptions {
@@ -570,6 +582,7 @@ export interface ToolResultEvent {
 	content: Array<TextContent | ImageContent>;
 	details: unknown;
 	isError: boolean;
+	usage?: Usage;
 }
 
 export interface SessionBeforeCompactEvent {
@@ -685,6 +698,7 @@ export interface ToolResultPatch {
 	content?: Array<TextContent | ImageContent>;
 	details?: unknown;
 	isError?: boolean;
+	usage?: Usage;
 	terminate?: boolean;
 }
 
@@ -695,7 +709,12 @@ export interface SessionBeforeCompactResult {
 
 export interface SessionBeforeTreeResult {
 	cancel?: boolean;
-	summary?: { summary: string; details?: unknown };
+	summary?: {
+		summary: string;
+		details?: unknown;
+		/** Usage from the LLM call that generated this summary, if available. */
+		usage?: Usage;
+	};
 	customInstructions?: string;
 	replaceInstructions?: boolean;
 	label?: string;
@@ -736,6 +755,8 @@ export interface CompactResult {
 	summary: string;
 	firstKeptEntryId: string;
 	tokensBefore: number;
+	/** Usage from the LLM call(s) that generated this summary, if available. */
+	usage?: Usage;
 	details?: unknown;
 }
 
@@ -791,6 +812,7 @@ export interface GenerateBranchSummaryOptions {
 
 export interface BranchSummaryResult {
 	summary: string;
+	usage?: Usage;
 	readFiles: string[];
 	modifiedFiles: string[];
 }
@@ -802,6 +824,12 @@ export interface AgentHarnessOptions<
 > {
 	env: ExecutionEnv;
 	session: Session;
+	/**
+	 * Provider collection used for all model requests (turn streaming,
+	 * compaction, branch summarization). Auth resolves through the providers'
+	 * auth.
+	 */
+	models: Models;
 	tools?: TTool[];
 	/**
 	 * Concrete resources available to explicit invocation methods and system-prompt callbacks.
@@ -818,9 +846,6 @@ export interface AgentHarnessOptions<
 				activeTools: TTool[];
 				resources: AgentHarnessResources<TSkill, TPromptTemplate>;
 		  }) => string | Promise<string>);
-	getApiKeyAndHeaders?: (
-		model: Model<any>,
-	) => Promise<{ apiKey: string; headers?: Record<string, string> } | undefined>;
 	/** Curated stream/provider request options. Snapshotted at turn start. */
 	streamOptions?: AgentHarnessStreamOptions;
 	model: Model<any>;

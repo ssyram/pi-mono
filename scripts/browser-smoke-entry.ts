@@ -1,4 +1,5 @@
-import { complete, createAssistantMessageEventStream, getModel, getProviders, Type } from "@earendil-works/pi-ai";
+import { createAssistantMessageEventStream, Type } from "@earendil-works/pi-ai";
+import { complete, getModel, getProviders, streamSimple } from "@earendil-works/pi-ai/compat";
 import {
 	Agent,
 	bashExecutionToText,
@@ -23,7 +24,7 @@ const model = getModel("google", "gemini-2.5-flash");
 const schema = Type.Object({ prompt: Type.String() });
 const stream = createAssistantMessageEventStream();
 
-const agent = new Agent({ initialState: { model } });
+const agent = new Agent({ initialState: { model }, streamFunction: streamSimple });
 agent.steer({ role: "user", content: [{ type: "text", text: "queued" }], timestamp: 0 });
 const repo = new InMemorySessionRepo();
 const result = getOrThrow(ok({ value: 1 }));

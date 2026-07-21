@@ -286,9 +286,9 @@ Set the reasoning/thinking level for models that support it.
 {"type": "set_thinking_level", "level": "high"}
 ```
 
-Levels: `"off"`, `"minimal"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`
+Levels: `"off"`, `"minimal"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, `"max"`
 
-Note: `"xhigh"` is only supported by OpenAI codex-max models.
+`"xhigh"` and `"max"` are exposed only when supported by the selected model. Some models, including GPT-5.6, expose both.
 
 Response:
 ```json
@@ -310,6 +310,26 @@ Response:
   "command": "cycle_thinking_level",
   "success": true,
   "data": {"level": "high"}
+}
+```
+
+#### get_available_thinking_levels
+
+List the thinking levels supported by the current model. Returns `["off"]` for a model without reasoning support.
+
+```json
+{"type": "get_available_thinking_levels"}
+```
+
+Response:
+```json
+{
+  "type": "response",
+  "command": "get_available_thinking_levels",
+  "success": true,
+  "data": {
+    "levels": ["off", "minimal", "low", "medium", "high"]
+  }
 }
 ```
 
@@ -375,12 +395,20 @@ Response:
     "firstKeptEntryId": "abc123",
     "tokensBefore": 150000,
     "estimatedTokensAfter": 32000,
+    "usage": {
+      "input": 32000,
+      "output": 1200,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 33200,
+      "cost": {"input": 0.01, "output": 0.02, "cacheRead": 0, "cacheWrite": 0, "total": 0.03}
+    },
     "details": {}
   }
 }
 ```
 
-`estimatedTokensAfter` is a heuristic estimate over the rebuilt message context immediately after compaction, not a provider-exact token count.
+`estimatedTokensAfter` is a heuristic estimate over the rebuilt message context immediately after compaction, not a provider-exact token count. `usage` reports the LLM call or calls that generated the summary and may be omitted by custom compaction handlers.
 
 #### set_auto_compaction
 
@@ -537,7 +565,7 @@ Response:
 }
 ```
 
-`tokens` contains assistant usage totals for the current session state. `contextUsage` contains the actual current context-window estimate used for compaction and footer display.
+`tokens` and `cost` include assistant messages, usage reported by tools, and compaction/branch-summary generation across the full session. `contextUsage` contains the actual current context-window estimate used for compaction and footer display.
 
 `contextUsage` is omitted when no model or context window is available. `contextUsage.tokens` and `contextUsage.percent` are `null` immediately after compaction until a fresh post-compaction assistant response provides valid usage data.
 
@@ -661,6 +689,64 @@ Response:
 }
 ```
 
+#### get_entries
+
+Get all session entries in append order (excluding the session header). The session is an append-only tree of entries with stable ids, so an entry id works as a durable cursor: pass the last entry id you have seen as `since` to get only entries strictly after it, even across client restarts. Unlike `get_messages`, this includes pre-compaction history and abandoned branches.
+
+```json
+{"type": "get_entries"}
+```
+
+With a cursor:
+```json
+{"type": "get_entries", "since": "abc123"}
+```
+
+Response:
+```json
+{
+  "type": "response",
+  "command": "get_entries",
+  "success": true,
+  "data": {
+    "entries": [
+      {"type": "message", "id": "def456", "parentId": "abc123", "timestamp": "...", "message": {"role": "user", "...": "..."}}
+    ],
+    "leafId": "def456"
+  }
+}
+```
+
+`leafId` is the id of the current leaf entry (`null` for an empty session), so a client can tell in one round trip whether the active branch moved. If `since` does not match any entry id, the response is `success: false`.
+
+#### get_tree
+
+Get the session as a tree of entries. Each node is `{entry, children, label?, labelTimestamp?}`. A well-formed session has a single root; orphaned entries (broken parent chain) also appear as roots.
+
+```json
+{"type": "get_tree"}
+```
+
+Response:
+```json
+{
+  "type": "response",
+  "command": "get_tree",
+  "success": true,
+  "data": {
+    "tree": [
+      {
+        "entry": {"type": "message", "id": "abc123", "parentId": null, "...": "..."},
+        "children": [
+          {"entry": {"type": "message", "id": "def456", "parentId": "abc123", "...": "..."}, "children": []}
+        ]
+      }
+    ],
+    "leafId": "def456"
+  }
+}
+```
+
 #### get_last_assistant_text
 
 Get the text content of the last assistant message.
@@ -750,7 +836,8 @@ Events are streamed to stdout as JSON lines during agent operation. Events do NO
 | Event | Description |
 |-------|-------------|
 | `agent_start` | Agent begins processing |
-| `agent_end` | Agent completes (includes all generated messages) |
+| `agent_end` | One low-level agent run completes (may still be followed by retry, compaction, or queued continuations) |
+| `agent_settled` | Agent run is fully settled; no automatic retry, compaction retry, or queued continuation remains |
 | `turn_start` | New turn begins |
 | `turn_end` | Turn completes (includes assistant message and tool results) |
 | `message_start` | Message begins |
@@ -776,13 +863,22 @@ Emitted when the agent begins processing a prompt.
 
 ### agent_end
 
-Emitted when the agent completes. Contains all messages generated during this run.
+Emitted when one low-level agent run completes. Contains all messages generated during this run. If `willRetry` is true, an automatic retry will follow.
 
 ```json
 {
   "type": "agent_end",
-  "messages": [...]
+  "messages": [...],
+  "willRetry": false
 }
+```
+
+### agent_settled
+
+Emitted after the full session-level run settles. At this point Pi will not continue automatically through retry, compaction retry, or queued follow-up messages.
+
+```json
+{"type": "agent_settled"}
 ```
 
 ### turn_start / turn_end
@@ -928,6 +1024,14 @@ The `reason` field is `"manual"`, `"threshold"`, or `"overflow"`.
     "firstKeptEntryId": "abc123",
     "tokensBefore": 150000,
     "estimatedTokensAfter": 32000,
+    "usage": {
+      "input": 32000,
+      "output": 1200,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 33200,
+      "cost": {"input": 0.01, "output": 0.02, "cacheRead": 0, "cacheWrite": 0, "total": 0.03}
+    },
     "details": {}
   },
   "aborted": false,
@@ -1280,10 +1384,20 @@ Stop reasons: `"stop"`, `"length"`, `"toolUse"`, `"error"`, `"aborted"`
   "toolCallId": "call_123",
   "toolName": "bash",
   "content": [{"type": "text", "text": "total 48\ndrwxr-xr-x ..."}],
+  "usage": {
+    "input": 100,
+    "output": 50,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "totalTokens": 150,
+    "cost": {"input": 0.0003, "output": 0.00075, "cacheRead": 0, "cacheWrite": 0, "total": 0.00105}
+  },
   "isError": false,
   "timestamp": 1733234567890
 }
 ```
+
+`usage` is optional and reports nested LLM work performed by the tool. When present, it contributes to session token and cost totals.
 
 ### BashExecutionMessage
 

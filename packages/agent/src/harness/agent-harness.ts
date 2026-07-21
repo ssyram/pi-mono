@@ -1,10 +1,11 @@
 import {
 	type AssistantMessage,
+	contentText,
 	type ImageContent,
 	type Model,
-	streamSimple,
+	type Models,
 	type UserMessage,
-} from "@earendil-works/pi-ai/base";
+} from "@earendil-works/pi-ai";
 import { runAgentLoop } from "../agent-loop.ts";
 import type {
 	AgentContext,
@@ -31,6 +32,7 @@ import type {
 	AgentHarnessResources,
 	AgentHarnessStreamOptions,
 	AgentHarnessStreamOptionsPatch,
+	CompactResult,
 	ExecutionEnv,
 	NavigateTreeResult,
 	PendingSessionWrite,
@@ -73,17 +75,6 @@ function cloneStreamOptions(streamOptions?: AgentHarnessStreamOptions): AgentHar
 		headers: streamOptions?.headers ? { ...streamOptions.headers } : undefined,
 		metadata: streamOptions?.metadata ? { ...streamOptions.metadata } : undefined,
 	};
-}
-
-function mergeHeaders(...headers: Array<Record<string, string> | undefined>): Record<string, string> | undefined {
-	const merged: Record<string, string> = {};
-	let hasHeaders = false;
-	for (const entry of headers) {
-		if (!entry) continue;
-		Object.assign(merged, entry);
-		hasHeaders = true;
-	}
-	return hasHeaders ? merged : undefined;
 }
 
 function findDuplicateNames(names: string[]): string[] {
@@ -178,6 +169,7 @@ export class AgentHarness<
 > {
 	readonly env: ExecutionEnv;
 	private session: Session;
+	readonly models: Models;
 	private phase: AgentHarnessPhase = "idle";
 	private runAbortController?: AbortController;
 	private runPromise?: Promise<void>;
@@ -186,7 +178,6 @@ export class AgentHarness<
 	private thinkingLevel: ThinkingLevel;
 	private systemPrompt: AgentHarnessOptions<TSkill, TPromptTemplate, TTool>["systemPrompt"];
 	private streamOptions: AgentHarnessStreamOptions;
-	private getApiKeyAndHeaders?: AgentHarnessOptions["getApiKeyAndHeaders"];
 	private resources: AgentHarnessResources<TSkill, TPromptTemplate>;
 	private tools = new Map<string, TTool>();
 	private activeToolNames: string[];
@@ -200,10 +191,10 @@ export class AgentHarness<
 	constructor(options: AgentHarnessOptions<TSkill, TPromptTemplate, TTool>) {
 		this.env = options.env;
 		this.session = options.session;
+		this.models = options.models;
 		this.resources = options.resources ?? {};
 		this.streamOptions = cloneStreamOptions(options.streamOptions);
 		this.systemPrompt = options.systemPrompt;
-		this.getApiKeyAndHeaders = options.getApiKeyAndHeaders;
 		this.validateUniqueNames(
 			(options.tools ?? []).map((tool) => tool.name),
 			"Duplicate tool name(s)",
@@ -376,13 +367,9 @@ export class AgentHarness<
 	private createStreamFn(getTurnState: () => AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>): StreamFn {
 		return async (model, context, streamOptions) => {
 			const turnState = getTurnState();
-			const auth = await this.getApiKeyAndHeaders?.(model);
-			const snapshotOptions: AgentHarnessStreamOptions = {
-				...turnState.streamOptions,
-				headers: mergeHeaders(turnState.streamOptions.headers, auth?.headers),
-			};
+			const snapshotOptions: AgentHarnessStreamOptions = { ...turnState.streamOptions };
 			const requestOptions = await this.emitBeforeProviderRequest(model, turnState.sessionId, snapshotOptions);
-			return streamSimple(model, context, {
+			return this.models.streamSimple(model, context, {
 				cacheRetention: requestOptions.cacheRetention,
 				headers: requestOptions.headers,
 				maxRetries: requestOptions.maxRetries,
@@ -401,7 +388,6 @@ export class AgentHarness<
 				sessionId: turnState.sessionId,
 				timeoutMs: requestOptions.timeoutMs,
 				transport: requestOptions.transport,
-				apiKey: auth?.apiKey,
 			});
 		};
 	}
@@ -449,9 +435,16 @@ export class AgentHarness<
 					content: result.content,
 					details: result.details,
 					isError,
+					usage: result.usage,
 				});
 				return patch
-					? { content: patch.content, details: patch.details, isError: patch.isError, terminate: patch.terminate }
+					? {
+							content: patch.content,
+							details: patch.details,
+							isError: patch.isError,
+							usage: patch.usage,
+							terminate: patch.terminate,
+						}
 					: undefined;
 			},
 			prepareNextTurn: async () => {
@@ -705,16 +698,12 @@ export class AgentHarness<
 		}
 	}
 
-	async compact(
-		customInstructions?: string,
-	): Promise<{ summary: string; firstKeptEntryId: string; tokensBefore: number; details?: unknown }> {
+	async compact(customInstructions?: string): Promise<CompactResult> {
 		if (this.phase !== "idle") throw new AgentHarnessError("busy", "compact() requires idle harness");
 		this.phase = "compaction";
 		try {
 			const model = this.model;
 			if (!model) throw new AgentHarnessError("invalid_state", "No model set for compaction");
-			const auth = await this.getApiKeyAndHeaders?.(model);
-			if (!auth) throw new AgentHarnessError("auth", "No auth available for compaction");
 			const branchEntries = await this.session.getBranch();
 			const preparationResult = prepareCompaction(branchEntries, DEFAULT_COMPACTION_SETTINGS);
 			if (!preparationResult.ok) throw preparationResult.error;
@@ -731,15 +720,7 @@ export class AgentHarness<
 			const provided = hookResult?.compaction;
 			const compactResult = provided
 				? { ok: true as const, value: provided }
-				: await compact(
-						preparation,
-						model,
-						auth.apiKey,
-						auth.headers,
-						customInstructions,
-						undefined,
-						this.thinkingLevel,
-					);
+				: await compact(preparation, this.models, model, customInstructions, undefined, this.thinkingLevel);
 			if (!compactResult.ok) throw compactResult.error;
 			const result = compactResult.value;
 			const entryId = await this.session.appendCompaction(
@@ -748,6 +729,7 @@ export class AgentHarness<
 				result.tokensBefore,
 				result.details,
 				provided !== undefined,
+				result.usage,
 			);
 			const entry = await this.session.getEntry(entryId);
 			if (entry?.type === "compaction") {
@@ -789,15 +771,13 @@ export class AgentHarness<
 			let summaryEntry: NavigateTreeResult["summaryEntry"];
 			let summaryText: string | undefined = hookResult?.summary?.summary;
 			let summaryDetails: unknown = hookResult?.summary?.details;
+			let summaryUsage = hookResult?.summary?.usage;
 			if (!summaryText && options?.summarize && entries.length > 0) {
 				const model = this.model;
 				if (!model) throw new AgentHarnessError("invalid_state", "No model set for branch summary");
-				const auth = await this.getApiKeyAndHeaders?.(model);
-				if (!auth) throw new AgentHarnessError("auth", "No auth available for branch summary");
 				const branchSummary = await generateBranchSummary(entries, {
+					models: this.models,
 					model,
-					apiKey: auth.apiKey,
-					headers: auth.headers,
 					signal: new AbortController().signal,
 					customInstructions: hookResult?.customInstructions ?? options?.customInstructions,
 					replaceInstructions: hookResult?.replaceInstructions ?? options?.replaceInstructions,
@@ -807,6 +787,7 @@ export class AgentHarness<
 					throw new AgentHarnessError("branch_summary", branchSummary.error.message, branchSummary.error);
 				}
 				summaryText = branchSummary.value.summary;
+				summaryUsage = branchSummary.value.usage;
 				summaryDetails = {
 					readFiles: branchSummary.value.readFiles,
 					modifiedFiles: branchSummary.value.modifiedFiles,
@@ -816,30 +797,22 @@ export class AgentHarness<
 			let newLeafId: string | null;
 			if (targetEntry.type === "message" && targetEntry.message.role === "user") {
 				newLeafId = targetEntry.parentId;
-				const content = targetEntry.message.content;
-				editorText =
-					typeof content === "string"
-						? content
-						: content
-								.filter((c): c is { readonly type: "text"; readonly text: string } => c.type === "text")
-								.map((c) => c.text)
-								.join("");
+				editorText = contentText(targetEntry.message.content, "");
 			} else if (targetEntry.type === "custom_message") {
 				newLeafId = targetEntry.parentId;
-				editorText =
-					typeof targetEntry.content === "string"
-						? targetEntry.content
-						: targetEntry.content
-								.filter((c): c is { readonly type: "text"; readonly text: string } => c.type === "text")
-								.map((c) => c.text)
-								.join("");
+				editorText = contentText(targetEntry.content, "");
 			} else {
 				newLeafId = targetId;
 			}
 			const summaryId = await this.session.moveTo(
 				newLeafId,
 				summaryText
-					? { summary: summaryText, details: summaryDetails, fromHook: hookResult?.summary !== undefined }
+					? {
+							summary: summaryText,
+							details: summaryDetails,
+							usage: summaryUsage,
+							fromHook: hookResult?.summary !== undefined,
+						}
 					: undefined,
 			);
 			if (summaryId) {

@@ -1,13 +1,12 @@
-import {
-	type ImageContent,
-	type Message,
-	type Model,
-	type SimpleStreamOptions,
-	streamSimple,
-	type TextContent,
-	type ThinkingBudgets,
-	type Transport,
-} from "@earendil-works/pi-ai/base";
+import type {
+	ImageContent,
+	Message,
+	Model,
+	SimpleStreamOptions,
+	TextContent,
+	ThinkingBudgets,
+	Transport,
+} from "@earendil-works/pi-ai";
 import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.ts";
 import type {
 	AfterToolCallContext,
@@ -21,6 +20,7 @@ import type {
 	AgentTool,
 	BeforeToolCallContext,
 	BeforeToolCallResult,
+	PrepareNextTurnContext,
 	QueueMode,
 	StreamFn,
 	ToolExecutionMode,
@@ -97,13 +97,17 @@ export interface AgentOptions {
 	initialState?: Partial<Omit<AgentState, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>;
 	convertToLlm?: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
 	transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
-	streamFn?: StreamFn;
+	streamFunction: StreamFn;
 	getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
 	onPayload?: SimpleStreamOptions["onPayload"];
 	onResponse?: SimpleStreamOptions["onResponse"];
 	beforeToolCall?: (context: BeforeToolCallContext, signal?: AbortSignal) => Promise<BeforeToolCallResult | undefined>;
 	afterToolCall?: (context: AfterToolCallContext, signal?: AbortSignal) => Promise<AfterToolCallResult | undefined>;
 	prepareNextTurn?: (
+		signal?: AbortSignal,
+	) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
+	prepareNextTurnWithContext?: (
+		context: PrepareNextTurnContext,
 		signal?: AbortSignal,
 	) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
 	steeringMode?: QueueMode;
@@ -171,7 +175,7 @@ export class Agent {
 
 	public convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
 	public transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
-	public streamFn: StreamFn;
+	public streamFunction: StreamFn;
 	public getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
 	public onPayload?: SimpleStreamOptions["onPayload"];
 	public onResponse?: SimpleStreamOptions["onResponse"];
@@ -186,6 +190,10 @@ export class Agent {
 	public prepareNextTurn?: (
 		signal?: AbortSignal,
 	) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
+	public prepareNextTurnWithContext?: (
+		context: PrepareNextTurnContext,
+		signal?: AbortSignal,
+	) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
 	private activeRun?: ActiveRun;
 	/** Session identifier forwarded to providers for cache-aware backends. */
 	public sessionId?: string;
@@ -198,17 +206,18 @@ export class Agent {
 	/** Tool execution strategy for assistant messages that contain multiple tool calls. */
 	public toolExecution: ToolExecutionMode;
 
-	constructor(options: AgentOptions = {}) {
+	constructor(options: AgentOptions) {
 		this._state = createMutableAgentState(options.initialState);
 		this.convertToLlm = options.convertToLlm ?? defaultConvertToLlm;
 		this.transformContext = options.transformContext;
-		this.streamFn = options.streamFn ?? streamSimple;
+		this.streamFunction = options.streamFunction;
 		this.getApiKey = options.getApiKey;
 		this.onPayload = options.onPayload;
 		this.onResponse = options.onResponse;
 		this.beforeToolCall = options.beforeToolCall;
 		this.afterToolCall = options.afterToolCall;
 		this.prepareNextTurn = options.prepareNextTurn;
+		this.prepareNextTurnWithContext = options.prepareNextTurnWithContext;
 		this.steeringQueue = new PendingMessageQueue(options.steeringMode ?? "one-at-a-time");
 		this.followUpQueue = new PendingMessageQueue(options.followUpMode ?? "one-at-a-time");
 		this.sessionId = options.sessionId;
@@ -394,7 +403,7 @@ export class Agent {
 				this.createLoopConfig(options),
 				(event) => this.processEvents(event),
 				signal,
-				this.streamFn,
+				this.streamFunction,
 			);
 		});
 	}
@@ -406,7 +415,7 @@ export class Agent {
 				this.createLoopConfig(),
 				(event) => this.processEvents(event),
 				signal,
-				this.streamFn,
+				this.streamFunction,
 			);
 		});
 	}
@@ -433,7 +442,15 @@ export class Agent {
 			toolExecution: this.toolExecution,
 			beforeToolCall: this.beforeToolCall,
 			afterToolCall: this.afterToolCall,
-			prepareNextTurn: this.prepareNextTurn ? async () => await this.prepareNextTurn?.(this.signal) : undefined,
+			prepareNextTurn:
+				this.prepareNextTurnWithContext || this.prepareNextTurn
+					? async (context) => {
+							if (this.prepareNextTurnWithContext) {
+								return await this.prepareNextTurnWithContext(context, this.signal);
+							}
+							return await this.prepareNextTurn?.(this.signal);
+						}
+					: undefined,
 			convertToLlm: this.convertToLlm,
 			transformContext: this.transformContext,
 			getApiKey: this.getApiKey,
