@@ -105,6 +105,18 @@ describe("save-msg option menu", () => {
 		expect(result.cursorCol).toBe(23);
 	});
 
+	it("claims the Tab gate for its own argument positions", () => {
+		// Regression: the built-in gate trims the line, so `/save-msg ` reads as a
+		// bare command still being typed and Tab drops the request entirely.
+		const { current } = makeCurrent();
+		const gated = createCommandArgumentProvider(
+			{ ...current, shouldTriggerFileCompletion: () => false },
+			{ command: "save-msg", complete },
+		);
+		expect(gated.shouldTriggerFileCompletion?.(["/save-msg "], 0, 10)).toBe(true);
+		expect(gated.shouldTriggerFileCompletion?.(["/save-msg"], 0, 9)).toBe(false);
+	});
+
 	it("delegates an item it did not offer", () => {
 		const { current, calls } = makeCurrent();
 		provider(current).applyCompletion(["/save-msg ou"], 0, 12, { value: "out.md", label: "out.md" }, "ou");

@@ -132,6 +132,11 @@ export function createCommandArgumentProvider(
 		},
 
 		shouldTriggerFileCompletion(lines, cursorLine, cursorCol) {
+			// Tab asks this before it will even request suggestions, and the built-in
+			// answer trims the line first — so `/command ` looks like a bare command
+			// still being typed and the whole request is dropped. Claim the position
+			// we can actually complete.
+			if (parseCommandArguments(lines, cursorLine, cursorCol, options.command)) return true;
 			return current.shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ?? true;
 		},
 	};
