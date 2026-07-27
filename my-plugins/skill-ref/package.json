@@ -1,0 +1,12 @@
+{
+  "name": "pi-skill-ref",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Inline SKILL/prompt references for pi — mid-sentence \"/\" + Tab completion plus a try_load_skill_or_prompt tool",
+  "license": "MIT",
+  "keywords": ["pi-package", "pi", "pi-coding-agent", "skill", "prompt", "autocomplete"],
+  "pi": {
+    "extensions": ["index.ts"]
+  }
+}
