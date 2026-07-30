@@ -71,7 +71,7 @@ private handleTabCompletion(): void {
 
 - `examples/extensions/github-issue-autocomplete.ts` — 补全 wrapper 的官方范式：命中自己的 token 就接管，否则 `return current.getSuggestions(...)`；`applyCompletion` 委托给 `current`。
 - `examples/extensions/dynamic-tools.ts` — `registerTool` + TypeBox 范式。
-- `my-plugins/CONVENTIONS.md` — G1 句柄泄漏（本插件不引入定时器/子进程，天然规避）、`renderResult` 的 `details` 形状校验（MVP 不注册渲染器）。
+- `my-plugins/CONVENTIONS.md` — G1 句柄泄漏（本插件不引入定时器/子进程，天然规避）、`renderResult` 的 `details` 运行时形状校验要求。
 - `my-plugins/save-msg/save-msg.test.ts` — 纯函数用 vitest 单测的既有范式。
 
 ### 1.6 一个必须遵守的时序约束
@@ -145,17 +145,19 @@ params: { query: string, limit?: number = 20 }
 2. **精确命中**（大小写不敏感，`foo` / `skill:foo` 两种写法都算命中同一个 skill）→ 读 `sourceInfo.path` 原文返回，附带 `path` 与 `baseDir`（skill 内相对引用需要它）。
 3. **未精确命中** → 按 2.2 语义模糊筛选（先匹配名字；名字 0 条时再匹配名字+描述）→ 返回候选表：`name / source / description / path`，截断到 `limit`。
 4. **0 条** → 返回"无匹配"+ 全量名称清单（截断），让模型能再试。
+5. **用户可见渲染与模型 content 分离**：折叠态只显示一行；成功时包含限定名、来源路径与原文字符数（读取后字符串的 `content.length`），失败时只附候选数量；展开态显示原始 content。渲染不得删改模型 content，`details` 使用前必须做运行时形状校验。
 
 ### 3.4 正确性关注点（进入架构阶段要展开的）
 
 - I1：补全菜单里出现的每个 `name`，工具都能精确命中（同源同语义）。
 - I2：`force === false` 的任何调用路径行为与未安装本插件时逐字节相同（P1/P4）。
 - I3：无长生命周期句柄（E1）。
+- I4：折叠态不暴露正文或候选明细；模型仍收到完整 content，且 `try_load_skill_or_prompt` 在全局 impression 配置中 passthrough。
 
 ### 3.5 验证方式
 
 - 单测（vitest）：`match.ts` 的通配语义（`abc` / `x...a` / 空串 / 正则元字符 `+` `(` 等注入）、精确匹配的两种写法、排序稳定性。
-- 手工验证（TUI）：句首 `/` + Tab 不变；句中 `hello /qp` + Tab 出 skill 列表；选中后文本形态；`@` 补全不受影响；`/reload` 后仍生效；`pi -p` 能正常退出。
+- 手工验证（TUI）：句首 `/` + Tab 不变；句中 `hello /qp` + Tab 出 skill 列表；选中后文本形态；折叠 tool result 仅一行状态，展开后恢复原始内容；`@` 补全不受影响；`/reload` 后仍生效；`pi -p` 能正常退出。
 
 ---
 
@@ -180,3 +182,6 @@ params: { query: string, limit?: number = 20 }
 - **D8｜`skill:` / `prompt:` 前缀大小写不敏感**（NAME 部分仍严格）。顺带修掉一个死角：`findFuzzy` 现在也认前缀并按 kind 限定范围，否则句中打 `/skill:qp` + Tab 会因 `:` 参与子序列匹配而永远空菜单。
 - **D6｜候选/歧义列表只打限定名，不打文件路径**；路径仅出现在加载成功的响应头（`path` / `baseDir`）。
   → 目的：保持"加载 skill/prompt"是一条可按工具名识别的链路，模型不会改用通用 read 绕过去，下游插件（如做 tool 输出蒸馏的扩展）可对本工具整体豁免。
+- **D10｜折叠态用户可见输出固定为一行状态**（2026-07-30 确认，后续补充成功定位信息）：成功显示 `/<kind:name> loaded successfully from <path> — <N> chars`，其中 N 是原文 `content.length`；失败只表达 not loaded 与候选数量，不打印正文、候选名称或其他明细；展开态仍显示原始 content。
+  → 该要求已升格到 `principles.md` A5/P5/R5。实现必须通过 `renderResult` 分离 TUI 展示与模型 content，并对 `details` 做运行时形状校验。
+- **D11｜模型内容不因展示精简而改变**（2026-07-30 确认）：`execute` 的完整 content 保持现状；全局 impression 将 `try_load_skill_or_prompt` 配置为自动 passthrough，不做 distill。

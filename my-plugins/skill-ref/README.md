@@ -40,6 +40,8 @@ try_load_skill_or_prompt({ query, limit? })
 
 Only a unique, same-case match loads outright. pi can hold `Abc` and `abc` at the same time, so folding case during matching would make the qualified identifier useless for telling them apart — and the qualified identifier is exactly what an ambiguous answer tells you to call back with. Every identifier the tool offers is guaranteed to load uniquely on the next call.
 
+In the TUI, a collapsed result is deliberately one line: success reports the loaded identifier, source path, and original content length in characters; failure reports only the candidate count. Expanding the result shows the original tool content. This rendering does not alter what the model receives, and the global impression configuration passes this tool through without distillation.
+
 Identifiers are always `skill:NAME` or `prompt:NAME`; there is no path-based form. pi dedupes skills by name and prompts by name at load time, so that pair is already globally unique. Candidate listings omit file paths on purpose: loading through this tool keeps the whole resource-loading channel identifiable by tool name, which lets other extensions treat it specially rather than seeing generic file reads.
 
 ## Install

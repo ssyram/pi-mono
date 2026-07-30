@@ -2,7 +2,7 @@
 
 > 规模小（4 模块 / ~400 行），按 QPDI「小项目可坍缩」把架构与细化合并为本文件。
 > 上游：`principles.md`（意图）、`research.md`（调研 + 已确认裁决 D1–D4）。
-> 状态：**待用户确认后进入实现**（2026-07-27）
+> 状态：**已实现**；A5/P5 增量已由用户确认（2026-07-30）
 
 ---
 
@@ -207,12 +207,17 @@ triggerCharacters：不设置（上游会过滤 "/"，设了也无效）
   E2 findExact ≠ 1 且 findExactIgnoringCase ≠ ∅ ⟹ content = 提示 + 全部匹配标识符 + 描述（不含路径）
   E3 上二皆空且 findFuzzy ≠ ∅ ⟹ content = "未精确命中" + 候选表（标识符 + 描述），≤ limit 条
   E4 全空 ⟹ content = "无匹配" + 全量标识符清单（≤ 100 条，超出标注截断数）
+  用户可见渲染：
+    - expanded = false ⟹ 单行；E1 显示 `/<matched> loaded successfully from <path> — <contentLength> chars`，E2–E4 仅显示 not loaded + details.candidates.length
+    - expanded = true ⟹ 显示原始 content
+    - contentLength = 读取后原文的 JavaScript `string.length`，不含成功响应头
+    - 两个分支都不得修改 execute 返回给模型的 content
   读文件失败（E1 路径）⟹ 抛 Error（含 path 与 errno 消息），由 tool runner 转成错误结果
                         —— AgentToolResult 没有 isError 字段（packages/agent/src/types.ts:355），抛出是唯一的错误通道
 
-结构：resolveQuery(entries, params, read) 为纯函数（read 可注入），registerTryLoadTool 只做装配 —— 分支逻辑因此可脱离磁盘与 pi 实例单测
+结构：resolveQuery(entries, params, read) 为纯函数（read 可注入），formatCollapsedResult(details) 为纯函数，registerTryLoadTool 只做装配 —— 分支与折叠文案因此可脱离磁盘与 pi 实例单测
 副作用：只读文件系统（readFileSync 单个已知路径），不写任何状态
-不注册 renderResult（对应 E2 教训，避免 details 形状被他插件替换后崩溃）
+renderResult 必须先运行时校验 details 形状；校验失败时退化为单行失败状态，不读取未知字段
 ```
 
 ### `index.ts`
@@ -249,7 +254,7 @@ export default function (pi: ExtensionAPI): void
 接口：M4 → 文件系统
 输入：entry.path（绝对路径，来自 pi 自己的 loader）
 输出：UTF-8 原文
-协议约定：只读；失败转为 isError 结果，不抛出
+协议约定：只读；读取失败抛 Error，由 tool runner 转为错误结果
 ```
 
 ---
@@ -263,15 +268,18 @@ export default function (pi: ExtensionAPI): void
 | A1 句中补全 SKILL/prompt | M3（主）+ M1 数据 + M2 筛选 |
 | A2 工具兑现引用 | M4（主）+ M1 数据 + M2 匹配 |
 | A3 宽松模糊语义 | M2（唯一实现处） |
+| A5 加载结果保持安静 | M4 的 `renderResult` + `formatCollapsedResult` |
 | P1 行首行为不变 | M3 的 `force !== true` 与"左侧全空白"两条 null 判定 |
 | P2 不改上游 | 全部经 `addAutocompleteProvider` / `registerTool` 官方扩展点 |
 | P3 资源口径一致 | M1 唯一数据源 `pi.getCommands()` |
 | P4 不吃掉别的补全 | M3 的透传分支 |
+| P5 展示与模型输入分离 | M4 保持 `content` 完整、只定制 `renderResult`；全局 impression 配置按 tool 名 passthrough |
 
 ### 模块协作论证
 
 - **A1 成立**：H1 给出"句中 Tab ⟺ `force===true`"；M3 在该条件下接管，其候选来自 M1（= pi 认可的全部 SKILL/prompt，H3），排序筛选由 M2 按 A3 语义完成；上游在 `prefix.startsWith("/")` 时自动套用斜杠菜单排版（`editor.ts:2131`），故"手感与行首一致"无需额外实现。
 - **A2 成立**：M4 用与 M3 同一份 entries 做 `findExact`，命中即读 `sourceInfo.path`（H3 保证该路径就是资源文件本体）返回原文；未命中走 M2 同一套模糊语义。
+- **A5/P5 成立**：M4 精确命中时读取原文一次，并在 `details` 中记录 matched/path/contentLength；`execute` 始终生成完整 `content`。`renderResult` 仅在 `expanded=false` 时从经形状校验的 `details` 生成单行可定位状态，展开态仍显示原始 `content`。全局 impression 对 `try_load_skill_or_prompt` 直接 passthrough，故用户展示压缩与模型输入完整性彼此独立。
 - **I1（补全能选中的名字，工具必精确命中）成立**：M3 产出的 `item.value = "/" + e.name`；M4 的 `normalizeQuery` 去掉前导 "/" 后得到 `e.name`；`findExact` 以 `lower(name)` 比较，故对同一份 entries 必命中。唯一破口是两次调用之间发生 `/reload` 且该资源被删除 —— 登记为 TR-2。
 - **I2（不影响既有行为）成立**：M3 的 `getSuggestions`/`applyCompletion` 在 `extractInlineSlashToken === null` 时是对 `current` 的恒等委托；该判定只读入参、无状态，故非本插件场景下 provider 链的输入输出与未安装时逐字节相同。
 
@@ -286,6 +294,7 @@ export default function (pi: ExtensionAPI): void
 - **I1** 名字口径一致（论证见上）—— 维护方：M1 产出唯一口径，M3/M4 均不得自行改写 name。
 - **I2** 非本插件场景零影响 —— 维护方：M3。
 - **I3** 无长生命周期句柄 —— 维护方：全部模块（禁用 setInterval / spawn / fs.watch）。
+- **I4** 折叠态单行且不含 payload，模型侧 content 完整且不经 distill —— 维护方：M4 渲染器 + 全局 impression passthrough 配置。
 
 ---
 
@@ -336,6 +345,7 @@ export default function (pi: ExtensionAPI): void
 6. `applyCompletion`：句中插入结果与光标位置；透传场景确实调到 `current`（spy）。
 7. 着色（§7.1）：带 ANSI 的 description 经 `visibleWidth` 计算出的宽度 === 无 ANSI 版本；着色片段以 `\x1b[39m` 收尾、不含 `\x1b[0m`；无 theme 时退化为纯文本。
 8. `resolveQuery` 四分支：裸名命中 / 限定名命中 / 撞名歧义 / 模糊候选 / 全无匹配 / 空 registry；读文件失败必须抛出而非静默；列表不含 `.md` 路径（D6）；limit 钳制。
+9. `formatCollapsedResult`：成功一行包含限定名、路径与原文字符数；失败仅一行 not loaded + 0/1/N 候选数；不含正文或候选名称。断言 exact details 的 path/contentLength；手工验证 expanded 显示原始 content，折叠/展开均不改变模型 payload。
 
 **运行方式**：仓库根目录未安装 vitest（只在 `packages/*/node_modules` 下），故本插件用 `node:test` + tsx：
 

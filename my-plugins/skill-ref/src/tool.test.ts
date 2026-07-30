@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { SkillRefEntry } from "./registry.js";
-import { resolveQuery } from "./tool.js";
+import { formatCollapsedResult, resolveQuery } from "./tool.js";
 
 function entry(kind: "skill" | "prompt", name: string, description = ""): SkillRefEntry {
 	return {
@@ -23,11 +23,32 @@ const ENTRIES: SkillRefEntry[] = [
 
 const read = (e: SkillRefEntry) => `BODY OF ${e.qualifiedName}`;
 
+describe("formatCollapsedResult", () => {
+	it("shows the loaded identifier, path, and content length for an exact hit", () => {
+		const { details } = resolveQuery(ENTRIES, { query: "workflow" }, read);
+		assert.equal(
+			formatCollapsedResult(details),
+			"/skill:workflow loaded successfully from /skills/workflow.md — 22 chars",
+		);
+	});
+
+	it("shows only the candidate count when nothing was loaded", () => {
+		const ambiguous = resolveQuery(ENTRIES, { query: "qpdi" }, read).details;
+		const single = resolveQuery(ENTRIES, { query: "WorkFlow" }, read).details;
+		const none = resolveQuery([], { query: "anything" }, read).details;
+		assert.equal(formatCollapsedResult(ambiguous), "Not loaded — 2 candidate SKILLs found");
+		assert.equal(formatCollapsedResult(single), "Not loaded — 1 candidate SKILL found");
+		assert.equal(formatCollapsedResult(none), "Not loaded — 0 candidate SKILLs found");
+	});
+});
+
 describe("resolveQuery — exact hit", () => {
 	it("returns one confirmation line naming the identifier and path, then the text", () => {
 		const { text, details } = resolveQuery(ENTRIES, { query: "workflow" }, read);
 		assert.equal(details.mode, "exact");
 		assert.equal(details.matched, "skill:workflow");
+		assert.equal(details.path, "/skills/workflow.md");
+		assert.equal(details.contentLength, 22);
 		const [first, ...rest] = text.split("\n");
 		assert.equal(first, "/skill:workflow loaded successfully from /skills/workflow.md");
 		assert.equal(rest.join("\n"), "BODY OF skill:workflow");

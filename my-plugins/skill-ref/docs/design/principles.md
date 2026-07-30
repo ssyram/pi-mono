@@ -1,7 +1,7 @@
 # skill-ref — 意图与前提（Q 层）
 
 > 本文件是本插件的宪法。修改它需经用户确认。
-> 状态：**草案，待用户确认**（2026-07-27）
+> 状态：**部分确认**——A5/P5/R5 已由用户确认（2026-07-30）；其余条目仍为草案（2026-07-27）
 
 ## 1. 核心意图
 
@@ -11,6 +11,7 @@
 - **A2｜模型侧能把这个引用兑现**：提供 `try_load_skill_or_prompt` 工具，名字完全命中就直接给出该 SKILL / prompt 的原文；没命中就按模糊语义给出候选，让模型自己收敛到正确的那个。
 - **A3｜宽松的模糊匹配**：`/abc` 意为 `.*a.*b.*c.*`；`/x...a`、`/x..a` 同样意为 `.*x.*a.*`。用户不必记全名、不必记分隔符。
 - **A4（加分项，非必须）｜视觉可辨**：候选与已插入的引用如果能着色，最好；但不得为此付出"替换编辑器组件"这类高耦合代价（见 H9/H10 与架构 §8）。
+- **A5｜加载结果简洁但可定位**：`try_load_skill_or_prompt` 的折叠态用户可见结果只用一行：成功时显示加载对象、来源路径与原文字符数；失败时只显示候选数量，不显示正文、候选名称或其他明细。
 
 ### 保护
 
@@ -18,6 +19,7 @@
 - **P2｜不改上游包**：只作为可插拔扩展存在于 `my-plugins/`，不修改 `packages/tui` 与 `packages/coding-agent` 源码。
 - **P3｜资源口径与 pi 一致**：SKILL / prompt 的来源就是 pi 自己认的那套标准路径与加载结果，不另建一套扫描逻辑，`/reload` 后自动跟随。
 - **P4｜不吃掉别的补全**：`@` 文件补全、命令参数补全、其他扩展注册的补全一律透传。
+- **P5｜展示与模型输入严格分离**：折叠态精简只作用于 TUI 渲染；工具交给模型的完整资源正文或候选内容必须保持不变，并通过全局 impression passthrough 避免被 distill。
 
 ### 不接受
 
@@ -25,6 +27,7 @@
 - **R2｜为实现本功能而 fork / patch 上游 TUI 编辑器**。
 - **R3｜两处（补全 UI 与工具）使用不一致的名字口径或匹配语义**——同一个字符串在补全里能选中、在工具里查不到，是不可接受的。
 - **R4｜句中插入的引用被误当成可执行命令**——它只是文本引用，兑现动作交给工具。
+- **R5｜折叠态打印资源正文或失败候选明细、成功时不告知加载对象与路径，或为了压缩用户展示而删改模型收到的工具内容**。
 
 ## 2. 认知前提（Q.A）
 
@@ -36,9 +39,10 @@
 - **H9**：补全菜单（`SelectList`）的 `label` / `description` 可以内嵌 ANSI —— `visibleWidth`（`packages/tui/src/utils.ts:216-253`）与 `truncateToWidth`（同文件 `:936` 起）都显式跳过转义序列，宽度与截断不会算错。选中行整行被 `theme.selectedText()`（= `theme.fg("accent", …)`）包裹，故内嵌色应以 `\x1b[39m`（仅恢复默认前景）收尾而非 `\x1b[0m`。
 - **H10**：**输入框正文没有着色钩子**。编辑器把 `layoutLine.text` 原样写出，只对光标处做反显（`editor.ts:532-565`）；`EditorTheme` 仅有 `borderColor` 与 `selectList` 两项（`editor.ts:228-231`）。要给已输入的 `/foo` 上色，只能经 `ctx.ui.setEditorComponent()` 换掉整个编辑器组件——而该 factory 全局唯一、后注册者覆盖前者。
 - **H6**：句中插入的 `/xxx` 不会被 pi 展开成命令——命令展开只发生在消息开头（`agent-session.ts:1134,1285`）。这正是 A2 这个工具存在的理由。
+- **H11**：custom tool 的 `renderResult(result, { expanded })` 只控制 TUI 展示，`execute` 返回的 `content` 仍独立进入模型上下文；impression 的全局 `skipDistillation` 可按 tool 名精确旁路 distill。
 
 ## 3. 经验材料（Q.E）
 
 - **E1**：`my-plugins/CONVENTIONS.md` G1——任何定时器 / 子进程 / 文件监听泄漏都会让 `pi -p` 永不退出。本插件因此不引入任何长生命周期句柄（补全数据每次现取或按会话缓存于内存）。
-- **E2**：`my-plugins/CONVENTIONS.md` 首节——`renderResult` 收到的 `details` 可能被别的插件替换，必须做运行时形状校验。本插件 MVP 不注册自定义渲染器以规避该风险面。
+- **E2**：`my-plugins/CONVENTIONS.md` 首节——`renderResult` 收到的 `details` 可能被别的插件替换，必须做运行时形状校验；自定义渲染器不得直接信任其静态类型。
 - **E3**：`packages/coding-agent/examples/extensions/github-issue-autocomplete.ts` 是补全 wrapper 的官方参考实现（拦截 token → 命中则接管、未命中则 `return current.getSuggestions(...)`）；`dynamic-tools.ts` 是 `registerTool` 的参考实现。

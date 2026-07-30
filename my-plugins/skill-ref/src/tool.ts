@@ -18,6 +18,7 @@
 
 import { readFileSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { findExact, findExactIgnoringCase, findFuzzy, normalizeQuery } from "./match.js";
 import type { SkillRefEntry } from "./registry.js";
@@ -40,6 +41,8 @@ export interface LoadDetails {
 	mode: "exact" | "ambiguous" | "candidates" | "none";
 	query: string;
 	matched: string | null;
+	path: string | null;
+	contentLength: number | null;
 	candidates: string[];
 }
 
@@ -51,6 +54,34 @@ export interface LoadResult {
 export interface LoadQuery {
 	query: string;
 	limit?: number;
+}
+
+export function formatCollapsedResult(details: LoadDetails): string {
+	if (details.mode === "exact" && details.matched && details.path && details.contentLength !== null) {
+		return `/${details.matched} loaded successfully from ${details.path} — ${details.contentLength} chars`;
+	}
+	const count = details.candidates.length;
+	return `Not loaded — ${count} candidate SKILL${count === 1 ? "" : "s"} found`;
+}
+
+function isLoadDetails(value: unknown): value is LoadDetails {
+	if (typeof value !== "object" || value === null) return false;
+	return (
+		"mode" in value &&
+		(value.mode === "exact" || value.mode === "ambiguous" || value.mode === "candidates" || value.mode === "none") &&
+		"query" in value &&
+		typeof value.query === "string" &&
+		"matched" in value &&
+		(value.matched === null || typeof value.matched === "string") &&
+		"path" in value &&
+		(value.path === null || typeof value.path === "string") &&
+		"contentLength" in value &&
+		(value.contentLength === null ||
+			(typeof value.contentLength === "number" && Number.isSafeInteger(value.contentLength) && value.contentLength >= 0)) &&
+		"candidates" in value &&
+		Array.isArray(value.candidates) &&
+		value.candidates.every((candidate) => typeof candidate === "string")
+	);
 }
 
 /** Reads one resource file. Throws — the tool runner turns that into an error result. */
@@ -76,8 +107,8 @@ function describe(entry: SkillRefEntry): string {
 	return `- ${identifier(entry)}${description}`;
 }
 
-function formatExact(entry: SkillRefEntry, read: (entry: SkillRefEntry) => string): string {
-	return `${identifier(entry)} loaded successfully from ${entry.path}\n${read(entry)}`;
+function formatExact(entry: SkillRefEntry, content: string): string {
+	return `${identifier(entry)} loaded successfully from ${entry.path}\n${content}`;
 }
 
 function formatMatches(query: string, hits: SkillRefEntry[]): string {
@@ -125,9 +156,17 @@ export function resolveQuery(
 	const exact = findExact(entries, query);
 	if (exact.length === 1) {
 		const entry = exact[0]!;
+		const content = read(entry);
 		return {
-			text: formatExact(entry, read),
-			details: { mode: "exact", query, matched: entry.qualifiedName, candidates: [] },
+			text: formatExact(entry, content),
+			details: {
+				mode: "exact",
+				query,
+				matched: entry.qualifiedName,
+				path: entry.path,
+				contentLength: content.length,
+				candidates: [],
+			},
 		};
 	}
 
@@ -139,6 +178,8 @@ export function resolveQuery(
 				mode: matches.length > 1 ? "ambiguous" : "candidates",
 				query,
 				matched: null,
+				path: null,
+				contentLength: null,
 				candidates: matches.map((e) => e.qualifiedName),
 			},
 		};
@@ -148,13 +189,20 @@ export function resolveQuery(
 	if (candidates.length > 0) {
 		return {
 			text: formatCandidates(query, candidates),
-			details: { mode: "candidates", query, matched: null, candidates: candidates.map((e) => e.qualifiedName) },
+			details: {
+				mode: "candidates",
+				query,
+				matched: null,
+				path: null,
+				contentLength: null,
+				candidates: candidates.map((e) => e.qualifiedName),
+			},
 		};
 	}
 
 	return {
 		text: formatNone(query, entries),
-		details: { mode: "none", query, matched: null, candidates: [] },
+		details: { mode: "none", query, matched: null, path: null, contentLength: null, candidates: [] },
 	};
 }
 
@@ -173,6 +221,15 @@ export function registerTryLoadTool(pi: ExtensionAPI, getEntries: () => SkillRef
 		async execute(_toolCallId, params) {
 			const { text, details } = resolveQuery(getEntries(), params);
 			return { content: [{ type: "text", text }], details };
+		},
+		renderResult(result, { expanded }) {
+			const content = result.content.find((item) => item.type === "text");
+			const text = expanded
+				? content?.text ?? ""
+				: isLoadDetails(result.details)
+					? formatCollapsedResult(result.details)
+					: "Not loaded — 0 candidate SKILLs found";
+			return new Text(text, 0, 0);
 		},
 	});
 }
