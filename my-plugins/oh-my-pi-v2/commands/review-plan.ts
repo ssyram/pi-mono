@@ -10,7 +10,8 @@ import {
 	createAgentSession,
 } from "@earendil-works/pi-coding-agent";
 
-import { readAgentPrompt, extractLastAssistantText } from "./utils.js";
+import { readAgentPrompt } from "./agent-prompt-reader.js";
+import { extractLastAssistantText } from "./assistant-message-text.js";
 
 /**
  * Extract text blocks from an AssistantMessage's content array.

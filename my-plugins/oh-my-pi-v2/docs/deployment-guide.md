@@ -19,9 +19,9 @@ omp-v2 不是一个自包含的插件。它假设了以下外部组件的存在�
 ## 运行语义
 
 - Boulder 只会在存在 **actionable tasks** 时自动续跑：`in_progress` 任务 + ready/unblocked 的 `pending` 任务。
-- 只有 blocked `pending` 任务时不会触发 Boulder 续跑、active prompt 注入或 compaction task context。
-- Esc 只取消当前一次 Boulder countdown；不会创建持久 stop latch。
-- 当前命令集：`/omp-start`、`/omp-consult`、`/omp-review`。没有 `/omp-stop`。
+- 只有 blocked `pending` 任务时不会触发 Boulder 续跑或 compaction task context；普通 turn 不再注入动态 task system-prompt 后缀。
+- Esc 只取消当前一次 Boulder 静态等待；不会创建持久 stop latch。`-p` 最多续跑 3 次，其他模式最多 10 次。
+- Task 命令为 `/task show on|off`、`/task info`、`/task help`；工作流命令为 `/omp-start`、`/omp-consult`、`/omp-review-plan`、`/omp-ultrawork`。没有 `/omp-stop`。
 
 ---
 
@@ -138,7 +138,7 @@ pi install npm:pi-web-access
 pi install npm:pi-intercom
 
 # 验证
-pi  # 启动后测试 task/subagent 调用，以及 Esc 可单次取消 Boulder countdown
+pi  # 启动后测试 task/subagent 调用、/task 补全，以及 Esc 可单次取消 Boulder 静态等待
 ```
 
 ---

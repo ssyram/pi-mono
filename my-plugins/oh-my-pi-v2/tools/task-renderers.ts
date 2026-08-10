@@ -2,15 +2,22 @@
  * TUI renderers for the task tool — renderCall and renderResult.
  */
 
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import type { Task, TaskDetails } from "./task-helpers.js";
-import { formatTaskContent, statusTag } from "./task-helpers.js";
+import { formatTaskContent, statusTag } from "./task-format.js";
+import type { Task, TaskDetails } from "./task-types.js";
 
-export function renderTaskCall(
-	args: { action: string; text?: string; id?: number; reason?: string; blocks?: number[]; blockedBy?: number[] },
-	theme: any,
-	_context: any,
-) {
+interface TaskRenderArgs {
+	action: string;
+	text?: string;
+	id?: number;
+	reason?: string;
+	blocks?: number[];
+	blockedBy?: number[];
+}
+
+export function renderTaskCall(args: TaskRenderArgs, theme: Theme) {
 	let text = theme.fg("toolTitle", theme.bold("task ")) + theme.fg("muted", args.action);
 	if (args.text) text += ` ${theme.fg("dim", `"${args.text}"`)}`;
 	if (args.id !== undefined) text += ` ${theme.fg("accent", `#${args.id}`)}`;
@@ -21,10 +28,9 @@ export function renderTaskCall(
 }
 
 export function renderTaskResult(
-	result: any,
-	{ expanded }: { expanded: boolean },
-	theme: any,
-	_context: any,
+	result: AgentToolResult<unknown>,
+	{ expanded }: ToolRenderResultOptions,
+	theme: Theme,
 ) {
 	const raw = result.details;
 	// details may be replaced by another plugin (e.g. impression distillation),
@@ -47,7 +53,7 @@ export function renderTaskResult(
 	return new Text("", 0, 0);
 }
 
-function renderListResult(taskList: Task[], expanded: boolean, theme: any) {
+function renderListResult(taskList: Task[], expanded: boolean, theme: Theme) {
 	if (taskList.length === 0) return new Text(theme.fg("dim", "No tasks"), 0, 0);
 
 	const inProg = taskList.filter((t) => t.status === "in_progress").length;

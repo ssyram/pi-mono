@@ -1,27 +1,29 @@
-/**
- * task tool — LLM-managed task list with agentic loop enforcement.
- *
- * State persisted as CustomEntry in session JSONL, orthogonal to LLM context.
- * CustomEntry is never deleted by compaction and never sent to LLM.
- * UI change callback for persistent TUI widget.
- */
-
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import { StringEnum } from "@earendil-works/pi-ai";
-import type { BeforeAgentStartEvent, ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { executeAdd, executeClear, executeDoneOrExpire, executeList, executeStart, executeUpdateDeps } from "./task-actions.js";
-import type { Task, TaskChangeCallback, TaskDetails } from "./task-helpers.js";
-import { cloneTasks, type TaskStateEntry, validateTaskStateEntryData } from "./task-state-entry.js";
-import { isUnblocked, statusTag } from "./task-helpers.js";
+import { isUnblocked } from "./task-dependencies.js";
 import { renderTaskCall, renderTaskResult } from "./task-renderers.js";
+import { cloneTasks, type TaskStateEntry, validateTaskStateEntryData } from "./task-state-entry.js";
+import type { Task, TaskChangeCallback, TaskDetails } from "./task-types.js";
 
-export type { Task, TaskChangeCallback, TaskDetails } from "./task-helpers.js";
+export type { Task, TaskChangeCallback, TaskDetails } from "./task-types.js";
 
 export const CONFIRM_STOP_TAG = "<CONFIRM-TO-STOP/>";
+const TASK_ENTRY_TYPE = "omp-task-state";
+
+export interface TaskToolState {
+	tasks: Task[];
+	pendingCount: number;
+	actionableCount: number;
+	inProgressCount: number;
+	readyTasks: Task[];
+}
 
 export interface TaskToolHandle {
-	getTaskState: () => { tasks: Task[]; pendingCount: number; actionableCount: number; inProgressCount: number; readyTasks: Task[] };
-	setOnTaskChange: (cb: TaskChangeCallback) => void;
+	getTaskState(context: ExtensionContext): TaskToolState;
+	setOnTaskChange(callback: TaskChangeCallback): void;
 }
 
 const TaskParams = Type.Object({
@@ -33,96 +35,67 @@ const TaskParams = Type.Object({
 	blockedBy: Type.Optional(Type.Array(Type.Number(), { description: "Task IDs that block this task (for: update_deps)" })),
 });
 
-/**
- * Build a compact numbered list of actionable tasks (in_progress + ready pending)
- * for appending at the very end of the system prompt.
- */
-function buildActionableTaskList(allTasks: Task[]): string {
-	const inProgress = allTasks.filter((t) => t.status === "in_progress");
-	const ready = allTasks.filter((t) => t.status === "pending" && isUnblocked(t, allTasks));
-	const items = [...inProgress, ...ready];
-	if (items.length === 0) return "";
-	const lines = items.map((t, i) => {
-		const tag = t.status === "in_progress" ? "[in_progress]" : "[ready]";
-		return `${i + 1}. ${tag} #${t.id}: ${t.text}`;
-	});
-	return ["\n\n## Current Actionable Tasks", ...lines].join("\n");
+function stateFromEntry(entry: SessionEntry): TaskStateEntry | undefined {
+	if (entry.type !== "custom" || entry.customType !== TASK_ENTRY_TYPE) return undefined;
+	const state = validateTaskStateEntryData(entry.data);
+	if (!state) console.error("[oh-my-pi task] Ignoring invalid persisted task state entry");
+	return state;
+}
+
+function summarizeTaskState(state: TaskStateEntry): TaskToolState {
+	const readyTasks = state.tasks.filter((task) => task.status === "pending" && isUnblocked(task, state.tasks));
+	const inProgressCount = state.tasks.filter((task) => task.status === "in_progress").length;
+	return {
+		tasks: [...state.tasks],
+		pendingCount: state.tasks.filter((task) => task.status === "pending" || task.status === "in_progress").length,
+		actionableCount: inProgressCount + readyTasks.length,
+		inProgressCount,
+		readyTasks,
+	};
 }
 
 export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
-	let tasks: Task[] = [];
-	let nextId = 1;
+	const states = new WeakMap<ExtensionContext["sessionManager"], TaskStateEntry>();
 	let onTaskChange: TaskChangeCallback | undefined;
-	const notifyChange = () => {
+	const stateFor = (context: ExtensionContext): TaskStateEntry => {
+		const existing = states.get(context.sessionManager);
+		if (existing) return existing;
+		const created = { tasks: [], nextId: 1 };
+		states.set(context.sessionManager, created);
+		return created;
+	};
+	const notifyChange = (context: ExtensionContext, state: TaskStateEntry): void => {
 		try {
-			onTaskChange?.([...tasks]);
-		} catch (err) {
-			console.error(`[oh-my-pi task] Task change callback failed: ${err instanceof Error ? err.message : String(err)}`);
+			onTaskChange?.([...state.tasks], context);
+		} catch (error) {
+			console.error(`[oh-my-pi task] Task change callback failed: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	};
-
-	// ── State persistence (CustomEntry, orthogonal to LLM context) ──────
-
-	const TASK_ENTRY_TYPE = "omp-task-state";
-
-	interface TaskStateEntry { tasks: Task[]; nextId: number }
-
-	function getTaskStateFromEntry(entry: SessionEntry): TaskStateEntry | undefined {
-		if (entry.type !== "custom" || entry.customType !== TASK_ENTRY_TYPE) return undefined;
-		const state = validateTaskStateEntryData(entry.data);
-		if (!state) {
-			console.error("[oh-my-pi task] Ignoring invalid persisted task state entry");
-		}
-		return state;
-	}
-
-	const reloadState = async (ctx: ExtensionContext) => {
+	const reloadState = (context: ExtensionContext): void => {
 		let loaded: TaskStateEntry | undefined;
-		for (const entry of ctx.sessionManager.getEntries()) {
-			const state = getTaskStateFromEntry(entry);
+		for (const entry of context.sessionManager.getBranch()) {
+			const state = stateFromEntry(entry);
 			if (state) loaded = state;
 		}
-		if (!loaded) return;
-		tasks = cloneTasks(loaded.tasks);
-		nextId = loaded.nextId;
-		notifyChange();
+		const installed = loaded
+			? { tasks: cloneTasks(loaded.tasks), nextId: loaded.nextId }
+			: { tasks: [], nextId: 1 };
+		states.set(context.sessionManager, installed);
+		notifyChange(context, installed);
+	};
+	const persistState = (state: TaskStateEntry): void => {
+		pi.appendEntry(TASK_ENTRY_TYPE, { tasks: cloneTasks(state.tasks), nextId: state.nextId } satisfies TaskStateEntry);
 	};
 
-	const persistState = () => {
-		pi.appendEntry(TASK_ENTRY_TYPE, { tasks: cloneTasks(tasks), nextId } satisfies TaskStateEntry);
-	};
-
-	pi.on("session_start", async (_event, ctx) => reloadState(ctx));
-	pi.on("session_tree", async (_event, ctx) => reloadState(ctx));
-
-	// ── System prompt injection ──────────────────────────────────────────────
-
-	pi.on("before_agent_start", async (event: BeforeAgentStartEvent, _ctx) => {
-		const active = tasks.filter((t) => t.status === "in_progress" || (t.status === "pending" && isUnblocked(t, tasks)));
-		if (active.length === 0) return;
-		const taskLines = active.map((t) => `  - ${statusTag(t, tasks)} [#${t.id}] ${t.text}`).join("\n");
-		const injection = [
-			"", "## Active Tasks (managed by task tool)",
-			"The following tasks are currently actionable. You MUST complete or expire them before stopping.",
-			taskLines, "",
-			"Use the `task` tool to manage tasks:",
-			"  - `start` (id) — mark a task as in progress",
-			"  - `done` (id) — mark a task as completed",
-			"  - `expire` (id, reason) — mark a task as stale/no longer relevant and explain why",
-			"  - `update_deps` (id, blocks?, blockedBy?) — set task dependencies",
-			"If the agent loop ends while actionable tasks remain, it will be automatically restarted.", "",
-			"Exception: if you genuinely cannot continue right now (e.g. waiting for user input, blocked on external state),",
-			`output the exact tag ${CONFIRM_STOP_TAG} anywhere in your final message to acknowledge and suppress the restart.`,
-		].join("\n");
-
-		const actionable = buildActionableTaskList(tasks);
-		return { systemPrompt: event.systemPrompt + injection + actionable };
+	pi.on("session_start", (_event, context) => reloadState(context));
+	pi.on("session_tree", (_event, context) => reloadState(context));
+	pi.on("session_shutdown", (_event, context) => {
+		states.delete(context.sessionManager);
 	});
 
-	// ── Tool registration ────────────────────────────────────────────────────
-
 	pi.registerTool({
-		name: "task", label: "Task",
+		name: "task",
+		label: "Task",
 		description:
 			"Manage the tracked task list. " +
 			"Actions: list — show all tasks; add (text) — add a new pending task; " +
@@ -131,47 +104,46 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 			"update_deps (id, blocks?, blockedBy?) — set dependency edges. " +
 			"Tasks can have dependencies: a [blocked] task cannot start until its blockers are done/expired. " +
 			"The loop will restart automatically if any tasks remain in_progress or ready when you stop.",
-		promptSnippet:
-			"Manage the tracked task list.",
+		promptSnippet: "Manage the tracked task list.",
 		parameters: TaskParams,
-		async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
+		async execute(_toolCallId, params, _signal, _onUpdate, context) {
+			const state = stateFor(context);
+			const previous = { tasks: cloneTasks(state.tasks), nextId: state.nextId };
 			const action = params.action;
-			const mutating =
-				action === "add" || action === "start" || action === "done" ||
-				action === "expire" || action === "clear" || action === "update_deps";
-			const previousTasks = cloneTasks(tasks);
-			const previousNextId = nextId;
-			let result;
+			const mutating = action !== "list";
+			let result: AgentToolResult<TaskDetails>;
 			switch (action) {
-				case "list": result = executeList(tasks, nextId); break;
+				case "list": result = executeList(state.tasks, state.nextId); break;
 				case "add": {
-					const r = executeAdd(params.text, tasks, nextId);
-					if ("nextId" in r) { nextId = r.nextId; result = r.result; } else { result = r; }
+					const added = executeAdd(params.text, state.tasks, state.nextId);
+					if ("nextId" in added) {
+						state.nextId = added.nextId;
+						result = added.result;
+					} else result = added;
 					break;
 				}
-				case "start": result = executeStart(params.id, tasks, nextId); break;
-				case "done": result = executeDoneOrExpire("done", params.id, undefined, tasks, nextId); break;
-				case "expire": result = executeDoneOrExpire("expire", params.id, params.reason, tasks, nextId); break;
-				case "update_deps": result = executeUpdateDeps(params, tasks, nextId); break;
-				case "clear": tasks = []; nextId = 1; result = executeClear(); break;
+				case "start": result = executeStart(params.id, state.tasks, state.nextId); break;
+				case "done": result = executeDoneOrExpire("done", params.id, undefined, state.tasks, state.nextId); break;
+				case "expire": result = executeDoneOrExpire("expire", params.id, params.reason, state.tasks, state.nextId); break;
+				case "update_deps": result = executeUpdateDeps(params, state.tasks, state.nextId); break;
+				case "clear": state.tasks = []; state.nextId = 1; result = executeClear(); break;
 				default: {
 					const error = `unknown action: ${String(action)}`;
 					return {
 						content: [{ type: "text", text: `Error: ${error}` }],
-						details: { action: "list", tasks: [...tasks], nextId, error } as TaskDetails,
+						details: { action: "list", tasks: [...state.tasks], nextId: state.nextId, error } as TaskDetails,
 					};
 				}
 			}
 			if (mutating) {
 				try {
-					persistState();
-				} catch (err) {
-					tasks = previousTasks;
-					nextId = previousNextId;
-					console.error(`[oh-my-pi task] Failed to persist task state: ${err instanceof Error ? err.message : String(err)}`);
-					throw err;
+					persistState(state);
+				} catch (error) {
+					states.set(context.sessionManager, previous);
+					console.error(`[oh-my-pi task] Failed to persist task state: ${error instanceof Error ? error.message : String(error)}`);
+					throw error;
 				}
-				notifyChange();
+				notifyChange(context, state);
 			}
 			return result;
 		},
@@ -179,20 +151,8 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 		renderResult: renderTaskResult,
 	});
 
-	// ── Return handle ────────────────────────────────────────────────────────
-
 	return {
-		getTaskState: () => {
-			const readyTasks = tasks.filter((t) => t.status === "pending" && isUnblocked(t, tasks));
-			const inProgressCount = tasks.filter((t) => t.status === "in_progress").length;
-			return {
-				tasks: [...tasks],
-				pendingCount: tasks.filter((t) => t.status === "pending" || t.status === "in_progress").length,
-				actionableCount: inProgressCount + readyTasks.length,
-				inProgressCount,
-				readyTasks,
-			};
-		},
-		setOnTaskChange: (cb: TaskChangeCallback) => { onTaskChange = cb; },
+		getTaskState: (context) => summarizeTaskState(stateFor(context)),
+		setOnTaskChange: (callback) => { onTaskChange = callback; },
 	};
 }

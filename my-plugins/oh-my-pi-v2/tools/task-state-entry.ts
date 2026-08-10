@@ -1,4 +1,4 @@
-import type { Task } from "./task-helpers.js";
+import type { Task } from "./task-types.js";
 
 export interface TaskStateEntry {
 	tasks: Task[];

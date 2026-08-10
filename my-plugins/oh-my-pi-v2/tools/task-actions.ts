@@ -3,8 +3,9 @@
  * and return tool results. No framework dependencies.
  */
 
-import type { Task, TaskDetails } from "./task-helpers.js";
-import { formatTaskList, isUnblocked } from "./task-helpers.js";
+import { isUnblocked } from "./task-dependencies.js";
+import { formatTaskList } from "./task-format.js";
+import type { Task, TaskDetails } from "./task-types.js";
 
 type OkFn = (text: string, action: TaskDetails["action"], tasks: Task[], nextId: number) => {
 	content: [{ type: "text"; text: string }];
