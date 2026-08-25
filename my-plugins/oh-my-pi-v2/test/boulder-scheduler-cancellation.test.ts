@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { BOULDER_RESUME_MESSAGE_TYPE } from "../hooks/boulder-resume-message.js";
-import { CONFIRM_STOP_TAG } from "../tools/task.js";
+import { CONFIRM_STOP_TAG } from "../hooks/boulder-stop-protocol.js";
 import { createBoulderSchedulerHarness } from "./boulder-scheduler-harness.js";
 
 function customMessage(customType: string): object {
@@ -81,37 +81,87 @@ describe("Boulder scheduler cancellation", () => {
 		testContext.mock.timers.reset();
 	});
 
-	it("rejects a stale timer after actionable task state changes", async (testContext) => {
+	it("re-reads actionable task state before dispatch", async (testContext) => {
 		testContext.mock.timers.enable({ apis: ["setTimeout"] });
 		const harness = createBoulderSchedulerHarness("tui");
 		await harness.emit("session_start", { reason: "new" });
 		await harness.end();
-		harness.state.tasks[0] = { ...harness.state.tasks[0]!, updatedAt: 2 };
+		harness.state.tasks[0] = { ...harness.state.tasks[0]!, text: "fresh task", updatedAt: 2 };
 
 		testContext.mock.timers.tick(10_000);
-		assert.equal(harness.sent.length, 0);
-		await harness.end();
-		testContext.mock.timers.tick(10_000);
-		assert.equal(harness.sent[0]?.details?.attempt, 1);
+		assert.equal(harness.sent.length, 1);
+		assert.match(harness.sent[0]?.content ?? "", /fresh task/);
 		testContext.mock.timers.reset();
 	});
 
-	it("preserves confirm-stop, abort, and question suppression", async (testContext) => {
+	it("does not schedule an error retry that completes before the agent settles", async (testContext) => {
+		testContext.mock.timers.enable({ apis: ["setTimeout"] });
+		const harness = createBoulderSchedulerHarness("tui");
+		await harness.emit("session_start", { reason: "new" });
+		await harness.emit("agent_end", {
+			messages: [{ role: "assistant", content: [], stopReason: "error" }],
+		});
+		testContext.mock.timers.tick(10_000);
+		assert.equal(harness.scheduleEntries.length, 0);
+		await harness.emit("agent_start", {});
+
+		harness.state.tasks = [];
+		harness.state.actionableCount = 0;
+		harness.setIdle(true);
+		await harness.settle();
+		testContext.mock.timers.tick(10_000);
+		assert.equal(harness.sent.length, 0);
+		testContext.mock.timers.reset();
+	});
+
+	it("drops a timer that reaches expiry while Pi is active", async (testContext) => {
+		testContext.mock.timers.enable({ apis: ["setTimeout"] });
+		const harness = createBoulderSchedulerHarness("tui");
+		await harness.emit("session_start", { reason: "new" });
+		await harness.emit("agent_end", { messages: [] });
+		await harness.settle();
+		harness.setIdle(false);
+		testContext.mock.timers.tick(10_000);
+		assert.equal(harness.sent.length, 0);
+		testContext.mock.timers.reset();
+	});
+
+	it("suppresses only confirmed stops and user aborts", async (testContext) => {
 		testContext.mock.timers.enable({ apis: ["setTimeout"] });
 		const confirmed = createBoulderSchedulerHarness("tui");
 		await confirmed.emit("session_start", { reason: "new" });
-		await confirmed.end(`Cannot continue ${CONFIRM_STOP_TAG}`);
+		await confirmed.end(`Cannot continue ${CONFIRM_STOP_TAG}。\n `);
 		const aborted = createBoulderSchedulerHarness("tui");
 		await aborted.emit("session_start", { reason: "new" });
 		await aborted.end("Interrupted response", "aborted");
 		const questioning = createBoulderSchedulerHarness("tui");
 		await questioning.emit("session_start", { reason: "new" });
 		await questioning.end("Which option should I use?");
+		const quoted = createBoulderSchedulerHarness("tui");
+		await quoted.emit("session_start", { reason: "new" });
+		await quoted.end(`Cannot continue ${CONFIRM_STOP_TAG}”`);
 
 		testContext.mock.timers.tick(10_000);
 		assert.equal(confirmed.sent.length, 0);
 		assert.equal(aborted.sent.length, 0);
-		assert.equal(questioning.sent.length, 0);
+		assert.equal(questioning.sent.length, 1);
+		assert.equal(quoted.sent.length, 1);
+		testContext.mock.timers.reset();
+	});
+
+	it("does not schedule while a same-session async subagent is active", async (testContext) => {
+		testContext.mock.timers.enable({ apis: ["setTimeout"] });
+		const harness = createBoulderSchedulerHarness("tui");
+		await harness.emit("session_start", { reason: "new" });
+		harness.backgroundStarted();
+		await harness.end();
+		testContext.mock.timers.tick(10_000);
+		assert.equal(harness.scheduleEntries.length, 0);
+		assert.equal(harness.sent.length, 0);
+
+		harness.backgroundCompleted();
+		await harness.end();
+		assert.equal(harness.scheduleEntries.length, 1);
 		testContext.mock.timers.reset();
 	});
 
@@ -127,7 +177,7 @@ describe("Boulder scheduler cancellation", () => {
 		const background = createBoulderSchedulerHarness("tui");
 		await background.emit("session_start", { reason: "new" });
 		await background.end();
-		background.setBackgroundRunning(true);
+		background.backgroundStarted();
 		testContext.mock.timers.tick(10_000);
 		assert.equal(background.sent.length, 0);
 		testContext.mock.timers.reset();

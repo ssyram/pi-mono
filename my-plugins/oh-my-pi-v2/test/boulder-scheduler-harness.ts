@@ -6,6 +6,7 @@ import type { BoulderResumeDetails } from "../hooks/boulder-resume-message.js";
 import type { BoulderScheduleEntryData } from "../hooks/boulder-schedule-entry.js";
 
 export type BoulderEventHandler = (event: unknown, context: ExtensionContext) => unknown;
+type SharedEventHandler = (event: unknown) => unknown;
 
 export interface SentBoulderMessage {
 	customType: string;
@@ -28,7 +29,10 @@ export interface BoulderSchedulerHarness {
 	state: BoulderTaskState;
 	emit(event: string, payload: unknown): Promise<void>;
 	end(text?: string, stopReason?: "stop" | "aborted" | "error"): Promise<void>;
-	setBackgroundRunning(running: boolean): void;
+	settle(): Promise<void>;
+	setIdle(idle: boolean): void;
+	backgroundStarted(): void;
+	backgroundCompleted(): void;
 	setPendingMessages(pending: boolean): void;
 	failNextDispatch(): void;
 	terminalInput(data: string): { consume?: boolean } | undefined;
@@ -59,13 +63,14 @@ export function createBoulderSchedulerHarness(
 	hasUI = false,
 ): BoulderSchedulerHarness {
 	const handlers = new Map<string, BoulderEventHandler[]>();
+	const sharedHandlers = new Map<string, SharedEventHandler[]>();
 	const sent: SentBoulderMessage[] = [];
 	const scheduleEntries: ScheduledBoulderEntry[] = [];
 	const statuses: Array<string | undefined> = [];
 	const notifications: string[] = [];
 	const taskReadContexts: ExtensionContext[] = [];
 	let terminalHandler: ((data: string) => { consume?: boolean } | undefined) | undefined;
-	let backgroundRunning = false;
+	let idle = true;
 	let pendingMessages = false;
 	let dispatchShouldFail = false;
 	const state: BoulderTaskState = {
@@ -76,9 +81,12 @@ export function createBoulderSchedulerHarness(
 	const context = {
 		mode,
 		hasUI,
-		isIdle: () => true,
+		isIdle: () => idle,
 		hasPendingMessages: () => pendingMessages,
-		sessionManager: {},
+		sessionManager: {
+			getSessionFile: () => "test-session",
+			getSessionId: () => "test-session",
+		},
 		ui: {
 			setStatus: (_key: string, text: string | undefined) => statuses.push(text),
 			notify: (message: string) => notifications.push(message),
@@ -90,11 +98,23 @@ export function createBoulderSchedulerHarness(
 			},
 		},
 	} as unknown as ExtensionContext;
+	const emitShared = (event: string, payload: unknown): void => {
+		for (const handler of sharedHandlers.get(event) ?? []) handler(payload);
+	};
 	const pi = {
 		on: (event: string, handler: BoulderEventHandler) => {
 			const eventHandlers = handlers.get(event) ?? [];
 			eventHandlers.push(handler);
 			handlers.set(event, eventHandlers);
+		},
+		events: {
+			on: (event: string, handler: SharedEventHandler) => {
+				const eventHandlers = sharedHandlers.get(event) ?? [];
+				eventHandlers.push(handler);
+				sharedHandlers.set(event, eventHandlers);
+				return () => undefined;
+			},
+			emit: emitShared,
 		},
 		registerMessageRenderer: () => undefined,
 		registerEntryRenderer: () => undefined,
@@ -111,7 +131,7 @@ export function createBoulderSchedulerHarness(
 	registerBoulder(pi, (readerContext) => {
 		taskReadContexts.push(readerContext);
 		return state;
-	}, () => backgroundRunning);
+	});
 	const emit = async (event: string, payload: unknown): Promise<void> => {
 		for (const handler of handlers.get(event) ?? []) await handler(payload, context);
 	};
@@ -125,10 +145,20 @@ export function createBoulderSchedulerHarness(
 		taskReadContexts,
 		state,
 		emit,
-		end: (text = "Finished the current step and should continue working.", stopReason = "stop") =>
-			emit("agent_end", { messages: [assistantMessage(text, stopReason)] }),
-		setBackgroundRunning(running) {
-			backgroundRunning = running;
+		end: async (text = "Finished the current step and should continue working.", stopReason = "stop") => {
+			await emit("agent_start", {});
+			await emit("agent_end", { messages: [assistantMessage(text, stopReason)] });
+			await emit("agent_settled", {});
+		},
+		settle: () => emit("agent_settled", {}),
+		setIdle(nextIdle) {
+			idle = nextIdle;
+		},
+		backgroundStarted() {
+			emitShared("subagent:async-started", { id: "run-1", sessionId: "test-session" });
+		},
+		backgroundCompleted() {
+			emitShared("subagent:async-complete", { runId: "run-1", sessionId: "test-session" });
 		},
 		setPendingMessages(pending) {
 			pendingMessages = pending;

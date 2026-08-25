@@ -5,7 +5,7 @@
 
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 
-import { CONFIRM_STOP_TAG } from "../tools/task.js";
+import { CONFIRM_STOP_TAG } from "./boulder-stop-protocol.js";
 
 /** Minimum length for an assistant message to NOT be considered aborted */
 const ABORT_TEXT_MIN_LENGTH = 20;
@@ -24,17 +24,21 @@ export function findLastAssistant(
 }
 
 /**
- * Check if the last assistant message contains the CONFIRM_STOP_TAG.
- * Only inspects the last assistant message, not the entire history.
+ * Check if the last assistant message ends with the CONFIRM_STOP_TAG.
  */
 export function hasConfirmStop(
   messages: readonly { role: string; content?: unknown }[],
 ): boolean {
   const last = findLastAssistant(messages);
   if (!last) return false;
-  return last.content.some(
-    (c) => c.type === "text" && c.text.includes(CONFIRM_STOP_TAG),
-  );
+  const text = last.content
+    .filter((c): c is Extract<typeof c, { type: "text" }> => c.type === "text")
+    .map((c) => c.text)
+    .join("")
+    .trimEnd()
+    .replace(/[\p{Terminal_Punctuation}\u2026]+$/u, "")
+    .trimEnd();
+  return text.endsWith(CONFIRM_STOP_TAG);
 }
 
 /**

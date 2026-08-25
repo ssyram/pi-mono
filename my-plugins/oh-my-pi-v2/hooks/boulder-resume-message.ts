@@ -45,11 +45,12 @@ export function buildBoulderResumeContent(tasks: BoulderResumeTask[]): string {
 		return `${index + 1}. ${status} #${task.id}: ${task.text}`;
 	});
 	return [
-		"<omp-boulder-resume>",
+		"<SYSTEM:omp-boulder-resume>",
+		"This reminder was generated automatically by the system, NOT sent by the user.",
 		"Continue the actionable tasks below. Complete or expire them before stopping.",
-		"If continuation is impossible, output <CONFIRM-TO-STOP/> to stop automatic continuation.",
+		"If you truly require user intervention, output AT THE END <CONFIRM-TO-STOP/> to stop automatic continuation.",
 		...taskLines,
-		"</omp-boulder-resume>",
+		"</SYSTEM:omp-boulder-resume>",
 	].join("\n");
 }
 
@@ -90,7 +91,7 @@ export function registerBoulderResumeMessages(pi: ExtensionAPI): BoulderResumeCo
 						display: true,
 						details: { resumeId, ...schedule },
 					},
-					context.isIdle() ? { triggerTurn: true } : { deliverAs: "followUp" },
+					{ triggerTurn: true },
 				);
 			} catch (error) {
 				if (liveResumeIds.get(context.sessionManager) === resumeId) clear(context);

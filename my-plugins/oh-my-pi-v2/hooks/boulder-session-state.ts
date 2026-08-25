@@ -1,3 +1,4 @@
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CountdownHandle } from "./boulder-countdown.js";
 
@@ -17,14 +18,13 @@ export interface BoulderSessionState {
 	externalInputEpoch: number;
 	episode?: BoulderEpisode;
 	activeWait?: BoulderActiveWait;
-	lastAbortTime: number;
+	lastAgentEndMessages?: AgentMessage[];
 	lastCompactionTime: number;
 }
 
 function initialState(): BoulderSessionState {
 	return {
 		externalInputEpoch: 0,
-		lastAbortTime: 0,
 		lastCompactionTime: 0,
 	};
 }

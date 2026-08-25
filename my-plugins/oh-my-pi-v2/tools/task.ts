@@ -8,9 +8,8 @@ import { renderTaskCall, renderTaskResult } from "./task-renderers.js";
 import { cloneTasks, type TaskStateEntry, validateTaskStateEntryData } from "./task-state-entry.js";
 import type { Task, TaskChangeCallback, TaskDetails } from "./task-types.js";
 
+export { CONFIRM_STOP_TAG } from "../hooks/boulder-stop-protocol.js";
 export type { Task, TaskChangeCallback, TaskDetails } from "./task-types.js";
-
-export const CONFIRM_STOP_TAG = "<CONFIRM-TO-STOP/>";
 const TASK_ENTRY_TYPE = "omp-task-state";
 
 export interface TaskToolState {

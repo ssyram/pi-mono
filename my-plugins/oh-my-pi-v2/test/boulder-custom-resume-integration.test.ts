@@ -17,6 +17,10 @@ it("dispatches the existing Boulder timer as a custom resume message", async (te
 			registered.push(handler);
 			handlers.set(event, registered);
 		},
+		events: {
+			on: () => () => undefined,
+			emit: () => undefined,
+		},
 		registerMessageRenderer: () => undefined,
 		registerEntryRenderer: () => undefined,
 		appendEntry: () => undefined,
@@ -25,7 +29,10 @@ it("dispatches the existing Boulder timer as a custom resume message", async (te
 			userMessageCount += 1;
 		},
 	} as unknown as ExtensionAPI;
-	const sessionIdentity = {};
+	const sessionIdentity = {
+		getSessionFile: () => "integration-session",
+		getSessionId: () => "integration-session",
+	};
 	const context = {
 		mode: "print",
 		hasUI: false,
@@ -61,6 +68,9 @@ it("dispatches the existing Boulder timer as a custom resume message", async (te
 			},
 			context,
 		);
+	}
+	for (const handler of handlers.get("agent_settled") ?? []) {
+		await handler({}, context);
 	}
 
 	testContext.mock.timers.tick(10_000);

@@ -60,7 +60,7 @@ The persisted `Task` schema and its statuses remain unchanged:
 
 No task text is normalized or truncated in persistence. Presentation-only code performs normalization.
 
-Runtime task state is keyed by the owning `sessionManager`. `session_start` and `session_tree` load only the latest valid `omp-task-state` entry on the current branch; a branch with no valid task entry installs an explicit empty state. Tool execution, widget updates, `/task info`, Boulder, and compaction always read the event or tool context's owning state.
+Runtime task state is keyed by the owning `sessionManager`. `session_start` and `session_tree` load only the latest valid `omp-task-state` entry on the current branch; a branch with no valid task entry installs an explicit empty state. Tool execution, widget updates, `/task info`, Boulder, and compaction all read that same owning in-memory state.
 
 ### 3.2 Task-widget visibility
 
@@ -171,7 +171,7 @@ Its Pi metadata is conceptually:
 
 The model receives only the XML-wrapped instruction, the `<CONFIRM-TO-STOP/>` escape protocol, and the actionable task list. It receives no `resumeId`, attempt number, maximum-attempt count, delay, countdown, terminal task, or blocked task.
 
-Use `triggerTurn: true` while idle and `deliverAs: "followUp"` while a run is already active. The collapsed custom renderer displays `↻ Automatic Boulder resume`, identifying the session entry without repeating schedule metadata after the wait has completed. Expanded rendering appends the exact model-visible resume content.
+Dispatch resumes only while idle, with `triggerTurn: true`; never queue a Boulder resume as a follow-up. The collapsed custom renderer displays `↻ Automatic Boulder resume`, identifying the session entry without repeating schedule metadata after the wait has completed. Expanded rendering appends the exact model-visible resume content.
 
 ### 5.3 Context filtering
 
@@ -187,13 +187,13 @@ This is logical replacement, not destructive session rewriting. Pi has no suitab
 
 ### 6.1 Preconditions
 
-At `agent_end`, Boulder may schedule the next attempt only when all are true:
+At `agent_settled`, Boulder may schedule the next attempt only when all are true:
 
 - `actionableCount > 0`
-- the assistant did not emit `CONFIRM-TO-STOP`
-- the run was not aborted or abort-like
-- the assistant is not asking a question
-- compaction and background-task guards permit continuation
+- the last assistant text does not end with `CONFIRM-TO-STOP` after trailing whitespace and terminal punctuation (not quotation marks) are removed
+- the last run was not aborted
+- compaction permits continuation
+- no same-session async subagent is active
 - no active Boulder wait already exists
 
 Existing suppression rules remain unless they contradict this document.
@@ -206,7 +206,7 @@ For every committed `input` event with source `interactive` or `rpc`, increment 
 
 For every non-Boulder custom message delivered while a Boulder wait exists, increment `externalInputEpoch` and cancel the active wait. Boulder-owned `omp-boulder-resume` messages and other internal lifecycle work do not increment it. A raw terminal keystroke alone is not a submitted external message. Escape remains an explicit cancellation control.
 
-Before dispatching a timer callback, re-read task state and verify the same epoch and episode key. Any mismatch cancels rather than resumes. A later human/RPC request may form a new episode only after its own agent run ends.
+Each `agent_start` cancels the prior wait. At `agent_settled`, Boulder evaluates the final `agent_end` result and starts a wait only when continuation is allowed. Before dispatching a timer callback, re-read task state and verify the same external epoch, idle state, no queued message, and no same-session async subagent. A later human/RPC request may form a new episode only after its own agent loop settles.
 
 ### 6.3 Attempt schedule
 
@@ -267,7 +267,7 @@ The existing oversized Boulder/bootstrap implementation must be decomposed as ab
 | --- | --- |
 | One-line, readable task state | `task-display.ts` width-aware compact renderer |
 | User-controlled widget and complete inspection | `/task`, widget-state entry, task-info entry |
-| No obsolete automatic resume | external epoch + episode-key checks before dispatch |
+| No obsolete automatic resume | single replaced wait + external epoch + fresh task/background checks before dispatch |
 | Bounded continuation | scheduler attempt budget and delay function |
 | No normal per-turn task prompt mutation | removal of `before_agent_start` injection |
 | Resume can still act on tasks | one live custom resume message with actionable tasks |
@@ -277,7 +277,7 @@ The existing oversized Boulder/bootstrap implementation must be decomposed as ab
 
 1. **Compact-row invariant:** a widget row contains no line-break whitespace and has display width no larger than its allocated width. Normalization removes line breaks; truncation is the final operation, so no later suffix can overflow the row.
 2. **At-most-one-live-resume invariant:** every context request filters all Boulder resume messages except the one matching `liveResumeId`, and normal turns match none. Therefore historic entries may persist but cannot accumulate in the LLM context.
-3. **External-input precedence invariant:** a wait can fire only if its captured `externalInputEpoch` still equals current state. Every relevant external message increments the epoch and cancels the wait, so a message arriving before dispatch prevents automatic continuation.
+3. **Continuation precedence invariant:** every `agent_start` cancels the prior wait, and only `agent_settled` schedules a replacement from the final `agent_end` result. A wait can fire only while idle and if its captured `externalInputEpoch` still equals current state. External messages cancel the wait; queued messages, terminal task state, and same-session async subagent work suppress dispatch.
 4. **Mode-bounded-attempt invariant:** `attemptsSent` increases once per dispatch and dispatch requires `attemptsSent < limit`, where `limit` is `3` in print mode and `10` otherwise. Dispatch cannot reset it. Therefore an unchanged episode sends no more than its mode's permitted resumes.
 5. **Retry reset requires progress invariant:** an episode key includes task `updatedAt`; task lifecycle/dependency changes alter the key, while message delivery alone does not. Thus retry budget resets only after material task state change or a new externally initiated run.
 6. **Model-metadata isolation invariant:** attempt and delay values exist only in `CustomMessage.details` and the schedule status. The resume renderer never reads them—even when expanded—Pi does not pass `details` to the LLM, and the resume prompt builder does not include them.
@@ -302,10 +302,10 @@ The existing oversized Boulder/bootstrap implementation must be decomposed as ab
 - An idle resume sends `CustomMessage` with `omp-boulder-resume`, then starts a turn.
 - A live resume context contains its own message only; a normal context contains no historic resume message.
 - `details` retains attempt/delay metadata without exposing it to the LLM or collapsed/expanded resume rendering.
-- `interactive` and `rpc` input cancel an active wait and clear `liveResumeId`, including when a Boulder resume is streaming and the input is queued as follow-up; Boulder-owned custom messages do not.
+- `interactive` and `rpc` input cancel an active wait and clear `liveResumeId`; Boulder-owned custom messages do not.
 - A non-Boulder custom message during a wait cancels it.
-- Timer callback rechecks epoch, episode key, and actionable task state.
-- Escape, question, abort, compaction, and background-task suppressions continue to work.
+- Every `agent_start` cancels the prior wait; `agent_settled` conditionally schedules a replacement from the final `agent_end` result; the timer callback rechecks idle state, external epoch, queued messages, actionable task state, and same-session async subagent work.
+- Escape, confirmed stop, user abort, compaction, and async-subagent suppressions continue to work.
 
 ### Manual TUI checks
 

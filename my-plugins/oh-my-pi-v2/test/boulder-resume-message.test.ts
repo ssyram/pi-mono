@@ -98,6 +98,7 @@ describe("Boulder resume custom message", () => {
 		assert.match(sent?.message.content ?? "", /1\. \[in_progress\] #1: started/);
 		assert.match(sent?.message.content ?? "", /2\. \[ready\] #2: ready/);
 		assert.match(sent?.message.content ?? "", /<CONFIRM-TO-STOP\/>/);
+		assert.match(sent?.message.content ?? "", /generated automatically by the system, not sent by the user/i);
 		assert.doesNotMatch(sent?.message.content ?? "", /attempt|delay|countdown|10s/i);
 		assert.deepEqual(
 			{
@@ -116,7 +117,7 @@ describe("Boulder resume custom message", () => {
 		assert.deepEqual(harness.contextHandler()({ messages }, otherSession)?.messages, [unrelated]);
 	});
 
-	it("clears live state for external input and agent end, but not extension input", () => {
+	it("always triggers a turn and clears live state for external input and agent end", () => {
 		const harness = createHarness();
 		const controller = registerBoulderResumeMessages(harness.pi);
 		const owner = context({}, false);
@@ -125,7 +126,7 @@ describe("Boulder resume custom message", () => {
 			[{ id: 1, text: "ready", status: "pending" }],
 			{ attempt: 1, maxAttempts: 10, scheduledDelayMs: 10_000 },
 		);
-		assert.deepEqual(harness.sent[0]?.options, { deliverAs: "followUp" });
+		assert.deepEqual(harness.sent[0]?.options, { triggerTurn: true });
 		const liveId = harness.sent[0]?.message.details?.resumeId;
 		if (!liveId) throw new Error("resumeId was not recorded");
 		const messages = [customMessage(liveId)];

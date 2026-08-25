@@ -27,7 +27,7 @@ The normative design, contracts, correctness argument, and acceptance plan are i
 - `/task show on|off`, `/task info`, and `/task help` expose visibility, complete inspection, and help with hierarchical prompted completion.
 - Normal turns no longer receive a dynamic task-list system-prompt suffix. Explicit Boulder resumes contain actionable tasks plus the `<CONFIRM-TO-STOP/>` escape protocol; collapsed rendering shows `↻ Automatic Boulder resume`, while expanded rendering shows the exact model-visible content.
 - A context filter retains only the currently live resume, while custom compaction removes all resume history and adds the current actionable task set separately.
-- Boulder retry state is keyed by session identity. External information cancels a wait; print mode permits three attempts and other modes ten.
+- Boulder retry state is keyed by session identity. Every `agent_start` cancels the prior wait; `agent_settled` conditionally schedules a replacement from the final `agent_end` result. External information cancels a wait, and same-session async subagent work suppresses both scheduling and dispatch; print mode permits three attempts and other modes ten.
 - Scheduling immediately appends the AI-invisible entry `↻ Automatic Boulder n/N resume scheduled, restarting in XXs`, while the status line refreshes the live countdown. Attempt/delay metadata is not sent to the model.
 
 ## Appendix: Terminology

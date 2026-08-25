@@ -43,7 +43,7 @@ describe("Boulder scheduler episodes", () => {
 		testContext.mock.timers.reset();
 	});
 
-	it("does not re-arm an active wait on a duplicate agent end", async (testContext) => {
+	it("cancels the active wait and re-arms from the latest agent end", async (testContext) => {
 		testContext.mock.timers.enable({ apis: ["setTimeout"] });
 		const harness = createBoulderSchedulerHarness("tui");
 		await harness.emit("session_start", { reason: "new" });
@@ -51,6 +51,8 @@ describe("Boulder scheduler episodes", () => {
 		await harness.end();
 		testContext.mock.timers.tick(5_000);
 		await harness.end();
+		testContext.mock.timers.tick(5_000);
+		assert.equal(harness.sent.length, 0);
 		testContext.mock.timers.tick(5_000);
 
 		assert.equal(harness.sent.length, 1);
