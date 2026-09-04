@@ -36,12 +36,14 @@ vi.mock("@anthropic-ai/sdk", () => {
 		constructor(opts: Record<string, unknown>) {
 			mockState.constructorOpts = opts;
 		}
-		messages = {
-			create: (params: Record<string, unknown>) => {
-				mockState.createParams = params;
-				return {
-					asResponse: async () => createSseResponse(),
-				};
+		beta = {
+			messages: {
+				create: (params: Record<string, unknown>) => {
+					mockState.createParams = params;
+					return {
+						asResponse: async () => createSseResponse(),
+					};
+				},
 			},
 		};
 	}
@@ -60,6 +62,13 @@ describe("Copilot Claude via Anthropic Messages", () => {
 		expect(opus47.thinkingLevelMap).toMatchObject({ minimal: "low", xhigh: "xhigh", max: "max" });
 		expect(getSupportedThinkingLevels(opus47)).toContain("xhigh");
 		expect(getSupportedThinkingLevels(opus47)).toContain("max");
+
+		const opus5 = getModel("github-copilot", "claude-opus-5");
+		expect(opus5.api).toBe("anthropic-messages");
+		expect(opus5.contextWindow).toBe(1000000);
+		expect(opus5.thinkingLevelMap).toMatchObject({ minimal: "low", xhigh: "xhigh", max: "max" });
+		expect(getSupportedThinkingLevels(opus5)).toContain("xhigh");
+		expect(getSupportedThinkingLevels(opus5)).toContain("max");
 
 		const sonnet46 = getModel("github-copilot", "claude-sonnet-4.6");
 		expect(sonnet46.thinkingLevelMap).toMatchObject({ minimal: "low", max: "max" });
@@ -92,12 +101,9 @@ describe("Copilot Claude via Anthropic Messages", () => {
 		expect(headers["X-Initiator"]).toBe("user");
 		expect(headers["Openai-Intent"]).toBe("conversation-edits");
 
-		// No fine-grained-tool-streaming (Copilot doesn't support it)
-		const beta = headers["anthropic-beta"] ?? "";
-		expect(beta).not.toContain("fine-grained-tool-streaming");
-
 		// Payload is valid Anthropic Messages format
 		const params = mockState.createParams!;
+		expect(params.betas ?? []).not.toContain("fine-grained-tool-streaming-2025-05-14");
 		expect(params.model).toBe("claude-sonnet-4.6");
 		expect(params.stream).toBe(true);
 		expect(params.max_tokens).toBe(model.maxTokens);
@@ -114,7 +120,6 @@ describe("Copilot Claude via Anthropic Messages", () => {
 			if (event.type === "error") break;
 		}
 
-		const headers = mockState.constructorOpts!.defaultHeaders as Record<string, string>;
-		expect(headers["anthropic-beta"] ?? "").not.toContain("interleaved-thinking-2025-05-14");
+		expect(mockState.createParams?.betas ?? []).not.toContain("interleaved-thinking-2025-05-14");
 	});
 });

@@ -12,8 +12,6 @@ import { LlamaClient, type LlamaModelInfo, llamaInferenceUrl, normalizeLlamaServ
 
 export const LLAMA_PROVIDER_ID = "llama.cpp";
 export const DEFAULT_LLAMA_SERVER_URL = "http://127.0.0.1:8080";
-const DEFAULT_MAX_TOKENS = 16384;
-
 function credentialServerUrl(credential: ApiKeyCredential | undefined): string | undefined {
 	const value = credential?.env?.LLAMA_BASE_URL;
 	return typeof value === "string" && value.trim() ? normalizeLlamaServerUrl(value) : undefined;
@@ -25,6 +23,27 @@ async function resolveServerUrl(
 ): Promise<string | undefined> {
 	const configured = credentialServerUrl(credential) ?? (await ctx.env("LLAMA_BASE_URL"))?.trim();
 	return configured ? normalizeLlamaServerUrl(configured) : undefined;
+}
+
+function modelIsSelectable(model: LlamaModelInfo, routerAutoload: boolean): boolean {
+	if (model.status.value === "loaded") return true;
+	// llama.cpp reports idle-slept models as "sleeping"; requests wake them automatically.
+	if (model.status.value === "sleeping") return true;
+	// Unloaded presets are routable only when llama.cpp router autoload can load them on first use.
+	return routerAutoload && model.status.value === "unloaded" && !model.status.failed && model.source === "preset";
+}
+
+async function routerAutoloadEnabled(
+	client: LlamaClient,
+	catalog: readonly LlamaModelInfo[],
+	signal: AbortSignal,
+): Promise<boolean> {
+	if (!catalog.some((model) => model.status.value === "unloaded" && model.source === "preset")) return false;
+	try {
+		return (await client.props({ signal })).models_autoload === true;
+	} catch {
+		return false;
+	}
 }
 
 function toPiModel(model: LlamaModelInfo, serverUrl: string): Model<"openai-completions"> {
@@ -40,12 +59,12 @@ function toPiModel(model: LlamaModelInfo, serverUrl: string): Model<"openai-comp
 		input: model.architecture?.input_modalities?.includes("image") ? ["text", "image"] : ["text"],
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow,
-		maxTokens: Math.min(DEFAULT_MAX_TOKENS, contextWindow),
+		maxTokens: contextWindow,
 		compat: {
 			supportsStore: false,
 			supportsDeveloperRole: false,
 			supportsReasoningEffort: false,
-			supportsUsageInStreaming: false,
+			supportsUsageInStreaming: true,
 			supportsStrictMode: false,
 			maxTokensField: "max_tokens",
 		},
@@ -54,14 +73,20 @@ function toPiModel(model: LlamaModelInfo, serverUrl: string): Model<"openai-comp
 
 export interface LlamaProviderController {
 	provider: Provider<"openai-completions">;
-	setCatalog(models: readonly LlamaModelInfo[], serverUrl: string): void;
+	setCatalog(models: readonly LlamaModelInfo[], serverUrl: string, options?: { routerAutoload?: boolean }): void;
 }
 
 export function createLlamaProvider(): LlamaProviderController {
 	let models: readonly Model<"openai-completions">[] = [];
 
-	const setCatalog = (catalog: readonly LlamaModelInfo[], serverUrl: string): void => {
-		models = catalog.filter((model) => model.status.value === "loaded").map((model) => toPiModel(model, serverUrl));
+	const setCatalog = (
+		catalog: readonly LlamaModelInfo[],
+		serverUrl: string,
+		options: { routerAutoload?: boolean } = {},
+	): void => {
+		models = catalog
+			.filter((model) => modelIsSelectable(model, options.routerAutoload === true))
+			.map((model) => toPiModel(model, serverUrl));
 	};
 
 	const provider: Provider<"openai-completions"> = {
@@ -113,11 +138,39 @@ export function createLlamaProvider(): LlamaProviderController {
 		},
 		getModels: () => models,
 		refreshModels: async (context: RefreshModelsContext): Promise<void> => {
-			if (!context.allowNetwork || context.signal?.aborted || context.credential?.type !== "api_key") return;
+			if (context.stored) {
+				const restored = context.stored.models.filter(
+					(model): model is Model<"openai-completions"> =>
+						model.provider === LLAMA_PROVIDER_ID && model.api === "openai-completions",
+				);
+				if (
+					!(await context.publish({
+						update: () => {
+							models = restored;
+						},
+					}))
+				) {
+					return;
+				}
+			}
+
+			if (!context.allowNetwork || context.signal.aborted || context.credential?.type !== "api_key") return;
 			const serverUrl = credentialServerUrl(context.credential);
 			if (!serverUrl) return;
-			const catalog = await new LlamaClient(serverUrl, context.credential.key).list({ signal: context.signal });
-			setCatalog(catalog, serverUrl);
+			const client = new LlamaClient(serverUrl, context.credential.key);
+			const catalog = await client.list({ signal: context.signal });
+			if (context.signal.aborted) return;
+			const routerAutoload = await routerAutoloadEnabled(client, catalog, context.signal);
+			if (context.signal.aborted) return;
+			const refreshed = catalog
+				.filter((model) => modelIsSelectable(model, routerAutoload))
+				.map((model) => toPiModel(model, serverUrl));
+			await context.publish({
+				persist: { models: refreshed, checkedAt: Date.now() },
+				update: () => {
+					models = refreshed;
+				},
+			});
 		},
 		stream: (model, context, options) => stream(model, context, options as ProviderStreamOptions | undefined),
 		streamSimple: (model, context, options) => streamSimple(model, context, options),

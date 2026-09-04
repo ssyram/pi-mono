@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { type PiMessagesOptions, stream, streamSimple } from "../src/api/pi-messages.ts";
-import type { Api, AssistantMessageEvent, Context, Model } from "../src/types.ts";
+import type { Api, AssistantMessageEvent, Context, Model, StopReason } from "../src/types.ts";
 
 type RecordedRequest = {
 	url: string;
@@ -110,12 +110,19 @@ describe("pi-messages", () => {
 					contentIndex: 1,
 					toolCall: { type: "toolCall", id: "call_1", name: "read", arguments: { path: "a.txt" } },
 				},
-				{ type: "done", reason: "toolUse", usage, responseId: "resp_1" },
+				{
+					type: "done",
+					reason: "toolUse",
+					usage,
+					responseId: "resp_1",
+					providerThinkingLevel: "high",
+				},
 			],
 		});
 		const model = createModel(baseUrl);
 
 		const events: AssistantMessageEvent[] = [];
+		const partialStopReasons: StopReason[] = [];
 		const eventStream = stream(model, context, {
 			apiKey: "test-key",
 			sessionId: "session-1",
@@ -124,13 +131,18 @@ describe("pi-messages", () => {
 			headers: { "x-custom": "1" },
 		});
 		for await (const event of eventStream) {
+			if ("partial" in event) {
+				partialStopReasons.push(event.partial.stopReason);
+			}
 			events.push(event);
 		}
 		const message = await eventStream.result();
 
+		expect(partialStopReasons[0]).toBe("pending");
 		expect(message.stopReason).toBe("toolUse");
 		expect(message.usage).toEqual(usage);
 		expect(message.responseId).toBe("resp_1");
+		expect(message.providerThinkingLevel).toBe("high");
 		expect(message.model).toBe("auto");
 		expect(message.provider).toBe("radius");
 		expect(message.content).toEqual([
@@ -160,13 +172,13 @@ describe("pi-messages", () => {
 		const model = createModel(baseUrl);
 
 		let observedHeaders: Record<string, string> | undefined;
-		const options: PiMessagesOptions = {
+		const options = {
 			apiKey: "test-key",
 			debug: true,
 			onResponse: (response) => {
 				observedHeaders = response.headers;
 			},
-		};
+		} satisfies PiMessagesOptions;
 		const message = await streamSimple(model, context, options).result();
 
 		expect(message.stopReason).toBe("stop");
