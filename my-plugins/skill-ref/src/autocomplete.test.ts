@@ -44,9 +44,13 @@ describe("extractInlineSlashToken", () => {
 		assert.deepEqual(extractInlineSlashToken(["hello /qp"], 0, 9, true), { token: "/qp", start: 6 });
 	});
 
-	it("leaves a line-leading slash to the native menu", () => {
+	it("leaves a first-line slash to the native menu", () => {
 		assert.equal(extractInlineSlashToken(["/qp"], 0, 3, true), null);
 		assert.equal(extractInlineSlashToken(["   /qp"], 0, 6, true), null);
+	});
+
+	it("picks up a line-leading slash after the first line", () => {
+		assert.deepEqual(extractInlineSlashToken(["first line", "/qp"], 1, 3, true), { token: "/qp", start: 0 });
 	});
 
 	it("ignores tokens that do not start with a slash", () => {
@@ -88,6 +92,18 @@ describe("createSkillRefProvider.getSuggestions", () => {
 		);
 	});
 
+	it("offers skills and prompts for a line-leading slash after the first line", async () => {
+		const { current, calls } = makeCurrent();
+		const provider = createSkillRefProvider(current, getEntries, theme);
+		const result = await provider.getSuggestions(["first line", "/qp"], 1, 3, options);
+		assert.deepEqual(calls, []);
+		assert.equal(result?.prefix, "/qp");
+		assert.deepEqual(
+			result?.items.map((item) => item.value),
+			["/qpdi"],
+		);
+	});
+
 	it("lists everything for a bare slash", async () => {
 		const { current } = makeCurrent();
 		const provider = createSkillRefProvider(current, getEntries, theme);
@@ -101,6 +117,19 @@ describe("createSkillRefProvider.getSuggestions", () => {
 		const result = await provider.getSuggestions(["hello /zzzz"], 0, 11, options);
 		assert.equal(result, null);
 		assert.deepEqual(calls, []);
+	});
+});
+
+describe("createSkillRefProvider.shouldTriggerFileCompletion", () => {
+	it("claims the Tab gate for a line-leading slash after the first line", () => {
+		const { current } = makeCurrent();
+		const provider = createSkillRefProvider(
+			{ ...current, shouldTriggerFileCompletion: () => false },
+			getEntries,
+			theme,
+		);
+		assert.equal(provider.shouldTriggerFileCompletion?.(["first line", "/qp"], 1, 3), true);
+		assert.equal(provider.shouldTriggerFileCompletion?.(["/qp"], 0, 3), false);
 	});
 });
 

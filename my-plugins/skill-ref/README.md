@@ -15,7 +15,8 @@ The second half exists because pi only expands a slash command when it is the *f
 
 | Input | Behaviour |
 |---|---|
-| `/` at the start of a line, then Tab | pi's native command menu — **untouched** |
+| `/` at the start of the first line, then Tab | pi's native command menu — **untouched** |
+| `/qp` at the start of a later line, then Tab | menu of matching skills and prompts |
 | `/qp` mid-sentence, then Tab | menu of matching skills and prompts |
 | `/` mid-sentence, then Tab | all skills and prompts |
 | `/zzzz` mid-sentence, then Tab | nothing — deliberately no fallback to path completion |

@@ -9,7 +9,7 @@
 ## 1. 核心流程
 
 ```
-用户在句中打 "/qp" 按 Tab
+用户在第一行以外的任意位置打 "/qp" 按 Tab
   └─ editor.handleTabCompletion → forceFileAutocomplete(true)     [上游, force=true]
       └─ provider chain: skillRefProvider(builtinProvider)
           ├─ extractInlineSlashToken → {token:"/qp", start}       [M3]
@@ -157,12 +157,12 @@
 ```
 函数：extractInlineSlashToken(lines, cursorLine, cursorCol, force): { token: string; start: number } | null
 
-功能描述：判定"这是不是一次句中 / + Tab"，并取出待补全 token。
+功能描述：判定"这是不是一次非首行命令 / + Tab"，并取出待补全 token。
 
 后置条件（判定为 null 的全部情形 —— 每一条都对应一个必须透传的场景）：
   - force !== true                                   → 非 Tab 强制补全（含行首斜杠菜单、打字触发）  [保 P1]
   - 光标前 token 不以 "/" 开头                        → @ 补全 / 普通路径补全                      [保 P4]
-  - token 起点左侧全为空白                            → 行首斜杠（含缩进），交还原生菜单            [保 P1]
+  - 第一行且 token 起点左侧全为空白                  → 首行斜杠（含缩进），交还原生菜单            [保 P1]
   非 null 时：
   - token = 当前行 [start, cursorCol) 的子串，start = 从 cursorCol 向左扫到最近的分隔符之后
   - 分隔符集合 = { " ", "\t", '"', "'", "=" }（与上游 PATH_DELIMITERS 一致；"/" 与 ":" 不是分隔符，故 "skill:qp" 是一个 token）
@@ -185,7 +185,7 @@ applyCompletion 后置条件：
   - 否则：新行 = 行[0,start) + item.value + " " + 行[cursorCol,)；cursorCol' = start + item.value.length + 1
   - 不修改 cursorLine，不触及其他行
 
-shouldTriggerFileCompletion：直接委托 current（缺省 true）
+shouldTriggerFileCompletion：本插件可提取 token 时返回 true，确保通过 Tab 前置闸门；否则委托 current（缺省 true）
 triggerCharacters：不设置（上游会过滤 "/"，设了也无效）
 副作用：无
 ```
@@ -269,7 +269,7 @@ export default function (pi: ExtensionAPI): void
 | A2 工具兑现引用 | M4（主）+ M1 数据 + M2 匹配 |
 | A3 宽松模糊语义 | M2（唯一实现处） |
 | A5 加载结果保持安静 | M4 的 `renderResult` + `formatCollapsedResult` |
-| P1 行首行为不变 | M3 的 `force !== true` 与"左侧全空白"两条 null 判定 |
+| P1 首行命令行为不变 | M3 的 `force !== true` 与"第一行且左侧全空白"两条 null 判定 |
 | P2 不改上游 | 全部经 `addAutocompleteProvider` / `registerTool` 官方扩展点 |
 | P3 资源口径一致 | M1 唯一数据源 `pi.getCommands()` |
 | P4 不吃掉别的补全 | M3 的透传分支 |
@@ -277,7 +277,7 @@ export default function (pi: ExtensionAPI): void
 
 ### 模块协作论证
 
-- **A1 成立**：H1 给出"句中 Tab ⟺ `force===true`"；M3 在该条件下接管，其候选来自 M1（= pi 认可的全部 SKILL/prompt，H3），排序筛选由 M2 按 A3 语义完成；上游在 `prefix.startsWith("/")` 时自动套用斜杠菜单排版（`editor.ts:2131`），故"手感与行首一致"无需额外实现。
+- **A1 成立**：首行命令以外的 Tab 请求以 `force===true` 进入文件补全路径；M3 在自身可提取 token 时主动通过 `shouldTriggerFileCompletion` 前置闸门并接管，其候选来自 M1（= pi 认可的全部 SKILL/prompt，H3），排序筛选由 M2 按 A3 语义完成；上游在 `prefix.startsWith("/")` 时自动套用斜杠菜单排版，故"手感与行首一致"无需额外实现。
 - **A2 成立**：M4 用与 M3 同一份 entries 做 `findExact`，命中即读 `sourceInfo.path`（H3 保证该路径就是资源文件本体）返回原文；未命中走 M2 同一套模糊语义。
 - **A5/P5 成立**：M4 精确命中时读取原文一次，并在 `details` 中记录 matched/path/contentLength；`execute` 始终生成完整 `content`。`renderResult` 仅在 `expanded=false` 时从经形状校验的 `details` 生成单行可定位状态，展开态仍显示原始 `content`。全局 impression 对 `try_load_skill_or_prompt` 直接 passthrough，故用户展示压缩与模型输入完整性彼此独立。
 - **I1（补全能选中的名字，工具必精确命中）成立**：M3 产出的 `item.value = "/" + e.name`；M4 的 `normalizeQuery` 去掉前导 "/" 后得到 `e.name`；`findExact` 以 `lower(name)` 比较，故对同一份 entries 必命中。唯一破口是两次调用之间发生 `/reload` 且该资源被删除 —— 登记为 TR-2。
@@ -341,7 +341,7 @@ export default function (pi: ExtensionAPI): void
 2b. 大小写阶梯（D7）：`skill:abc`+`prompt:Abc`+`prompt:abc` 共存时 —— `Abc` / `prompt:abc` / `prompt:Abc` / `skill:abc` 各自唯一加载；`abc` 与 `ABC` 都列出全部 3 条；只差大小写的唯一命中只列不加载；列出的每个限定名单独回调必唯一命中。
 3. `findFuzzy`：主匹配非空时不掺入描述匹配项；主匹配为空时才退化；排序全序稳定；`limit` 生效。
 4. `listEntries`：过滤 extension；剥 `skill:` 前缀；`getCommands` 抛错 → `[]`。
-5. `extractInlineSlashToken`：`force=false` 恒为 null；`"hello /qp"` 命中；`"/qp"`、`"   /qp"` 为 null；`"@src/ a"` 为 null；`'say "/qp'` 命中（引号是分隔符）；`"/skill:qp"` 整体为一个 token。
+5. `extractInlineSlashToken`：`force=false` 恒为 null；`"hello /qp"` 命中；第一行的 `"/qp"`、`"   /qp"` 为 null；第二行行首 `"/qp"` 命中；`"@src/ a"` 为 null；`'say "/qp'` 命中（引号是分隔符）；`"/skill:qp"` 整体为一个 token；底层 `shouldTriggerFileCompletion=false` 时，第二行行首 token 仍返回 true。
 6. `applyCompletion`：句中插入结果与光标位置；透传场景确实调到 `current`（spy）。
 7. 着色（§7.1）：带 ANSI 的 description 经 `visibleWidth` 计算出的宽度 === 无 ANSI 版本；着色片段以 `\x1b[39m` 收尾、不含 `\x1b[0m`；无 theme 时退化为纯文本。
 8. `resolveQuery` 四分支：裸名命中 / 限定名命中 / 撞名歧义 / 模糊候选 / 全无匹配 / 空 registry；读文件失败必须抛出而非静默；列表不含 `.md` 路径（D6）；limit 钳制。
@@ -355,7 +355,8 @@ node --import tsx --test my-plugins/skill-ref/src/*.test.ts
 
 **手工验证（TUI，实现完成后逐条跑）**
 
-- 句首 `/` + Tab → 原生菜单，内容与安装前一致（P1）
+- 第一行句首 `/` + Tab → 原生菜单，内容与安装前一致（P1）
+- 第二行行首 `/qp` + Tab → 出 skill/prompt 菜单
 - 句中 `帮我按 /qp` + Tab → 出 skill/prompt 菜单；继续打字收窄；回车后文本为 `帮我按 /qpdi `
 - 句中 `/zzzz` + Tab → 无菜单、无文件路径（D1）
 - `@` 补全、`/model ` 参数补全不受影响（P4）

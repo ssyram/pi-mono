@@ -1,11 +1,10 @@
 /**
  * M3 autocomplete — takes over "/" + Tab in the middle of a sentence.
  *
- * The editor routes Tab two ways (packages/tui/src/components/editor.ts:2139):
- * a line-leading slash goes to the native command menu with force=false, anything
- * else goes to forceFileAutocomplete with force=true. So force===true is exactly
- * "not the line-leading slash menu", and intercepting it leaves the native menu
- * untouched.
+ * The editor routes Tab two ways (packages/tui/src/components/editor.ts:2261):
+ * a first-line-leading slash goes to the native command menu with force=false;
+ * anything else goes to forceFileAutocomplete with force=true. Intercepting only
+ * the latter leaves the native menu untouched.
  */
 
 import type { AutocompleteItem, AutocompleteProvider, AutocompleteSuggestions } from "@earendil-works/pi-tui";
@@ -39,7 +38,7 @@ export interface InlineSlashToken {
  * Null cases, each protecting an existing behavior:
  * - not a forced (Tab) completion  -> native slash menu / typing triggers
  * - token does not start with "/"  -> @ attachments and plain path completion
- * - only whitespace to its left    -> line-leading slash, native menu's job
+ * - first-line token has only whitespace to its left -> native menu's job
  */
 export function extractInlineSlashToken(
 	lines: string[],
@@ -59,7 +58,7 @@ export function extractInlineSlashToken(
 
 	const token = beforeCursor.slice(start);
 	if (!token.startsWith("/")) return null;
-	if (beforeCursor.slice(0, start).trim() === "") return null;
+	if (cursorLine === 0 && beforeCursor.slice(0, start).trim() === "") return null;
 
 	return { token, start };
 }
@@ -143,6 +142,7 @@ export function createSkillRefProvider(
 		},
 
 		shouldTriggerFileCompletion(lines, cursorLine, cursorCol) {
+			if (extractInlineSlashToken(lines, cursorLine, cursorCol, true)) return true;
 			return current.shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ?? true;
 		},
 	};
