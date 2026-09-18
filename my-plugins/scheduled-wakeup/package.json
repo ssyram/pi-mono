@@ -1,0 +1,12 @@
+{
+  "name": "scheduled-wakeup",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "pi": {
+    "extensions": ["index.ts"]
+  }
+}
