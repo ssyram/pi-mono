@@ -1,25 +1,32 @@
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import type { AutocompleteProvider } from "@earendil-works/pi-tui";
-import { createTaskCompletionProvider } from "./task-completion.js";
+import type { TaskToolHandle } from "../tools/task.js";
 import {
-	TASK_INFO_ENTRY_TYPE,
 	formatTaskInfo,
 	registerTaskInfoEntryRenderer,
+	TASK_INFO_ENTRY_TYPE,
 	type TaskInfoEntryData,
 } from "../tools/task-info-entry.js";
+import { createHumanTaskCompletionProvider } from "../tools/task-system/human-completion.js";
 import type { Task } from "../tools/task-types.js";
 import {
-	TASK_WIDGET_STATE_ENTRY_TYPE,
 	createTaskWidgetState,
+	TASK_WIDGET_STATE_ENTRY_TYPE,
 	type TaskWidgetStateData,
 } from "../tools/task-widget-state.js";
 
 export const TASK_HELP_TEXT = [
 	"Task commands:",
-	"  /task show on   Show the task widget",
-	"  /task show off  Hide the task widget",
-	"  /task info       Print complete task details",
-	"  /task help       Show this help",
+	"  /task add TEXT [--start] [--blocked-by IDS]  Create a task (quote text containing spaces)",
+	"  /task modify ID [--text TEXT] [--blocked-by IDS] [--status in_progress|done|expired] [--reason TEXT]",
+	"  /task list [--type TYPE] [--limit N]         List tasks (TYPE: open|closed|in_progress|ready|blocked|done|expired)",
+	"  /task clear --CONFIRMED                      Remove every task (requires the explicit --CONFIRMED flag; task ID allocation is preserved)",
+	"  /task show on|off                            Show or hide the task widget",
+	"  /task info                                   Print complete task details",
+	"  /task help                                   Show this help",
 ].join("\n");
 
 type ParsedTaskCommand =
@@ -29,12 +36,15 @@ type ParsedTaskCommand =
 	| { action: "invalid"; input: string };
 
 export interface TaskCommandOptions {
-	getTasks(context: ExtensionCommandContext): Task[];
-	setWidgetVisibility(context: ExtensionCommandContext, visible: boolean): void;
+	getTasks(context: ExtensionContext): Task[];
+	setWidgetVisibility(context: ExtensionContext, visible: boolean): void;
+	runHumanTaskCommand: TaskToolHandle["runHumanTaskCommand"];
 }
 
 interface PromptCompletionUI {
-	addAutocompleteProvider(factory: (current: AutocompleteProvider) => AutocompleteProvider): void;
+	addAutocompleteProvider(
+		factory: (current: AutocompleteProvider) => AutocompleteProvider,
+	): void;
 }
 
 export function parseTaskCommand(args: string): ParsedTaskCommand {
@@ -56,18 +66,48 @@ function appendOutput(pi: ExtensionAPI, data: TaskInfoEntryData): void {
 	pi.appendEntry<TaskInfoEntryData>(TASK_INFO_ENTRY_TYPE, data);
 }
 
-export function registerTaskCommand(pi: ExtensionAPI, options: TaskCommandOptions): void {
+const HUMAN_ROOTS = new Set(["add", "modify", "list", "clear"]);
+
+function isHumanTaskCommand(args: string): boolean {
+	return HUMAN_ROOTS.has(args.trim().split(/\s+/)[0] ?? "");
+}
+
+export function registerTaskCommand(
+	pi: ExtensionAPI,
+	options: TaskCommandOptions,
+): void {
 	registerTaskInfoEntryRenderer(pi);
 	pi.registerCommand("task", {
-		description: "Show task details or control the task widget",
+		description: "Manage tasks or control the task widget",
 		handler: async (args, ctx) => {
+			// Human commands receive the ENTIRE original string; quoted text must survive routing.
+			if (isHumanTaskCommand(args)) {
+				const result = options.runHumanTaskCommand(args, ctx);
+				const text = result.content
+					.map((block) => (block.type === "text" ? block.text : ""))
+					.join("\n");
+				try {
+					appendOutput(pi, {
+						tone: result.details?.error ? "warning" : "info",
+						text,
+					});
+				} catch (error) {
+					console.error(
+						`[oh-my-pi task] Failed to print task command output: ${error instanceof Error ? error.message : String(error)}`,
+					);
+				}
+				return;
+			}
 			const command = parseTaskCommand(args);
 			if (command.action === "help") {
 				appendOutput(pi, { tone: "info", text: TASK_HELP_TEXT });
 				return;
 			}
 			if (command.action === "info") {
-				appendOutput(pi, { tone: "info", text: formatTaskInfo(options.getTasks(ctx)) });
+				appendOutput(pi, {
+					tone: "info",
+					text: formatTaskInfo(options.getTasks(ctx)),
+				});
 				return;
 			}
 			if (command.action === "invalid") {
@@ -78,7 +118,10 @@ export function registerTaskCommand(pi: ExtensionAPI, options: TaskCommandOption
 				return;
 			}
 
-			pi.appendEntry<TaskWidgetStateData>(TASK_WIDGET_STATE_ENTRY_TYPE, createTaskWidgetState(command.visible));
+			pi.appendEntry<TaskWidgetStateData>(
+				TASK_WIDGET_STATE_ENTRY_TYPE,
+				createTaskWidgetState(command.visible),
+			);
 			options.setWidgetVisibility(ctx, command.visible);
 			appendOutput(pi, {
 				tone: "info",
@@ -88,6 +131,17 @@ export function registerTaskCommand(pi: ExtensionAPI, options: TaskCommandOption
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
-		(ctx.ui as typeof ctx.ui & PromptCompletionUI).addAutocompleteProvider(createTaskCompletionProvider);
+		try {
+			(ctx.ui as typeof ctx.ui & PromptCompletionUI).addAutocompleteProvider(
+				(current) =>
+					createHumanTaskCompletionProvider(current, () =>
+						options.getTasks(ctx),
+					),
+			);
+		} catch (error) {
+			console.error(
+				`[oh-my-pi task] Failed to install task autocomplete: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
 	});
 }

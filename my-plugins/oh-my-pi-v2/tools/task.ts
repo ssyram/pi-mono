@@ -1,16 +1,31 @@
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
-import { StringEnum } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
-import { executeAdd, executeClear, executeDoneOrExpire, executeList, executeStart, executeUpdateDeps } from "./task-actions.js";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { isUnblocked } from "./task-dependencies.js";
-import { renderTaskCall, renderTaskResult } from "./task-renderers.js";
-import { cloneTasks, type TaskStateEntry, validateTaskStateEntryData } from "./task-state-entry.js";
-import type { Task, TaskChangeCallback, TaskDetails } from "./task-types.js";
+import { renderTaskCall } from "./task-renderers.js";
+import {
+	type TaskBoundaryErrorDetails,
+	taskBoundaryFailure,
+	taskOperationFailure,
+} from "./task-system/failure.js";
+import type {
+	TaskOperation,
+	TaskResultDetails,
+	TaskState,
+} from "./task-system/model.js";
+import {
+	createTaskSession,
+	type TaskRestoreResult,
+	type TaskSession,
+} from "./task-system/session.js";
+import { TASK_STATE_ENTRY_TYPE } from "./task-system/state.js";
+import { createTaskToolDefinition } from "./task-system/tool-definition.js";
+import type { Task, TaskChangeCallback } from "./task-types.js";
 
 export { CONFIRM_STOP_TAG } from "../hooks/boulder-stop-protocol.js";
 export type { Task, TaskChangeCallback, TaskDetails } from "./task-types.js";
-const TASK_ENTRY_TYPE = "omp-task-state";
 
 export interface TaskToolState {
 	tasks: Task[];
@@ -23,30 +38,31 @@ export interface TaskToolState {
 export interface TaskToolHandle {
 	getTaskState(context: ExtensionContext): TaskToolState;
 	setOnTaskChange(callback: TaskChangeCallback): void;
+	runHumanTaskCommand(
+		args: string,
+		context: ExtensionContext,
+	): AgentToolResult<TaskResultDetails | TaskBoundaryErrorDetails>;
 }
 
-const TaskParams = Type.Object({
-	action: StringEnum(["list", "add", "start", "done", "expire", "clear", "update_deps"] as const),
-	text: Type.Optional(Type.String({ description: "Task description (required for: add)" })),
-	id: Type.Optional(Type.Number({ description: "Task ID (required for: start, done, expire, update_deps)" })),
-	reason: Type.Optional(Type.String({ description: "Explanation (required for: expire)" })),
-	blocks: Type.Optional(Type.Array(Type.Number(), { description: "Task IDs that this task blocks (for: update_deps)" })),
-	blockedBy: Type.Optional(Type.Array(Type.Number(), { description: "Task IDs that block this task (for: update_deps)" })),
-});
-
-function stateFromEntry(entry: SessionEntry): TaskStateEntry | undefined {
-	if (entry.type !== "custom" || entry.customType !== TASK_ENTRY_TYPE) return undefined;
-	const state = validateTaskStateEntryData(entry.data);
-	if (!state) console.error("[oh-my-pi task] Ignoring invalid persisted task state entry");
-	return state;
+interface TaskOwner {
+	sessionId: string;
+	controller: TaskSession;
+	ready: boolean;
 }
 
-function summarizeTaskState(state: TaskStateEntry): TaskToolState {
-	const readyTasks = state.tasks.filter((task) => task.status === "pending" && isUnblocked(task, state.tasks));
-	const inProgressCount = state.tasks.filter((task) => task.status === "in_progress").length;
+function summarizeTaskState(state: TaskState): TaskToolState {
+	const tasks: Task[] = state.tasks.map((task) => ({ ...task }));
+	const readyTasks = tasks.filter(
+		(task) => task.status === "pending" && isUnblocked(task, tasks),
+	);
+	const inProgressCount = tasks.filter(
+		(task) => task.status === "in_progress",
+	).length;
 	return {
-		tasks: [...state.tasks],
-		pendingCount: state.tasks.filter((task) => task.status === "pending" || task.status === "in_progress").length,
+		tasks,
+		pendingCount: tasks.filter(
+			(task) => task.status === "pending" || task.status === "in_progress",
+		).length,
 		actionableCount: inProgressCount + readyTasks.length,
 		inProgressCount,
 		readyTasks,
@@ -54,104 +70,146 @@ function summarizeTaskState(state: TaskStateEntry): TaskToolState {
 }
 
 export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
-	const states = new WeakMap<ExtensionContext["sessionManager"], TaskStateEntry>();
+	const states = new WeakMap<ExtensionContext["sessionManager"], TaskOwner>();
 	let onTaskChange: TaskChangeCallback | undefined;
-	const stateFor = (context: ExtensionContext): TaskStateEntry => {
+	const stateFor = (context: ExtensionContext): TaskOwner => {
+		const sessionId = context.sessionManager.getSessionId();
 		const existing = states.get(context.sessionManager);
-		if (existing) return existing;
-		const created = { tasks: [], nextId: 1 };
+		if (existing && existing.sessionId === sessionId) return existing;
+		const created: TaskOwner = {
+			sessionId,
+			controller: createTaskSession(),
+			ready: false,
+		};
 		states.set(context.sessionManager, created);
 		return created;
 	};
-	const notifyChange = (context: ExtensionContext, state: TaskStateEntry): void => {
+	// Readiness is cleared BEFORE restoration; only a successful restore marks the owner ready.
+	const ensureReady = (
+		context: ExtensionContext,
+		owner: TaskOwner,
+	): TaskRestoreResult => {
+		owner.ready = false;
 		try {
-			onTaskChange?.([...state.tasks], context);
+			const manager = context.sessionManager;
+			const restored = owner.controller.restore(
+				manager.getBranch(),
+				manager.getEntries(),
+			);
+			if (!restored.ok) return restored;
+			owner.ready = true;
+			return { ok: true };
+		} catch {
+			return {
+				ok: false,
+				error: "Task owner/history unavailable; requested branch not restored.",
+			};
+		}
+	};
+	const readyOwner = (
+		context: ExtensionContext,
+	):
+		| { owner: TaskOwner; failure?: undefined }
+		| { owner?: undefined; failure: TaskOperation } => {
+		const owner = stateFor(context);
+		if (owner.ready) return { owner };
+		const restored = ensureReady(context, owner);
+		if (!restored.ok)
+			return {
+				failure: taskOperationFailure(
+					owner.controller.snapshot(),
+					restored.error,
+				),
+			};
+		return { owner };
+	};
+	const notifyChange = (context: ExtensionContext, state: TaskState): void => {
+		try {
+			onTaskChange?.(
+				state.tasks.map((task) => ({ ...task })),
+				context,
+			);
 		} catch (error) {
-			console.error(`[oh-my-pi task] Task change callback failed: ${error instanceof Error ? error.message : String(error)}`);
+			console.error(
+				`[oh-my-pi task] Task change callback failed: ${error instanceof Error ? error.message : String(error)}`,
+			);
 		}
 	};
-	const reloadState = (context: ExtensionContext): void => {
-		let loaded: TaskStateEntry | undefined;
-		for (const entry of context.sessionManager.getBranch()) {
-			const state = stateFromEntry(entry);
-			if (state) loaded = state;
-		}
-		const installed = loaded
-			? { tasks: cloneTasks(loaded.tasks), nextId: loaded.nextId }
-			: { tasks: [], nextId: 1 };
-		states.set(context.sessionManager, installed);
-		notifyChange(context, installed);
+	const persist = (snapshot: TaskState): void => {
+		pi.appendEntry(TASK_STATE_ENTRY_TYPE, snapshot);
 	};
-	const persistState = (state: TaskStateEntry): void => {
-		pi.appendEntry(TASK_ENTRY_TYPE, { tasks: cloneTasks(state.tasks), nextId: state.nextId } satisfies TaskStateEntry);
+	// Notification happens after the commit; it must never corrupt or undo the committed result.
+	const notifyAfterCommit = (
+		context: ExtensionContext,
+		owner: TaskOwner,
+		operation: TaskOperation,
+	): void => {
+		try {
+			notifyChange(context, owner.controller.snapshot());
+		} catch {
+			const first = operation.result.content[0];
+			if (first?.type === "text")
+				first.text +=
+					"\nTask changes were committed, but task notification failed.";
+		}
+	};
+	const restoreForLifecycle = (context: ExtensionContext): void => {
+		try {
+			const owner = stateFor(context);
+			const restored = ensureReady(context, owner);
+			if (!restored.ok) {
+				console.error(`[oh-my-pi task] ${restored.error}`);
+				return;
+			}
+			notifyChange(context, owner.controller.snapshot());
+		} catch (error) {
+			console.error(
+				`[oh-my-pi task] Task restore failed: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
 	};
 
-	pi.on("session_start", (_event, context) => reloadState(context));
-	pi.on("session_tree", (_event, context) => reloadState(context));
+	pi.on("session_start", (_event, context) => restoreForLifecycle(context));
+	pi.on("session_tree", (_event, context) => restoreForLifecycle(context));
 	pi.on("session_shutdown", (_event, context) => {
 		states.delete(context.sessionManager);
 	});
 
 	pi.registerTool({
-		name: "task",
-		label: "Task",
-		description:
-			"Manage the tracked task list. " +
-			"Actions: list — show all tasks; add (text) — add a new pending task; " +
-			"start (id) — mark task as in progress; done (id) — mark task as completed; " +
-			"expire (id, reason) — mark task as stale/no longer relevant and explain why; clear — remove all tasks; " +
-			"update_deps (id, blocks?, blockedBy?) — set dependency edges. " +
-			"Tasks can have dependencies: a [blocked] task cannot start until its blockers are done/expired. " +
-			"The loop will restart automatically if any tasks remain in_progress or ready when you stop.",
-		promptSnippet: "Manage the tracked task list.",
-		parameters: TaskParams,
-		async execute(_toolCallId, params, _signal, _onUpdate, context) {
-			const state = stateFor(context);
-			const previous = { tasks: cloneTasks(state.tasks), nextId: state.nextId };
-			const action = params.action;
-			const mutating = action !== "list";
-			let result: AgentToolResult<TaskDetails>;
-			switch (action) {
-				case "list": result = executeList(state.tasks, state.nextId); break;
-				case "add": {
-					const added = executeAdd(params.text, state.tasks, state.nextId);
-					if ("nextId" in added) {
-						state.nextId = added.nextId;
-						result = added.result;
-					} else result = added;
-					break;
-				}
-				case "start": result = executeStart(params.id, state.tasks, state.nextId); break;
-				case "done": result = executeDoneOrExpire("done", params.id, undefined, state.tasks, state.nextId); break;
-				case "expire": result = executeDoneOrExpire("expire", params.id, params.reason, state.tasks, state.nextId); break;
-				case "update_deps": result = executeUpdateDeps(params, state.tasks, state.nextId); break;
-				case "clear": state.tasks = []; state.nextId = 1; result = executeClear(); break;
-				default: {
-					const error = `unknown action: ${String(action)}`;
-					return {
-						content: [{ type: "text", text: `Error: ${error}` }],
-						details: { action: "list", tasks: [...state.tasks], nextId: state.nextId, error } as TaskDetails,
-					};
-				}
-			}
-			if (mutating) {
-				try {
-					persistState(state);
-				} catch (error) {
-					states.set(context.sessionManager, previous);
-					console.error(`[oh-my-pi task] Failed to persist task state: ${error instanceof Error ? error.message : String(error)}`);
-					throw error;
-				}
-				notifyChange(context, state);
-			}
-			return result;
-		},
+		...createTaskToolDefinition((input, context) => {
+			const ready = readyOwner(context);
+			if (ready.failure) return ready.failure;
+			const operation = ready.owner.controller.execute(input, persist);
+			if (operation.changed) notifyAfterCommit(context, ready.owner, operation);
+			return operation;
+		}),
 		renderCall: renderTaskCall,
-		renderResult: renderTaskResult,
 	});
 
 	return {
-		getTaskState: (context) => summarizeTaskState(stateFor(context)),
-		setOnTaskChange: (callback) => { onTaskChange = callback; },
+		// Read-only consumers keep the retained snapshot; they never mutate or restore.
+		getTaskState: (context) =>
+			summarizeTaskState(stateFor(context).controller.snapshot()),
+		setOnTaskChange: (callback) => {
+			onTaskChange = callback;
+		},
+		runHumanTaskCommand: (args, context) => {
+			try {
+				const ready = readyOwner(context);
+				if (ready.failure) return ready.failure.result;
+				const owner = ready.owner;
+				const operation = owner.controller.executeHuman(args, persist);
+				if (operation.changed) {
+					try {
+						notifyChange(context, owner.controller.snapshot());
+					} catch {
+						// Committed already; notification is presentation only.
+					}
+				}
+				return operation.result;
+			} catch {
+				return taskBoundaryFailure();
+			}
+		},
 	};
 }

@@ -74,6 +74,9 @@ describe("task command", () => {
 				return [task(1, "full\ntext")];
 			},
 			setWidgetVisibility: (_ctx, visible) => visibility.push(visible),
+			runHumanTaskCommand: () => {
+				throw new Error("human command routing is covered by task-system-integration tests");
+			},
 		});
 		if (!handler) throw new Error("task command was not registered");
 		const context = {} as ExtensionCommandContext;

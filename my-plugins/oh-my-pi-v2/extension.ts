@@ -13,6 +13,7 @@ import { registerCustomCompaction } from "./hooks/custom-compaction.js";
 import { registerEditErrorRecovery } from "./hooks/edit-error-recovery.js";
 import { registerRulesInjector } from "./hooks/rules-injector.js";
 import { registerSisyphusPrompt } from "./hooks/sisyphus-prompt.js";
+import { registerTaskGate } from "./hooks/task-gate.js";
 import { registerToolOutputTruncator } from "./hooks/tool-output-truncator.js";
 import { registerUltraworkPrompt } from "./hooks/ultrawork-prompt.js";
 import { ensureSubagentIntegration } from "./subagent-links.js";
@@ -67,7 +68,7 @@ export default async function ohMyPiV2(pi: ExtensionAPI): Promise<void> {
 		config = {};
 	}
 
-	const { getTaskState, setOnTaskChange } = registerTaskTool(pi);
+	const { getTaskState, setOnTaskChange, runHumanTaskCommand } = registerTaskTool(pi);
 	setOnTaskChange((tasks, context) => {
 		try {
 			renderTaskWidget(context, tasks, undefined, true);
@@ -77,6 +78,8 @@ export default async function ohMyPiV2(pi: ExtensionAPI): Promise<void> {
 			);
 		}
 	});
+
+	registerTaskGate(pi, getTaskState);
 
 	if (config.boulder_enabled !== false) registerBoulder(pi, getTaskState);
 	registerSisyphusPrompt(pi, config, agentsDirectory);
@@ -93,6 +96,7 @@ export default async function ohMyPiV2(pi: ExtensionAPI): Promise<void> {
 	registerTaskCommand(pi, {
 		getTasks: (context) => getTaskState(context).tasks,
 		setWidgetVisibility: (context, visible) => renderTaskWidget(context, getTaskState(context).tasks, visible),
+		runHumanTaskCommand,
 	});
 
 	pi.on("session_start", async (_event, context) => {

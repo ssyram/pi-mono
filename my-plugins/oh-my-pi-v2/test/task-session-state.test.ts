@@ -39,6 +39,8 @@ function taskEntry(id: string, tasks: Task[], nextId: number): SessionEntry {
 	} as SessionEntry;
 }
 
+let sessionCounter = 0;
+
 function session(branchEntries: SessionEntry[], allEntries = branchEntries): {
 	context: ExtensionContext;
 	branch: SessionEntry[];
@@ -46,7 +48,10 @@ function session(branchEntries: SessionEntry[], allEntries = branchEntries): {
 } {
 	const branch = [...branchEntries];
 	let allReads = 0;
+	sessionCounter += 1;
+	const sessionId = `session-${sessionCounter}`;
 	const sessionManager = {
+		getSessionId: () => sessionId,
 		getBranch: () => branch,
 		getEntries: () => {
 			allReads += 1;
@@ -93,17 +98,20 @@ describe("task session state", () => {
 		assert.deepEqual(handle.getTaskState(first.context).tasks.map((item) => item.id), [1]);
 		assert.deepEqual(handle.getTaskState(second.context).tasks.map((item) => item.id), [2]);
 		assert.deepEqual(handle.getTaskState(empty.context).tasks, []);
-		assert.equal(first.allReadCount(), 0);
-		assert.equal(empty.allReadCount(), 0);
+		// Restoration consults the session history once to raise the allocation floor (sibling nextId 100).
+		assert.equal(first.allReadCount(), 1);
+		assert.equal(empty.allReadCount(), 1);
 
 		if (!tool) throw new Error("task tool was not registered");
 		await tool.execute("call", { action: "add", text: "first second task" }, undefined, undefined, first.context);
-		assert.deepEqual(handle.getTaskState(first.context).tasks.map((item) => item.id), [1, 2]);
+		// The sibling snapshot in session history raises the allocation floor, so the new task takes id 100.
+		assert.deepEqual(handle.getTaskState(first.context).tasks.map((item) => item.id), [1, 100]);
 		assert.deepEqual(handle.getTaskState(second.context).tasks.map((item) => item.id), [2]);
 		assert.deepEqual(handle.getTaskState(empty.context).tasks, []);
 		assert.equal(changes.at(-1)?.context, first.context);
-		assert.deepEqual(changes.at(-1)?.tasks.map((item) => item.id), [1, 2]);
+		assert.deepEqual(changes.at(-1)?.tasks.map((item) => item.id), [1, 100]);
 		assert.equal(appended.at(-1)?.customType, "omp-task-state");
+		assert.equal(first.allReadCount(), 1);
 
 		first.branch.splice(0);
 		await emit("session_tree", first.context);
