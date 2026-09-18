@@ -1,0 +1,8 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.3.5/schema.json",
+	"root": false,
+	"vcs": { "enabled": false },
+	"formatter": { "enabled": true, "indentStyle": "tab", "lineWidth": 120 },
+	"linter": { "enabled": true, "rules": { "recommended": true } },
+	"files": { "includes": ["**/*.ts", "**/*.mjs", "**/*.json"] }
+}

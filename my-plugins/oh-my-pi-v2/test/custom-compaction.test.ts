@@ -73,10 +73,18 @@ describe("custom compaction context", () => {
 			eventContext,
 			(filteredMessages) => {
 				serializedMessages = filteredMessages;
-				return filteredMessages.map((message) => JSON.stringify(message.content)).join("\n");
+				return filteredMessages
+					.map((message) => {
+						assert.ok("content" in message);
+						return JSON.stringify(message.content);
+					})
+					.join("\n");
 			},
 		);
-		const prompt = buildCompactionPrompt(compactionContext.conversationText, compactionContext.taskContext);
+		const prompt = buildCompactionPrompt(
+			compactionContext.conversationText,
+			compactionContext.taskContext,
+		);
 
 		assert.equal(taskReadContext, eventContext);
 		assert.equal(serializedMessages.length, 2);

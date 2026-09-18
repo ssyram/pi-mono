@@ -1,25 +1,13 @@
 import type { Api, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { completeSimple } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, SessionBeforeCompactEvent } from "@earendil-works/pi-coding-agent";
-import { convertToLlm, serializeConversation } from "@earendil-works/pi-coding-agent";
-import { buildCompactionContext } from "./compaction-conversation.js";
-import {
-	extractCompactionFileOperations,
-	formatCompactionFileOperations,
-} from "./compaction-file-operations.js";
-import {
-	buildCompactionPrompt,
-	buildUpdateCompactionPrompt,
-	COMPACTION_SYSTEM_PROMPT,
-} from "./compaction-prompt.js";
+import { COMPACTION_SYSTEM_PROMPT } from "./compaction-prompt.js";
 import type { CompactionTaskStateReader } from "./compaction-task-context.js";
+import { prepareCompactionRequest } from "./prepare-compaction-request.js";
 
 export { buildCompactionPrompt, buildUpdateCompactionPrompt } from "./compaction-prompt.js";
 
-export function registerCustomCompaction(
-	pi: ExtensionAPI,
-	getTaskState: CompactionTaskStateReader,
-): void {
+export function registerCustomCompaction(pi: ExtensionAPI, getTaskState: CompactionTaskStateReader): void {
 	pi.on("session_before_compact", async (event: SessionBeforeCompactEvent, context) => {
 		const clearStatus = (): void => {
 			try {
@@ -48,21 +36,8 @@ export function registerCustomCompaction(
 			}
 
 			const preparation = event.preparation;
-			const maxTokens = Math.floor(0.8 * preparation.settings.reserveTokens);
-			const { conversationText, taskContext } = buildCompactionContext(
-				preparation.messagesToSummarize,
-				getTaskState,
-				context,
-				(messages) => serializeConversation(convertToLlm(messages)),
-			);
-			const prompt = preparation.previousSummary
-				? buildUpdateCompactionPrompt(
-						conversationText,
-						preparation.previousSummary,
-						taskContext,
-						event.customInstructions,
-					)
-				: buildCompactionPrompt(conversationText, taskContext, event.customInstructions);
+			const request = prepareCompactionRequest(event, context, getTaskState);
+			const { prompt, maxTokens } = request;
 			const options: SimpleStreamOptions = {
 				maxTokens,
 				signal: event.signal,
@@ -83,15 +58,13 @@ export function registerCustomCompaction(
 			for (const block of response.content) {
 				if (block.type === "text") summary += block.text;
 			}
+			summary = request.finalizeSummary(summary);
 			if (!summary.trim()) {
 				console.error("[oh-my-pi compact] LLM returned empty summary, falling back to built-in");
 				clearStatus();
 				return undefined;
 			}
 
-			summary += formatCompactionFileOperations(
-				extractCompactionFileOperations(preparation.messagesToSummarize),
-			);
 			clearStatus();
 			return {
 				compaction: {

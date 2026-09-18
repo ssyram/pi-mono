@@ -1,0 +1,28 @@
+{
+	"compilerOptions": {
+		"noEmit": true,
+		"strict": true,
+		"target": "ES2022",
+		"lib": ["ES2022"],
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"types": ["node"],
+		"skipLibCheck": true,
+		"erasableSyntaxOnly": true,
+		"allowImportingTsExtensions": true,
+		"paths": {
+			"@earendil-works/pi-ai": ["./test/compaction-reference-source-api.ts"],
+			"@earendil-works/pi-agent-core": ["../../packages/agent/src/types.ts"],
+			"@earendil-works/pi-telemetry": ["../../packages/telemetry/src/index.ts"]
+		}
+	},
+	"include": [
+		"hooks/compaction-reference-*.ts",
+		"hooks/annotate-compaction-references.ts",
+		"test/compaction-reference-*.ts",
+		"hooks/prepare-compaction-request.ts",
+		"test/prepare-compaction-request*.ts",
+		"hooks/custom-compaction.ts",
+		"test/custom-compaction*.ts"
+	]
+}
