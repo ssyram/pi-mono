@@ -1,5 +1,7 @@
 # Loop 2.0 remediation audit report
 
+> **Historical snapshot** — written during the pre-integration remediation round. Its "not wired" scope statements, static-scan numbers, and test counts (29/8) describe the plugin before the user-approved integration recorded in `decisions.md` D8. Current verification numbers live in the integration commit and `integration-plan.md`.
+
 ## Scope
 
 This report re-checks the four findings from the independent contract review against `detailed-design.md`, the Loop 2.0 source, and the regression tests. The remediation remains confined to `src/v2/`, `test/v2-*.test.ts`, and `docs/ver-2.0/`; it does not wire Loop 2.0 into the existing extension, scheduler, command parser, or tool registration.

@@ -1,5 +1,7 @@
 # Scheduled Wakeup Architecture
 
+> **Superseded by Loop 2.0** — describes the removed Loop 1.x (cwd-shared `jobs.json`) design; kept as history. Current design: [`docs/ver-2.0/`](../ver-2.0/).
+
 ## Goals
 
 - G1: Allow a user or AI agent to schedule one-shot and recurring Pi prompts from slash commands or a tool.

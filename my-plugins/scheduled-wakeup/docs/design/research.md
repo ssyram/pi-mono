@@ -1,5 +1,7 @@
 # Scheduled Wakeup Research
 
+> **Superseded by Loop 2.0** — describes the removed Loop 1.x (cwd-shared `jobs.json`) design; kept as history. Current design: [`docs/ver-2.0/`](../ver-2.0/).
+
 ## Local Pi capabilities
 
 - Extension modules register lifecycle handlers through `pi.on(...)` and commands through `pi.registerCommand(...)`.

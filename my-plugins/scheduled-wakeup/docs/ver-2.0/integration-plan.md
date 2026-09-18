@@ -22,15 +22,16 @@ Covering tests: `test/parse-v2-command.test.ts`, `test/due-poller.test.ts`, `tes
 2. During `session_start`, first call `reconcileSharedRegistrations()` and register `createLoopCommandAutocompleteProvider()` through `ctx.ui.addAutocompleteProvider()`. Pi drops wrappers on reload, so register it every start.
 3. Give only `UserLoopV2Commands` to slash-command parsing. Parse `delete [--force] <definition-id>` explicitly, derive scope from the definition ID, and keep `--force` user-only.
 4. Give only `AiSessionActions` to the AI tool. Its schema omits `scope` and `force`, and runtime rejects both if manually supplied.
-5. A future session-owned poller calls `runDue()`. Delivery goes to Pi only after the core finds an executable definition/index pair.
+5. The due poller (`src/v2/due-poller.ts`) calls `runDue()`. Delivery goes to Pi only after the core finds an executable definition/index pair.
 
 ## Force deletion boundary
 
 Force deletion atomically removes the shared definition and every shared registration-index record. This is immediate shared invalidation: every old remote reference becomes unavailable before its next execution lookup. It is **not** atomic cross-session JSONL deletion. Offline sessions retain stale custom entries until their next `session_start` reconciliation; no implementation may rewrite their transcript files.
 
-## Evidence before wiring
+## Evidence status
 
-- Real Pi session test: custom entries absent from model context.
-- Command/tool tests: shared operations unreachable from AI syntax; `force` rejected by AI.
-- Two real processes with one session ID: one delivery.
-- Reconciliation test after force deletion and a diff review proving no Loop 1.x migration/import.
+- Real Pi session context test: done. Isolated sessions (gpt-5.6-luna and glm-5.3-flash) plus a live in-session test confirmed `scheduled-wakeup/v2/session-state` custom entries never enter model context; only delivered prompts do.
+- Command/tool e2e: done. Real-plugin sessions exercised add/define/available/register/stop/delete, AI tool add/list, and structural absence of `scope` in the tool schema.
+- Two real processes racing one registration: not yet run as a two-process e2e. Covered by `v2-execution.test.ts`, which drives two independently constructed cores for the same session through the same real `proper-lockfile` lock root and proves one gets `locked`.
+- Reconciliation after force deletion: covered by `v2-shared-delete.test.ts` and the `session_start` wiring test in `extension.test.ts`.
+- No Loop 1.x migration or import: verified by static scans; v1 sources were deleted outright.

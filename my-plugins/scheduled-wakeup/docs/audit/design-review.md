@@ -1,5 +1,7 @@
 # Scheduled Wakeup Design Review Resolution
 
+> **Superseded by Loop 2.0** — records the removed Loop 1.x review; kept as history. Current audit trail: [`docs/ver-2.0/audit/`](../ver-2.0/audit/).
+
 ## Source
 
 Independent background reviewer output: `.pi-subagents/artifacts/outputs/325719a3-09bf-455d-a877-d8eb98a369fd/my-plugins/scheduled-wakeup/docs/audit/design-review.md`.

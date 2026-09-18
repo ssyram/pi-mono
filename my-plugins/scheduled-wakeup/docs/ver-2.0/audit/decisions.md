@@ -40,11 +40,13 @@
 
 **Test:** `v2-shared-delete.test.ts` covers two-session membership, normal blocking, AI force rejection, force invalidation, reconciliation, idempotent retry, and observable ordering.
 
-### D6 — Future-only `/loop` autocomplete
+### D6 — `/loop` autocomplete provider *(superseded by D8)*
 
-**Decision:** Export the Loop-specific wrapper but do not register it. It completes command grammar, scope tokens, active IDs, shared IDs, and force from a runtime source.
+**Decision:** Export the Loop-specific wrapper without registering it. It completes command grammar, scope tokens, active IDs, shared IDs, and force from a runtime source.
 
 **Why:** It provides the same forced-Tab and fallback behavior as Impression without implicitly changing Loop 1.x command registration.
+
+**Superseded:** D8's integration registers this provider on every `session_start` from `src/extension.ts`; the "do not register" half no longer applies. The provider itself is unchanged.
 
 **Test:** `v2-command-autocomplete.test.ts` covers normal/forced suggestions, fuzzy match, dynamic candidates, apply, and fallback.
 
@@ -66,7 +68,7 @@
 
 ## Explicit non-decisions
 
-- Do not add Loop 2.0 imports, commands, tools, scheduler hooks, timers, or extension wiring. The current task is core-only by contract.
+- *(superseded by D8)* Do not add Loop 2.0 imports, commands, tools, scheduler hooks, timers, or extension wiring. The current task is core-only by contract.
 - Do not change the behavior of a missing definition during execution: it remains `unavailable` and does not advance local progress.
 - Do not repair unrelated root TypeScript diagnostics, global staged content, or the plugin's untracked Git provenance. They are verification constraints outside this remediation.
-- Do not stage or commit any files.
+- *(superseded by user approval)* Do not stage or commit any files.

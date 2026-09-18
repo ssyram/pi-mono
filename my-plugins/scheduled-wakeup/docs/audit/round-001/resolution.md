@@ -1,5 +1,7 @@
 # SCCO Round 001 Resolution
 
+> **Superseded by Loop 2.0** — records the removed Loop 1.x review; kept as history. Current audit trail: [`docs/ver-2.0/audit/`](../../ver-2.0/audit/).
+
 ## Effective findings
 
 - High: missing lifecycle/scheduler/persistence tests for the `pi -p`/subagent lifecycle and timer semantics.

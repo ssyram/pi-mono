@@ -22,12 +22,19 @@ Pi session JSONL            |
                                   |                |
                                   |                +--> definition + registration-index transaction
                                   +--> registration/task locks --> executors --> delivery callback
+
+src/extension.ts (runtime wiring)
+       +--> session_start: core construction, reconciliation, autocomplete registration, poller gating
+       +--> src/loop-command-handler.ts --> UserLoopV2Commands  (/loop command dispatch)
+       +--> src/v2/register-v2-tool.ts --> AiSessionActions     (scheduled_wakeup tool)
+       +--> src/v2/due-poller.ts -----> core.runDue()           (adaptive timer + followUp delivery)
+       +--> src/v2/parse-v2-command.ts / src/v2/format-list.ts (command grammar / human-readable output)
 ```
 
 - `definition-store.ts` owns one scope catalog transaction: definition create/get/list, index membership, and ordinary/force delete all share one file lock and atomic replace.
 - `registration-store.ts` owns only session-entry references and progress.
 - `loop-core.ts` coordinates catalog-first registration, session-first unregistration, current-session cleanup after delete, and reconciliation.
-- `loop-command-autocomplete.ts` exports a future slash-command wrapper; it has no runtime registration.
+- `loop-command-autocomplete.ts` provides the `/loop` argument provider; `src/extension.ts` registers it every `session_start` (Pi drops wrappers on reload).
 
 ## Durable structures
 

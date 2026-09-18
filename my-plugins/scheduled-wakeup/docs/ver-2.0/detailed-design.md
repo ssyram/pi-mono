@@ -40,9 +40,16 @@ type SharedDeleteResult =
 - AI `delete(registrationId)` uses the ordinary rule for that registration's referenced definition. It rejects any `force` or `scope` input.
 - After a successful local delete, this session removes its matching local registration. Other sessions retain old snapshots until `reconcileSharedRegistrations()` runs; their executors return `unavailable` immediately because the catalog definition/index is gone.
 
-## Future command autocomplete
+## Command autocomplete
 
-`createLoopCommandAutocompleteProvider(current, source)` wraps Pi's current autocomplete provider. It claims forced Tab after `/loop `, uses case-insensitive subsequence matching, and delegates unsupported positions to the wrapped provider. Candidates: top-level `add`, `define`, `available`, `register`, `list`, `stop`, `delete`; shared scopes; active IDs; `--force`; and shared definition IDs. It is exported only.
+`createLoopCommandAutocompleteProvider(current, source)` wraps Pi's current autocomplete provider. It claims forced Tab after `/loop `, uses case-insensitive subsequence matching, and delegates unsupported positions to the wrapped provider. Candidates: top-level `add`, `define`, `available`, `register`, `unregister`, `list`, `stop`, `delete`, `run`, `help`; shared scopes; active IDs (unregister offers only `registration:*` IDs); `--force`; and shared definition IDs. `src/extension.ts` registers it on every `session_start`.
+
+## Runtime wiring
+
+- `parse-v2-command.ts` parses the full `/loop` grammar (see README for the surface) into the dispatch union; `interval`/`delay` reuse `src/parse-duration.ts`, `at` expressions reuse `src/parse-at-time.ts` and require the `--` prompt separator; `delete` derives scope from the ID prefix and accepts `--force` anywhere in the token list.
+- `due-poller.ts` arms one timer at the nearest active `nextRunAt`, chunks waits beyond `MAX_TIMEOUT` (~24.8 days), runs `core.runDue(deliver)` on fire, and re-arms. Non-`executed` outcomes (failed/locked/unavailable/not-due-due-to-race) arm the next timer no sooner than 60s later to avoid hot-looping. Handles are unref'd unless `PI_SCHEDULED_WAKEUP_RUNNER=1`. `extension.ts` calls `reschedule()` after every mutating command and tool action.
+- `register-v2-tool.ts` converts exactly one of `delay`/`at`/`interval` strings into a `TaskSchedule` before dispatching to `AiSessionActions`; `scope` and `force` are absent from the schema and rejected at runtime if supplied.
+- `loop-command-handler.ts` implements `run <id>` as immediate delivery without progress advancement (a registration requires a resolvable definition), and `stop all` as sequential `cancelActive` over the current active set.
 
 ## Correctness boundaries
 

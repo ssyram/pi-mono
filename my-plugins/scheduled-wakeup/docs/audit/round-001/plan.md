@@ -1,5 +1,7 @@
 # SCCO Round 001 Plan
 
+> **Superseded by Loop 2.0** — reviews the removed Loop 1.x design; kept as history. Current audit trail: [`docs/ver-2.0/audit/`](../../ver-2.0/audit/).
+
 ## Review object
 
 - `my-plugins/scheduled-wakeup/docs/design/principles.md`

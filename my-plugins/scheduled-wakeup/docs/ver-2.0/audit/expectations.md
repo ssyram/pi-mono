@@ -24,7 +24,7 @@
 | exclusion and restoration | `v2-execution.test.ts` uses two independently constructed cores for the same session, proves one gets `locked`, and reconstructs completed progress |
 | shared index and deletion | `v2-shared-delete.test.ts` covers two sessions, conservative failed registration append, ordinary delete blocking, force invalidation, and reconciliation |
 | autocomplete | `v2-command-autocomplete.test.ts` covers top-level, scope, dynamic IDs, force, loose matching, forced Tab, and fallback |
-| no old-loop wiring | changed-file review contains only `src/v2/`, `test/v2-*.test.ts`, and `docs/ver-2.0/` |
+| no v1 dual-track | v1 sources are deleted; all runtime wiring is confined to `src/extension.ts`, `src/loop-command-handler.ts`, and `src/v2/` adapters |
 
 ## D — acceptance boundaries
 
@@ -38,4 +38,4 @@ The review must also reject a lock that is released before delivery, a state upd
 2. Run the three v2 tests directly, then all scheduled-wakeup tests directly through Node with `tsx`.
 3. Run `npx tsc -p my-plugins/scheduled-wakeup/tsconfig.json` and root `npm run check`.
 4. Review the diff against the non-target list in `integration-plan.md`.
-5. Confirm `git diff --cached --name-only` is empty; this task does not stage or commit files.
+5. The plugin directory is tracked in Git; review the committed diff for boundary claims instead of relying on untracked-file static inspection.

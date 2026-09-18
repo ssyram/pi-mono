@@ -1,5 +1,7 @@
 # Scheduled Wakeup Principles
 
+> **Superseded by Loop 2.0** — describes the removed Loop 1.x (cwd-shared `jobs.json`) design; kept as history. Current design: [`docs/ver-2.0/`](../ver-2.0/).
+
 ## Core intent
 
 - Pursue: a small Pi extension that can schedule prompts to run later or repeatedly while Pi is running.

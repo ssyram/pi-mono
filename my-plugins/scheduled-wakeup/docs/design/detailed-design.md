@@ -1,5 +1,7 @@
 # Scheduled Wakeup Detailed Design
 
+> **Superseded by Loop 2.0** — describes the removed Loop 1.x (cwd-shared `jobs.json`) design; kept as history. Current design: [`docs/ver-2.0/`](../ver-2.0/).
+
 ## Scope
 
 Implement a Pi extension package at `my-plugins/scheduled-wakeup/` with `/loop`, an AI-callable `scheduled_wakeup` tool, and a persisted in-process scheduler shared by both entrypoints.
