@@ -1,8 +1,8 @@
 ---
 name: oracle
 description: Read-only architecture consultant for debugging hard problems and high-difficulty design.
-model: claude-opus-4-6
-tools: read, bash, grep, find, ls
+model: openai-codex/gpt-5.6-sol
+tools: read, bash, grep, find, ls, task
 maxSubagentDepth: 0
 thinking: high
 # mode: subagent (original oh-my-pi mode)

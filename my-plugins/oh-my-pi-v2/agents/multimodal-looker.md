@@ -1,8 +1,8 @@
 ---
 name: multimodal-looker
 description: Analyzes media files (PDFs, images, diagrams) that require interpretation beyond raw text.
-model: claude-sonnet-4-6
-tools: read, bash, grep, find, ls
+model: openai-codex/gpt-5.6-terra
+tools: read, bash, grep, find, ls, task
 maxSubagentDepth: 0
 # mode: subagent (original oh-my-pi mode)
 ---

@@ -1,8 +1,8 @@
 ---
 name: explore
 description: Codebase search specialist that finds files, patterns, and implementations across the project.
-model: gpt-5.4-nano
-tools: read, bash, grep, find, ls
+model: openai-codex/gpt-5.6-luna
+tools: read, bash, grep, find, ls, task
 maxSubagentDepth: 0
 # mode: subagent (original oh-my-pi mode)
 ---

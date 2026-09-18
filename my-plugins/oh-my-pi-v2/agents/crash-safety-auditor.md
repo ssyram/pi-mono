@@ -1,8 +1,8 @@
 ---
 name: crash-safety-auditor
 description: Audits crash safety and error handling using Hoare logic
-model: anthropic/claude-sonnet-4-6
-tools: read,bash,write
+model: openai-codex/gpt-5.6-terra
+tools: read,bash,write,task
 maxSubagentDepth: 0
 thinking: enabled
 ---

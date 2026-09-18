@@ -1,8 +1,8 @@
 ---
 name: metis
 description: Pre-planning consultant that analyzes requests to identify hidden intentions, ambiguities, and AI failure points.
-model: claude-opus-4-6
-tools: read, bash, grep, find, ls
+model: openai-codex/gpt-5.6-sol
+tools: read, bash, grep, find, ls, task
 maxSubagentDepth: 0
 # mode: subagent (original oh-my-pi mode)
 ---
