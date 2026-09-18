@@ -1,6 +1,6 @@
 # Task-system patch — principles
 
-Status: dormant infrastructure implemented and directly tested; runtime integration NOT authorized. Evidence and remaining interface prerequisites are in [verification.md](verification.md) and [integration-plan.md](integration-plan.md).
+Status: INTEGRATED 2026-09-18 and live-accepted; shipped in commits cdbf3369 and 4c561626b. Evidence: [verification.md](verification.md); shipped interfaces: [integration-plan.md](integration-plan.md).
 Owner: oh-my-pi-v2. Existing `docs/task-list-v0.2.0.md` describes the live system and is not replaced in this gate.
 
 ## Q.I — accepted intentions

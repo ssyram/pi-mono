@@ -1,6 +1,6 @@
 # Task-system exception safety — authorized reasoning scope
 
-Status: reasoning and necessary dormant fixes authorized; runtime integration remains NOT authorized.
+Status: COMPLETED 2026-09-18. The authorized analysis and repairs were delivered and are archived in [HOARE-EXCEPTION-SAFETY.md](HOARE-EXCEPTION-SAFETY.md) plus [EXCEPTION-SAFETY-DELTA.md](EXCEPTION-SAFETY-DELTA.md); the contained boundaries are now part of the integrated runtime (commit cdbf3369).
 
 ## Authority and purpose
 

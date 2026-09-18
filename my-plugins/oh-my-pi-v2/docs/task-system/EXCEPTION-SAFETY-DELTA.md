@@ -1,6 +1,6 @@
 # Exception-safety repair delta — implementer reasoning, NOT a second audit
 
-Status: approved dormant repairs implemented and directly tested. Runtime registration/integration remains NOT authorized. The independent original analysis is archived unchanged (apart from an explicit archive banner) in [HOARE-EXCEPTION-SAFETY.md](HOARE-EXCEPTION-SAFETY.md). It describes the BEFORE-FIX 85 bodies. This document supplies the implementation delta and final 87-body inventory, not an independent post-fix endorsement or machine proof.
+Status: repairs delivered 2026-09-18 and now part of the integrated runtime (commit cdbf3369); latest full run 105/105 tests. This remains implementer reasoning, not an independent post-fix endorsement. The independent original analysis is archived unchanged (apart from an explicit archive banner) in [HOARE-EXCEPTION-SAFETY.md](HOARE-EXCEPTION-SAFETY.md). It describes the BEFORE-FIX 85 bodies. This document supplies the implementation delta and final 87-body inventory, not an independent post-fix endorsement or machine proof.
 
 ## Disposition selected by the parent
 

@@ -1,6 +1,6 @@
 # Task-system patch — dormant architecture
 
-Status: dormant infrastructure implemented and directly tested. Runtime registration and interface changes remain NOT APPROVED. See [verification.md](verification.md) and [integration-plan.md](integration-plan.md).
+Status: INTEGRATED 2026-09-18 and live-accepted; shipped in commits cdbf3369 (runtime wiring) and 4c561626b (profile prerequisites). The dormant-era statements below are the design record; where they say runtime changes are not yet applied, read them as the pre-integration history. See [verification.md](verification.md) and [integration-plan.md](integration-plan.md).
 
 The subsequent [exception-safety-scope.md](exception-safety-scope.md) governs the delivered boundary repairs. [HOARE-EXCEPTION-SAFETY.md](HOARE-EXCEPTION-SAFETY.md) preserves the independent BEFORE-FIX analysis; [EXCEPTION-SAFETY-DELTA.md](EXCEPTION-SAFETY-DELTA.md) records implementer repair reasoning, the complete final function inventory, and remaining caller obligations. No independent post-fix audit or deployed no-throw guarantee is claimed.
 
