@@ -130,6 +130,7 @@ For each built-in provider, pi maintains a list of tool-capable models. Configur
 - Together AI
 - Baseten
 - Kimi For Coding
+- Meta
 - MiniMax
 - Xiaomi MiMo
 - Xiaomi MiMo Token Plan (China)
@@ -195,6 +196,7 @@ Type `/` in the editor to trigger commands. [Extensions](#extensions) can regist
 | `/export [file]` | Export session to HTML or JSONL file |
 | `/import <file>` | Import and resume a session from a JSONL file |
 | `/share` | Upload as private GitHub gist with shareable HTML link |
+| `/bug [description]` | Report a bug to the Pi developers; see [Sessions](docs/sessions.md#reporting-bugs) |
 | `/reload` | Reload keybindings, extensions, skills, prompts, themes, and context files |
 | `/hotkeys` | Show all keyboard shortcuts |
 | `/changelog` | Display version history |
@@ -255,7 +257,7 @@ Use `/session` in interactive mode to see the current session ID before reusing 
 
 ### Branching
 
-**`/tree`** - Navigate the session tree in-place. Select any previous point, continue from there, and switch between branches. All history preserved in a single file.
+**`/tree`** - Navigate the session tree in-place. Select any previous point, continue from there, and switch between branches. All history preserved in a single file. Selecting a point while the model is responding cancels that response. Navigation cannot proceed while compaction or another tree navigation is still running; wait for it to finish and retry.
 
 <p align="center"><img src="docs/images/tree-view.png" alt="Tree View" width="600"></p>
 
@@ -677,8 +679,6 @@ pi --thinking high "Solve this complex problem"
 | `PI_CODING_AGENT_DIR` | Override config directory (default: `~/.pi/agent`) |
 | `PI_CODING_AGENT_SESSION_DIR` | Override session storage directory (overridden by `--session-dir`) |
 | `PI_PACKAGE_DIR` | Override package directory (useful for Nix/Guix where store paths tokenize poorly) |
-| `PI_SERVER_DIR` | Override experimental server profile and socket directory (default: `~/.pi/server`) |
-| `PI_SERVER_ID` | Select the logical experimental server ID when `--server-id` is omitted |
 | `PI_OFFLINE` | Disable startup network operations, including update checks, package update checks, and install/update telemetry |
 | `PI_SKIP_VERSION_CHECK` | Skip the Pi version update check at startup. This prevents the `pi.dev` latest-version request |
 | `PI_TELEMETRY` | Override install/update telemetry and provider attribution headers. Use `1`/`true`/`yes` to enable or `0`/`false`/`no` to disable. This does not disable update checks |

@@ -1,6 +1,10 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { AltScreenSearchComponent, findAltScreenSearchMatches } from "../src/alt-screen-search.ts";
+import {
+	AltScreenSearchComponent,
+	AltScreenSearchIndex,
+	findAltScreenSearchMatches,
+} from "../src/alt-screen-search.ts";
 import { HStack } from "../src/components/h-stack.ts";
 import { Image } from "../src/components/image.ts";
 import { MouseRegion } from "../src/components/mouse-region.ts";
@@ -269,6 +273,22 @@ describe("TuiAltScreen", () => {
 		tui.stop();
 	});
 
+	it("scrolls faster while Alt is held during wheel input", async () => {
+		const terminal = new VirtualTerminal(20, 4);
+		const tui = new TuiAltScreen(terminal);
+		const text = new Text(Array.from({ length: 12 }, (_, index) => `line ${index + 1}`).join("\n"), 0, 0);
+		tui.addChild(text);
+		tui.start();
+		await terminal.waitForRender();
+		assert.strictEqual(tui.viewportTop, 8);
+
+		// Alt modifier sets bit 8 on the wheel button (72 = 64 + 8).
+		terminal.sendInput("\x1b[<72;1;1M");
+		await terminal.waitForRender();
+		assert.strictEqual(tui.viewportTop, 3);
+		tui.stop();
+	});
+
 	it("does not vertically redispatch misses through horizontal layout containers", async () => {
 		const terminal = new VirtualTerminal(20, 2);
 		const tui = new TuiAltScreen(terminal);
@@ -512,6 +532,38 @@ describe("TuiAltScreen", () => {
 				],
 			},
 		]);
+	});
+
+	it("maps normalized ASCII and Unicode search matches back to rendered columns", () => {
+		assert.deepStrictEqual(findAltScreenSearchMatches(["\x1b[31mfoo  bar\x1b[0m", "A界🙂éZ"], "oo   bar\nA界🙂é"), [
+			{
+				segments: [
+					{ row: 0, startCol: 1, endCol: 3 },
+					{ row: 0, startCol: 5, endCol: 8 },
+					{ row: 1, startCol: 0, endCol: 6 },
+				],
+			},
+		]);
+	});
+
+	it("reuses indexed transcript matches until the query or rendered lines change", () => {
+		const index = new AltScreenSearchIndex();
+		const initial = index.search(["alpha needle", "omega"], "needle");
+		assert.strictEqual(initial.changed, true);
+		assert.strictEqual(initial.matches.length, 1);
+
+		const cached = index.search(["alpha needle", "omega"], "needle");
+		assert.strictEqual(cached.changed, false);
+		assert.strictEqual(cached.matches, initial.matches);
+
+		const changedQuery = index.search(["alpha needle", "omega"], "omega");
+		assert.strictEqual(changedQuery.changed, true);
+		assert.notStrictEqual(changedQuery.matches, initial.matches);
+		assert.deepStrictEqual(changedQuery.matches[0]?.segments, [{ row: 1, startCol: 0, endCol: 5 }]);
+
+		const changedLines = index.search(["alpha needle", "no match"], "omega");
+		assert.strictEqual(changedLines.changed, true);
+		assert.deepStrictEqual(changedLines.matches, []);
 	});
 
 	it("renders transcript search with a muted placeholder and right-aligned controls", () => {
@@ -1296,6 +1348,36 @@ describe("TuiAltScreen", () => {
 			"must not emit OSC 52 when a copySelection handler is provided",
 		);
 
+		tui.stop();
+	});
+
+	it("flashes a specific error returned by the injected copySelection handler", async () => {
+		// Regression test for #9618.
+		const terminal = new RecordingTerminal(80, 4);
+		const tui = new TuiAltScreen(terminal, undefined, undefined, {
+			copyOnSelect: false,
+			copySelection: async () => "Clipboard unavailable: install wl-clipboard",
+		});
+		let flashDuration: number | undefined;
+		const flash = tui.flash.bind(tui);
+		tui.flash = (message, durationMs) => {
+			flashDuration = durationMs;
+			flash(message, durationMs);
+		};
+		tui.addChild(new Text("alpha\nbeta\ngamma\ndelta", 0, 0));
+		tui.start();
+		await terminal.waitForRender();
+
+		terminal.sendInput("\x1b[<0;1;1M");
+		terminal.sendInput("\x1b[<32;4;2M");
+		terminal.sendInput("\x1b[<0;4;2m");
+		await terminal.waitForRender();
+		assert.strictEqual(await tui.copyActiveSelectionToClipboard(), false);
+		await terminal.waitForRender();
+
+		assert.ok(terminal.getViewport().some((line) => line.includes("Clipboard unavailable: install wl-clipboard")));
+		assert.ok(terminal.getViewport().every((line) => !line.includes("Copy failed")));
+		assert.strictEqual(flashDuration, 5000);
 		tui.stop();
 	});
 

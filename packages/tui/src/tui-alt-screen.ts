@@ -1,7 +1,7 @@
 import {
 	AltScreenSearchComponent,
+	AltScreenSearchIndex,
 	type AltScreenSearchMatch,
-	findAltScreenSearchMatches,
 	getAltScreenSearchMatchKey,
 } from "./alt-screen-search.ts";
 import { AltScreenFlashContainer } from "./components/alt-screen-flash.ts";
@@ -72,10 +72,12 @@ const END_SYNCHRONIZED_OUTPUT = "\x1b[?2026l";
 const OSC133_ZONE_PREFIX = /^(?:\x1b\]133;[ABC](?:\x07|\x1b\\))+/;
 const OSC133_PROMPT_START = /^\x1b\]133;A(?:\x07|\x1b\\)/;
 const PAGE_SCROLL_OVERLAP = 4;
+const ALT_WHEEL_SCROLL_MULTIPLIER = 5;
 const MAX_CACHED_OFFSCREEN_KITTY_IMAGES = 16;
 const MAX_CACHED_OFFSCREEN_KITTY_TRANSMISSION_BYTES = 32 * 1024 * 1024;
 const MAX_CACHED_OFFSCREEN_KITTY_DECODED_BYTES = 64 * 1024 * 1024;
 const DOUBLE_CLICK_INTERVAL_MS = 500;
+const COPY_ERROR_FLASH_DURATION_MS = 5000;
 // Regular mode delegates double-click selection to the terminal emulator. Fullscreen owns mouse selection,
 // so mirror common terminal word-selection behavior by keeping paths and kebab-case tokens whole.
 const TERMINAL_WORD_SELECTION_JOINERS = new Set(["/", "-"]);
@@ -145,6 +147,7 @@ type SearchSelectionMode = "query" | "retain" | "next" | "previous";
 
 interface ActiveSearch {
 	component: AltScreenSearchComponent;
+	index: AltScreenSearchIndex;
 	overlay?: OverlayHandle;
 	query: string;
 	matches: AltScreenSearchMatch[];
@@ -183,10 +186,11 @@ export interface TuiAltScreenOptions {
 	/** Automatically copy selected text to the clipboard on mouse release (default: true). */
 	copyOnSelect?: boolean;
 	/**
-	 * Copy selected text to the system clipboard. Return `true` on success; the caller flashes
-	 * an error otherwise. When omitted, the selection is copied via an OSC 52 write.
+	 * Copy selected text to the system clipboard. Return `true` on success, an error message to
+	 * display on failure, or `false` for a generic error. When omitted, the selection is copied
+	 * via an OSC 52 write.
 	 */
-	copySelection?: (text: string) => Promise<boolean>;
+	copySelection?: (text: string) => Promise<boolean | string>;
 }
 
 /** Alternate-screen TUI with a scrollable, application-owned viewport. */
@@ -241,7 +245,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 	private readonly openUrl?: (url: string) => void;
 	private readonly onRightClickPaste?: () => void;
 	private copyOnSelect: boolean;
-	private readonly copySelection?: (text: string) => Promise<boolean>;
+	private readonly copySelection?: (text: string) => Promise<boolean | string>;
 
 	constructor(
 		terminal: Terminal,
@@ -502,6 +506,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		);
 		const search: ActiveSearch = {
 			component,
+			index: new AltScreenSearchIndex(),
 			query: "",
 			matches: [],
 			selectedIndex: -1,
@@ -581,15 +586,27 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		}
 
 		const shouldRevealSelection = search.selectionMode !== "retain";
-		const matches = findAltScreenSearchMatches(lines, search.query);
-		const exactIndex = search.selectedKey
-			? matches.findIndex((match) => getAltScreenSearchMatchKey(match) === search.selectedKey)
-			: -1;
+		const result = search.index.search(lines, search.query);
+		const matches = result.matches;
+		search.matches = matches;
+		if (!result.changed && search.selectionMode === "retain") return false;
+
+		const exactIndex = result.changed
+			? search.selectedKey
+				? matches.findIndex((match) => getAltScreenSearchMatchKey(match) === search.selectedKey)
+				: -1
+			: search.selectedIndex;
 		let selectedIndex = -1;
 		if (matches.length > 0) {
 			if (search.selectionMode === "query") {
-				selectedIndex = matches.findIndex((match) => (match.segments[0]?.row ?? 0) >= search.anchorRow);
-				if (selectedIndex < 0) selectedIndex = 0;
+				let low = 0;
+				let high = matches.length;
+				while (low < high) {
+					const middle = low + Math.floor((high - low) / 2);
+					if ((matches[middle]!.segments[0]?.row ?? 0) < search.anchorRow) low = middle + 1;
+					else high = middle;
+				}
+				selectedIndex = low < matches.length ? low : 0;
 			} else if (search.selectionMode === "next") {
 				const baseIndex = exactIndex >= 0 ? exactIndex : Math.min(search.selectedIndex, matches.length - 1);
 				selectedIndex = baseIndex < 0 ? 0 : (baseIndex + 1) % matches.length;
@@ -602,7 +619,6 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 			}
 		}
 
-		search.matches = matches;
 		search.selectedIndex = selectedIndex;
 		search.selectedKey = selectedIndex >= 0 ? getAltScreenSearchMatchKey(matches[selectedIndex]!) : undefined;
 		search.selectionMode = "retain";
@@ -667,7 +683,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		const wheelEvent = this.parseWheelEvent(data);
 		if (wheelEvent) {
 			const event = this.createMouseEvent("wheel", wheelEvent.button, wheelEvent.x, wheelEvent.y, {
-				wheelDelta: wheelEvent.direction * this.wheelScrollLines,
+				wheelDelta: wheelEvent.direction * this.getWheelScrollLines(wheelEvent.button),
 			});
 			const overlay = this.dispatchMouseToOverlay(event);
 			const result = overlay.result ?? (overlay.hit ? undefined : this.dispatchMouseToLayout(event));
@@ -951,8 +967,13 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		return undefined;
 	}
 
+	private getWheelScrollLines(button: number): number {
+		// SGR mouse button codes use bit 3 (value 8) for the Alt modifier.
+		return (button & 8) !== 0 ? this.wheelScrollLines * ALT_WHEEL_SCROLL_MULTIPLIER : this.wheelScrollLines;
+	}
+
 	private routeWheel(event: WheelEvent): void {
-		let remaining = event.direction * this.wheelScrollLines;
+		let remaining = event.direction * this.getWheelScrollLines(event.button);
 		const seen = new Set<ScrollView>();
 		for (const scrollView of this.currentLayout ? getScrollViewsAt(this.currentLayout, event.x, event.y) : []) {
 			seen.add(scrollView);
@@ -1433,8 +1454,12 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		// "Copied!" while leaving the system clipboard untouched (e.g. macOS Terminal.app, tmux
 		// without OSC 52 clipboard passthrough), so only report success when it actually copies.
 		if (this.copySelection) {
-			const ok = await this.copySelection(text);
-			this.flash(ok ? "Copied!" : "Copy failed");
+			const result = await this.copySelection(text);
+			const ok = result === true;
+			this.flash(
+				ok ? "Copied!" : typeof result === "string" ? result : "Copy failed",
+				ok ? undefined : COPY_ERROR_FLASH_DURATION_MS,
+			);
 			return ok;
 		}
 		this.terminal.write(`\x1b]52;c;${Buffer.from(text).toString("base64")}\x07`);
@@ -1480,8 +1505,21 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 			box.clip.x + box.clip.width,
 			scrollbarColumn ?? Number.POSITIVE_INFINITY,
 		);
-		for (let matchIndex = 0; matchIndex < search.matches.length; matchIndex++) {
-			for (const segment of search.matches[matchIndex]!.segments) {
+		const minContentRow = scrollView.scrollTop + minRow - box.rect.y;
+		const maxContentRow = scrollView.scrollTop + maxRow - box.rect.y - 1;
+		let low = 0;
+		let high = search.matches.length;
+		while (low < high) {
+			const middle = low + Math.floor((high - low) / 2);
+			const match = search.matches[middle]!;
+			const lastRow = match.segments[match.segments.length - 1]?.row ?? -1;
+			if (lastRow < minContentRow) low = middle + 1;
+			else high = middle;
+		}
+		for (let matchIndex = low; matchIndex < search.matches.length; matchIndex++) {
+			const match = search.matches[matchIndex]!;
+			if ((match.segments[0]?.row ?? 0) > maxContentRow) break;
+			for (const segment of match.segments) {
 				const row = box.rect.y + segment.row - scrollView.scrollTop;
 				if (row < minRow || row >= maxRow) continue;
 				const startCol = Math.max(minColumn, box.rect.x + segment.startCol);
@@ -1667,9 +1705,24 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		}
 		buffer += preparedKittyScreen.evictedImageDeletion;
 
+		// WezTerm erases intersecting Kitty image cells when a later EL clears a covered row.
+		// Only separate clearing from drawing for WezTerm frames that place images; preserve the
+		// existing interleaved output for text-only frames and every other terminal.
+		const clearRowsBeforeKittyImages =
+			redrawImages &&
+			this.imageProtocol === "kitty" &&
+			screen.some(isImageLine) &&
+			(Boolean(process.env.WEZTERM_PANE) || process.env.TERM_PROGRAM?.toLowerCase() === "wezterm");
+		if (clearRowsBeforeKittyImages) {
+			for (let row = 0; row < height; row++) {
+				if (!fullRedraw && !imagesNeedRedraw && screen[row] === this.previousScreen[row]) continue;
+				buffer += `\x1b[${row + 1};1H\x1b[2K`;
+			}
+		}
+
 		for (let row = 0; row < height; row++) {
 			if (!fullRedraw && !imagesNeedRedraw && screen[row] === this.previousScreen[row]) continue;
-			buffer += `\x1b[${row + 1};1H\x1b[2K${preparedKittyScreen.lines[row] ?? ""}`;
+			buffer += `\x1b[${row + 1};1H${clearRowsBeforeKittyImages ? "" : "\x1b[2K"}${preparedKittyScreen.lines[row] ?? ""}`;
 		}
 
 		if (cursorPos) {
