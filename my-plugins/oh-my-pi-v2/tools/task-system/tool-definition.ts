@@ -33,6 +33,12 @@ export const TaskToolParameters = Type.Object(
 				description: "With add: mark the new task in_progress immediately",
 			}),
 		),
+		startNext: Type.Optional(
+			Type.Union([id, Type.Array(id)], {
+				description:
+					"Task ID or ordered IDs to start after done closes its target (for: done)",
+			}),
+		),
 		blockedBy: Type.Optional(
 			Type.Array(id, {
 				description:
@@ -81,7 +87,7 @@ export function createTaskToolDefinition(
 		name: "task",
 		label: "Task",
 		description:
-			"Manage tasks: list, add, start, done, expire, update_deps. Non-task tools require an unblocked in_progress task; add {text, start: true, blockedBy?} creates and starts in one call. Add also accepts a tasks batch of {key?, text, start?, blockedBy?} where aliases reference batch items and numeric IDs reference existing tasks; batch errors skip only rejected items, edges or starts and report actual effects. List without type returns all open plus the ten latest closed; explicit type (open, closed, in_progress, ready, blocked, done, expired) supports an optional limit. Human-only clear is not a tool action.",
+			"Manage tasks: list, add, start, done, expire, update_deps. Non-task tools require an unblocked in_progress task; add {text, start: true, blockedBy?} creates and starts in one call. Done accepts startNext: ID | ID[] to attempt explicit successors in order after closing its target; failed handoff starts are reported as partial results. Add also accepts a tasks batch of {key?, text, start?, blockedBy?} where aliases reference batch items and numeric IDs reference existing tasks; batch errors skip only rejected items, edges or starts and report actual effects. List without type returns all open plus the ten latest closed; explicit type (open, closed, in_progress, ready, blocked, done, expired) supports an optional limit. Human-only clear is not a tool action.",
 		executionMode: "sequential",
 		parameters: TaskToolParameters,
 		async execute(_id, input, _signal, _update, context) {

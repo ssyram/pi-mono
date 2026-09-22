@@ -27,7 +27,7 @@ export type TaskRequest =
 	| { action: "add"; text: string; start?: boolean; blockedBy?: number[] }
 	| { action: "add"; tasks: TaskCreation[] }
 	| { action: "start"; id: number }
-	| { action: "done"; id: number }
+	| { action: "done"; id: number; startNext?: number | number[] }
 	| { action: "expire"; id: number; reason: string }
 	| {
 			action: "update_deps";

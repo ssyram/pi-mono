@@ -54,6 +54,7 @@ it("preserves immutable valid DAGs over 100 deterministic mixed-operation sequen
 			const before = structuredClone(current);
 			const id = random(current.nextId + 1);
 			const reference = random(current.nextId + 2);
+			const startNext = random(current.nextId) + 1;
 			const choices = [
 				{
 					action: "add",
@@ -66,6 +67,11 @@ it("preserves immutable valid DAGs over 100 deterministic mixed-operation sequen
 				{ action: "update_deps", id, blocks: [reference] },
 				{ action: "start", id },
 				{ action: "done", id },
+				{
+					action: "done",
+					id,
+					startNext: random(2) ? startNext : [startNext, startNext],
+				},
 				{ action: "expire", id, reason: "superseded" },
 				{ action: "list", type: "blocked", limit: 2 },
 			];

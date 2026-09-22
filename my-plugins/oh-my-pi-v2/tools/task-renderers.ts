@@ -3,7 +3,10 @@
  */
 
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
-import type { Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
+import type {
+	Theme,
+	ToolRenderResultOptions,
+} from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { formatTaskContent, statusTag } from "./task-format.js";
 import type { Task, TaskDetails } from "./task-types.js";
@@ -15,15 +18,25 @@ interface TaskRenderArgs {
 	reason?: string;
 	blocks?: number[];
 	blockedBy?: number[];
+	startNext?: number | number[];
 }
 
 export function renderTaskCall(args: TaskRenderArgs, theme: Theme) {
-	let text = theme.fg("toolTitle", theme.bold("task ")) + theme.fg("muted", args.action);
+	let text =
+		theme.fg("toolTitle", theme.bold("task ")) + theme.fg("muted", args.action);
 	if (args.text) text += ` ${theme.fg("dim", `"${args.text}"`)}`;
 	if (args.id !== undefined) text += ` ${theme.fg("accent", `#${args.id}`)}`;
 	if (args.reason) text += ` ${theme.fg("dim", `[${args.reason}]`)}`;
-	if (args.blocks) text += ` ${theme.fg("dim", `blocks=[${args.blocks.join(",")}]`)}`;
-	if (args.blockedBy) text += ` ${theme.fg("dim", `blockedBy=[${args.blockedBy.join(",")}]`)}`;
+	if (args.blocks)
+		text += ` ${theme.fg("dim", `blocks=[${args.blocks.join(",")}]`)}`;
+	if (args.blockedBy)
+		text += ` ${theme.fg("dim", `blockedBy=[${args.blockedBy.join(",")}]`)}`;
+	if (args.startNext !== undefined) {
+		const ids = Array.isArray(args.startNext)
+			? args.startNext
+			: [args.startNext];
+		text += ` ${theme.fg("dim", `startNext=[${ids.join(",")}]`)}`;
+	}
 	return new Text(text, 0, 0);
 }
 
@@ -36,7 +49,8 @@ export function renderTaskResult(
 	// details may be replaced by another plugin (e.g. impression distillation),
 	// so validate the shape at runtime before trusting it.
 	const details =
-		typeof raw === "object" && raw !== null &&
+		typeof raw === "object" &&
+		raw !== null &&
 		typeof (raw as Record<string, unknown>).action === "string" &&
 		Array.isArray((raw as Record<string, unknown>).tasks)
 			? (raw as TaskDetails)
@@ -46,9 +60,11 @@ export function renderTaskResult(
 		const t = result.content[0];
 		return new Text(t?.type === "text" ? t.text : "", 0, 0);
 	}
-	if (details.error) return new Text(theme.fg("error", `Error: ${details.error}`), 0, 0);
+	if (details.error)
+		return new Text(theme.fg("error", `Error: ${details.error}`), 0, 0);
 
-	if (details.action === "list") return renderListResult(details.tasks, expanded, theme);
+	if (details.action === "list")
+		return renderListResult(details.tasks, expanded, theme);
 	// Mutating actions: no TUI output (state visible in widget)
 	return new Text("", 0, 0);
 }
@@ -59,23 +75,33 @@ function renderListResult(taskList: Task[], expanded: boolean, theme: Theme) {
 	const inProg = taskList.filter((t) => t.status === "in_progress").length;
 	const pending = taskList.filter((t) => t.status === "pending").length;
 	const display = expanded ? taskList : taskList.slice(0, 5);
-	let out = theme.fg("muted", `${taskList.length} task(s) `) + theme.fg("warning", `${pending} pending`)
-		+ (inProg > 0 ? theme.fg("accent", ` ${inProg} in progress`) : "");
+	let out =
+		theme.fg("muted", `${taskList.length} task(s) `) +
+		theme.fg("warning", `${pending} pending`) +
+		(inProg > 0 ? theme.fg("accent", ` ${inProg} in progress`) : "");
 
 	for (const t of display) {
 		const tag = statusTag(t, taskList);
-		const icon = t.status === "done" ? theme.fg("success", "✓")
-			: t.status === "expired" ? theme.fg("dim", "✗")
-			: t.status === "in_progress" ? theme.fg("accent", "➤")
-			: tag === "[blocked]" ? theme.fg("muted", "○")
-			: theme.fg("warning", "⚡");
-		const txt = (t.status === "pending" || t.status === "in_progress")
-			? theme.fg("text", formatTaskContent(t)) : theme.fg("dim", formatTaskContent(t));
+		const icon =
+			t.status === "done"
+				? theme.fg("success", "✓")
+				: t.status === "expired"
+					? theme.fg("dim", "✗")
+					: t.status === "in_progress"
+						? theme.fg("accent", "➤")
+						: tag === "[blocked]"
+							? theme.fg("muted", "○")
+							: theme.fg("warning", "⚡");
+		const txt =
+			t.status === "pending" || t.status === "in_progress"
+				? theme.fg("text", formatTaskContent(t))
+				: theme.fg("dim", formatTaskContent(t));
 		let line = `${icon} ${theme.fg("accent", `#${t.id}`)} ${txt}`;
 		if (tag === "[blocked]") line += theme.fg("error", " [blocked]");
 		if (tag === "[in_progress]") line += theme.fg("accent", " [in_progress]");
 		out += `\n${line}`;
 	}
-	if (!expanded && taskList.length > 5) out += `\n${theme.fg("dim", `... ${taskList.length - 5} more`)}`;
+	if (!expanded && taskList.length > 5)
+		out += `\n${theme.fg("dim", `... ${taskList.length - 5} more`)}`;
 	return new Text(out, 0, 0);
 }

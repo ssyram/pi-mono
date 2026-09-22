@@ -414,3 +414,118 @@ No full suite/build/root check or dependency repair was run because this was a r
 This is structural natural-language reasoning with bounded counterexamples, not exhaustive execution or a universal JavaScript no-throw proof. Correct caller-established task/state/editor shapes, finite resources, synchronous non-reentrant persistence, and session ownership remain explicit Requires. It does not infer arbitrary resource caps, promise durable disk rollback, force success on error, demand catches in every parser, or require undocumented lifecycle restrictions. No new unsafe helper input is invented solely to manufacture findings.
 
 C1 is the concrete high-impact callback boundary defect; M1/M2 are newly required plugin boundary containment gaps whose outer native handling is distinguished from harness crashes. O1–O4 remain explicit future caller/deployment obligations. The parent decides repairs; no source/test/config/doc edits or follow-up audit round are proposed or performed by this report.
+
+# Independent Hoare audit — explicit `done.startNext` handoff (2026-09-22)
+
+## Scope, authority, and verdict
+
+**Verdict: PASS for the documented handoff contract, under its established controller/state preconditions.** This is a new audit of the current `done.startNext` implementation, not an endorsement or revision of the archived before-fix report above.
+
+The sole specifications used here are `principles.md` properties 11–12, `architecture.md` D2 and D4a, and `integration-plan.md` “Actual available APIs.” They require an optional `done.startNext: ID | ID[]`; no unnamed-ready-task selection; close/order before every named start; reuse of `executeStart`; ordered visible `started`/`start_skipped` outcomes; partial rather than top-level error for business start failures; and one synchronous publication. They explicitly reject non-empty/unique-array rules, duplicate preflight, a second start validator, transaction/precheck behavior, rollback, and new outcome/error types.
+
+The audited source is `schema.ts:TaskRequestSchema/parseTaskRequest`, `execute.ts:executeTaskRequest/finish`, `start-next.ts:executeStartNext`, `task-actions.ts:executeStart/executeDoneOrExpire`, `session.ts:createTaskSession.publish/execute`, `tool-definition.ts:createTaskToolDefinition`, and `task.ts:registerTaskTool`. `task-system-handoff.test.ts`, generated graph coverage, transition tests, session/exception tests, and tool integration tests were read as evidence, not as the specification.
+
+### Requires and ensures
+
+Let **V(S)** mean the existing controller-valid complete task graph: unique safe task IDs, reciprocal existing dependency edges, valid lifecycle fields, acyclic dependencies, and an allocation floor greater than every issued ID. Let **C** be the detached candidate produced by `cloneTaskState(S)`.
+
+**Requires.** The caller supplies ordinary JSON-like input; `parseTaskRequest` is the shape boundary. A model-facing caller uses `TaskSession.execute`, whose controller owns V(S), and supplies a synchronous, non-reentrant persistence callback. `executeStart` and `executeDoneOrExpire` retain their established helper contracts: business rejection writes no task record; a successful start changes only its pending/unblocked target; a successful close keeps the target record present. Finite ordinary arrays and ordinary `Date.now` behavior are assumed; hostile accessors/proxies and engine allocation failure are outside this task-state API contract.
+
+**Ensures.** A malformed request, a non-`done` request carrying `startNext`, closure-order exhaustion, or failed `done` returns an unchanged detached representation of S, `changed=false`, an error, and zero handoff attempts. A successful `done` gives its target the next full-state `closedOrder`, then attempts exactly each supplied ID in normalized order on C. Each business start failure retains C at that iteration and produces `start_skipped`; each success updates C through the existing `executeStart` and produces `started`. The original input and S are not mutated. The resulting changed operation is published once or, on persistence fault, is converted to the existing non-partial persistence error with prior controller records retained and no rollback claim.
+
+## CFG and natural strongest postconditions
+
+### 1. Parse and candidate creation — `parseTaskRequest` then `executeTaskRequest`
+
+1. `TaskRequestSchema` gives only the `done` union member the optional scalar-or-array field. The `additionalProperties: false` objects make `startNext` on `start`, `expire`, `list`, or any other action fail shape checking before lifecycle dispatch. Scalar IDs and every array element are positive safe integers; the array deliberately permits length zero and duplicates.
+2. `parseTaskRequest` only checks and returns the original input reference; it writes neither request fields nor task state. Its error is caught by the initial `executeTaskRequest` try/catch, whose NSP is `cloneTaskState(S)`, `changed=false`, `details.error` set, and no call to any lifecycle helper.
+3. On parse success, `cloneTaskState(S)` creates C before the action switch. Its task records and dependency arrays are detached. Therefore every following close/start write is to C, while S and the input scalar/array remain unchanged.
+
+This establishes the exact caller precondition for the terminal branch without treating the flat public tool schema as the action discriminator: `TaskToolParameters` may present the convenient field, but `parseTaskRequest` remains the exact action-specific guard.
+
+### 2. Close/order branch — `executeTaskRequest`
+
+For `done` or `expire`, the CFG is: closure-order scan → exhaustion return or `executeDoneOrExpire` → helper-error return or target lookup/order assignment → (`done` only) handoff → `finish` → result-text projection.
+
+- At `closedOrder = 0`, the NSP is that zero is the maximum of the empty scanned prefix and the lower bound for absent legacy orders.
+- After scanning k task records, the invariant is `closedOrder = max(0, closedOrder of every scanned record)`, with no candidate write. For a three-record prefix `[2, undefined, 5]`, the values are `0 → 2 → 2 → 5`; for zero records it remains `0`, for one record it is that record/zero maximum, and for two records it is the maximum of those two/zero. The next `Math.max` maintains the invariant. The finite task-array length is the progress measure, so the loop terminates with the maximum over all C.
+- The exhaustion branch returns before `executeDoneOrExpire`, hence before a handoff. A helper error also returns before target lookup/order assignment/handoff. `executeDoneOrExpire` validates missing targets before writing and never removes a record, so after normal success the target lookup is established by the helper’s contract; assigning `closedOrder + 1` gives the next closure rank exactly once for this invocation.
+- The ternary invokes `executeStartNext` only when `request.action === "done"`; `expire` receives `[]` and has no handoff field in the exact request union. This preserves standalone expire behavior.
+
+### 3. Normalization and ordered start loop — `executeStartNext`
+
+`executeStartNext` has exactly three normalization branches and no task selection branch:
+
+- omitted `startNext` produces `ids=[]`;
+- a scalar produces a fresh singleton `[id]`;
+- an array uses its supplied order directly without writing it, sorting it, deduplicating it, or rejecting it.
+
+Let C0 be the candidate immediately after successful close/order assignment and O0 be `[]`. Before loop iteration i, the invariant is:
+
+1. Ci is exactly C0 after applying the existing `executeStart` to `ids[0..i)` in order;
+2. Oi has exactly i outcomes, one projection for each prior ID in that same order;
+3. S and the source `startNext` value are unchanged.
+
+The required finite-loop traces are:
+
+- **0 IDs:** the loop body does not execute; O0 remains empty and C0 remains the completed candidate. Omitted input and `[]` therefore retain the existing `#id done` text/no-outcome behavior.
+- **1 ID:** `executeStart(ids[0], C0, nextId)` either rejects before its target write and appends one `start_skipped` with its exact error, or sets that target to `in_progress` and appends one `started`. This is the scalar handoff case.
+- **2 IDs:** the second call receives C1, not C0. It therefore observes the first target’s new status/dependency-visible state. With duplicate IDs, a successful first start makes the second call return the existing non-pending error and append `start_skipped`; there is no special duplicate policy.
+- **3 IDs:** after the third call, O3 is the three input-order projections. A blocked or missing second target appends `start_skipped` but cannot stop the third call because the loop has neither `break` nor early return. The direct regression covers `[2, 3, 99]` as started, blocked, missing in that order.
+
+Initialization is O0/C0 above. Maintenance follows because existing `executeStart` either writes only its successful candidate target or returns its error before a write, and the code unconditionally appends one outcome after each call. Termination follows from the monotonically advancing `for ... of` over finite `ids`. Thus the loop entails the design’s “once for each named ID, in order, against prior-attempt state” requirement. It also proves non-automatic behavior: the only iterable is normalized `startNext`; no loop/filter scans ready tasks.
+
+### 4. Outcomes, `partial`, and text — `finish` plus terminal projection
+
+Each loop iteration projects the existing helper result to exactly one existing outcome type:
+
+- no `details.error` → `{ kind: "started", id, message: "#id started" }`;
+- existing `details.error` → `{ kind: "start_skipped", id, message: "#id not started: <same error>" }`.
+
+For this handoff, `finish` receives `error=undefined` and `changed=true`. Its `outcomes.some(({ kind }) => kind.includes("skipped"))` is true exactly when at least one handoff projection is `start_skipped`, because the handoff can emit only `started` or `start_skipped`. Therefore a business start failure yields `partial=true` without `details.error`, as specified; close/shape errors take the earlier error branches and have no outcomes. `finish` derives detached full-state rows/details and does not persist.
+
+The terminal branch then replaces only `result.content` with: existing done text for no outcomes; otherwise the done line followed by every outcome message; and `Partially applied:` iff the established `partial` is true. It neither changes C nor drops an outcome. This makes a completed close with skipped starts visibly partial rather than a false whole-call error. Existing standalone `start` remains the earlier branch that directly calls `executeStart`; no handoff normalizer is reachable from it, and a non-`done` `startNext` has already failed parsing.
+
+## Publication, exception, and ordering boundaries
+
+`TaskSession.execute` invokes the pure transform inside a catch. If a normally unreachable transform exception occurs after candidate-local writes (for example, an engine/time failure inside an existing lifecycle helper), it returns `taskOperationFailure` built from the retained controller state and does not call `publish`; C is not installed. This is the established candidate-isolation boundary, not a new rollback rule.
+
+For the normal changed handoff operation, `publish` raises the allocation floor before I/O, clones the complete post-handoff candidate, invokes `persist` exactly once, and installs only after the synchronous callback returns. The success NSP is one persisted/installable C containing the done target and every successful named start. If persistence throws, the catch returns the existing non-partial persistence error with old controller records and retained floor; native log/disk effects remain uncertain and are not claimed rolled back. `task.ts` calls this one controller operation and notifies only after a changed operation returns, so notification is not a second task-state persistence attempt.
+
+Within one request, ordering is independently proven by the start loop regardless of host scheduling. `tool-definition.ts` declares `executionMode: "sequential"`, but `principles.md`/`integration-plan.md` correctly record that whether the actually loaded host forwards and honors this metadata is a deployment fact, not established by these source tests. That live-runtime boundary remains for the requested reload interaction test; it is not an unproven handoff CFG edge or a reason to add a scheduler workaround.
+
+## Direct verification evidence
+
+The following commands were run independently against the current tree after source review:
+
+```sh
+TSX_TSCONFIG_PATH=my-plugins/oh-my-pi-v2/tsconfig.task-system.json \
+node --import tsx --test my-plugins/oh-my-pi-v2/test/task-system-handoff.test.ts
+# 7/7 passing, 1 suite
+
+TSX_TSCONFIG_PATH=my-plugins/oh-my-pi-v2/tsconfig.task-system.json \
+node --import tsx --test \
+  my-plugins/oh-my-pi-v2/test/task-system-*.test.ts \
+  my-plugins/oh-my-pi-v2/test/task-session-state.test.ts \
+  my-plugins/oh-my-pi-v2/test/task-command.test.ts \
+  my-plugins/oh-my-pi-v2/test/task-display.test.ts
+# 112/112 passing, 19 suites; no failure/cancel/skip/todo
+
+node node_modules/typescript/bin/tsc \
+  -p my-plugins/oh-my-pi-v2/tsconfig.task-system.json
+# exit 0
+
+node node_modules/@biomejs/biome/bin/biome check \
+  --config-path my-plugins/oh-my-pi-v2/biome.task-system.json \
+  my-plugins/oh-my-pi-v2/tools/task-system/*.ts \
+  my-plugins/oh-my-pi-v2/test/task-system-*.ts \
+  my-plugins/oh-my-pi-v2/tsconfig.task-system.json \
+  my-plugins/oh-my-pi-v2/biome.task-system.json
+# checked 34 files; no fixes/errors
+```
+
+The handoff suite directly witnesses close-before-unblock/start, ordered mixed results, empty/duplicate natural behavior, failed-close zero handoff, non-`done`/malformed shape rejection, caller-input immutability, omitted-field compatibility, one session persistence, and schema/call rendering. The generated suite adds 4,000 deterministic mixed transitions including scalar and duplicate handoffs with an independent DAG oracle. These executions corroborate the derivation; they are not a substitute for the stated Requires or the pending live-host scheduling check.
+
+## Disposition
+
+No handoff-specific design violation, missing proof edge, duplicated start validation, hidden auto-start, unreported business start failure, extra persistence call, or input/state aliasing defect was found. No code/test/config was changed by this audit. The only residual is the explicitly documented runtime question of whether the host loaded after reload honors sequential tool metadata; test that interaction directly rather than treating static metadata as deployment proof.

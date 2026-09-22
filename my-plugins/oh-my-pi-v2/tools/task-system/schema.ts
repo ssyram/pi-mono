@@ -74,7 +74,11 @@ export const TaskRequestSchema = Type.Union([
 		{ additionalProperties: false },
 	),
 	Type.Object(
-		{ action: Type.Literal("done"), id },
+		{
+			action: Type.Literal("done"),
+			id,
+			startNext: Type.Optional(Type.Union([id, Type.Array(id)])),
+		},
 		{ additionalProperties: false },
 	),
 	Type.Object(

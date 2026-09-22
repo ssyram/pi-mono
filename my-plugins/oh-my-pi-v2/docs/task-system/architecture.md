@@ -22,6 +22,8 @@ A successful done/expire operation gives the task the next closedOrder. Derive t
 
 Retain list/add/start/done/expire/update_deps. The model schema and dispatch must both omit/reject clear. Human clearing is a separate internal entry point for a future `/task clear` command.
 
+`done` additionally accepts optional `startNext: ID | ID[]`. The scalar form is one explicit successor; the array form is an ordered explicit sequence. Arrays deliberately allow zero items and duplicate IDs. The exact request union grants this field only to `done`; a field on every other action is a whole-request shape error before candidate mutation. No new action, lifecycle status, dependency rule, alias, or automatic selection policy is introduced.
+
 Single add accepts text and optional start/blockedBy. Batch add uses `tasks: [{ key?, text, start?, blockedBy? }]`; top-level text and tasks are mutually exclusive. Creation does not need blocks: use the dependent item's blockedBy. Existing update_deps continues to support both directions.
 
 A numeric creation dependency names a task present before the call. A string dependency names a unique accepted key in this batch, including a forward reference. Callers must not predict IDs of new items. Keys use exact string equality; no global key store. Missing/blank text or invalid/duplicate keys are reported per item; do not guess aliases. A later duplicate key item is skipped and the earlier valid binding remains. References to a skipped/unknown key are reported and not added.
@@ -47,6 +49,16 @@ Preserve the existing single start/update_deps error behavior: invalid dependenc
 A legal dependency update can create unresolved prerequisites for one or more existing in-progress dependents. Set those affected tasks to pending so they display blocked. Once their prerequisites are done/expired or removed, they are ready and require explicit start. This does not cancel already admitted tools or background work. Terminal prerequisites remain legal and satisfied; accepted terminal-edge additions should report the non-blocking effect.
 
 Existing done/expire semantics remain except for recording closedOrder. Keep original status meanings, expiry reasons and reciprocal edges. Do not add a one-in-progress limit or an automatic start policy.
+
+### D4a — explicit done handoff
+
+**P.** The operation must reduce the explicit `done` then `start` round trip without changing standalone `start`, hiding failed starts, or starting unnamed ready work. It must preserve caller input, complete all accepted mutations on one cloned candidate, and publish that candidate once through the existing session boundary.
+
+**D.** After normal request-shape parsing and candidate cloning, `done` first follows the existing closure-order scan and `executeDoneOrExpire` path. Any closure-order or done error returns the unchanged candidate and invokes no handoff. On success, assign `closedOrder`, normalize omitted/scalar/array `startNext` to zero/one/the supplied ordered IDs, then call existing `executeStart` once for each ID against the same post-done candidate. The thin handoff module owns only that normalization, ordering, and result projection; it does not duplicate target, status, blocker, or dependency checks.
+
+**Branches and output.** Omitted `startNext` and `startNext: []` retain the existing done text and no outcomes. Each successful attempt emits the existing `started` outcome. Each failed attempt emits existing `start_skipped` with the original `executeStart` error text and does not stop later attempts. Therefore duplicates naturally observe the earlier attempt's state. A successful done with any skipped start has `partial: true` and no top-level `details.error`; its text visibly includes the done result and every start result. `expire` has no handoff field.
+
+**R.** `executeStart` already makes exactly the state-dependent decision this composition needs. Because all invocations occur after the done mutation on one candidate, a dependent blocked only by the completed task can start, while remaining blockers/missing IDs/non-pending states return their established errors. `TaskSession` observes one changed `TaskOperation` and therefore invokes synchronous persistence exactly once; existing persistence-failure semantics remain unchanged. No preflight transaction, rollback, de-duplication, or new error/outcome type is needed.
 
 ## D5 — list views
 

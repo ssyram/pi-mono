@@ -14,6 +14,7 @@ import {
 	type TaskState,
 } from "./model.js";
 import { parseTaskRequest } from "./schema.js";
+import { executeStartNext } from "./start-next.js";
 
 function finish(
 	state: TaskState,
@@ -25,12 +26,7 @@ function finish(
 ): TaskOperation {
 	const selected =
 		rows ?? state.tasks.map((task) => taskRow(task, state.tasks));
-	const partial = outcomes.some(
-		(outcome) =>
-			outcome.kind === "skipped_item" ||
-			outcome.kind === "edge_skipped" ||
-			outcome.kind === "start_skipped",
-	);
+	const partial = outcomes.some(({ kind }) => kind.includes("skipped"));
 	const text = error
 		? `Error: ${error}`
 		: action === "list"
@@ -61,13 +57,8 @@ export function executeTaskRequest(
 	try {
 		request = parseTaskRequest(input);
 	} catch (error) {
-		return finish(
-			cloneTaskState(previous),
-			"list",
-			[],
-			false,
-			error instanceof Error ? error.message : String(error),
-		);
+		const message = error instanceof Error ? error.message : String(error);
+		return finish(cloneTaskState(previous), "list", [], false, message);
 	}
 	const state = cloneTaskState(previous);
 	if (request.action === "list")
@@ -85,11 +76,8 @@ export function executeTaskRequest(
 			state,
 			"tasks" in request ? request.tasks : [request],
 		);
-		const failure = outcomes.find(
-			(outcome) =>
-				outcome.kind === "skipped_item" ||
-				outcome.kind === "edge_skipped" ||
-				outcome.kind === "start_skipped",
+		const failure = outcomes.find((outcome) =>
+			outcome.kind.includes("skipped"),
 		);
 		if (!batch && failure) {
 			const reason =
@@ -150,9 +138,19 @@ export function executeTaskRequest(
 		const task = state.tasks.find((candidate) => candidate.id === request.id);
 		if (!task) throw new Error("Closed task missing from candidate state");
 		task.closedOrder = closedOrder + 1;
-		const operation = finish(state, request.action, [], true);
+		const outcomes =
+			request.action === "done"
+				? executeStartNext(request.startNext, state.tasks, state.nextId)
+				: [];
+		const operation = finish(state, request.action, outcomes, true);
+		const handoff = outcomes.map((outcome) => outcome.message).join("\n");
 		operation.result.content = [
-			{ type: "text", text: `#${request.id} ${task.status}` },
+			{
+				type: "text",
+				text: handoff
+					? `${operation.result.details.partial ? "Partially applied:\n" : ""}#${request.id} ${task.status}\n${handoff}`
+					: `#${request.id} ${task.status}`,
+			},
 		];
 		return operation;
 	}

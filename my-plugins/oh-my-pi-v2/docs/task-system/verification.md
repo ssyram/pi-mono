@@ -1,12 +1,12 @@
 # Dormant infrastructure verification
 
-Status: INTEGRATED and live-accepted (2026-09-18): user-approved runtime wiring is active with the no-task gate, batched adds, human /task commands, contextual completion, clear --CONFIRMED and text-matched ID completion. Latest full run: 105/105 tests across 18 suites. See [HOARE-EXCEPTION-SAFETY.md](HOARE-EXCEPTION-SAFETY.md) and the separate implementer [EXCEPTION-SAFETY-DELTA.md](EXCEPTION-SAFETY-DELTA.md) for the exception-safety evidence. Root check remains the pre-existing 810-error baseline.
+Status: INTEGRATED and live-accepted (2026-09-18): user-approved runtime wiring is active with the no-task gate, batched adds, human /task commands, contextual completion, clear --CONFIRMED, text-matched ID completion, and the later explicit `done.startNext` handoff. Latest full run: 112/112 tests across 19 suites. See [HOARE-EXCEPTION-SAFETY.md](HOARE-EXCEPTION-SAFETY.md) and the separate implementer [EXCEPTION-SAFETY-DELTA.md](EXCEPTION-SAFETY-DELTA.md) for prior exception-safety evidence; the new handoff still requires its separately requested independent Hoare review. Root check remains the pre-existing 810-error baseline.
 
 ## Delivered surface
 
-Fifteen dormant files under `tools/task-system/` (including the new task-specific failure module): model, schema, batch, execute, state, session, list, admission, tool-definition, human-command, human-execute, human-completion-input, human-completion-context, human-completion, failure. The public request/controller boundaries clone state; existing graph and lifecycle helpers operate only on the cloned candidate. No new production import reaches these modules.
+Sixteen task-system files (including the task-specific failure module and explicit-handoff adapter): model, schema, batch, execute, start-next, state, session, list, admission, tool-definition, human-command, human-execute, human-completion-input, human-completion-context, human-completion, failure. The public request/controller boundaries clone state; existing graph and lifecycle helpers operate only on the cloned candidate. The handoff is reached only through the existing task execution path; it adds no registration, tool name, or runtime entry point.
 
-New tests: `test/task-system-{adapter,batch,completion-exceptions,exceptions,generated,human-command,human-completion,human-session,list,state,transitions}.test.ts`; support: `task-system-fixtures.ts`, `task-system-ai-api.ts`, `task-system-source-api.ts`. New isolated configs: `tsconfig.task-system.json`, `biome.task-system.json`.
+New tests: `test/task-system-{adapter,batch,completion-exceptions,exceptions,generated,handoff,human-command,human-completion,human-session,list,state,transitions}.test.ts`; support: `task-system-fixtures.ts`, `task-system-ai-api.ts`, `task-system-source-api.ts`. New isolated configs: `tsconfig.task-system.json`, `biome.task-system.json`.
 
 ## Reproducible checks
 
@@ -26,6 +26,7 @@ node node_modules/typescript/bin/tsc \
 node node_modules/@biomejs/biome/bin/biome check \
   --config-path my-plugins/oh-my-pi-v2/biome.task-system.json \
   my-plugins/oh-my-pi-v2/tools/task-system/*.ts \
+  my-plugins/oh-my-pi-v2/tools/task-renderers.ts \
   my-plugins/oh-my-pi-v2/test/task-system-*.ts \
   my-plugins/oh-my-pi-v2/tsconfig.task-system.json \
   my-plugins/oh-my-pi-v2/biome.task-system.json
@@ -36,6 +37,7 @@ npm run check
 
 Results:
 
+- **112/112 tests**, 19 suites, no failures/skips/cancellations: the complete command above passed after the post-v0.2 `done.startNext` change. Strict scoped TypeScript exited 0 with zero diagnostics; scoped Biome checked 35 files with no fixes/errors; `git diff --check -- my-plugins/oh-my-pi-v2` exited 0. Root `npm run check` was intentionally not run because it begins with repository-wide `biome check --write` in the shared dirty worktree.
 - **90/90 tests**, 14 suites, no failures/skips/cancellations: prior 77 plus 13 exception fault tests. Final full run after source/test formatting passed, then strict scoped TypeScript and Biome passed. Output: `.pi/task-exception-tests-270c6baa.log`. No code changed after these checks. Prior 77/61 gates remain historical at `.pi/task-completion-tests.log` and `.pi/human-task-tests.log`.
 - Strict scoped TypeScript: exit 0, zero diagnostics. No emission/build artifact changes.
 - Scoped Biome: 31 files, no outstanding changes/errors. Initial write-formatting was restricted to the 12 changed/new source/test files.
@@ -54,6 +56,8 @@ Results:
 Batch forward aliases, call-local keys (including prototype-like names), first valid duplicate-key binding, unknown/skipped keys, pre-call numeric IDs, missing/blank text, wrong field types, unsafe numeric dependencies, self/duplicate/cyclic edges, deterministic cycle-edge choice, deferred starts, partial/no-effect notices, successful satisfied terminal dependencies, safe ID exhaustion, scalar shortcut rollback and input immutability.
 
 Standalone dependency rejection, direct and reciprocal endpoint running-to-blocked transitions, affected legacy blocked-running tasks, unrelated state preservation, explicit restart after unblocking, permissive done/expire semantics, closure order independent of rewiring, and request/result-array isolation.
+
+Post-v0.2 `done.startNext` coverage: scalar close-then-unblock/start ordering; ordered arrays with successful, still-blocked and missing targets; original `executeStart` error text in `start_skipped`; empty and duplicate natural behavior; failed done with zero successor attempts; non-done/malformed shape rejection; input immutability; omitted-field compatibility; one session persistence; public parameter schema/call rendering; and generated 4,000-transition DAG checks that include scalar and duplicate-array handoffs.
 
 Default all-open-plus-ten-closed view, all seven explicit filters, limit handling, combined closure order, legacy unknown-order fallback, hidden-state preservation and full-graph readiness classification.
 
@@ -95,7 +99,7 @@ Final narrow boundary:
 
 - `task-system-source-api.ts` re-exports the actual existing **built** SDK `ExtensionContext`, `ToolCallEventResult`, `ToolDefinition`, and `SessionEntry` declarations.
 - The tool definition combines that built `ToolDefinition` with `Pick<AgentTool, "executionMode">`; the scoped config resolves `AgentTool` to the actual current native `packages/agent/src/types.ts`. No SDK field/signature is copied or invented.
-- `task-system-ai-api.ts` supplies actual source AI types and source `StringEnum`/`contentText` helpers; telemetry resolves to its actual source. `allowImportingTsExtensions` is enabled only in this new noEmit scoped config for those native source imports.
+- `task-system-ai-api.ts` re-exports the actual published AI type surface and locally mirrors only the current source-agent `JsonValue` and branded `TranscriptContext` definitions. This avoids an unused source provider type traversal that currently fails at `packages/ai/src/api/google-shared.ts` because installed `FinishReason` lacks `TOO_MANY_TOOL_CALLS`; no runtime shim, provider behavior, dependency, or root configuration changes are introduced. `allowImportingTsExtensions` remains enabled only in this noEmit scoped config for the other native source seams.
 - A test now checks absence of the `terminate` property structurally, rather than assuming the older built result declaration includes it.
 - One state test fixture was corrected for the existing parser's explicit `expireReason: undefined` normalization. Parser behavior was not changed to satisfy the test.
 
@@ -117,4 +121,23 @@ The 87-body final AST inventory (plus the referenced Boolean predicate) and per-
 
 Low-level state transforms require a valid graph/allocation state produced by restoration or the request executor, not forged/corrupt internal objects. State owners must be unique per actual session identity; persistence must be synchronous and non-reentrant. The controller cannot undo native session-log mutations or guarantee durable ID evidence across failed I/O plus process loss. Legacy closure order is honestly unknown. No global/distributed task registry, already-running tool cancellation, filesystem sandbox or retrospective ID repair is promised.
 
-The old runtime still exposes its old clear/list/action behavior: these tests do not activate the new behavior. The separately approved future wiring must follow [integration-plan.md](integration-plan.md), including native scheduling, child allowlists and rendering checks.
+The old runtime still exposes its old clear/list/action behavior: these tests do not activate the new behavior. The separately approved future wiring must follow [integration-plan.md](integration-plan.md), including native scheduling, child allowlists and rendering checks. The post-v0.2 handoff has direct automated evidence above, but its independently requested Hoare review and the user-triggered reload/live interaction test remain pending.
+
+## Independent final verification — done.startNext
+
+This section is an independent code/test verification. Its specification source was only `principles.md`, `architecture.md`, and `integration-plan.md`; it did not read or rely on `HOARE-EXCEPTION-SAFETY.md` or any worker report.
+
+Commands run from the repository root:
+
+- `TSX_TSCONFIG_PATH=my-plugins/oh-my-pi-v2/tsconfig.task-system.json node --import tsx --input-type=module` — direct assertion probe passed. It independently checked scalar and ordered-array handoffs, empty/duplicate natural behavior, skipped-start collection order and text/details, failed `done` with zero starts, malformed/non-`done` shape rejection, request/state immutability, one session persistence call, and standalone `start` success behavior.
+- `TSX_TSCONFIG_PATH=my-plugins/oh-my-pi-v2/tsconfig.task-system.json node --import tsx --test my-plugins/oh-my-pi-v2/test/task-system-handoff.test.ts` — 7/7 pass, 1 suite, no fail/cancel/skip/todo.
+- `TSX_TSCONFIG_PATH=my-plugins/oh-my-pi-v2/tsconfig.task-system.json node --import tsx --test my-plugins/oh-my-pi-v2/test/task-system-*.test.ts my-plugins/oh-my-pi-v2/test/task-session-state.test.ts my-plugins/oh-my-pi-v2/test/task-command.test.ts my-plugins/oh-my-pi-v2/test/task-display.test.ts` — 112/112 pass, 19 suites, no fail/cancel/skip/todo.
+- `node node_modules/typescript/bin/tsc -p my-plugins/oh-my-pi-v2/tsconfig.task-system.json` — exit 0, no diagnostics.
+- `node node_modules/@biomejs/biome/bin/biome check --config-path my-plugins/oh-my-pi-v2/biome.task-system.json my-plugins/oh-my-pi-v2/tools/task-system/*.ts my-plugins/oh-my-pi-v2/tools/task-renderers.ts my-plugins/oh-my-pi-v2/test/task-system-*.ts my-plugins/oh-my-pi-v2/tsconfig.task-system.json my-plugins/oh-my-pi-v2/biome.task-system.json` — 35 files checked, no fixes/errors.
+- `git diff --check -- <task paths>` and separate `git diff --no-index --check /dev/null` checks for untracked `start-next.ts` and `task-system-handoff.test.ts` — clean.
+- Effective source LOC: `model.ts` 79, `schema.ts` 110, `execute.ts` 196, `start-next.ts` 25, `tool-definition.ts` 99, `task-renderers.ts` 92; all are at or below 200.
+- `git diff --cached --name-only -- <task paths>` — no output: no task-path file is staged. This is intentionally not a claim that the shared repository has no staged files.
+
+Manual spec-to-code reconciliation: `done.startNext` is scalar or ordered array only in the exact `done` request union; `execute.ts` closes/orders first and delegates every successor to `executeStartNext`, which calls existing `executeStart` in order without duplicate validation. `start_skipped` preserves each existing start error; `finish` exposes skipped handoffs as partial without top-level error; `TaskSession` receives one changed operation and therefore makes one persistence call. No unnamed ready task is selected and standalone `start` remains on its existing branch. The scoped compiler seam change is type-only and has no runtime consumer in task-system source.
+
+Boundary: root `npm run check` was deliberately not run because its first command is repository-wide `biome check --write --error-on-warnings .` and the shared working tree is dirty. The independently requested Hoare conclusion remains outside this verifier's evidence by instruction.
