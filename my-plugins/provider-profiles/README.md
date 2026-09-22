@@ -4,6 +4,10 @@
 
 设计与论证见 `docs/`（principles / architecture / detailed / test-plan / correctness）。
 
+## 为什么需要它
+
+Pi 原生凭据按 **provider id** 保存：一个内置 id 只能保留一套认证，例如再次 `/login openai-codex` 会替换该 id 的 OAuth 登录；`/model` 只选择 provider/model，没有账号 profile。要在同一 Pi 内同时保留多个 Codex 或 API-key 账号，并在额度耗尽时显式切换，必须让每个账号成为不同的 provider id；本插件提供的就是这个具名实例层。
+
 ## 支持的原生 provider（动态）
 
 **全部内置 provider 均可作来源**（Tab 补全即时列出当前全集），两类除外：
