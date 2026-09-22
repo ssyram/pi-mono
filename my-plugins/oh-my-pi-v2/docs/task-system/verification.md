@@ -1,6 +1,6 @@
-# Dormant infrastructure verification
+# Task-system verification
 
-Status: INTEGRATED and live-accepted (2026-09-18): user-approved runtime wiring is active with the no-task gate, batched adds, human /task commands, contextual completion, clear --CONFIRMED, text-matched ID completion, and the later explicit `done.startNext` handoff. Latest full run: 112/112 tests across 19 suites. See [HOARE-EXCEPTION-SAFETY.md](HOARE-EXCEPTION-SAFETY.md) and the separate implementer [EXCEPTION-SAFETY-DELTA.md](EXCEPTION-SAFETY-DELTA.md) for prior exception-safety evidence; the new handoff still requires its separately requested independent Hoare review. Root check remains the pre-existing 810-error baseline.
+Status: the task-system runtime was integrated and live-accepted on 2026-09-18. The later explicit `done.startNext` handoff passed independent Hoare reasoning, independent functional verification, and the user-triggered reload/live test on 2026-09-22. Latest full scoped run: 112/112 tests across 19 suites. See [HOARE-EXCEPTION-SAFETY.md](HOARE-EXCEPTION-SAFETY.md) for the independent handoff reasoning and prior exception-safety evidence, and [EXCEPTION-SAFETY-DELTA.md](EXCEPTION-SAFETY-DELTA.md) for the separate implementer evidence. Root checks are not claimed green; historical failures and scoped-check boundaries are recorded below.
 
 ## Delivered surface
 
@@ -103,7 +103,7 @@ Final narrow boundary:
 - A test now checks absence of the `terminate` property structurally, rather than assuming the older built result declaration includes it.
 - One state test fixture was corrected for the existing parser's explicit `expireReason: undefined` normalization. Parser behavior was not changed to satisfy the test.
 
-This is a mixed existing-built/native-source type boundary and a source-scoped regression environment, **not** a claim that repository built aggregates, arbitrary installed SDK versions, provider startup, or a deployed scheduler were verified. Sequential metadata must be tested on the actual loaded runtime before future activation. No custom loader, dependency change, root config modification, package repair or build was used.
+This is a mixed existing-built/native-source type boundary and a source-scoped regression environment, **not** a claim that repository built aggregates, arbitrary installed SDK versions, provider startup, or a deployed scheduler were verified. The later live test below covers intra-request handoff ordering, not the host's scheduling of mixed tool calls under `executionMode: "sequential"`. No custom loader, dependency change, root config modification, package repair or build was used.
 
 ## Exception-repair direct evidence
 
@@ -121,7 +121,7 @@ The 87-body final AST inventory (plus the referenced Boolean predicate) and per-
 
 Low-level state transforms require a valid graph/allocation state produced by restoration or the request executor, not forged/corrupt internal objects. State owners must be unique per actual session identity; persistence must be synchronous and non-reentrant. The controller cannot undo native session-log mutations or guarantee durable ID evidence across failed I/O plus process loss. Legacy closure order is honestly unknown. No global/distributed task registry, already-running tool cancellation, filesystem sandbox or retrospective ID repair is promised.
 
-The old runtime still exposes its old clear/list/action behavior: these tests do not activate the new behavior. The separately approved future wiring must follow [integration-plan.md](integration-plan.md), including native scheduling, child allowlists and rendering checks. The post-v0.2 handoff has direct automated evidence above, but its independently requested Hoare review and the user-triggered reload/live interaction test remain pending.
+The pre-integration results above are historical infrastructure evidence, not proof of runtime activation. The approved wiring is recorded in [integration-plan.md](integration-plan.md). The post-v0.2 handoff now has direct automated evidence, an independent Hoare assessment, independent functional verification, and the bounded reload/live evidence below; no broader host-scheduling guarantee is inferred from these results.
 
 ## Independent final verification — done.startNext
 
@@ -141,3 +141,30 @@ Commands run from the repository root:
 Manual spec-to-code reconciliation: `done.startNext` is scalar or ordered array only in the exact `done` request union; `execute.ts` closes/orders first and delegates every successor to `executeStartNext`, which calls existing `executeStart` in order without duplicate validation. `start_skipped` preserves each existing start error; `finish` exposes skipped handoffs as partial without top-level error; `TaskSession` receives one changed operation and therefore makes one persistence call. No unnamed ready task is selected and standalone `start` remains on its existing branch. The scoped compiler seam change is type-only and has no runtime consumer in task-system source.
 
 Boundary: root `npm run check` was deliberately not run because its first command is repository-wide `biome check --write --error-on-warnings .` and the shared working tree is dirty. The independently requested Hoare conclusion remains outside this verifier's evidence by instruction.
+
+## Reload/live handoff verification — 2026-09-22
+
+After the user confirmed `/reload`, the parent session exercised the actual registered `task` tool, not an imported test executor. Evidence is the tool-call/result sequence in session `01a0c6c7-f773-76b5-ad9e-6db287665f2d`. The implementation was subsequently committed and pushed as `f3f7f3522`.
+
+Scalar handoff: task #15 was created with `blockedBy: [14]`. Calling `{"action":"done","id":14,"startNext":15}` returned:
+
+```text
+#14 done
+#15 started
+```
+
+Ordered-array handoff: #16 was an unresolved blocker, #17 depended on #15, and #18 depended on #16. Calling `{"action":"done","id":15,"startNext":[17,18,999999]}` returned:
+
+```text
+Partially applied:
+#15 done
+#17 started
+#18 not started: task #18 is blocked by: #16
+#999999 not started: task #999999 not found
+```
+
+The following `{"action":"list","type":"open"}` showed #17 in progress, #16 ready, and #18 blocked by #16, consistent with the reported effects. Cleanup expired #18 and #16 with reason `live startNext test cleanup`, then completed #17. A final open-list call returned `No tasks` at that point; no test task remained open.
+
+Result: the reloaded host accepted scalar and array inputs, closed the current task before starting its newly unblocked successor, and retained successful effects while reporting blocked and missing targets in input order. This live sequence does not independently establish the number of persistence appends, crash recovery, or mixed-tool scheduling; single-persistence evidence comes from the automated controller tests.
+
+Current scope remains the shipped `task` API, including explicit `done.startNext`. The proposed unified mutation batch was deferred; no whole-list replacement interface or further batch lifecycle extension was implemented.
