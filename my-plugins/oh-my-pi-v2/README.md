@@ -9,7 +9,7 @@ A thin Sisyphus runtime for pi that defines agent personalities, behavioral hook
 - **Sisyphus persona** — core orchestration identity
 - **16 sub-agent `.md` files** — installed as individual agents
 - **Boulder loop** — auto-restarts the agent when actionable tasks remain (`in_progress` or ready/unblocked `pending`)
-- **Quality hooks** — comment checker, edit error recovery, tool output truncator, rules injector, custom compaction
+- **Quality hooks** — comment checker, edit error recovery, tool output truncator, rules injector, custom compaction. Each newly generated read/modified path array uses an iterative prefix trie, e.g. `A/{B/{C,D},E/F}`; previous summaries are not recompressed. Opaque elements, including existing brace expressions, remain raw and do not block safe branches. Details and confirmed QPDI design are in [`docs/simplify-compact-20260911/`](docs/simplify-compact-20260911/README.md).
 - **Task management** — task tool with dependencies, blocking, a compact TUI widget, and bounded Boulder continuation
 - **Commands** — `/task`, `/omp-start` (two-stage workflow), `/omp-ultrawork` (4-stage execution), `/omp-consult` (Oracle consultation), `/omp-review-plan` (plan review)
 - **Skills** — pre-publish-review, github-triage

@@ -1,0 +1,22 @@
+diff --git a/my-plugins/oh-my-pi-v2/hooks/compaction-file-operations.ts b/my-plugins/oh-my-pi-v2/hooks/compaction-file-operations.ts
+index 2e3dee097..d00b0bc5e 100644
+--- a/my-plugins/oh-my-pi-v2/hooks/compaction-file-operations.ts
++++ b/my-plugins/oh-my-pi-v2/hooks/compaction-file-operations.ts
+@@ -1,3 +1,5 @@
++import { formatCompactionPathList } from "./format-compaction-path-list.js";
++
+ interface FileOperations {
+ 	read: Set<string>;
+ 	written: Set<string>;
+@@ -54,9 +56,9 @@ export function formatCompactionFileOperations(operations: FileOperations): stri
+ 	const modifiedFiles = [...modified].sort();
+ 	const sections: string[] = [];
+ 
+-	if (readOnly.length > 0) sections.push(`<read-files>\n${readOnly.join("\n")}\n</read-files>`);
++	if (readOnly.length > 0) sections.push(`<read-files>\n${formatCompactionPathList(readOnly)}\n</read-files>`);
+ 	if (modifiedFiles.length > 0) {
+-		sections.push(`<modified-files>\n${modifiedFiles.join("\n")}\n</modified-files>`);
++		sections.push(`<modified-files>\n${formatCompactionPathList(modifiedFiles)}\n</modified-files>`);
+ 	}
+ 	return sections.length > 0 ? `\n\n${sections.join("\n\n")}` : "";
+ }

@@ -30,6 +30,10 @@ The normative design, contracts, correctness argument, and acceptance plan are i
 - Boulder retry state is keyed by session identity. Every `agent_start` cancels the prior wait; `agent_settled` conditionally schedules a replacement from the final `agent_end` result. External information cancels a wait, and same-session async subagent work suppresses both scheduling and dispatch; print mode permits three attempts and other modes ten.
 - Scheduling immediately appends the AI-invisible entry `↻ Automatic Boulder n/N resume scheduled, restarting in XXs`, while the status line refreshes the live countdown. Attempt/delay metadata is not sent to the model.
 
+## Compaction file-list prefix trie
+
+[`simplify-compact-20260911/`](simplify-compact-20260911/README.md) contains the confirmed QPDI design for the prefix trie applied only to each newly generated read/modified path array. Previous summaries follow the original renderer path unchanged; there is no old-suffix recompression or cross-round union. The formatter does not split suffix text into lines or parse existing brace expressions: safe raw paths form an iterative trie such as `A/{B/{C,D},E/F}`, while opaque array elements stay byte-identical. Different roots and read/modified classifications remain separate. Grouping may reorder safe paths but preserves duplicates, and only a strictly shorter total representation is accepted. Catchable formatting exceptions after baseline creation return the original list. Reference sources, codec expansion and provider behavior stay unchanged.
+
 ## Appendix: Terminology
 
 | Term | Meaning |
