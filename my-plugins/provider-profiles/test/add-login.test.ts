@@ -117,12 +117,18 @@ describe("/add-login rejections", () => {
 		expect(pi.registered).toEqual([]);
 	});
 
-	test("models.json collision is rejected", async () => {
-		await writeFile(modelsJsonPath, JSON.stringify({ providers: { claimed: {} } }));
+	test("modelOverrides-only entry permits the same name, but provider auth changes are rejected", async () => {
+		await writeFile(modelsJsonPath, JSON.stringify({ providers: {
+			"codex-001": { modelOverrides: { "gpt-5.6-terra": { contextWindow: 1000000 } } },
+			claimed: { apiKey: "synthetic" },
+		} }));
 		const pi = createFakePi();
 		register(pi);
-		const notes = await run(pi, "claimed zai");
-		expect(notes[0]?.text).toContain("models.json");
+		const accepted = await run(pi, "codex-001 openai-codex");
+		expect(accepted[0]?.text).toContain("added and registered codex-001");
+		const rejected = await run(pi, "claimed zai");
+		expect(rejected[0]?.text).toContain("models.json");
+		expect(pi.registered).toEqual(["codex-001"]);
 	});
 
 	test("reserved key and unknown provider are rejected", async () => {

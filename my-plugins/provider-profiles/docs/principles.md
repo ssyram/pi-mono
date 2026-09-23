@@ -3,9 +3,9 @@
 # Task Overview
 
 **问题对象**：Pi 插件 `provider-profiles` 的意图、认知前提与经验材料（Q 层）。
-**背景与现状**：用户需要在同一 Pi 内管理与手动切换多个供应商账号。方案"内置 provider 的具名账号实例"已实现并全局启用（2026-09-22），支持面已泛化为全部可克隆内置 provider；含 `/add-login` 命令。
+**背景与现状**：用户需要在同一 Pi 内管理与手动切换多个供应商账号。方案“内置 provider 的具名账号实例”已实现并全局启用（2026-09-22）：支持面动态派生自可克隆内置工厂；含 `/add-login` 命令；同名 `models.json` 的纯模型覆盖保留为宿主合成层能力。
 **本次范围**：只写 Q（Q.I / Q.A / Q.E）。D 见 `architecture.md`（根 D-frame）与 `detailed.md`（叶子细化）。
-**主要材料**：用户多轮确认的方案裁决；对本仓源码（main@6cf69f3e4）与官方安装文档的直接核读；本机生产插件实证。
+**主要材料**：用户多轮确认的方案裁决；当前本仓源码与官方安装文档的直接核读；本机生产插件与隔离 Pi 实证。
 **预期产物**：供 `architecture.md`、`detailed.md`、`test-plan.md`、`correctness.md` 引用的 Q 条目。
 
 条目编号规则：`Q.I.n` / `Q.A.n` / `Q.E.n`；状态分内容采纳（candidate/confirmed/superseded）与事实证据（verified/pending/contested）两轴，仅在有消费者时保留字段。
@@ -69,9 +69,9 @@
 ### Q.I.7 — 身份层单一职责
 
 **采纳状态**：confirmed
-**定义**：本插件只承担账号身份层（谁登录、哪把凭据）；目录/端点定义（哪些模型、什么 baseUrl）归属 models.json，插件不创建、不修改、不内联承担其内容。
-**判断力**：任何把 baseUrl/models 定义引入 provider-profiles 条目的候选即越界；对 models.json 的写操作即越界。
-**适用边界**：读 models.json 作 denylist 与冲突防护不受限（只读）。
+**定义**：本插件只承担账号身份层（谁登录、哪把凭据）；目录/端点定义（哪些模型、什么 baseUrl）归属 models.json，插件不创建、不修改、不内联承担其内容。现有同名纯 `modelOverrides` 仍由宿主在实例目录上合成。
+**判断力**：任何把 baseUrl/models 定义引入 provider-profiles 条目的候选即越界；对 models.json 的写操作即越界；把纯模型覆盖误判为身份冲突也违反此层次分工。
+**适用边界**：只读 models.json 作同名配置内容分类不受限；纯 `modelOverrides`（无模型级 headers）仍由宿主正常合成，不构成目录定义或插件对 models.json 的修改。
 **来源原文**：> "我们不承担 models.json 的修改，所以算了，不要这个了"（custom 来源裁决，2026-09-22）；> "provider-profiles 只管'谁'，models.json 管'是什么'"（获用户"确实"确认）
 **被谁回答**：D.root P.local.1/P.local.5、C1/C2。
 
@@ -120,7 +120,7 @@
 ### Q.A.6 — 工厂分类事实（2026-09-22 泛化轮核验）
 
 **采纳状态**：confirmed **事实状态**：verified
-**命题**：全部 46 个内置工厂中，仅 `radius` 携带 `refreshModels`（闭包按原工厂 id 过滤恢复目录，克隆即错绑）；仅 `github-copilot` 携带 `filterModels`，且其按凭据内 `availableModelIds` 过滤**模型 id**、不读 provider id（共享引用即官方语义的正确继承）；所有工厂统一经 `createProvider` 构造，`stream`/`streamSimple` 按 `model.api` 分发与 id 无关；oauth/apiKey 认证形状可从工厂产物的 `auth` 字段读取。
+**命题**：全部 46 个内置工厂中，仅 `radius` 携带 `refreshModels`（闭包按原工厂 id 过滤恢复目录，克隆即错绑）；仅 `github-copilot` 携带 `filterModels`，且其按凭据内 `availableModelIds` 过滤**模型 id**、不读 provider id。C2 只标记这一来源可转发，C3 以委托 wrapper 继承其过滤行为；所有工厂统一经 `createProvider` 构造，`stream`/`streamSimple` 按 `model.api` 分发与 id 无关；oauth/apiKey 认证形状可从工厂产物的 `auth` 字段读取。
 **依据**：`grep -l fetchModels/refreshModels/filterModels packages/ai/src/providers/*.ts`（46/1/1）；`github-copilot.ts` filterModels 源码直读。
 **若不成立**：支持集分类规则需重审。
 **被谁使用**：R1、P4、C2 分类机制。
@@ -173,12 +173,20 @@
 **被谁使用**：C2、`/add-login` 补全与校验。
 **重审条件**：宿主把 modelRuntime 查询面暴露给扩展时。
 
-### Q.A.13 —（pending→已闭合记录）扩展命令补全契约
+### Q.A.13 — 扩展命令补全契约
 
 **采纳状态**：confirmed **事实状态**：verified
 **命题**：`getArgumentCompletions` 返回项的 `value` **整段替换**参数区（`applyCompletion` 以完整参数文本为 prefix）；返回 null/空时引擎回退文件补全；命令名补全刚应用后的紧邻 Tab 属引擎生命周期抑制（内置命令同样复现），插件层不可干预。
 **依据**：`packages/tui/src/autocomplete.ts` `applyCompletion`/`getSuggestions`；tmux 对 `/login` 的对照复现（2026-09-22）。
 **被谁使用**：C5 补全的位置状态模型；E4。
+
+### Q.A.14 — 同名 models.json 配置按内容分层
+
+**采纳状态**：confirmed **事实状态**：verified
+**命题**：宿主 `composeModelProvider` 将同名 `modelOverrides` 经独立模型覆盖路径应用于实例目录；认证由独立的 `composeApiKeyAuth`/`composeOAuthAuth` 路径合成。provider 级 `apiKey` 等字段可注入认证或路由，模型级 `headers` 可进入请求头；仅含 modelOverrides 且没有模型级 headers 的同名配置不引入这些来源。
+**依据**：`provider-composer.ts` 的 `applyModelOverride`、`composeApiKeyAuth`、`rawModelHeaders`、`composeModelProvider` 源码；隔离 Pi 合成实测。
+**若不成立**：P1/P2/P3 的同名覆盖内容分类需重新收紧。
+**被谁使用**：P.local.1、P.local.2、P.local.3、C1。
 
 ## Q.E — Experience
 

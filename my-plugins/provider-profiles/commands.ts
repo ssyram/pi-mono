@@ -8,9 +8,9 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { fuzzyFilter } from "@earendil-works/pi-tui";
-import { builtinIds, isOAuthSource, supportedSourceIds } from "./provider-source.js";
+import { builtinIds, isOAuthSource, shouldForwardFilterModels, supportedSourceIds } from "./provider-source.js";
 import type { ProfileEntry } from "./config-entry.js";
-import { readModelsJsonProviderIds, readProfileConfig } from "./config-loader.js";
+import { readModelsJsonConflicts, readProfileConfig } from "./config-loader.js";
 import { upsertProfileEntry } from "./config-writer.js";
 import { instanceProvider } from "./instantiator.js";
 import { getBase } from "./provider-source.js";
@@ -20,7 +20,7 @@ const HELP = `[add-login] Usage: /add-login <name> <provider> [apiKey]
 Adds a provider-profiles entry and registers it immediately.
 
   name     ^[a-z0-9][a-z0-9-]{0,63}$; must not collide with built-in provider
-           ids, existing models.json provider keys, or reserved storage keys
+           ids, unsafe same-name models.json settings, or reserved storage keys
            (e.g. "constructor")
   provider any recognized built-in provider (Tab lists them; dynamic-catalog
            providers such as radius are not supported)
@@ -114,10 +114,10 @@ export function registerAddLoginCommand(pi: ExtensionAPI, configPath: string, mo
 				);
 				return;
 			}
-			const modelsJsonIds = await readModelsJsonProviderIds(modelsJsonPath);
+			const modelsJsonConflicts = await readModelsJsonConflicts(modelsJsonPath);
 			const validation = {
 				nameDenylist: builtinIds(),
-				modelsJsonIds,
+				modelsJsonConflicts,
 				supportedSources: new Set(supportedSourceIds()),
 				oauthSources: new Set(supportedSourceIds().filter((id) => isOAuthSource(id))),
 			};
@@ -129,7 +129,9 @@ export function registerAddLoginCommand(pi: ExtensionAPI, configPath: string, mo
 				return;
 			}
 			try {
-				pi.registerProvider(instanceProvider(getBase(providerToken), entry));
+				pi.registerProvider(
+					instanceProvider(getBase(providerToken), entry, shouldForwardFilterModels(providerToken)),
+				);
 			} catch (error) {
 				ctx.ui.notify(
 					`[add-login] saved to file but registration failed: ${error instanceof Error ? error.message : String(error)} (effective after next Pi restart)`,

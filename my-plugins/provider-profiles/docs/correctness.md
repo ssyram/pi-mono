@@ -1,6 +1,6 @@
 # Provider Profiles 正确性报告
 
-本报告是独立报告撰写者对前序已核验发现的转录与组织，不是实现者自证。判据保持为 `architecture.md:17–58` 的 **P.local.1–7**，不另立或收窄 P 来消除反例。
+本报告是独立报告撰写者对前序已核验发现的转录与组织，不是实现者自证。以下主体审计的是当时 `architecture.md` 的 **P.local.1–7**；现行规范已在本文末“当前审计适用范围”与 QPD 文档中标明，历史反例不被删除，但不得自动投射为现行实现行为。
 
 **推导：bcb59dbd 进展报告，本文做了锚点抽查。** 前序材料声明局部逐路径推导已经完成，反例已有零网络内存探针复现；本文核读五份设计/测试材料、七个产品源文件，并抽查下列宿主调用链，但没有重新运行这些探针。下文的 PROVEN 只用于已逐路径追踪的局部结论，不意味着同名性质在宿主合成、凭据适配、刷新或 UI 边界后仍无条件成立。未重新核验的原始运行结果保持前序判定并明确注明。
 
@@ -18,7 +18,7 @@
 
 - **Pre**：`raw` 是文件层已验证的顶层对象映射；`builtinIds` 是本次加载取得的内置 provider id 集合。
 - **NSP**：按 `Object.entries(raw)` 遍历；依次校验 name 正则、内置 id 冲突、条目对象形状、受支持 provider、OAuth/API-key 组合与 API-key 值。
-- **Post**：每个已解析的自有条目恰进入 `entries` 或 `errors` 之一；合法输出只含 `name`、三种受支持 `provider` 及可选的非空字符串 `apiKey`；每项错误携带原条目名；不改输入、不访问凭据、不注册。
+- **Post（历史审计版本）**：每个已解析的自有条目恰进入 `entries` 或 `errors` 之一；合法输出只含 `name`、当时三种受支持 `provider` 及可选的非空字符串 `apiKey`；每项错误携带原条目名；不改输入、不访问凭据、不注册。现行动态来源与同名内容分类见 QPD 文档和本文后记。
 
 循环不变式：处理完前 k 项时，前缀中的每项已被恰好分类一次；后缀未处理；合法项的顺序保留。坏名、内置冲突、非对象/null/数组、未知或非字符串 provider 均在追加错误后 `continue`。`openai-codex` 的非 `undefined` `apiKey` 被拒；zai 系的缺省 key 可接受，非字符串或空字符串被拒。只有穿过全部检查的路径追加 entry，故不存在“已报条目错又进入注册输入”的路径，坏项也不会阻止下一项。
 
@@ -84,7 +84,7 @@
 
 锚点：`instantiator.ts:44–59`；判据：`detailed.md:31–69`。
 
-- **Pre**：C2 返回的未修改官方 base，加 C1 合法 entry；目标集合仍仅为三种既定工厂。
+- **Pre（历史审计版本）**：C2 返回的未修改官方 base，加 C1 合法 entry；当时目标集合为三种既定工厂。当前实现的动态工厂分类属于本文审计后的范围。
 - **NSP**：仅构造八个显式字段；API-key handler 存在时替换其 resolver，否则保留原 auth 对象。
 - **Post**：自有字段恰为 `id, name, baseUrl, headers, auth, getModels, stream, streamSimple`；不含 `refreshModels`、`filterModels` 或其他顶层探针字段。
 
@@ -336,4 +336,14 @@ loading 期间插件调用只排队，提交时刻已离开 `registerInstances` 
 1. **来源泛化**：`provider-source.ts` 重写为动态分类（`builtinProviders()` 遍历 − refreshModels 携带者 + oauth 形状读取 + 进程内缓存）；`config-entry.ts` 的 provider 校验改为 ValidationContext 动态集合（不可识别一律拒绝）。
 2. **`/add-login` 命令层**（`commands.ts`/`config-writer.ts`/`resolveEnvTemplate`）与补全的位置状态模型。
 
-这些变更的验证依据为：插件测试套（69 项：68 通过 + 1 阻塞跳过）与真实 Pi 隔离冒烟（未知来源 declined、动态补全、即时注册）；其独立 Hoare 复审未在本报告范围内执行，如需可将 C2 分类不变量（缓存只读、refreshModels 排除的完全性）与 C5 写入原子性纳入下一轮独立推理。
+这些变更的验证依据为：当时插件测试套（69 项：68 通过 + 1 阻塞跳过）与真实 Pi 隔离冒烟（未知来源 declined、动态补全、即时注册）；其独立 Hoare 复审未在本报告范围内执行，如需可将 C2 分类不变量（缓存只读、refreshModels 排除的完全性）与 C5 写入原子性纳入下一轮独立推理。
+
+## 当前审计适用范围（2026-09-22）
+
+本文件的主体 Hoare 推导审计的是早期三来源/全键冲突实现；后来对 G-01/G-02/G-07、动态来源分类、C5 命令和受控 Copilot filter forwarding 的修改没有重新接受独立 Hoare 推理。当前可承担的证据是最新 68/1 聚焦测试、`npm run check` 和真实 Pi 隔离/用户配置冒烟；当前 QPD 规范以 `principles.md`、`architecture.md`、`detailed.md` 为准。历史 PARTIAL/G 编号保留为发现路径，不自动描述现行行为。
+
+## G-02 同名规则勘误（用户纠正后，2026-09-22）
+
+先前修复后记声称“models.json 中任何同名 provider 键均须拒绝”，**已被本轮取代**，不能再作为现行判据。`composeModelProvider` 将同名 `modelOverrides` 应用于模型目录，认证仍由独立的 `composeApiKeyAuth`/`composeOAuthAuth` 合成；仅有 `modelOverrides`（无模型级 `headers`）的条目不注入新凭据来源，因此可以与具名实例共存。相反，provider 级字段与模型级 `headers` 可影响认证、路由、目录或请求头，仍需阻断。C1 当前读取 `models.json` 内容后只将**危险条目**加入冲突集；并未对整个 `models.json` 采用无条件 denylist。
+
+本轮证据：当时单测记录为 69 通过/1 跳过；当前套件计数以 `test-results.md` 顶部的 68 通过/1 跳过为准；隔离 Pi 的 `safe-zai` 同名 `modelOverrides.contextWindow=543210` 真正显示 543.2K，`unsafe-zai` 同名 `apiKey` 被具名拒绝；真实用户配置里仅有 `modelOverrides.contextWindow` 的 codex-001/002/999 已注册且显示覆盖后的窗口值。旧的 G-02 内存反例仍成立，但其前提应收窄为**危险配置内容同名**，不得泛化为“任意同名即冲突”。本轮未重做独立全局 Hoare 推理；其余宿主边界判定不受此勘误改变。

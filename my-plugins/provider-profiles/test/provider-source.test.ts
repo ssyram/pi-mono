@@ -1,40 +1,37 @@
-import { getProviders } from "@earendil-works/pi-ai/compat";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
 import { describe, expect, test } from "vitest";
-import type { SupportName } from "../config-entry.js";
-import { getBase } from "../provider-source.js";
+import { builtinIds, getBase, isOAuthSource, shouldForwardFilterModels, supportedSourceIds } from "../provider-source.js";
 
-const names = ["openai-codex", "zai", "zai-coding-cn"] as const;
-
-const officialBase = (name: SupportName) => {
-	const official = builtinProviders().find((provider) => provider.id === name);
-	if (official === undefined) throw new Error(`builtin provider missing: ${name}`);
-	return official;
-};
+const officialById = () => new Map(builtinProviders().map((provider) => [provider.id, provider]));
 
 describe("C2 official provider sources", () => {
-	for (const name of names) {
-		test(`T-11 — ${name} comes from its official factory without catalog substitution`, () => {
-			const official = officialBase(name);
+	test("T-11 — every dynamically supported source is an official factory product", () => {
+		const official = officialById();
+		for (const name of supportedSourceIds()) {
 			const base = getBase(name);
-
-			expect(base.id).toBe(official.id);
-			expect(base.name).toBe(official.name);
-			expect(base.getModels()).toEqual(official.getModels());
-		});
-	}
-
-	test("T-05 — the C2 source boundary rejects an unsupported provider name", () => {
-		expect(() => getBase("unsupported" as SupportName)).toThrow("unsupported provider: unsupported");
+			const expected = official.get(name);
+			expect(expected, name).toBeDefined();
+			expect(base.id).toBe(expected?.id);
+			expect(base.name).toBe(expected?.name);
+			expect(base.getModels()).toEqual(expected?.getModels());
+		}
 	});
 
-	test("T-33 — the production import channel resolves official catalogs for all three sources", () => {
-		const builtinIds = new Set(getProviders());
-		for (const name of names) {
-			const base = getBase(name);
-			expect(builtinIds.has(name)).toBe(true);
-			expect(base.getModels().length).toBeGreaterThan(0);
-			expect(base.getModels()).toEqual(officialBase(name).getModels());
+	test("T-05 — dynamic source boundary rejects unknown and refreshModels sources", () => {
+		expect(() => getBase("unsupported")).toThrow("unsupported provider: unsupported");
+		expect(supportedSourceIds()).not.toContain("radius");
+		expect(() => getBase("radius")).toThrow("unsupported provider: radius");
+	});
+
+	test("T-33 — supported ids are built-ins and oauth/filter classifications match source facts", () => {
+		const allBuiltins = builtinIds();
+		for (const name of supportedSourceIds()) {
+			expect(allBuiltins.has(name)).toBe(true);
+			expect(getBase(name).getModels().length).toBeGreaterThan(0);
 		}
+		expect(isOAuthSource("openai-codex")).toBe(true);
+		expect(isOAuthSource("zai")).toBe(false);
+		expect(shouldForwardFilterModels("github-copilot")).toBe(true);
+		expect(shouldForwardFilterModels("zai")).toBe(false);
 	});
 });

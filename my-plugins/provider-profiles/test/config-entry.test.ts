@@ -8,7 +8,7 @@ function profile(provider: string, apiKey?: unknown): Record<string, unknown> {
 function makeValidation(overrides?: Partial<ValidationContext>): ValidationContext {
 	return {
 		nameDenylist: new Set<string>(["builtin-one", "builtin-two"]),
-		modelsJsonIds: new Set<string>(),
+		modelsJsonConflicts: new Set<string>(),
 		supportedSources: new Set(["openai-codex", "zai", "zai-coding-cn"]),
 		oauthSources: new Set(["openai-codex"]),
 		...overrides,

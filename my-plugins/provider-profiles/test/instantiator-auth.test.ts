@@ -1,10 +1,10 @@
 import type { ApiKeyAuth, AuthContext } from "@earendil-works/pi-ai";
 import { describe, expect, test, vi } from "vitest";
-import type { ProfileEntry, SupportName } from "../config-entry.js";
+import type { ProfileEntry } from "../config-entry.js";
 import { instanceProvider, wrapApiKeyAuth } from "../instantiator.js";
 import { getBase } from "../provider-source.js";
 
-function officialApiKeyAuth(provider: SupportName): ApiKeyAuth {
+function officialApiKeyAuth(provider: string): ApiKeyAuth {
 	const auth = getBase(provider).auth.apiKey;
 	if (auth === undefined) throw new Error(`${provider} has no API-key auth`);
 	return auth;

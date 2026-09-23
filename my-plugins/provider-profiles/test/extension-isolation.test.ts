@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Provider } from "@earendil-works/pi-ai";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { ProfileEntry, SupportName } from "../config-entry.js";
+import type { ProfileEntry } from "../config-entry.js";
 import { ConfigError } from "../config-loader.js";
 import providerProfilesExtension, { profileConfigPath } from "../provider-profiles-extension.js";
 
@@ -23,7 +23,7 @@ vi.mock("../provider-source.js", async () => {
 	const actual = await vi.importActual<typeof import("../provider-source.js")>("../provider-source.js");
 	return {
 		...actual,
-		getBase(name: SupportName): Provider {
+		getBase(name: string): Provider {
 			if (name === state.sourceFailureProvider) throw new Error(`synthetic source failure: ${name}`);
 			return actual.getBase(name);
 		},
@@ -34,7 +34,7 @@ vi.mock("../instantiator.js", async () => {
 	const actual = await vi.importActual<typeof import("../instantiator.js")>("../instantiator.js");
 	return {
 		...actual,
-		instanceProvider(base: Provider, entry: ProfileEntry): Provider {
+		instanceProvider(base: Provider, entry: ProfileEntry, _forwardFilterModels = false): Provider {
 			if (entry.name === state.instantiationFailureName) {
 				throw new Error(`synthetic construction failure: ${entry.name}`);
 			}

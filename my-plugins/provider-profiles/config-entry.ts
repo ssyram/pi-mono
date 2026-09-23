@@ -27,8 +27,8 @@ export interface EntryError {
 export interface ValidationContext {
 	/** Names an instance id must not take (all built-in ids). */
 	readonly nameDenylist: ReadonlySet<string>;
-	/** models.json provider keys (overlay would break credential isolation). */
-	readonly modelsJsonIds: ReadonlySet<string>;
+	/** Same-name models.json entries containing provider fields or model headers. */
+	readonly modelsJsonConflicts: ReadonlySet<string>;
 	/** Built-in ids usable as a profile source. */
 	readonly supportedSources: ReadonlySet<string>;
 	/** Sources whose auth is OAuth (these reject the apiKey field). */
@@ -64,8 +64,8 @@ export function parseEntries(
 			fail("name collides with a built-in provider id");
 			continue;
 		}
-		if (validation.modelsJsonIds.has(name)) {
-			fail("name collides with an existing models.json provider id (overlay would break credential isolation)");
+		if (validation.modelsJsonConflicts.has(name)) {
+			fail("models.json defines provider settings or model headers for this name; only modelOverrides are allowed");
 			continue;
 		}
 		if (typeof value !== "object" || value === null || Array.isArray(value)) {

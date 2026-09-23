@@ -1,5 +1,9 @@
 # provider-profiles 测试执行记录
 
+## 当前状态（2026-09-22）
+
+当前实现的最新聚焦套件为 **68 通过、1 个 T-34 生命周期跳过（共 69）**；`npm run check` 也通过。下方按时间保留早期 46/2/1、T-12 修复、来源泛化、命令、补全及 models.json 覆盖等证据，不应把早期失败或旧字段名当作当前结论。当前 QPD 规范在 `principles.md`、`architecture.md`、`detailed.md`。
+
 ## 执行资格与命令
 
 - 执行时间：本次实现会话；Vitest `4.1.9`。
@@ -106,7 +110,7 @@ T-12 缺陷已由实现所有者修复：`provider-profiles-extension.ts` 将 C2
 ## 修复轮回归（2026-09-22，G-01/G-02/G-07 闭合后）
 
 - 新增 `test/gap-fixes.test.ts`（7 项）：G-01 env 覆盖委托、G-02 models.json denylist（冲突拒绝+邻项继续+读取器三态）、G-07 保留键（constructor 拒绝 + 非精确小写变体合法）。
-- `parseEntries` 签名扩展（第三参 modelsJsonIds），既有测试同步适配；vitest 经 `test/host-exports.ts` 路由真实 `getAgentDir`。
+- **[历史]** `parseEntries` 曾扩展第三参 `modelsJsonIds`；该字段已被现行 `modelsJsonConflicts` 内容分类取代。vitest 经 `test/host-exports.ts` 路由真实 `getAgentDir`。
 - 全套：**55 通过 + 1 阻塞跳过（T-34），共 56**。
 - 真实 Pi 隔离冒烟（临时 PI_CODING_AGENT_DIR + models.json 冲突注入）：四类拒绝全部具名可见（坏名/内置冲突/保留键 constructor/models.json 冲突），codex-smoke、zai-smoke、zai-smoke-key 照常注册，可用性语义不变。
 
@@ -134,7 +138,20 @@ T-12 缺陷已由实现所有者修复：`provider-profiles-extension.ts` 将 C2
 ## 来源泛化轮（2026-09-22，用户裁决）
 
 - `provider-source.ts` 重写：动态支持集 = `builtinProviders()` − refreshModels 携带者（现仅 radius）；`isOAuthSource`/`builtinIds`/`supportedSourceIds` 从工厂产物派生；进程内只读缓存。46 工厂分类事实见 principles Q.A.6。
-- `config-entry.ts`：`SUPPORTED` 常量删除，provider 校验改 ValidationContext（nameDenylist/modelsJsonIds/supportedSources/oauthSources）；不可识别 provider 一律拒绝。
+- **[历史→现行演进]** `SUPPORTED` 常量删除后，provider 校验改 ValidationContext；现行字段为 `nameDenylist/modelsJsonConflicts/supportedSources/oauthSources`，不可识别 provider 一律拒绝。
 - `commands.ts`：补全候选动态化；未知 provider declined；oauth 规则动态（`isOAuthSource`）。
 - 测试适配 + 新增（动态 oauth 集、declined 文案、动态补全集包含性）；README/detailed/architecture/principles 同步（Q.I.7 身份层边界、Q.A.6/12/13、E4）。
 - 全套：**68 通过 + 1 阻塞跳过（T-34），共 69**；tmux 冒烟：`not-a-provider` declined ✓、`y `+Tab 动态候选 ✓。
+
+## 同名 models.json 安全覆盖修复（用户反馈后，2026-09-22）
+
+- 旧逻辑错误地把所有同名 provider 键列为冲突；真实配置里的 codex-001/002/999 只有 `modelOverrides.contextWindow`，均被误拒。本轮按宿主 composer 语义改为按**配置内容**分类：仅含 `modelOverrides` 且无模型级 `headers` 的同名条目允许；provider 级字段或模型级 `headers` 仍拒绝。
+- `readModelsJsonConflicts` 按宿主 `ModelConfig.load` 的 JSON 注释、尾逗号与 BOM 词法处理读取 models.json（只读），不再按键是否存在作判断。
+- 插件测试：**68 通过、1 阻塞跳过（共 69）**，覆盖纯窗口覆盖、provider 级 key/baseUrl、模型级 Authorization header、注释/尾逗号/BOM、/add-login 同名允许/危险拒绝。
+- 隔离 Pi 真实合成：`safe-zai`（同名模型窗口覆盖）注册并显示 543.2K，`unsafe-zai`（同名 apiKey）具名拒绝；用户真实 Pi 启动后 codex-001/002/999 与各自的模型窗口覆盖均出现。没有修改任何 models.json 文件。
+
+## QPDI 文档同步与 Copilot 过滤继承（2026-09-22）
+
+- `instanceProvider` 现在仅在 C2 明确批准时转发 `filterModels`；真实 `github-copilot` 的 OAuth `availableModelIds` 过滤被委托保留，任意注入 probe 和所有 `refreshModels` 仍不复制。
+- 当前 Q/D 文件已重组为动态来源、同名 models.json 内容分类、C5 命令和宿主边界的单一现行规范；`test-plan.md`、`correctness.md` 的早期三来源/全键拒绝材料保留为历史并在顶部标注 superseded 范围。
+- 聚焦测试：**68 通过 + 1 T-34 生命周期跳过（共 69）**；`npm run check` 通过；真实用户配置中 codex-001/002/999 的同名窗口覆盖可见。

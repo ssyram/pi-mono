@@ -1,4 +1,4 @@
-import { readModelsJsonProviderIds } from "../config-loader.js";
+import { readModelsJsonConflicts } from "../config-loader.js";
 import { join } from "node:path";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,7 +9,7 @@ import { profileConfigPath } from "../provider-profiles-extension.js";
 function makeValidation(overrides?: Partial<ValidationContext>): ValidationContext {
 	return {
 		nameDenylist: new Set<string>(),
-		modelsJsonIds: new Set<string>(),
+		modelsJsonConflicts: new Set<string>(),
 		supportedSources: new Set(["openai-codex", "zai", "zai-coding-cn"]),
 		oauthSources: new Set(["openai-codex"]),
 		...overrides,
@@ -39,41 +39,51 @@ describe("G-01 — config path mirrors host getAgentDir semantics", () => {
 	});
 });
 
-describe("G-02 — models.json provider-id denylist", () => {
-	test("rejects names claimed by models.json providers while neighbors continue", () => {
+describe("G-02 — models.json overlays are classified by content", () => {
+	test("same-name modelOverrides-only entries remain valid; provider settings still conflict", () => {
 		const result = parseEntries(
 			{
-				"zai-000-g-l": { provider: "zai", apiKey: "synthetic" },
+				"codex-001": { provider: "openai-codex" },
+				"zai-with-key": { provider: "zai" },
 				independent: { provider: "zai" },
 			},
-			makeValidation({ modelsJsonIds: new Set(["zai-000-g-l", "yunwu"]) }),
+			makeValidation({ modelsJsonConflicts: new Set(["zai-with-key"]) }),
 		);
-		expect(result.entries.map((entry) => entry.name)).toEqual(["independent"]);
+		expect(result.entries.map((entry) => entry.name)).toEqual(["codex-001", "independent"]);
 		expect(result.errors).toHaveLength(1);
-		expect(result.errors[0]?.name).toBe("zai-000-g-l");
+		expect(result.errors[0]?.name).toBe("zai-with-key");
 		expect(result.errors[0]?.reason).toContain("models.json");
 	});
 
-	test("readModelsJsonProviderIds: missing file yields an empty set", async () => {
-		const ids = await readModelsJsonProviderIds(join(tempDir, "absent.json"));
-		expect(ids.size).toBe(0);
+	test("missing file yields no conflicts", async () => {
+		const conflicts = await readModelsJsonConflicts(join(tempDir, "absent.json"));
+		expect(conflicts.size).toBe(0);
 	});
 
-	test("readModelsJsonProviderIds: valid file yields its provider keys", async () => {
+	test("pure overrides are safe; provider-level apiKey/baseUrl and model headers are not", async () => {
 		const path = join(tempDir, "models.json");
-		await writeFile(
-			path,
-			JSON.stringify({ providers: { yunwu: { baseUrl: "https://x" }, "zai-000-g-l": {} } }),
-		);
-		const ids = await readModelsJsonProviderIds(path);
-		expect([...ids].sort()).toEqual(["yunwu", "zai-000-g-l"]);
+		await writeFile(path, JSON.stringify({ providers: {
+			"codex-001": { modelOverrides: { "gpt-5.6-terra": { contextWindow: 1000000 } } },
+			"zai-with-key": { apiKey: "synthetic" },
+			"zai-with-url": { baseUrl: "https://example.test" },
+			"zai-with-headers": { modelOverrides: { "glm-5.3": { headers: { Authorization: "Bearer synthetic" } } } },
+			"empty-entry": {},
+		} }));
+		const conflicts = await readModelsJsonConflicts(path);
+		expect([...conflicts].sort()).toEqual(["zai-with-headers", "zai-with-key", "zai-with-url"]);
 	});
 
-	test("readModelsJsonProviderIds: unparseable file yields an empty set without throwing", async () => {
+	test("supports host JSON comments, trailing commas and BOM", async () => {
+		const path = join(tempDir, "models.json");
+		await writeFile(path, '\uFEFF{"providers": { // comment\n "codex-002": {"modelOverrides":{"gpt-5.6-terra":{"contextWindow":300000,},},}, "unsafe":{"apiKey":"synthetic"},}}');
+		expect([...await readModelsJsonConflicts(path)]).toEqual(["unsafe"]);
+	});
+
+	test("unparseable file yields no conflicts (host itself rejects that config)", async () => {
 		const path = join(tempDir, "models.json");
 		await writeFile(path, "{broken");
-		const ids = await readModelsJsonProviderIds(path);
-		expect(ids.size).toBe(0);
+		const conflicts = await readModelsJsonConflicts(path);
+		expect(conflicts.size).toBe(0);
 	});
 });
 

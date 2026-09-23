@@ -19,6 +19,8 @@ import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
 interface SourceInfo {
 	readonly provider: Provider;
 	readonly isOAuth: boolean;
+	/** C2 has source-verified this filter as model-id based (currently Copilot). */
+	readonly forwardFilterModels: boolean;
 }
 
 let sourceCache: Map<string, SourceInfo> | undefined;
@@ -30,7 +32,11 @@ function sourceInfos(): Map<string, SourceInfo> {
 		sourceCache = new Map();
 		for (const provider of builtinProviders()) {
 			if (provider.refreshModels !== undefined) continue;
-			sourceCache.set(provider.id, { provider, isOAuth: provider.auth.oauth !== undefined });
+			sourceCache.set(provider.id, {
+				provider,
+				isOAuth: provider.auth.oauth !== undefined,
+				forwardFilterModels: provider.id === "github-copilot" && provider.filterModels !== undefined,
+			});
 		}
 	}
 	return sourceCache;
@@ -51,6 +57,11 @@ export function supportedSourceIds(): string[] {
 /** OAuth-backed sources reject the apiKey field; api-key sources accept it. */
 export function isOAuthSource(name: string): boolean {
 	return sourceInfos().get(name)?.isOAuth ?? false;
+}
+
+/** Only source-verified model-id filters are inherited by instances. */
+export function shouldForwardFilterModels(name: string): boolean {
+	return sourceInfos().get(name)?.forwardFilterModels ?? false;
 }
 
 /** Returns the cached official factory product for a supported source. */

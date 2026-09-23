@@ -96,8 +96,9 @@ export function wrapApiKeyAuth(auth: ApiKeyAuth, configKey: string | undefined):
 /** Builds an instance Provider from an official base. Field whitelist is
  * closed (P.local.4.1): id/name rebound, transport fields shared, auth
  * wrapped only for api-key providers, models restamped per call.
- * refreshModels/filterModels are intentionally absent. */
-export function instanceProvider(base: Provider, entry: ProfileEntry): Provider {
+ * refreshModels is always absent; filterModels is forwarded only when C2 has
+ * source-verified it as safe for this provider. */
+export function instanceProvider(base: Provider, entry: ProfileEntry, forwardFilterModels = false): Provider {
 	const apiKey = base.auth.apiKey;
 	const auth =
 		apiKey === undefined
@@ -112,5 +113,8 @@ export function instanceProvider(base: Provider, entry: ProfileEntry): Provider 
 		getModels: () => restampModels(base.getModels(), entry.name),
 		stream: base.stream,
 		streamSimple: base.streamSimple,
+		...(forwardFilterModels && base.filterModels
+			? { filterModels: (models, credential) => base.filterModels!(models, credential) }
+			: {}),
 	};
 }

@@ -2,9 +2,9 @@ import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-code
 import { zaiCodingCnProvider } from "@earendil-works/pi-ai/providers/zai-coding-cn";
 import { zaiProvider } from "@earendil-works/pi-ai/providers/zai";
 import { describe, expect, test } from "vitest";
-import type { ProfileEntry, SupportName } from "../config-entry.js";
+import type { ProfileEntry } from "../config-entry.js";
 import { instanceProvider } from "../instantiator.js";
-import { getBase } from "../provider-source.js";
+import { getBase, shouldForwardFilterModels } from "../provider-source.js";
 
 const sources = [
 	["openai-codex", openaiCodexProvider],
@@ -12,7 +12,7 @@ const sources = [
 	["zai-coding-cn", zaiCodingCnProvider],
 ] as const;
 
-function entry(name: string, provider: SupportName): ProfileEntry {
+function entry(name: string, provider: string): ProfileEntry {
 	return provider === "openai-codex" ? { name, provider } : { name, provider, apiKey: "profile-key" };
 }
 
@@ -73,7 +73,7 @@ describe("C3 instance providers", () => {
 		expect(instance.auth.oauth).toBe(base.auth.oauth);
 	});
 
-	test("T-28 — only the documented eight own fields survive a future-source probe", () => {
+	test("T-28 — only the documented fields survive an unverified future-source probe", () => {
 		const base = getBase("zai");
 		const probedBase = {
 			...base,
@@ -91,7 +91,7 @@ describe("C3 instance providers", () => {
 		expect(instance.filterModels).toBeUndefined();
 	});
 
-	test("T-29 — instance paths cannot carry static-source refresh or filter closures", () => {
+	test("T-29 — instance paths cannot carry unverified refresh or filter closures", () => {
 		const base = getBase("zai-coding-cn");
 		const probedBase = {
 			...base,
@@ -103,5 +103,21 @@ describe("C3 instance providers", () => {
 		expect(instance.refreshModels).toBeUndefined();
 		expect(instance.filterModels).toBeUndefined();
 		expect(instance.getModels().every((model) => model.provider === "closed-profile")).toBe(true);
+	});
+
+	test("C2 forwards github-copilot's source-verified model-id filter", () => {
+		const base = getBase("github-copilot");
+		expect(shouldForwardFilterModels("github-copilot")).toBe(true);
+		const instance = instanceProvider(base, entry("copilot-profile", "github-copilot"), true);
+		expect(instance.filterModels).toBeDefined();
+		const models = instance.getModels();
+		const selected = models[0];
+		if (!selected) throw new Error("github-copilot catalog unexpectedly empty");
+		const filtered = instance.filterModels!(models, {
+			type: "oauth",
+			availableModelIds: [selected.id],
+		} as never);
+		expect(filtered).toEqual([selected]);
+		expect(filtered[0]?.provider).toBe("copilot-profile");
 	});
 });

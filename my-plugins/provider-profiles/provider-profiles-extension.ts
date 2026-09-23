@@ -12,10 +12,10 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { join } from "node:path";
 import type { EntryError } from "./config-entry.js";
 import { parseEntries } from "./config-entry.js";
-import { readModelsJsonProviderIds, readProfileConfig } from "./config-loader.js";
+import { readModelsJsonConflicts, readProfileConfig } from "./config-loader.js";
 import { registerAddLoginCommand } from "./commands.js";
 import { instanceProvider } from "./instantiator.js";
-import { builtinIds, getBase, isOAuthSource, supportedSourceIds } from "./provider-source.js";
+import { builtinIds, getBase, isOAuthSource, shouldForwardFilterModels, supportedSourceIds } from "./provider-source.js";
 import { type RegistrationItem, registerInstances } from "./registrar.js";
 
 export function profileConfigPath(): string {
@@ -25,11 +25,11 @@ export function profileConfigPath(): string {
 export default async function providerProfilesExtension(pi: ExtensionAPI): Promise<void> {
 	const agentDir = getAgentDir();
 	const raw = await readProfileConfig(join(agentDir, "provider-profiles.json"));
-	const modelsJsonIds = await readModelsJsonProviderIds(join(agentDir, "models.json"));
+	const modelsJsonConflicts = await readModelsJsonConflicts(join(agentDir, "models.json"));
 	const sources = supportedSourceIds();
 	const validation = {
 		nameDenylist: builtinIds(),
-		modelsJsonIds,
+		modelsJsonConflicts,
 		supportedSources: new Set(sources),
 		oauthSources: new Set(sources.filter((id) => isOAuthSource(id))),
 	};
@@ -38,7 +38,10 @@ export default async function providerProfilesExtension(pi: ExtensionAPI): Promi
 	const constructionErrors: EntryError[] = [];
 	for (const entry of entries) {
 		try {
-			items.push({ entry, provider: instanceProvider(getBase(entry.provider), entry) });
+			items.push({
+				entry,
+				provider: instanceProvider(getBase(entry.provider), entry, shouldForwardFilterModels(entry.provider)),
+			});
 		} catch (error) {
 			constructionErrors.push({
 				name: entry.name,
