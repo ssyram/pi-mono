@@ -1,10 +1,10 @@
 # clear-to-clipboard：函数推导与文档间 SCCO
 
-状态：**新方案的设计层条件推导 + 定向执行证据，不是系统剪贴板最终写入证明**。用户更新了目标：插件负责在 pi 清空前向系统**发起**复制请求，长粘贴请求文本用 `[paste#ID-- <actual text> ##]`；系统是否采纳不在合同内。本文件依据 [architecture.md](architecture.md) 的 root P 和 [detailed-design.md](detailed-design.md) 的函数步骤推理。先前独立只读推理 run `85f28409-7853-4ecf-8e88-911964e1f86c` 发现旧自定义 editor/await 方案的反例；新方案经用户裁决后改用真实 action handler 包装，**不把旧报告说成对新方案的独立通过证明**。
+状态：**新方案的设计层条件推导 + 定向执行证据，不是系统剪贴板最终写入证明**。用户更新了目标：插件负责在 pi 清空前向系统**发起**复制请求，长粘贴请求文本用 `[paste#ID## <actual text> ##]`；系统是否采纳不在合同内。本文件依据 [architecture.md](architecture.md) 的 root P 和 [detailed-design.md](detailed-design.md) 的函数步骤推理。先前独立只读推理 run `85f28409-7853-4ecf-8e88-911964e1f86c` 发现旧自定义 editor/await 方案的反例；新方案经用户裁决后改用真实 action handler 包装，**不把旧报告说成对新方案的独立通过证明**。
 
 ## 1. 规约与 pi 源码事实
 
-- **目标**：当 TUI 主 editor 实际执行 `app.clear` 且文本非空时，先以当前文本构造一次剪贴板写入请求，再交给 pi 原 handler；粘贴标记 `[paste #N …]` 对应实际正文时请求文本含 `[paste#N-- ${正文} ##]`；不改官方源码。
+- **目标**：当 TUI 主 editor 实际执行 `app.clear` 且文本非空时，先以当前文本构造一次剪贴板写入请求，再交给 pi 原 handler；粘贴标记 `[paste #N …]` 对应实际正文时请求文本含 `[paste#N## ${正文} ##]`；不改官方源码。
 - **运行事实**：`CustomEditor.handleInput` 调到 `actionHandlers` 中的真实 app action handler；TUI 的 input listener 在焦点组件 `handleInput` 之前调用；`setExtensionWidget` 同步运行组件 factory，factory 能拿到 TUI；当前 renderer 运行时有 `getFocusedComponent`（不在导出的 `TUI` 类型接口中，插件运行时检测）；`Editor.handlePaste` 保存编号 `N` 与正文于运行时 `pastes` Map，并插入 `[paste #N …]`；`copyToClipboard` 返回 Promise，拒绝不应抛成未处理错误。源码位置：`packages/coding-agent/src/modes/interactive/components/custom-editor.ts`、`interactive-mode.ts` 的 `setExtensionWidget`/`handleCtrlC`、`packages/tui/src/tui.ts` 的 `handleTerminalInput`/`getFocusedComponent`、`packages/tui/src/components/editor.ts` 的 `handlePaste`。
 - **明确边界**：`pastes` 不是公开扩展 API，当前 pi 版本的运行时字段与 marker 格式是本插件精确 ID/正文承诺的前提。操作系统剪贴板的最终内容不是插件可控制状态。
 
@@ -24,12 +24,12 @@
 - 前置：pi **已选择**并调用 `app.clear` Map 项，`original` 为安装时该项的 handler。若焦点不是适用主 editor：**NSP**：不请求复制，立即调用 original 一次。
 - 若焦点 editor 的 `raw=getText()` 为空：**NSP**：不请求复制，original 被调用一次（pi 自行处理第一次空清空或双击退出）。
 - 若 `raw` 非空、`pastes` 是当前 pi Map：先纯计算 `payload`，再发起 `copyToClipboard(payload)` 并附拒绝 handler，最后同步调用 original 一次；**NSP**：调用 original 前已用同一时刻 editor 数据构造并发起一次复制请求，原动作没有等待 API 结算。原动作可能清空或在 500ms 内退出；**不推出**系统剪贴板 `B=payload`。
-- 若 `pastes` 不可用：请求 `getExpandedText()` 得到可用正文（但不声称精确 `[paste#N-- ... ##]` 格式），随后 original 一次；未知版本退化是显式边界。若格式化/请求意外失败，`try/finally` 仍调用 original 一次；这条异常路径不能声称成功发起剪贴板请求。
+- 若 `pastes` 不可用：请求 `getExpandedText()` 得到可用正文（但不声称精确 `[paste#N## ... ##]` 格式），随后 original 一次；未知版本退化是显式边界。若格式化/请求意外失败，`try/finally` 仍调用 original 一次；这条异常路径不能声称成功发起剪贴板请求。
 - Promise 兑现/拒绝之后，回调不再访问 editor，也不调用 original；**NSP**：异步结果不可能让旧 editor 清空后来重建的 editor。
 
 ### 2.3 `formatClipboardPayload()`
 
-- 前置：raw 有限长，Map 为当前 editor 的 paste Map。有限个不为空的 marker match 各自读取 ID：有字符串正文时替换成 `[paste#N-- ${正文} ##]`，无正文时原文返回；普通区段保持不变。**NSP**：输出与 raw 的非 marker 部分相同，每个有映射的 marker 有与其 ID 一致的正文，Map 未变；正则全局扫描有限字符串必终止。
+- 前置：raw 有限长，Map 为当前 editor 的 paste Map。有限个不为空的 marker match 各自读取 ID：有字符串正文时替换成 `[paste#N## ${正文} ##]`，无正文时原文返回；普通区段保持不变。**NSP**：输出与 raw 的非 marker 部分相同，每个有映射的 marker 有与其 ID 一致的正文，Map 未变；正则全局扫描有限字符串必终止。
 - 特例：手工键入与真实 marker 完全同形的字符串、且该 ID 恰存在时，当前 pi 的 `getExpandedText()` 也将全局替换它；接口未暴露“哪个出现位置才是真 marker”的区别。本设计不宣称在此病理情形下区分手打文本与粘贴标记。
 
 ## 3. 整体链路与原反例处理

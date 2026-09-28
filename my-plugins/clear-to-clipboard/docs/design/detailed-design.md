@@ -25,7 +25,7 @@
 | `copyToClipboard(text)` | 导出 `Promise<void>`，可能拒绝，也可能 OSC 52 无回执 | 先发起调用并附 `.catch` 消纳拒绝；不 await、不让成功/失败决定原 handler |
 | `pi.on("session_start"/"session_shutdown", ...)` | 生命周期通知，返回取消注册函数 | 每次 TUI session 仅在闭包内持有监听器与包装集合 |
 
-`getText()` 与 `pastes` 在键处理同一个同步调用栈取得；Map 若缺失不把“有实际正文的 marker”假装为已按 `[paste#ID-- 正文 ##]` 复制，改用 `getExpandedText()` 提供可用正文。原 core 源码升级若改变私有字段，精确格式不再有合同保障，需适配或调整需求。
+`getText()` 与 `pastes` 在键处理同一个同步调用栈取得；Map 若缺失不把“有实际正文的 marker”假装为已按 `[paste#ID## 正文 ##]` 复制，改用 `getExpandedText()` 提供可用正文。原 core 源码升级若改变私有字段，精确格式不再有合同保障，需适配或调整需求。
 
 ## 3. 状态与不变量
 
@@ -70,7 +70,7 @@
 ### 4.5 `formatClipboardPayload(raw: string, pastes: ReadonlyMap<number,unknown>): string`（`clipboard-payload.ts`）
 
 - **Requires**：`raw` 是同一次键事件的 `getText()`；`pastes` 为同一 Editor 实例的现存 Map。非粘贴文字可能偶然包含与 marker 同形的字符串。
-- **Ensures**：逐个匹配 pi 的 `[paste #N +K lines]` 或 `[paste #N K chars]` 格式；仅在 `pastes.get(N)` 是字符串时替换为 `[paste#N-- ${正文} ##]`，包括原文中的括号、新行与空白；否则保留原片段。其余文本逐字符保持原值；不 trim、不改 Map。
+- **Ensures**：逐个匹配 pi 的 `[paste #N +K lines]` 或 `[paste #N K chars]` 格式；仅在 `pastes.get(N)` 是字符串时替换为 `[paste#N## ${正文} ##]`，包括原文中的括号、新行与空白；否则保留原片段。其余文本逐字符保持原值；不 trim、不改 Map。
 - **步骤**：对 `raw` 调用带 `g` 的明确 marker 正则 `replace`；每次匹配解析 `N`，读取 Map，按字符串/非字符串两支返回新片段或原片段；整体返回结果。所有 match 非空且 raw 长度有限，replace 扫描至末尾终止。
 - **正确性**：marker ID 与 Map 键同源于 pi 的 `handlePaste()`；有映射则复制准确正文，无映射不虚构值。若用户手工输入与真实 marker 同形文字、且该 ID 恰存在，pi 自身 `getExpandedText()` 也全局替换这个同形文字；当前版本无法仅凭 raw 区分它与真实 marker，此能力边界不延伸为“始终唯一正确识别”保证。
 

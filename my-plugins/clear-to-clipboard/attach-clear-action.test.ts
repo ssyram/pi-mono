@@ -71,7 +71,7 @@ describe("attachClearAction", () => {
 	it("requests the formatted clipboard text before the original clear action", () => {
 		const state = setup("hello [paste #1 1001 chars]", "hello pasted", new Map([[1, "pasted"]]));
 		state.press();
-		expect(state.calls).toEqual(["copy:hello [paste#1-- pasted ##]", "clear"]);
+		expect(state.calls).toEqual(["copy:hello [paste#1## pasted ##]", "clear"]);
 		expect(state.original).toHaveBeenCalledTimes(1);
 		expect(state.setWidget).toHaveBeenCalledTimes(2);
 		state.release();
@@ -164,7 +164,7 @@ describe("attachClearAction", () => {
 		const release = attachClearAction(ui, copy);
 		listener?.("\x03");
 		editor.handleInput("\x03");
-		expect(copy).toHaveBeenCalledExactlyOnceWith(`[paste#1-- ${content} ##]`);
+		expect(copy).toHaveBeenCalledExactlyOnceWith(`[paste#1## ${content} ##]`);
 		expect(original).toHaveBeenCalledTimes(1);
 		expect(editor.getText()).toBe("");
 		release();

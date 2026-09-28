@@ -15,7 +15,7 @@ describe("formatClipboardPayload", () => {
 			[1, "甲]乙\n丙"],
 			[2, "first\nsecond"],
 		]);
-		expect(formatClipboardPayload(raw, pastes)).toBe("a [paste#1-- 甲]乙\n丙 ##] b [paste#2-- first\nsecond ##] z");
+		expect(formatClipboardPayload(raw, pastes)).toBe("a [paste#1## 甲]乙\n丙 ##] b [paste#2## first\nsecond ##] z");
 	});
 
 	it("does not invent a body when the ID has no string value", () => {
@@ -31,6 +31,6 @@ describe("formatClipboardPayload", () => {
 		const pastes: unknown = (editor as unknown as Record<string, unknown>).pastes;
 		expect(pastes).toBeInstanceOf(Map);
 		if (!(pastes instanceof Map)) return;
-		expect(formatClipboardPayload(editor.getText(), pastes)).toBe(`[paste#1-- ${content} ##]`);
+		expect(formatClipboardPayload(editor.getText(), pastes)).toBe(`[paste#1## ${content} ##]`);
 	});
 });

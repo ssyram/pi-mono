@@ -4,7 +4,7 @@
 
 ## 1. Q 与已核事实
 
-- **Q.I（用户）**：在交互模式主输入框的 `Ctrl+C` 清空时发起内容复制；长粘贴在剪贴板请求文本中表示为 `[paste#ID-- <actual text> ##]`，其中 ID 为 pi 生成的数字、`<actual text>` 为该粘贴的真实正文；纯插件，绝不修改 pi-mono 官方源码。
+- **Q.I（用户）**：在交互模式主输入框的 `Ctrl+C` 清空时发起内容复制；长粘贴在剪贴板请求文本中表示为 `[paste#ID## <actual text> ##]`，其中 ID 为 pi 生成的数字、`<actual text>` 为该粘贴的真实正文；纯插件，绝不修改 pi-mono 官方源码。
 - **Q.I（用户后续裁决）**：不要求插件等待、验证或兜底操作系统/终端是否真的接受剪贴板写入；其余默认按键行为不因复制请求改变。
 - **Q.E（用户）**：有误触清空丢输入的经历；该经历不证明任何平台剪贴板必可用。
 - **Q.A（源码）**：pi 的 `CustomEditor.actionHandlers` 是公开 Map；真正触发 `app.clear` 时调用它保存的回调，回调最终执行 `handleCtrlC()`（第一次清空、500ms 内第二次退出）。`Editor` 把大粘贴正文存于运行时私有 `pastes: Map<number,string>`，可见输入里只放 `[paste #N …]`。`getText()` 返回标记，`getExpandedText()` 返回正文但丢失 ID。来源：`packages/coding-agent/src/modes/interactive/components/custom-editor.ts` 的 `handleInput`/`actionHandlers`、`interactive-mode.ts` 的 `handleCtrlC`、`packages/tui/src/components/editor.ts` 的 `handlePaste`/`getExpandedText`。
@@ -12,7 +12,7 @@
 ## 2. D.root：设计性质 P
 
 - **P1（目标事件）**：当主 editor 的实际 `app.clear` 回调执行且 `getText()` 非空时，插件从当前 editor 同步构造请求文本，调用一次 `copyToClipboard(text)`，随后调用原始 `app.clear` 回调一次；不依赖 Promise 的完成、失败、耗时或终端回执。
-- **P2（数据）**：保留非粘贴正文、换行、空格；对仍有正文映射的真实 pi 粘贴标记 `[paste #N …]`，输出 `[paste#N-- ${正文} ##]`。多个标记各自展开一次；没有映射的同形文本按普通文字保留，不得伪造正文。空编辑器不提交复制请求。
+- **P2（数据）**：保留非粘贴正文、换行、空格；对仍有正文映射的真实 pi 粘贴标记 `[paste #N …]`，输出 `[paste#N## ${正文} ##]`。多个标记各自展开一次；没有映射的同形文本按普通文字保留，不得伪造正文。空编辑器不提交复制请求。
 - **P3（默认行为）**：包装的是实际 action handler，不抢先按原始 Ctrl+C 字节猜测，也不延后清空；原 handler 的 500ms 双击退出、keybindings 重绑、extension shortcut 优先级由 pi 保持。不可因复制请求失败而跳过原 handler。
 - **P4（生命周期）**：仅 TUI 会话安装，订阅的终端监听器用于发现当前聚焦的 editor 并在其处理键前装入回调包装；会话停止时取消监听，并只恢复本插件拥有的包装，不触碰其它扩展后续替换的 handler；状态由会话闭包拥有，不建跨会话全局可变状态。
 - **P5（纯插件）**：新代码仅位于 `my-plugins/clear-to-clipboard/`；不修改官方源码、默认键位和 pi 的 editor 组件。
@@ -31,7 +31,7 @@
   → 不 consume、不更改按键；由 pi 自己选择动作
   → 如果实际执行 app.clear 包装函数：
        读取当前聚焦 editor 的 getText() 与运行时 pastes 映射
-       非空：构造 [paste#N-- 正文 ##] 格式并发起 copyToClipboard(payload)
+       非空：构造 [paste#N## 正文 ##] 格式并发起 copyToClipboard(payload)
        不等待结果；同步调用原 handler（包括退出的情况）
 ```
 

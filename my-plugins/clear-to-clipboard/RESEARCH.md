@@ -1,6 +1,6 @@
 # clear-to-clipboard 插件调研（survey，未实现）
 
-状态：survey 历史产物。用户后来明确只要求发起剪贴板写入请求，并要求 `[paste#ID-- <actual text> ##]` 格式；本文件的自定义 editor/等待复制方案均已废弃，当前合同与实现见 `docs/design/`。
+状态：survey 历史产物。用户后来明确只要求发起剪贴板写入请求，并要求 `[paste#ID## <actual text> ##]` 格式；本文件的自定义 editor/等待复制方案均已废弃，当前合同与实现见 `docs/design/`。
 
 ## 1. 问题
 
