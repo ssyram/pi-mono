@@ -70,7 +70,7 @@ export function renderTaskResult(
 }
 
 // Human-only enrichment: the AI-facing content stays "#N done";
-// the TUI result shows "#N: <task text> done" so the reader need not look up the ID.
+// the TUI result shows "#N done: <task text>" so the reader need not look up the ID.
 function renderMutatingResult(
 	result: AgentToolResult<unknown>,
 	details: TaskDetails,
@@ -107,7 +107,7 @@ function describeTaskLine(
 	if (!match) return line;
 	const description = descriptions.get(Number(match[1]));
 	if (!description) return line;
-	return `${theme.fg("accent", `#${match[1]}:`)} ${theme.fg("text", description)} ${match[2]}`;
+	return `${theme.fg("accent", `#${match[1]}`)} ${match[2]}: ${theme.fg("text", description)}`;
 }
 
 function renderListResult(taskList: Task[], expanded: boolean, theme: Theme) {

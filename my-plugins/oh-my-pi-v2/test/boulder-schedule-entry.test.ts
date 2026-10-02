@@ -33,6 +33,6 @@ it("records and renders an AI-invisible Boulder schedule entry", () => {
 	const component = renderer?.({ data }, { expanded: false }, { fg: (_color, text) => text });
 	assert.equal(
 		component?.render(100).join("\n").trimEnd(),
-		"↻ Automatic Boulder 4/10 resume scheduled, restarting in 20s",
+		"↻ Automatic Boulder 4/10 resume scheduled, restarting in 20s (click to expand)",
 	);
 });

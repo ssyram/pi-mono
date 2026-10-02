@@ -25,7 +25,7 @@ function render(content: Array<{ type: string; text?: string; data?: string }>, 
 }
 
 describe("task result rendering", () => {
-	it("keeps AI content as #N done while the TUI shows #N: desc done", () => {
+	it("keeps AI content as #N done while the TUI shows #N done: desc", () => {
 		const original = state(task(1, "in_progress"), task(2, "pending", [1]));
 		const operation = executeTaskRequest(original, {
 			action: "done",
@@ -34,8 +34,8 @@ describe("task result rendering", () => {
 		});
 		assert.equal(text(operation), "#1 done\n#2 started");
 		const rendered = render(operation.result.content, operation.result.details);
-		assert.match(rendered, /#1: task 1 done/);
-		assert.match(rendered, /#2: task 2 started/);
+		assert.match(rendered, /#1 done: task 1/);
+		assert.match(rendered, /#2 started: task 2/);
 	});
 
 	it("passes through partial prefixes and enriches handoff failure lines", () => {
@@ -47,8 +47,8 @@ describe("task result rendering", () => {
 		});
 		const rendered = render(operation.result.content, operation.result.details);
 		assert.match(rendered, /^Partially applied:$/m);
-		assert.match(rendered, /#1: task 1 done/);
-		assert.match(rendered, /#2: task 2 not started: task #2 is blocked by: #3/);
+		assert.match(rendered, /#1 done: task 1/);
+		assert.match(rendered, /#2 not started: task #2 is blocked by: #3: task 2/);
 	});
 
 	it("enriches created lines from add and leaves item-skip lines untouched", () => {
@@ -58,7 +58,7 @@ describe("task result rendering", () => {
 			tasks: [{ text: "fix login" }, { text: "  " }],
 		});
 		const rendered = render(operation.result.content, operation.result.details);
-		assert.match(rendered, /#1: fix login created/);
+		assert.match(rendered, /#1 created: fix login/);
 		assert.match(rendered, /^Item 2 skipped: text is required$/m);
 	});
 
@@ -88,7 +88,7 @@ describe("task result rendering", () => {
 			nextId: 2,
 		};
 		const rendered = render([{ type: "text", text: "#1 done\n#9 done" }], details);
-		assert.match(rendered, /#1: task 1 done/);
+		assert.match(rendered, /#1 done: task 1/);
 		assert.match(rendered, /^#9 done$/m);
 	});
 });

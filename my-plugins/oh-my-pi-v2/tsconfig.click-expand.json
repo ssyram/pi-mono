@@ -1,0 +1,21 @@
+{
+	"extends": "./tsconfig.task-system.json",
+	"compilerOptions": {
+		"target": "ES2024",
+		"paths": {
+			"@earendil-works/pi-coding-agent": ["./test/task-system-source-api.ts"],
+			"@earendil-works/pi-ai": ["./test/task-system-ai-api.ts"],
+			"@earendil-works/pi-agent-core": ["../../packages/agent/src/types.ts"],
+			"@earendil-works/pi-telemetry": ["../../packages/telemetry/src/index.ts"],
+			"@earendil-works/pi-tui": ["../../packages/tui/src/index.ts"]
+		}
+	},
+	"include": [
+		"tools/click-expand.ts",
+		"hooks/boulder-schedule-entry.ts",
+		"hooks/boulder-resume-message.ts",
+		"test/click-expand.test.ts",
+		"test/boulder-schedule-entry.test.ts",
+		"test/boulder-resume-message.test.ts"
+	]
+}

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
+import { ClickExpandText, clickExpandable } from "../tools/click-expand.js";
 
 export const BOULDER_RESUME_MESSAGE_TYPE = "omp-boulder-resume";
 
@@ -26,15 +27,22 @@ export interface BoulderResumeController {
 }
 
 function resumeIdOf(message: AgentMessage): string | undefined {
-	if (message.role !== "custom" || message.customType !== BOULDER_RESUME_MESSAGE_TYPE) return undefined;
-	if (typeof message.details !== "object" || message.details === null) return undefined;
-	const details = message.details as Record<string, unknown>;
-	return typeof details.resumeId === "string" ? details.resumeId : undefined;
+	// Runtime shape of custom messages is not represented in every AgentMessage
+	// union revision, so narrow through an untyped view instead of type assertions.
+	const record = message as { role?: string; customType?: string; details?: unknown };
+	if (record.role !== "custom" || record.customType !== BOULDER_RESUME_MESSAGE_TYPE) return undefined;
+	if (typeof record.details !== "object" || record.details === null) return undefined;
+	const resumeId = (record.details as Record<string, unknown>).resumeId;
+	return typeof resumeId === "string" ? resumeId : undefined;
 }
 
-export function filterBoulderResumeMessages(messages: AgentMessage[], liveResumeId: string | undefined): AgentMessage[] {
+export function filterBoulderResumeMessages(
+	messages: AgentMessage[],
+	liveResumeId: string | undefined,
+): AgentMessage[] {
 	return messages.filter((message) => {
-		if (message.role !== "custom" || message.customType !== BOULDER_RESUME_MESSAGE_TYPE) return true;
+		const record = message as { role?: string; customType?: string; details?: unknown };
+		if (record.role !== "custom" || record.customType !== BOULDER_RESUME_MESSAGE_TYPE) return true;
 		return liveResumeId !== undefined && resumeIdOf(message) === liveResumeId;
 	});
 }
@@ -62,10 +70,30 @@ export function registerBoulderResumeMessages(pi: ExtensionAPI): BoulderResumeCo
 
 	pi.registerMessageRenderer<BoulderResumeDetails>(BOULDER_RESUME_MESSAGE_TYPE, (message, options, theme) => {
 		const label = theme.fg("accent", "↻ Automatic Boulder resume");
-		const content = options.expanded && typeof message.content === "string"
-			? `\n${theme.fg("muted", message.content)}`
-			: "";
-		return new Text(label + content, 0, 0);
+		const content = typeof message.content === "string" ? message.content : "";
+		const contentBlock = () => (content ? `\n${theme.fg("muted", content)}` : "");
+		// Click-to-expand needs the fullscreen TUI mouse path; without a stable
+		// resumeId the wrapper is skipped and keyboard expansion still works.
+		const resumeId =
+			typeof message.details === "object" &&
+			message.details !== null &&
+			typeof (message.details as { resumeId?: unknown }).resumeId === "string"
+				? (message.details as { resumeId: string }).resumeId
+				: undefined;
+		if (!resumeId) return new Text(label + (options.expanded ? contentBlock() : ""), 0, 0);
+		try {
+			const key = `boulder-resume:${resumeId}`;
+			return clickExpandable(
+				new ClickExpandText({
+					key,
+					collapsed: () => (options.expanded ? label + contentBlock() : label + theme.fg("dim", " (click to expand)")),
+					expanded: () => label + contentBlock(),
+				}),
+				key,
+			);
+		} catch {
+			return new Text(label, 0, 0);
+		}
 	});
 	pi.on("context", (event, context) => ({
 		messages: filterBoulderResumeMessages(event.messages, liveResumeIds.get(context.sessionManager)),

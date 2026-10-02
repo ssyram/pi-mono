@@ -36,7 +36,7 @@ function customMessage(resumeId: string, customType = BOULDER_RESUME_MESSAGE_TYP
 		display: true,
 		details: { resumeId, attempt: 1, maxAttempts: 10, scheduledDelayMs: 10_000 },
 		timestamp: 0,
-	} as AgentMessage;
+	} as unknown as AgentMessage;
 }
 
 function createHarness(): {
@@ -168,7 +168,9 @@ describe("Boulder resume custom message", () => {
 		const collapsed = harness.renderer()(message, { expanded: false }, theme);
 		const expanded = harness.renderer()(message, { expanded: true }, theme);
 
-		assert.deepEqual(collapsed?.render(80).map((line) => line.trimEnd()), ["↻ Automatic Boulder resume"]);
+		assert.deepEqual(collapsed?.render(80).map((line) => line.trimEnd()), [
+			"↻ Automatic Boulder resume (click to expand)",
+		]);
 		assert.deepEqual(expanded?.render(80).map((line) => line.trimEnd()), [
 			"↻ Automatic Boulder resume",
 			"resume content",
