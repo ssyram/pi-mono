@@ -8,7 +8,8 @@
 - `extension.ts`：扩展入口；按会话装/卸插件，不存跨会话可变全局状态。
 - `attach-clear-action.ts`：取得 TUI 引用，监听键入、包装焦点主 editor 的实际 `app.clear` handler，释放包装。一个职责：事件挂接。
 - `clipboard-payload.ts`：纯函数，把折叠 marker 与 pi 运行时 paste Map 组合成复制请求文本。一个职责：文本变换。
-- `clipboard-payload.test.ts`、`attach-clear-action.test.ts`：定向功能测试（实施时创建）。
+- `copy-feedback.ts`：全屏复用 `TuiAltScreen.flash()`，普通模式或缺少该方法时使用 `ctx.ui.notify()`；提示明确复制的是清空前的输入。
+- `clipboard-payload.test.ts`、`attach-clear-action.test.ts`、`clear-copy-notification.test.ts`、`copy-feedback-renderer.test.ts`：文本变换、原动作、异步提示及原生全屏 renderer 的定向功能测试。
 - `package.json`：插件加载入口 `index.ts`，与同目录插件惯例一致。
 
 不使用 `any`、动态 import、参数属性、`utils.ts`；单源文件不超过 200 LOC（排除空行/注释）；只在 `my-plugins/clear-to-clipboard/` 写入。
@@ -22,7 +23,7 @@
 | `CustomEditor.actionHandlers` | 公开 `Map<AppKeybinding,()=>void>`；实际 action dispatch 迭代它的 handler；`app.clear` 已在启动/重绑定时注册 | 读取和替换 `"app.clear"` 项，不更改键位或其它 action |
 | `Editor.getText()` / 运行时 `pastes` | `getText()` 有 `[paste #N …]`；真实正文映射为当前版本 TS private `pastes: Map<number,string>` | 运行时 guard `pastes instanceof Map`，只在 ID 对应值为 string 时展开；这是版本耦合，不是公开 API |
 | `Editor.getExpandedText()` | 可得展开全文，但失去 marker 数字 ID | 缺 paste Map 时的降级文本，绝不伪造 ID/正文 |
-| `copyToClipboard(text)` | 导出 `Promise<void>`，可能拒绝，也可能 OSC 52 无回执 | 先发起调用并附 `.catch` 消纳拒绝；不 await、不让成功/失败决定原 handler |
+| `copyToClipboard(text)` | 导出 `Promise<void>`，可能拒绝，也可能 OSC 52 无回执 | 先发起调用并附兑现/拒绝 handler；结果只控制提示，不 await、不让成功/失败决定原 handler |
 | `pi.on("session_start"/"session_shutdown", ...)` | 生命周期通知，返回取消注册函数 | 每次 TUI session 仅在闭包内持有监听器与包装集合 |
 
 `getText()` 与 `pastes` 在键处理同一个同步调用栈取得；Map 若缺失不把“有实际正文的 marker”假装为已按 `[paste#ID## 正文 ##]` 复制，改用 `getExpandedText()` 提供可用正文。原 core 源码升级若改变私有字段，精确格式不再有合同保障，需适配或调整需求。
@@ -47,7 +48,7 @@
 
 ### 4.2 会话挂接 `attachClearAction(ui: EditorUI, copy: (text:string)=>Promise<void>): () => void`（`attach-clear-action.ts`）
 
-- **Requires**：交互 UI；`setWidget` factory 同步执行（§2）。`EditorUI` 是从公开 `ExtensionUIContext` 用 `Pick` 取得的 `setWidget`/`onTerminalInput`，无需自造 UI 类型行为。
+- **Requires**：交互 UI；`setWidget` factory 同步执行（§2）。`EditorUI` 是从公开 `ExtensionUIContext` 用 `Pick` 取得的 `setWidget`/`onTerminalInput`/`notify`，无需自造 UI 类型行为。
 - **Ensures**：返回幂等 `release()`；监听器仅在该 session 内活动；不留可见 widget；不替换 editor。
 - **步骤**：① 定义 `let tui: TUI|undefined`，用唯一 key 的零行 widget factory 捕获 `tui`；② 同步 `setWidget(key,undefined)` 删除；若未获得 tui，则返回空的 release（不假装挂接成功）；③ 创建每会话 Maps 并注册 `onTerminalInput`，handler 读取 `tui.getFocusedComponent()`，仅当其为下述 `EditorView` 且有 `app.clear` handler 时执行 `installWrapper`，返回 `undefined` 让 pi 继续输入。④ `release` 先 unsubscribe，然后对已跟踪 Map 项逐一执行“仍是自己 wrapper 才还原”，清空集合；重复 release 无操作。
 - **副作用**：仅临时空 widget、一个输入 listener、每个接键 editor 的一个 Map 项；不直接请求复制或清空。循环仅 release 遍历有限的已包 editor 集合；每轮删去一项，终止。
@@ -64,8 +65,8 @@
 
 - **Requires**：pi 实际 dispatch 到 `app.clear` handler；保存的 `original` 可调用。
 - **Ensures**：如果当前焦点 editor `raw.length>0`，在同步调用原 handler **之前**触发一次 `copy(payload)` 并消纳 Promise 拒绝；无内容不复制。无论格式读取或 clipboard 失败与否都调用 `original()` **一次**，不等待 clipboard。
-- **顺序与分支**：① 同步取当前焦点并按 §4.3 guard；无有效 editor → 仅调用 `original()` 返回。② `raw=focus.getText()`；空串 → 仅调用 `original()` 返回。③ 运行时读 `pastes`：若是 Map，`payload=formatClipboardPayload(raw,pastes)`；否则 `payload=focus.getExpandedText()`；均保留前后空白。④ `void copy(payload).catch(()=>{})`；⑤ 调用 `original()`，让 pi 自己选择清空或双击退出。若构造 payload 意外抛错，仅跳过复制，不抑制 `original()`；实现需用 `try/finally` 保持这项关系。实际复制由异步 API 执行，不声称系统已写入。
-- **副作用与论证**：唯一额外副作用是 clipboard 请求；pi 现有默认行为由 `original()` 独立承担。相同同步栈没有 await，旧回调永不在 Promise 结算后清空新 editor（原 R2 消失）。无循环。
+- **顺序与分支**：① 同步取当前焦点并按 §4.3 guard；无有效 editor → 仅调用 `original()` 返回。② `raw=focus.getText()`；空串 → 仅调用 `original()` 返回。③ 运行时读 `pastes`：若是 Map，`payload=formatClipboardPayload(raw,pastes)`；否则 `payload=focus.getExpandedText()`；均保留前后空白。④ `void copy(payload).then(success,failure)`，仅在 session 尚未 release 时显示结果；⑤ 调用 `original()`，让 pi 自己选择清空或双击退出。若构造 payload 意外抛错，仅跳过复制，不抑制 `original()`；实现需用 `try/finally` 保持这项关系。实际复制由异步 API 执行，不声称系统已写入。
+- **副作用与论证**：额外副作用是 clipboard 请求及其结果提示；pi 现有默认行为由 `original()` 独立承担。相同同步栈没有 await，旧回调永不在 Promise 结算后清空新 editor（原 R2 消失）。无循环。
 
 ### 4.5 `formatClipboardPayload(raw: string, pastes: ReadonlyMap<number,unknown>): string`（`clipboard-payload.ts`）
 
@@ -74,10 +75,17 @@
 - **步骤**：对 `raw` 调用带 `g` 的明确 marker 正则 `replace`；每次匹配解析 `N`，读取 Map，按字符串/非字符串两支返回新片段或原片段；整体返回结果。所有 match 非空且 raw 长度有限，replace 扫描至末尾终止。
 - **正确性**：marker ID 与 Map 键同源于 pi 的 `handlePaste()`；有映射则复制准确正文，无映射不虚构值。若用户手工输入与真实 marker 同形文字、且该 ID 恰存在，pi 自身 `getExpandedText()` 也全局替换这个同形文字；当前版本无法仅凭 raw 区分它与真实 marker，此能力边界不延伸为“始终唯一正确识别”保证。
 
+### 4.6 `showCopyFeedback(tui, notify, copied)`（`copy-feedback.ts`）
+
+- 成功显示 `Copied cleared input`，失败显示 `Copy failed (input cleared)`；不输出正文或原始错误。
+- 当前 renderer 为 fullscreen 且提供 `flash` 时，复用原生右上角提示；成功 1800ms、失败 3000ms。否则用扩展通知，成功为 info，失败为 error。
+- `released` 在调用前检查；异步回调只显示反馈，不读取或清空 editor。Promise 兑现与原生复制相同，不保证 OSC 52 被终端接受。
+
 ## 5. 测试与执行条件（实施时）
 
 - 纯函数用例：普通多行空白原样；单个/多个真实 marker、不同数字 ID；正文含 `]`/换行；未知 ID 不被替换；无 Map 时 wrapper 请求 `getExpandedText()`。
 - 挂接用例：空 widget 获取 TUI 后立即移除；首键之前 wrap、非 app.clear 不复制；实际 app.clear 一次请求 + 原 handler 一次；空输入不覆盖剪贴板；重新绑定键无需硬编码；同一个 editor 重复事件不重包；不同 editor 复制 wrapper 不叠加；release 只复原自己、对外部替换不反写；copy Promise 拒绝仍交回原 handler；真实 `CustomEditor` 的 Ctrl+C 分派与实际 pi-tui paste Map 已由定向测试覆盖。
+- 提示用例：复制未完成时清空已执行；成功/失败、regular/fullscreen、无 flash 方法、空输入、release 后的迟到结果均有定向测试。真实 `CustomEditor`、`TuiAltScreen` 与 headless terminal 的输入/渲染测试确认提示在首行右侧，clipboard 使用假函数，不调用模型或覆盖系统剪贴板。
 - 项目要求：编辑测试后运行该测试并迭代，通过后运行 `npm run check`（完整输出）；不运行全量 `npm test` 或 `npm run build`。若测试真实 pi 交互模式，先按 `.pi/skills/interactive-testing.md` 执行 tmux 流程，不调用真实 LLM。
 
 ## 6. 完备性与边界

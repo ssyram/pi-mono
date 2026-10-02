@@ -2,6 +2,7 @@ import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 
 import { formatClipboardPayload } from "./clipboard-payload.js";
+import { showCopyFeedback } from "./copy-feedback.js";
 
 type EditorView = Component & {
 	actionHandlers: Map<string, () => void>;
@@ -9,7 +10,7 @@ type EditorView = Component & {
 	getExpandedText(): string;
 };
 
-type EditorUI = Pick<ExtensionUIContext, "setWidget" | "onTerminalInput">;
+type EditorUI = Pick<ExtensionUIContext, "setWidget" | "onTerminalInput" | "notify">;
 type FocusedTUI = TUI & { getFocusedComponent(): Component | null };
 
 function hasFocusedComponent(tui: TUI): tui is FocusedTUI {
@@ -42,6 +43,7 @@ export function attachClearAction(ui: EditorUI, copy: (text: string) => Promise<
 	if (!tui || !hasFocusedComponent(tui)) return () => {};
 
 	const terminal = tui;
+	let released = false;
 	const wrappedEditors = new Map<EditorView, { original: () => void; wrapper: () => void }>();
 	const originalForWrapper = new WeakMap<() => void, () => void>();
 	const unsubscribe = ui.onTerminalInput(() => {
@@ -62,7 +64,14 @@ export function attachClearAction(ui: EditorUI, copy: (text: string) => Promise<
 							pastes instanceof Map
 								? formatClipboardPayload(raw, pastes as ReadonlyMap<number, unknown>)
 								: focused.getExpandedText();
-						void copy(payload).catch(() => {});
+						void copy(payload).then(
+							() => {
+								if (!released) showCopyFeedback(terminal, ui.notify, true);
+							},
+							() => {
+								if (!released) showCopyFeedback(terminal, ui.notify, false);
+							},
+						);
 					}
 				}
 			} finally {
@@ -76,7 +85,6 @@ export function attachClearAction(ui: EditorUI, copy: (text: string) => Promise<
 		return undefined;
 	});
 
-	let released = false;
 	return () => {
 		if (released) return;
 		released = true;

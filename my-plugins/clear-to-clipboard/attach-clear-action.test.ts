@@ -38,6 +38,7 @@ function setup(rawText: string, fullText = rawText, pastes = new Map<number, str
 		if (factory) factory(tui, {});
 	});
 	const ui = {
+		notify: vi.fn(),
 		setWidget,
 		onTerminalInput: (handler: Listener) => {
 			listener = handler;
@@ -152,6 +153,7 @@ describe("attachClearAction", () => {
 		const original = vi.fn(() => editor.setText(""));
 		editor.onAction("app.clear", original);
 		const ui = {
+			notify: vi.fn(),
 			setWidget: (_: string, factory?: (tui: TUI, theme: unknown) => Component) => {
 				if (factory) factory(tui, {});
 			},

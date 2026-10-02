@@ -37,7 +37,7 @@
 
 真实 handler 而非预先匹配键值是操作分界，故其它 UI 中的取消键与扩展快捷键不误触发。旧方案的两条反例不再适用：不替换 editor 就没有“长粘贴在安装时只迁移 marker”；清空也不在异步 Promise 完成后才触发，故没有“旧 editor 回调清空新 editor”。
 
-两项独立职责：`clipboard-payload.ts` 只负责用 Map 把真实 marker 变换为请求文本；`attach-clear-action.ts` 只负责挂接实际 clear handler 并释放会话资源。入口 `extension.ts` 负责 session_start/shutdown，`index.ts` 只 re-export。剪贴板平台选择复用 pi 的 `copyToClipboard`，插件不维护另一个 pbcopy/wl-copy/OSC 52 实现。
+三项独立职责：`clipboard-payload.ts` 负责用 Map 把真实 marker 变换为请求文本；`attach-clear-action.ts` 负责挂接实际 clear handler、释放会话资源并抑制 release 后的迟到反馈；`copy-feedback.ts` 负责复用原生全屏 `flash()` 或普通模式 `notify()` 显示明确的输入复制结果。入口 `extension.ts` 负责 session_start/shutdown，`index.ts` 只 re-export。剪贴板平台选择复用 pi 的 `copyToClipboard`，插件不维护另一个 pbcopy/wl-copy/OSC 52 实现。
 
 ## 4. 接口与不变量
 
@@ -52,4 +52,4 @@
 
 **格式边界**：固定结束符 `##]` 让日常文本更容易批量匹配，但正文若也包含 `##]`，仅靠非贪婪正则仍可能提前结束；插件不删除正文、不转义用户粘贴内容。
 
-**仍然不能证明的更强命题**：终端一定接受 OSC 52、剪贴板最终持有内容、后续程序不会覆盖；这已被用户明确排除在本插件保证外。当前 pi 版本的 `pastes` 私有字段或 widget factory 时序若改变，精确 ID+正文格式需更新插件；不能把这种实现依赖偷换成稳定公开 API。代码现已落在本插件目录；定向测试 11/11、插件 TypeScript 检查和 `npm run check` 通过，交互启动已显示插件加载（未以真实 Ctrl+C 写入用户剪贴板）。函数级步骤见 [detailed-design.md](detailed-design.md)，证明边界见 [correctness.md](correctness.md)。
+**仍然不能证明的更强命题**：终端一定接受 OSC 52、剪贴板最终持有内容、后续程序不会覆盖；这已被用户明确排除在本插件保证外。当前 pi 版本的 `pastes` 私有字段或 widget factory 时序若改变，精确 ID+正文格式需更新插件；不能把这种实现依赖偷换成稳定公开 API。当前定向测试 21/21、插件 TypeScript 检查和 `npm run check` 通过；包含真实 CustomEditor、原生 TuiAltScreen 与 headless terminal 的 Ctrl+C 分派及右上角提示测试。clipboard 使用假函数，未写入用户系统剪贴板。函数级步骤见 [detailed-design.md](detailed-design.md)，证明边界见 [correctness.md](correctness.md)。
