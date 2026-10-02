@@ -120,7 +120,7 @@ describe("task tool integration", () => {
 		assert.equal(definition.name, "task");
 		assert.equal(definition.executionMode, "sequential");
 		assert.ok(definition.renderCall);
-		assert.equal(definition.renderResult, undefined);
+		assert.ok(definition.renderResult);
 
 		const added = await definition.execute(
 			"c1",

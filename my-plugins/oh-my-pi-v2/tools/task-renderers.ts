@@ -8,6 +8,7 @@ import type {
 	ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
+import { normalizeTaskDisplayText } from "./task-display.js";
 import { formatTaskContent, statusTag } from "./task-format.js";
 import type { Task, TaskDetails } from "./task-types.js";
 
@@ -65,8 +66,48 @@ export function renderTaskResult(
 
 	if (details.action === "list")
 		return renderListResult(details.tasks, expanded, theme);
-	// Mutating actions: no TUI output (state visible in widget)
-	return new Text("", 0, 0);
+	return renderMutatingResult(result, details, theme);
+}
+
+// Human-only enrichment: the AI-facing content stays "#N done";
+// the TUI result shows "#N: <task text> done" so the reader need not look up the ID.
+function renderMutatingResult(
+	result: AgentToolResult<unknown>,
+	details: TaskDetails,
+	theme: Theme,
+) {
+	const first = result.content[0];
+	const raw = first?.type === "text" ? first.text : "";
+	if (!raw) return new Text("", 0, 0);
+	const descriptions = new Map<number, string>();
+	for (const task of details.tasks) {
+		// details is runtime-validated only shallowly; skip malformed entries.
+		if (typeof task?.id === "number" && typeof task.text === "string")
+			descriptions.set(
+				task.id,
+				normalizeTaskDisplayText(formatTaskContent(task)),
+		);
+	}
+	try {
+		const lines = raw
+			.split("\n")
+			.map((line) => describeTaskLine(line, descriptions, theme));
+		return new Text(lines.join("\n"), 0, 0);
+	} catch {
+		return new Text(raw, 0, 0);
+	}
+}
+
+function describeTaskLine(
+	line: string,
+	descriptions: Map<number, string>,
+	theme: Theme,
+): string {
+	const match = /^#(\d+) (.+)$/.exec(line);
+	if (!match) return line;
+	const description = descriptions.get(Number(match[1]));
+	if (!description) return line;
+	return `${theme.fg("accent", `#${match[1]}:`)} ${theme.fg("text", description)} ${match[2]}`;
 }
 
 function renderListResult(taskList: Task[], expanded: boolean, theme: Theme) {

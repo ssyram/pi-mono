@@ -4,7 +4,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { isUnblocked } from "./task-dependencies.js";
-import { renderTaskCall } from "./task-renderers.js";
+import { renderTaskCall, renderTaskResult } from "./task-renderers.js";
 import {
 	type TaskBoundaryErrorDetails,
 	taskBoundaryFailure,
@@ -184,6 +184,7 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 			return operation;
 		}),
 		renderCall: renderTaskCall,
+		renderResult: renderTaskResult,
 	});
 
 	return {
