@@ -55,6 +55,19 @@ describe("parseLoopV2Command", () => {
 		assert.deepEqual(parseLoopV2Command("run session:abc", NOW), { kind: "run", id: "session:abc" });
 	});
 
+	it("parses defer durations and multi-token absolute times", () => {
+		assert.deepEqual(parseLoopV2Command("defer session:abc 10m", NOW), { kind: "defer", id: "session:abc", time: { kind: "delay", delayMs: 600_000 } });
+		assert.deepEqual(parseLoopV2Command("defer registration:global:abc 12am tomorrow", NOW), {
+			kind: "defer", id: "registration:global:abc", time: { kind: "at", runAt: parseAtTime("12am tomorrow", new Date(NOW)) },
+		});
+		assert.deepEqual(parseLoopV2Command("defer session:abc 2099-01-01T00:00:00Z", NOW), {
+			kind: "defer", id: "session:abc", time: { kind: "at", runAt: Date.parse("2099-01-01T00:00:00Z") },
+		});
+		for (const args of ["defer", "defer session:abc", "defer session:abc 0m", "defer session:abc -1m", "defer session:abc 5x", "defer session:abc 10m extra", "defer session:abc 999999999999999d", "defer session:abc 2000-01-01T00:00:00Z"]) {
+			assert.equal(parseLoopV2Command(args, NOW).kind, "error", args);
+		}
+	});
+
 	it("derives delete scope from the id prefix and keeps --force user-only by parsing it", () => {
 		assert.deepEqual(parseLoopV2Command("delete workspace:abc", NOW), { kind: "delete", scope: "workspace", definitionId: "workspace:abc", force: false });
 		assert.deepEqual(parseLoopV2Command("delete --force global:abc", NOW), { kind: "delete", scope: "global", definitionId: "global:abc", force: true });

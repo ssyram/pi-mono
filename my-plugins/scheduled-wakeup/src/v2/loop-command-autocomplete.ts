@@ -19,7 +19,7 @@ export function createLoopCommandAutocompleteProvider(current: AutocompleteProvi
 		if (first === "define" || first === "available") return parsed.previous.length === 1 ? scopes() : [];
 		if (first === "register") return registerCandidates(parsed.previous, source);
 		if (first === "unregister") return parsed.previous.length === 1 ? registrationIds(source.activeIds()) : [];
-		if (first === "stop" || first === "run") return parsed.previous.length === 1 ? ids(source.activeIds(), "active task") : [];
+		if (first === "stop" || first === "run" || first === "defer") return parsed.previous.length === 1 ? ids(source.activeIds(), "active task") : [];
 		if (first === "delete") return deleteCandidates(parsed.previous, source);
 		return [];
 	};
@@ -43,7 +43,7 @@ export function createLoopCommandAutocompleteProvider(current: AutocompleteProvi
 	};
 }
 
-function topLevel(): Candidate[] { return ["add", "define", "available", "register", "unregister", "list", "stop", "delete", "run", "help"].map((value) => ({ value })); }
+function topLevel(): Candidate[] { return ["add", "define", "available", "register", "unregister", "list", "stop", "delete", "run", "defer", "help"].map((value) => ({ value })); }
 function scopes(): Candidate[] { return [{ value: "workspace" }, { value: "global" }]; }
 function ids(values: readonly string[], description: string): Candidate[] { return values.map((value) => ({ value, description })); }
 function registrationIds(values: readonly string[]): Candidate[] { return values.filter((value) => value.startsWith("registration:")).map((value) => ({ value, description: "active registration" })); }

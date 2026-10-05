@@ -12,6 +12,12 @@
 
 `SessionEntryAdapter.reload()` recovers the newest valid custom snapshot. `dispatch()` computes the reducer result, appends it, then updates memory. Single tasks complete after success; interval tasks advance to `now + intervalMs`; failed delivery does not advance.
 
+## Defer contract
+
+`/loop defer <active-id> <duration|time...>` updates only the current session task/registration's active `progress.nextRunAt`. A duration adds to `max(now, nextRunAt)`; an absolute time must exceed both `now` and `nextRunAt`. Missing, completed, busy, invalid, and overflow targets do not change state. The operation acquires the target's execution lock, then the session state lock, reloads progress, and persists through the existing progress action. It preserves the definition, registration index, run count, and last run time. Repeated duration commands extend the current next run time.
+
+The command re-arms the poller. Successful execution then uses the existing rules: a one-shot completes; an interval schedules `actual execution time + intervalMs`. No original clock cadence is restored. The persisted delay survives restart; already delivered or queued prompts cannot be deferred. This is a user-command-only surface, not an AI tool action.
+
 ## Shared catalog transaction
 
 `SharedDefinitionStore` locks one scope file, loads/validates its complete catalog, applies one operation, writes a temporary JSON file, then atomically renames it. `create`, `indexRegistration`, `removeRegistration`, `delete`, and definition/index checks use this transaction. Normal lock contention returns `busy` for deletion; malformed catalogs are unavailable rather than partly accepted.
@@ -42,7 +48,7 @@ type SharedDeleteResult =
 
 ## Command autocomplete
 
-`createLoopCommandAutocompleteProvider(current, source)` wraps Pi's current autocomplete provider. It claims forced Tab after `/loop `, uses case-insensitive subsequence matching, and delegates unsupported positions to the wrapped provider. Candidates: top-level `add`, `define`, `available`, `register`, `unregister`, `list`, `stop`, `delete`, `run`, `help`; shared scopes; active IDs (unregister offers only `registration:*` IDs); `--force`; and shared definition IDs. `src/extension.ts` registers it on every `session_start`.
+`createLoopCommandAutocompleteProvider(current, source)` wraps Pi's current autocomplete provider. It claims forced Tab after `/loop `, uses case-insensitive subsequence matching, and delegates unsupported positions to the wrapped provider. Candidates: top-level `add`, `define`, `available`, `register`, `unregister`, `list`, `stop`, `delete`, `run`, `defer`, `help`; shared scopes; active IDs (unregister offers only `registration:*` IDs); `--force`; and shared definition IDs. `src/extension.ts` registers it on every `session_start`.
 
 ## Runtime wiring
 

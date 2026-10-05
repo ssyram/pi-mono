@@ -57,6 +57,15 @@ export function handleLoopCommand(pi: ExtensionAPI, command: ParsedLoopV2Command
 		case "run":
 			runNow(pi, rt, command.id, ctx);
 			break;
+		case "defer": {
+			const outcome = rt.user.deferActiveTask(command.id, command.time);
+			if (outcome.kind !== "deferred") {
+				notify(ctx, `Cannot defer ${command.id}: ${outcome.kind === "invalid-time" ? outcome.message : outcome.kind}.`, "warning");
+				return;
+			}
+			notify(ctx, `Deferred ${command.id} until ${new Date(outcome.nextRunAt).toISOString()} (next delivery only; schedule unchanged).`, "info");
+			break;
+		}
 		case "error":
 			notify(ctx, command.message, "warning");
 			return;

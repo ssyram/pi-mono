@@ -1,6 +1,7 @@
 import { parseAtTime } from "../parse-at-time.js";
 import { parseDuration } from "../parse-duration.js";
 import type { SharedScope, TaskSchedule } from "./model.js";
+import type { DeferTime } from "./defer-active-task.js";
 
 export type ParsedLoopV2Command =
 	| { kind: "add"; schedule: TaskSchedule; prompt: string }
@@ -12,6 +13,7 @@ export type ParsedLoopV2Command =
 	| { kind: "stop"; target: string }
 	| { kind: "delete"; scope: SharedScope; definitionId: string; force: boolean }
 	| { kind: "run"; id: string }
+	| { kind: "defer"; id: string; time: DeferTime }
 	| { kind: "help" }
 	| { kind: "error"; message: string };
 
@@ -39,6 +41,8 @@ export function parseLoopV2Command(args: string, now: number = Date.now()): Pars
 			return parseDelete(rest);
 		case "run":
 			return parseRun(rest);
+		case "defer":
+			return parseDefer(rest, now);
 		default:
 			return { kind: "error", message: `Unknown command "${head}". Run /loop help.` };
 	}
@@ -58,6 +62,8 @@ export function loopV2HelpText(): string {
 		"/loop stop <id|all>                           Stop active tasks and registrations",
 		"/loop delete [--force] <definition-id>        Delete a shared definition (scope from id prefix)",
 		"/loop run <id>                                Deliver the prompt now, progress unchanged",
+		"/loop defer <id> <duration|time...>            Postpone only the next scheduled delivery",
+		"Defer durations extend max(now, next run); absolute times must be later than both.",
 		"/loop help                                    Show this help",
 		"Durations: 10s, 5m, 2h, 1d. Times: 12am tomorrow, 09:30 +08:00, 2026-08-05T00:00:00Z.",
 	].join("\n");
@@ -132,6 +138,18 @@ function parseStop(tokens: string[]): ParsedLoopV2Command {
 function parseRun(tokens: string[]): ParsedLoopV2Command {
 	const id = joinPrompt(tokens);
 	return id.length > 0 ? { kind: "run", id } : { kind: "error", message: "Usage: /loop run <id>" };
+}
+
+function parseDefer(tokens: string[], now: number): ParsedLoopV2Command {
+	const id = tokens[0];
+	const expression = tokens.slice(1).join(" ");
+	if (id === undefined || expression.length === 0) return { kind: "error", message: "Usage: /loop defer <id> <duration|time...>" };
+	const delayMs = parseDuration(expression);
+	if (delayMs !== undefined) return { kind: "defer", id, time: { kind: "delay", delayMs } };
+	const runAt = parseAtTime(expression, new Date(now));
+	return runAt === undefined
+		? { kind: "error", message: `Invalid duration or future time "${expression}". Examples: 10m, 12am tomorrow, 2099-01-01T00:00:00Z.` }
+		: { kind: "defer", id, time: { kind: "at", runAt } };
 }
 
 function parseDelete(tokens: string[]): ParsedLoopV2Command {

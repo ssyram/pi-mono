@@ -6,12 +6,16 @@ import { createLoopCommandAutocompleteProvider, type LoopCommandAutocompleteSour
 describe("Loop 2.0 command autocomplete", () => {
 	it("completes top-level commands and scope positions with loose matching", async () => {
 		const provider = createLoopCommandAutocompleteProvider(fallback(), source());
-		assert.deepEqual(await values(provider, "/loop "), ["add", "define", "available", "register", "unregister", "list", "stop", "delete", "run", "help"]);
-		assert.deepEqual(await values(provider, "/loop d"), ["define", "delete", "add"]);
+		assert.deepEqual(await values(provider, "/loop "), ["add", "define", "available", "register", "unregister", "list", "stop", "delete", "run", "defer", "help"]);
+		assert.deepEqual(await values(provider, "/loop d"), ["define", "delete", "defer", "add"]);
 		assert.deepEqual(await values(provider, "/loop define "), ["workspace", "global"]);
 		assert.deepEqual(await values(provider, "/loop register g"), ["global"]);
 		assert.deepEqual(await values(provider, "/loop unregister "), ["registration:global:two"]);
 		assert.deepEqual(await values(provider, "/loop run "), ["session:active", "registration:global:two"]);
+		assert.deepEqual(await values(provider, "/loop def"), ["define", "defer"]);
+		assert.deepEqual(await values(provider, "/loop defer "), ["session:active", "registration:global:two"]);
+		assert.deepEqual(await values(provider, "/loop defer reg"), ["registration:global:two"]);
+		assert.deepEqual(await values(provider, "/loop defer session:active "), ["fallback"]);
 	});
 
 	it("uses dynamic ids for register, stop, and delete force paths", async () => {

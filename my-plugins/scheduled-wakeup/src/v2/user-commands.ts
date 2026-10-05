@@ -1,5 +1,6 @@
 import type { ActiveTask, SharedDefinition, SharedDeleteResult, SharedScope, TaskInput } from "./model.js";
 import { type CancellationResult, LoopV2Core } from "./loop-core.js";
+import type { DeferResult, DeferTime } from "./defer-active-task.js";
 
 /** The future slash-command adapter owns this surface; AI tool adapters do not receive it. */
 export class UserLoopV2Commands {
@@ -12,6 +13,7 @@ export class UserLoopV2Commands {
 	registerSharedTask(scope: SharedScope, definitionId: string) { return this.core.registerSharedDefinition(scope, definitionId); }
 	unregisterSharedTask(registrationId: string): CancellationResult { return this.core.unregisterSharedDefinition(registrationId); }
 	cancelSessionTask(taskId: string): CancellationResult { return this.core.cancelSessionTask(taskId); }
+	deferActiveTask(id: string, time: DeferTime): DeferResult { return this.core.deferActive(id, time); }
 	deleteSharedTask(scope: SharedScope, definitionId: string, force = false): SharedDeleteResult { return this.core.deleteSharedDefinition(scope, definitionId, force); }
 	listActive(): readonly ActiveTask[] { return this.core.listActive(); }
 	listAvailable(scopes?: readonly SharedScope[]): readonly SharedDefinition[] { return scopes === undefined ? this.core.listAvailable() : this.core.listAvailable(scopes); }

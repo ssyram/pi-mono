@@ -28,10 +28,13 @@ A shared definition is never copied into a session: a registration stores `{scop
 /loop stop <id|all>                            Stop active tasks and registrations
 /loop delete [--force] <definition-id>         Delete a shared definition (scope from id prefix)
 /loop run <id>                                 Deliver the prompt now, progress unchanged
+/loop defer <id> <duration|time...>             Postpone only the next scheduled delivery
 /loop help                                     Show command help
 ```
 
 Durations support `s`, `m`, `h`, `d` (for example `10s`, `5m`, `2h`, `1d`). `at` accepts `12am tomorrow`, `09:30 +08:00`, or ISO timestamps; ambiguous zone abbreviations such as `PST` are rejected. Past or overflow times are errors.
+
+`defer` takes an active ID from `/loop list`. For example, `/loop defer session:abc 10m` adds ten minutes to the later of now and its current next run time; `/loop defer session:abc 12am tomorrow` sets an absolute time later than both. Repeated durations extend the delay. Only this session's progress changes, even for shared registrations; the delay survives restart, and run counts and definitions stay unchanged. After delivery, recurring tasks resume their original interval measured from the actual delivery time, not the original clock cadence. Already delivered or queued prompts cannot be postponed. `defer` is user-only, not an AI tool action.
 
 Deletion boundaries: `delete` succeeds only when no other session's index entry references the definition; `--force` (user commands only) atomically removes the definition and every registration-index record, making all old references unavailable immediately. Offline sessions clean up on their next `session_start` reconciliation.
 

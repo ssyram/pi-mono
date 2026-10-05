@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { SharedDefinitionStore } from "./definition-store.js";
+import { deferActiveTask, type DeferResult, type DeferTime } from "./defer-active-task.js";
 import {
 	assertTaskInput,
 	cloneDefinition,
@@ -91,6 +92,8 @@ export class LoopV2Core {
 			return attempt.acquired ? attempt.value : "busy";
 		});
 	}
+
+	deferActive(id: string, time: DeferTime): DeferResult { return deferActiveTask(this.sessionState, this.locks, id, time, () => this.currentNow()); }
 
 	cancelActive(id: string): CancellationResult {
 		this.sessionState.reload();
