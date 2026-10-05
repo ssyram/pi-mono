@@ -73,11 +73,19 @@ function parseProgress(value: unknown): ExecutionProgress | undefined {
 	if (value.status === "completed" && isTimestamp(value.lastRunAt)) {
 		return { status: "completed", runCount: value.runCount, lastRunAt: value.lastRunAt };
 	}
-	if (value.status !== "active" || !isTimestamp(value.nextRunAt)) return undefined;
 	if (value.lastRunAt !== undefined && !isTimestamp(value.lastRunAt)) return undefined;
-	return value.lastRunAt === undefined
-		? { status: "active", runCount: value.runCount, nextRunAt: value.nextRunAt }
-		: { status: "active", runCount: value.runCount, nextRunAt: value.nextRunAt, lastRunAt: value.lastRunAt };
+	if (value.status === "expired" && isTimestamp(value.expiredAt)) {
+		return value.lastRunAt === undefined
+			? { status: "expired", runCount: value.runCount, expiredAt: value.expiredAt }
+			: { status: "expired", runCount: value.runCount, expiredAt: value.expiredAt, lastRunAt: value.lastRunAt };
+	}
+	if (value.status !== "active" || !isTimestamp(value.nextRunAt)) return undefined;
+	if (value.suspendedAt !== undefined && !isTimestamp(value.suspendedAt)) return undefined;
+	return {
+		status: "active", runCount: value.runCount, nextRunAt: value.nextRunAt,
+		...(value.lastRunAt === undefined ? {} : { lastRunAt: value.lastRunAt }),
+		...(value.suspendedAt === undefined ? {} : { suspendedAt: value.suspendedAt }),
+	};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -22,9 +22,11 @@ Pi session JSONL            |
                                   |                |
                                   |                +--> definition + registration-index transaction
                                   +--> registration/task locks --> executors --> delivery callback
+                                  +--> defer-active-task --> session progress snapshot (no delivery)
 
 src/extension.ts (runtime wiring)
-       +--> session_start: core construction, reconciliation, autocomplete registration, poller gating
+       +--> session_start: core construction, reconciliation, countdown restore / expiry, autocomplete, poller gating
+       +--> session_shutdown: stop poller, persist suspension marker, dispose runtime
        +--> src/loop-command-handler.ts --> UserLoopV2Commands  (/loop command dispatch)
        +--> src/v2/register-v2-tool.ts --> AiSessionActions     (scheduled_wakeup tool)
        +--> src/v2/due-poller.ts -----> core.runDue()           (adaptive timer + followUp delivery)
@@ -33,8 +35,10 @@ src/extension.ts (runtime wiring)
 
 - `definition-store.ts` owns one scope catalog transaction: definition create/get/list, index membership, and ordinary/force delete all share one file lock and atomic replace.
 - `registration-store.ts` owns only session-entry references and progress.
-- `loop-core.ts` coordinates catalog-first registration, session-first unregistration, current-session cleanup after delete, and reconciliation.
-- `loop-command-autocomplete.ts` provides the `/loop` argument provider; `src/extension.ts` registers it every `session_start` (Pi drops wrappers on reload).
+- `loop-core.ts` coordinates catalog-first registration, session-first unregistration, current-session cleanup after delete, reconciliation, session-private defer, and state-locked suspend/resume.
+- `session-schedule-lifecycle.ts` batches suspension/restoration into one session snapshot; `resume-progress.ts` preserves interval remaining time or expires a past one-shot without delivery. Executors also restore a suspended reference when an unavailable shared definition becomes resolvable.
+- `defer-active-task.ts` owns defer: task/registration execution lock, session state lock, fresh progress lookup, time validation, and persistence through the existing progress action. It does not write shared definitions or registration indexes.
+- `loop-command-autocomplete.ts` provides the `/loop` argument provider, including `defer` and active IDs; `src/extension.ts` registers it every `session_start` (Pi drops wrappers on reload).
 
 ## Durable structures
 
@@ -54,6 +58,8 @@ type SharedCatalog = {
 };
 ```
 
+Active progress may include `suspendedAt`; expired progress records `expiredAt` and preserves execution history without a `nextRunAt`. These fields are session-owned and never appear in a shared catalog. See [the close/resume contract](detailed-design.md#close-and-resume-contract).
+
 A catalog is invalid if a definition/index has another scope, duplicate definition ID, or duplicate `(sessionId, registrationId)`. It is then unavailable rather than partially trusted.
 
 ## Registration and deletion flow
@@ -64,8 +70,11 @@ A catalog is invalid if a definition/index has another scope, duplicate definiti
 4. Force delete uses the same transaction without the other-session guard. It invalidates all old references before any offline session can execute them. In-flight work already past definition resolution cannot be recalled.
 5. Reconciliation scans local registrations and removes those whose matching index/definition is confirmed absent from a valid catalog. An unreadable catalog preserves local references while blocking execution. Reconciliation is local-session cleanup, not cross-session JSONL mutation.
 
-## Query and execution flow
+## Query, defer, and execution flow
 
 - `listActive()` lists active local tasks and active registrations; an unresolved registration remains visible with `definition: undefined`.
 - `listAvailable()` reads shared definitions and excludes this session's local registrations; it has no side effect.
+- `deferActive()` updates only an active local task/registration's `nextRunAt`; user command dispatch re-arms the existing poller after success. Run count, last run, definition, and other sessions stay unchanged. See [the defer contract](detailed-design.md#defer-contract) for relative/absolute time rules and rejected targets.
 - Registration execution requires the matching catalog index and definition on every attempt. Missing either returns `unavailable` without advancing progress.
+- Resume restores interval remaining time, keeps future one-shot deadlines absolute, and expires past one-shots before timers start. Expired tasks/registrations do not appear in `listActive()`; shared index membership is preserved.
+- After a deferred delivery, a one-shot completes and a recurring task schedules actual delivery time plus its unchanged interval. Already delivered or queued prompts cannot be recalled.

@@ -24,6 +24,7 @@ import { RegistrationExecutor, type DeliverTask } from "./registration-executor.
 import { RegistrationStore } from "./registration-store.js";
 import { SessionEntryAdapter, type SessionEntryPort } from "./session-entry-adapter.js";
 import { SessionTaskExecutor } from "./session-task-executor.js";
+import { resumeSessionSchedules, suspendSessionSchedules } from "./session-schedule-lifecycle.js";
 
 export type LoopV2CoreOptions = {
 	sessionId: string; sessionEntries: SessionEntryPort; workspaceRoot: string; globalRoot: string;
@@ -92,6 +93,9 @@ export class LoopV2Core {
 			return attempt.acquired ? attempt.value : "busy";
 		});
 	}
+
+	suspendSchedules(): void { this.withStateLock(() => suspendSessionSchedules(this.sessionState, this.currentNow())); }
+	resumeSchedules(): void { this.withStateLock(() => resumeSessionSchedules(this.sessionState, this.definitions, this.currentNow())); }
 
 	deferActive(id: string, time: DeferTime): DeferResult { return deferActiveTask(this.sessionState, this.locks, id, time, () => this.currentNow()); }
 

@@ -37,6 +37,10 @@ function formatActiveTask(item: ActiveTask, now: number): string {
 }
 
 function formatLine(id: string, scope: string, schedule: string, prompt: string, progress: ExecutionProgress, now: number): string {
-	const next = progress.status === "active" ? `next in ${formatDuration(Math.max(0, progress.nextRunAt - now))}` : "completed";
+	const next = progress.status === "active"
+		? progress.suspendedAt === undefined
+			? `next in ${formatDuration(Math.max(0, progress.nextRunAt - now))}`
+			: `paused with ${formatDuration(Math.max(0, progress.nextRunAt - progress.suspendedAt))} remaining`
+		: progress.status;
 	return `${id} | ${scope} | ${schedule} | ${next} | runs ${progress.runCount} | ${prompt}`;
 }

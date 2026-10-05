@@ -28,31 +28,34 @@ describe("scheduledWakeup v2 extension lifecycle", () => {
 
 		await setup.runLoop("add 1h hello from print");
 		const snapshots = setup.appendedSnapshots();
-		assert.equal(snapshots.length, 1);
-		assert.equal(snapshots[0]?.tasks.length, 2);
-		assert.equal(snapshots[0]?.tasks[1]?.definition.prompt, "hello from print");
-		assert.deepEqual(snapshots[0]?.tasks[1]?.definition.schedule, { kind: "interval", intervalMs: 3_600_000 });
-		assert.ok(snapshots[0]?.tasks[1]?.definition.id.startsWith("session:"));
+		assert.equal(snapshots.length, 2);
+		assert.equal(snapshots.at(-1)?.tasks.length, 2);
+		assert.equal(snapshots.at(-1)?.tasks[0]?.progress.status, "expired");
+		assert.equal(snapshots.at(-1)?.tasks[1]?.definition.prompt, "hello from print");
+		assert.deepEqual(snapshots.at(-1)?.tasks[1]?.definition.schedule, { kind: "interval", intervalMs: 3_600_000 });
+		assert.ok(snapshots.at(-1)?.tasks[1]?.definition.id.startsWith("session:"));
 	});
 
-	it("starts the poller in runner mode and delivers overdue work", async () => {
+	it("starts the runner poller but expires old one-shots before delivery", async () => {
 		process.env[RUNNER_ENV] = "1";
 		const setup = createSetup({ mode: "json" });
 		pushSessionTask(setup.branch, "overdue", { kind: "once", runAt: PRELOAD_NOW });
+		pushSessionTask(setup.branch, "on time", { kind: "once", runAt: Date.now() + 200 });
 		await setup.start();
 
-		await wait(80);
-		assert.deepEqual(setup.sent.map((message) => message.content), ["overdue"]);
+		await wait(300);
+		assert.equal(setup.appendedSnapshots()[0]?.tasks[0]?.progress.status, "expired");
+		assert.deepEqual(setup.sent.map((message) => message.content), ["on time"]);
 		assert.equal(setup.sent[0]?.options, undefined);
 	});
 
 	it("delivers in tui mode and clears pending timers on session_shutdown", async () => {
 		const setup = createSetup({ mode: "tui" });
-		pushSessionTask(setup.branch, "first", { kind: "once", runAt: PRELOAD_NOW });
-		pushSessionTask(setup.branch, "future", { kind: "once", runAt: Date.now() + 500 });
+		pushSessionTask(setup.branch, "first", { kind: "once", runAt: Date.now() + 200 });
+		pushSessionTask(setup.branch, "future", { kind: "once", runAt: Date.now() + 800 });
 		await setup.start();
 
-		await wait(100);
+		await wait(300);
 		assert.deepEqual(setup.sent.map((message) => message.content), ["first"]);
 		assert.equal(setup.notifications.at(-1), "Scheduled wakeup loaded");
 

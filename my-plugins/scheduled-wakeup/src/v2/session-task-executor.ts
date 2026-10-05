@@ -8,6 +8,7 @@ import {
 import { RegistrationExecutionLock } from "./registration-execution-lock.js";
 import { SessionEntryAdapter } from "./session-entry-adapter.js";
 import type { DeliverTask } from "./registration-executor.js";
+import { resumeProgress } from "./resume-progress.js";
 
 export class SessionTaskExecutor {
 	private readonly sessionState: SessionEntryAdapter;
@@ -30,6 +31,10 @@ export class SessionTaskExecutor {
 				this.sessionState.reload();
 				const task = this.sessionState.snapshot().tasks.find((candidate) => candidate.definition.id === taskId);
 				if (task === undefined) return { kind: "missing", id: taskId };
+				if (task.progress.status === "active" && task.progress.suspendedAt !== undefined) {
+					task.progress = resumeProgress(task.progress, task.definition.schedule, this.now());
+					this.sessionState.dispatch({ kind: "advance-task", taskId, progress: task.progress });
+				}
 				if (!isDue(task.progress, this.now())) return { kind: "not-due", id: taskId };
 				const delivered = this.deliver(task, deliver);
 				if (delivered !== undefined) return delivered;

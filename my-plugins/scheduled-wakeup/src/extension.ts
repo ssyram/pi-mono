@@ -39,6 +39,8 @@ export default function scheduledWakeup(pi: ExtensionAPI): void {
 		if (runtime !== undefined && runtime.cwd === ctx.cwd) return runtime;
 		runtime?.poller?.dispose();
 		const core = createCore(pi, ctx);
+		core.reconcileSharedRegistrations();
+		core.resumeSchedules();
 		const created: LoopV2Runtime = { core, user: new UserLoopV2Commands(core), actions: new AiSessionActions(core), poller: undefined, cwd: ctx.cwd };
 		runtime = created;
 		if (pollerEnabled(ctx)) {
@@ -63,14 +65,18 @@ export default function scheduledWakeup(pi: ExtensionAPI): void {
 
 	pi.on("session_start", async (_event, ctx) => {
 		if (!isActive()) return;
-		const created = ensure(ctx);
-		created.core.reconcileSharedRegistrations();
+		ensure(ctx);
 		registerAutocomplete(ctx);
 		reschedule();
 		if (ctx.hasUI) ctx.ui.notify("Scheduled wakeup loaded", "info");
 	});
 
-	pi.on("session_shutdown", async () => dispose());
+	pi.on("session_shutdown", async () => {
+		if (!isActive()) return;
+		runtime?.poller?.dispose();
+		try { runtime?.core.suspendSchedules(); }
+		finally { dispose(); }
+	});
 
 	pi.registerCommand("loop", {
 		description: "Schedule one-shot, recurring, or shared registered prompts",

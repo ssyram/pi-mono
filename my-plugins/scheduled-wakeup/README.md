@@ -34,7 +34,7 @@ A shared definition is never copied into a session: a registration stores `{scop
 
 Durations support `s`, `m`, `h`, `d` (for example `10s`, `5m`, `2h`, `1d`). `at` accepts `12am tomorrow`, `09:30 +08:00`, or ISO timestamps; ambiguous zone abbreviations such as `PST` are rejected. Past or overflow times are errors.
 
-`defer` takes an active ID from `/loop list`. For example, `/loop defer session:abc 10m` adds ten minutes to the later of now and its current next run time; `/loop defer session:abc 12am tomorrow` sets an absolute time later than both. Repeated durations extend the delay. Only this session's progress changes, even for shared registrations; the delay survives restart, and run counts and definitions stay unchanged. After delivery, recurring tasks resume their original interval measured from the actual delivery time, not the original clock cadence. Already delivered or queued prompts cannot be postponed. `defer` is user-only, not an AI tool action.
+`defer` takes an active ID from `/loop list`. For example, `/loop defer session:abc 10m` adds ten minutes to the later of now and its current next run time; `/loop defer session:abc 12am tomorrow` sets an absolute time later than both. Repeated durations extend the delay. Only this session's progress changes, even for shared registrations; run counts and definitions stay unchanged, and restart follows the close/resume rules below. After delivery, recurring tasks resume their original interval measured from the actual delivery time, not the original clock cadence. Already delivered or queued prompts cannot be postponed. `defer` is user-only, not an AI tool action.
 
 Deletion boundaries: `delete` succeeds only when no other session's index entry references the definition; `--force` (user commands only) atomically removes the definition and every registration-index record, making all old references unavailable immediately. Offline sessions clean up on their next `session_start` reconciliation.
 
@@ -60,7 +60,9 @@ The poller arms one timer at the nearest active `nextRunAt`, delivers due work, 
 
 Commands and the tool are registered in every mode. The poller starts in `tui`/`rpc` mode. In `print`/`json` mode it starts only with `PI_SCHEDULED_WAKEUP_RUNNER=1`; in that runner mode timers stay referenced so `pi -p` stays alive until work completes. Otherwise timers are unref'd.
 
-This is not an OS daemon. Timers fire only while a Pi process is alive; overdue work fires when the session starts again.
+This is not an OS daemon. Timers fire only while a Pi process is alive. On normal session shutdown, active progress saves `suspendedAt`. Resuming the same session restores interval countdowns: closing with three minutes left means reopening with three minutes left, regardless of time spent closed. One-shot deadlines stay absolute: if the next-run time has passed on reopen, the task becomes `expired` without delivery or a run-count increment. A deferred one-shot uses its new deadline. Expired tasks are absent from `/loop list`; reload and session replacement use the same lifecycle.
+
+A force-kill, crash, or failed shutdown save cannot provide an exact close time. Without a saved marker, intervals retain their persisted deadline and may deliver one overdue run on recovery; past one-shots still expire. An unavailable shared definition keeps its suspension marker until it can be resolved. Normal online timer lateness is not treated as expiration.
 
 ## Verification
 

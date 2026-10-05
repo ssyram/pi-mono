@@ -19,8 +19,9 @@ export type SharedDefinition = TaskDefinition & { scope: SharedScope };
 export type SessionDefinition = TaskDefinition & { scope: "session" };
 
 export type ExecutionProgress =
-	| { status: "active"; nextRunAt: number; runCount: number; lastRunAt?: number }
-	| { status: "completed"; runCount: number; lastRunAt: number };
+	| { status: "active"; nextRunAt: number; runCount: number; lastRunAt?: number; suspendedAt?: number }
+	| { status: "completed"; runCount: number; lastRunAt: number }
+	| { status: "expired"; runCount: number; expiredAt: number; lastRunAt?: number };
 
 export type SessionTask = { definition: SessionDefinition; progress: ExecutionProgress };
 export type DefinitionReference = { scope: SharedScope; definitionId: string };

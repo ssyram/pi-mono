@@ -9,6 +9,7 @@ import {
 } from "./model.js";
 
 export type SessionStateAction =
+	| { kind: "replace-state"; state: SessionLoopState }
 	| { kind: "add-task"; task: SessionTask }
 	| { kind: "remove-task"; taskId: string }
 	| { kind: "advance-task"; taskId: string; progress: ExecutionProgress }
@@ -22,6 +23,8 @@ export function emptySessionLoopState(): SessionLoopState {
 
 export function reduceSessionLoopState(state: SessionLoopState, action: SessionStateAction): SessionLoopState {
 	switch (action.kind) {
+		case "replace-state":
+			return cloneSessionState(action.state);
 		case "add-task":
 			if (state.tasks.some((task) => task.definition.id === action.task.definition.id)) {
 				throw new Error(`Session task ${action.task.definition.id} already exists`);

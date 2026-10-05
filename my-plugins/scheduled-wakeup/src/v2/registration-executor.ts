@@ -2,6 +2,7 @@ import { SharedDefinitionStore } from "./definition-store.js";
 import { advanceProgress, isDue, type ExecutionResult, type ExecutionTarget, type Registration, type SharedDefinition } from "./model.js";
 import { RegistrationExecutionLock } from "./registration-execution-lock.js";
 import { RegistrationStore } from "./registration-store.js";
+import { resumeProgress } from "./resume-progress.js";
 
 export type DeliverTask = (target: ExecutionTarget) => void;
 
@@ -33,6 +34,10 @@ export class RegistrationExecutor {
 				const index = { ...registration.reference, sessionId: this.sessionId, registrationId: registration.id, registeredAt: registration.registeredAt };
 				const definition = this.definitions.get(registration.reference.scope, registration.reference.definitionId);
 				if (definition === undefined || !this.definitions.isIndexed(index)) return { kind: "unavailable", id: registrationId };
+				if (registration.progress.status === "active" && registration.progress.suspendedAt !== undefined) {
+					registration.progress = resumeProgress(registration.progress, definition.schedule, this.now());
+					this.registrations.advance(registrationId, registration.progress);
+				}
 				if (!isDue(registration.progress, this.now())) return { kind: "not-due", id: registrationId };
 				const failed = this.deliver(registration, definition, deliver);
 				if (failed !== undefined) return failed;
