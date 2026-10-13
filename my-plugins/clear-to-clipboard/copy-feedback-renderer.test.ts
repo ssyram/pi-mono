@@ -2,6 +2,7 @@ import type { ExtensionUIContext, KeybindingsManager } from "@earendil-works/pi-
 import { type Component, type EditorTheme, type TUI, TuiAltScreen } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import { CustomEditor } from "../../packages/coding-agent/src/modes/interactive/components/custom-editor.js";
+import { getThemeByName } from "../../packages/coding-agent/src/modes/interactive/theme/theme.js";
 import { VirtualTerminal } from "../../packages/tui/test/virtual-terminal.js";
 
 import { attachClearAction } from "./attach-clear-action.js";
@@ -23,6 +24,7 @@ describe("native copy feedback renderer", () => {
 			if (!copied) throw new Error("clipboard unavailable");
 		});
 		const ui = {
+			theme: getThemeByName("dark"),
 			notify,
 			setWidget: (_: string, factory?: (tui: TUI, theme: unknown) => Component) => {
 				if (factory) factory(tui, {});
@@ -30,7 +32,7 @@ describe("native copy feedback renderer", () => {
 			onTerminalInput: (handler: Parameters<ExtensionUIContext["onTerminalInput"]>[0]) =>
 				tui.addInputListener(handler),
 		} as Parameters<typeof attachClearAction>[0];
-		const release = attachClearAction(ui, copy);
+		const { release } = attachClearAction(ui, copy);
 		tui.addChild(editor);
 		tui.setFocus(editor);
 		tui.start();

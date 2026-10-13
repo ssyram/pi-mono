@@ -32,7 +32,10 @@ function isClearEditor(component: Component | null): component is EditorView {
 	);
 }
 
-export function attachClearAction(ui: EditorUI, copy: (text: string) => Promise<void>): () => void {
+export function attachClearAction(
+	ui: EditorUI,
+	copy: (text: string) => Promise<void>,
+): { release: () => void; clearOnly: () => void } {
 	let tui: TUI | undefined;
 	const widgetKey = "clear-to-clipboard:terminal";
 	ui.setWidget(widgetKey, (current) => {
@@ -40,12 +43,21 @@ export function attachClearAction(ui: EditorUI, copy: (text: string) => Promise<
 		return { render: () => [], invalidate: () => {} };
 	});
 	ui.setWidget(widgetKey, undefined);
-	if (!tui || !hasFocusedComponent(tui)) return () => {};
+	if (!tui || !hasFocusedComponent(tui)) return { release: () => {}, clearOnly: () => {} };
 
 	const terminal = tui;
 	let released = false;
 	const wrappedEditors = new Map<EditorView, { original: () => void; wrapper: () => void }>();
 	const originalForWrapper = new WeakMap<() => void, () => void>();
+	const clearOnly = () => {
+		try {
+			if (released) return;
+			const editor = terminal.getFocusedComponent();
+			if (!isClearEditor(editor)) return;
+			const current = editor.actionHandlers.get("app.clear");
+			if (current) (originalForWrapper.get(current) ?? current)();
+		} catch {}
+	};
 	const unsubscribe = ui.onTerminalInput(() => {
 		const editor = terminal.getFocusedComponent();
 		if (!isClearEditor(editor)) return undefined;
@@ -85,7 +97,7 @@ export function attachClearAction(ui: EditorUI, copy: (text: string) => Promise<
 		return undefined;
 	});
 
-	return () => {
+	const release = () => {
 		if (released) return;
 		released = true;
 		unsubscribe();
@@ -102,4 +114,5 @@ export function attachClearAction(ui: EditorUI, copy: (text: string) => Promise<
 		}
 		wrappedEditors.clear();
 	};
+	return { release, clearOnly };
 }

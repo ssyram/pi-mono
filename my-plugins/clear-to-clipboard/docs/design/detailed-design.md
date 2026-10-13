@@ -7,6 +7,7 @@
 - `index.ts`：仅 `export { default } from "./extension.js";`，不放逻辑。
 - `extension.ts`：扩展入口；按会话装/卸插件，不存跨会话可变全局状态。
 - `attach-clear-action.ts`：取得 TUI 引用，监听键入、包装焦点主 editor 的实际 `app.clear` handler，释放包装。一个职责：事件挂接。
+- `attach-clear-button.ts`：保留实现，运行入口未接入；显式安装时包装现有 editor 的顶边绘制与鼠标处理；fullscreen 右侧显示主题底色的 `Clear`、右侧续接 3 列同色边框横线，按下时认领鼠标事件，完成 click 后清理，不复制。恢复时只撤销自己的钩子。
 - `clipboard-payload.ts`：纯函数，把折叠 marker 与 pi 运行时 paste Map 组合成复制请求文本。一个职责：文本变换。
 - `copy-feedback.ts`：全屏复用 `TuiAltScreen.flash()`，普通模式或缺少该方法时使用 `ctx.ui.notify()`；提示明确复制的是清空前的输入。
 - `clipboard-payload.test.ts`、`attach-clear-action.test.ts`、`clear-copy-notification.test.ts`、`copy-feedback-renderer.test.ts`：文本变换、原动作、异步提示及原生全屏 renderer 的定向功能测试。
@@ -43,13 +44,13 @@
 
 - **Requires**：扩展已加载，`pi.on` 可注册生命周期事件。
 - **Ensures**：同步注册一个 `session_start` handler；未启动进程、未替换 editor；非 TUI session 不安装监听器。
-- **步骤**：`pi.on("session_start",(_event,ctx)=>{ if(ctx.mode!=="tui") return; const release=attachClearAction(ctx.ui,copyToClipboard); const stop=pi.on("session_shutdown",()=>{release();stop();}); })`。`attachClearAction` 仅在 TUI 分支被调用；shutdown 单次/重复安全。
+- **步骤**：初始化时注册 `Key.ctrlAlt("c")`，通过当前 `ctx.sessionManager` 查询会话自己的 `clearOnly`。TUI `session_start` 调用 `attachClearAction`，将 `clearOnly` 放入按 session manager 键控的 WeakMap；`session_shutdown` 调用 `release()`、删除该会话回调并取消 shutdown 订阅。非 TUI 会话不安装；shutdown 单次/重复安全。
 - **理由**：只有会话闭包持有状态，符合 P4/P5。若注册前即抛错，host 正常报告扩展初始化失败；不假装已生效。无循环。
 
-### 4.2 会话挂接 `attachClearAction(ui: EditorUI, copy: (text:string)=>Promise<void>): () => void`（`attach-clear-action.ts`）
+### 4.2 会话挂接 `attachClearAction(ui: EditorUI, copy: (text:string)=>Promise<void>): { release: () => void; clearOnly: () => void }`（`attach-clear-action.ts`）
 
 - **Requires**：交互 UI；`setWidget` factory 同步执行（§2）。`EditorUI` 是从公开 `ExtensionUIContext` 用 `Pick` 取得的 `setWidget`/`onTerminalInput`/`notify`，无需自造 UI 类型行为。
-- **Ensures**：返回幂等 `release()`；监听器仅在该 session 内活动；不留可见 widget；不替换 editor。
+- **Ensures**：返回幂等 `release()` 和 `clearOnly()`；后者只对当前焦点主 editor 调用未包装的原 `app.clear`，不复制；释放后不执行。监听器仅在该 session 内活动；不留可见 widget；不替换 editor。
 - **步骤**：① 定义 `let tui: TUI|undefined`，用唯一 key 的零行 widget factory 捕获 `tui`；② 同步 `setWidget(key,undefined)` 删除；若未获得 tui，则返回空的 release（不假装挂接成功）；③ 创建每会话 Maps 并注册 `onTerminalInput`，handler 读取 `tui.getFocusedComponent()`，仅当其为下述 `EditorView` 且有 `app.clear` handler 时执行 `installWrapper`，返回 `undefined` 让 pi 继续输入。④ `release` 先 unsubscribe，然后对已跟踪 Map 项逐一执行“仍是自己 wrapper 才还原”，清空集合；重复 release 无操作。
 - **副作用**：仅临时空 widget、一个输入 listener、每个接键 editor 的一个 Map 项；不直接请求复制或清空。循环仅 release 遍历有限的已包 editor 集合；每轮删去一项，终止。
 - **callee 依据**：`setWidget`/`onTerminalInput`/`TUI.getFocusedComponent` 的前后置见 §2；监听器在焦点组件之前到达（pi-tui source）。
@@ -80,6 +81,14 @@
 - 成功显示 `Copied cleared input`，失败显示 `Copy failed (input cleared)`；不输出正文或原始错误。
 - 当前 renderer 为 fullscreen 且提供 `flash` 时，复用原生右上角提示；成功 1800ms、失败 3000ms。否则用扩展通知，成功为 info，失败为 error。
 - `released` 在调用前检查；异步回调只显示反馈，不读取或清空 editor。Promise 兑现与原生复制相同，不保证 OSC 52 被终端接受。
+
+### 4.7 `attachClearButton(editor, tui, clear, style): () => void`
+
+- 当前只由独立测试显式安装，运行入口不导入或调用本函数；无按钮 widget、绘制包装或鼠标包装。恢复接入须另经用户确认。
+- `renderTopBorder` 在 fullscreen 且宽度至少 15 列时，将原顶边按 `width - 10` 列绘制，再追加 7 列的 ` Clear ` 和 3 列右侧横线；横线复用 editor 的 `borderColor`，无该方法时用普通横线。style 每次读取 `ui.theme`，按官方按钮的 `bg("selectedBg", fg("text", label))` 绘制，主题切换后无需重新安装。Working、隐藏行提示由原方法绘制；resize 后按钮命中区使用本次渲染宽度。regular/legacy 返回原顶边。
+- 左键 press 只认领顶边 `[width - 10, width - 3)` 的 7 列，右侧横线不清理；避免进入终端文本选择；同单元格 release 后由 renderer 合成 click，才调用该 editor 的 clear-only。其它区域、按钮、拖动、滚轮交还原鼠标方法。
+- `renderTopBorder` 是 protected 运行时钩子，并非公开扩展接口。方法缺失或不可写时不安装；安装中途失败撤回自己的改动。绘制错误返回普通横线；点击和卸载错误不外抛，不伪报清理成功。运行中的 clear-only 快捷键也吞住原清理回调的同步异常；默认 Ctrl+C 包装不变。
+- release 先禁用回调，再仅当当前方法仍是本插件包装时恢复原属性描述符；其它插件后来替换的方法保留。
 
 ## 5. 测试与执行条件（实施时）
 

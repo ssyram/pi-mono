@@ -1,6 +1,7 @@
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI, TuiMode } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
+import { getThemeByName } from "../../packages/coding-agent/src/modes/interactive/theme/theme.js";
 
 import { attachClearAction } from "./attach-clear-action.js";
 
@@ -26,8 +27,9 @@ function setup(copy: (text: string) => Promise<void>, mode: TuiMode = "fullscree
 		...(withFlash ? { flash } : {}),
 	} as unknown as TUI;
 	const notify = vi.fn();
-	const release = attachClearAction(
+	const { release } = attachClearAction(
 		{
+			theme: getThemeByName("dark"),
 			notify,
 			setWidget: (_: string, factory?: (tui: TUI, theme: unknown) => Component) => {
 				if (factory) factory(tui, {});

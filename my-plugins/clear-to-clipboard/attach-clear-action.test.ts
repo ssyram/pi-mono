@@ -2,6 +2,7 @@ import type { ExtensionUIContext, KeybindingsManager } from "@earendil-works/pi-
 import type { Component, EditorTheme, TUI } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import { CustomEditor } from "../../packages/coding-agent/src/modes/interactive/components/custom-editor.js";
+import { getThemeByName } from "../../packages/coding-agent/src/modes/interactive/theme/theme.js";
 
 import { attachClearAction } from "./attach-clear-action.js";
 
@@ -38,6 +39,7 @@ function setup(rawText: string, fullText = rawText, pastes = new Map<number, str
 		if (factory) factory(tui, {});
 	});
 	const ui = {
+		theme: getThemeByName("dark"),
 		notify: vi.fn(),
 		setWidget,
 		onTerminalInput: (handler: Listener) => {
@@ -48,13 +50,14 @@ function setup(rawText: string, fullText = rawText, pastes = new Map<number, str
 	const copy = vi.fn(async (text: string) => {
 		calls.push(`copy:${text}`);
 	});
-	const release = attachClearAction(ui, copy);
+	const { release, clearOnly } = attachClearAction(ui, copy);
 	return {
 		editor,
 		original,
 		copy,
 		calls,
 		release,
+		clearOnly,
 		setWidget,
 		unsubscribe,
 		press: () => {
@@ -69,6 +72,37 @@ function setup(rawText: string, fullText = rawText, pastes = new Map<number, str
 }
 
 describe("attachClearAction", () => {
+	it.each([false, true])("clears without copying when wrapped=%s", (wrapped) => {
+		const state = setup("draft");
+		if (wrapped) state.listen();
+		state.clearOnly();
+		expect(state.calls).toEqual(["clear"]);
+		expect(state.editor.getText()).toBe("");
+		expect(state.copy).not.toHaveBeenCalled();
+		state.release();
+	});
+
+	it("does not clear another component or act after release", () => {
+		const state = setup("draft");
+		state.setFocus({ render: () => [], invalidate: () => {} });
+		state.clearOnly();
+		expect(state.original).not.toHaveBeenCalled();
+		state.setFocus(state.editor);
+		state.release();
+		state.clearOnly();
+		expect(state.original).not.toHaveBeenCalled();
+	});
+
+	it("unwraps an inherited clear handler without copying", () => {
+		const state = setup("draft");
+		state.listen();
+		const next: FakeEditor = { ...state.editor, actionHandlers: new Map(state.editor.actionHandlers) };
+		state.setFocus(next);
+		state.clearOnly();
+		expect(state.calls).toEqual(["clear"]);
+		state.release();
+	});
+
 	it("requests the formatted clipboard text before the original clear action", () => {
 		const state = setup("hello [paste #1 1001 chars]", "hello pasted", new Map([[1, "pasted"]]));
 		state.press();
@@ -153,6 +187,7 @@ describe("attachClearAction", () => {
 		const original = vi.fn(() => editor.setText(""));
 		editor.onAction("app.clear", original);
 		const ui = {
+			theme: getThemeByName("dark"),
 			notify: vi.fn(),
 			setWidget: (_: string, factory?: (tui: TUI, theme: unknown) => Component) => {
 				if (factory) factory(tui, {});
@@ -163,7 +198,7 @@ describe("attachClearAction", () => {
 			},
 		} as Parameters<typeof attachClearAction>[0];
 		const copy = vi.fn(async (_text: string) => {});
-		const release = attachClearAction(ui, copy);
+		const { release } = attachClearAction(ui, copy);
 		listener?.("\x03");
 		editor.handleInput("\x03");
 		expect(copy).toHaveBeenCalledExactlyOnceWith(`[paste#1## ${content} ##]`);

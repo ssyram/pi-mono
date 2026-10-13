@@ -1,5 +1,9 @@
 # clear-to-clipboard：架构设计
 
+## 新增明确清理入口
+
+默认 `Ctrl+C` 仍复制后清理，保护误触时的长输入。新增扩展快捷键 `Ctrl+Alt+C`（macOS 为 Ctrl+Option+C）：取得当前焦点 editor，解开本插件的 wrapper，同步调用原 `app.clear`，不请求复制或复制反馈。原动作的双击退出语义保持不变。快捷键回调按 session manager 身份保存并在 shutdown 删除；释放后的清理入口无效。鼠标按钮实现与测试保留，但运行入口不导入、不安装；当前输入框不显示按钮。以下是保留模块显式安装后的能力：fullscreen 输入框顶边右侧显示带左右内边距的 `Clear`，复用官方 `selectedBg` 底色和 `text` 前景色，右侧续接 3 列与 editor 同色的边框横线，与 Working 同行；点击只调用被点击 editor 的未包装原动作，不复制。regular/legacy 和宽度不足 15 列时不显示；右侧边框横线不属于按钮命中区。插件包装现有实例的 `renderTopBorder` 与 `handleMouse`，不替换 editor；两者依赖当前版本的运行时钩子。安装失败不接入；按钮绘制失败降为普通横线，鼠标与卸载错误不向宿主抛异常，也不提示清理成功。按钮与快捷键均保留原动作的双击退出语义。
+
 归属：`my-plugins/clear-to-clipboard/`；这是插件整体的设计，survey 记录在 `../../RESEARCH.md`。用户后续裁决取代了 survey 中“必须确认复制成功才清空”的候选：**只要向系统发出剪贴板写入请求，pi 的清空/双击退出照常执行；无需等待系统实际写入。** 设计只承诺请求，不承诺最终剪贴板状态。
 
 ## 1. Q 与已核事实
@@ -11,7 +15,7 @@
 
 ## 2. D.root：设计性质 P
 
-- **P1（目标事件）**：当主 editor 的实际 `app.clear` 回调执行且 `getText()` 非空时，插件从当前 editor 同步构造请求文本，调用一次 `copyToClipboard(text)`，随后调用原始 `app.clear` 回调一次；不依赖 Promise 的完成、失败、耗时或终端回执。
+- **P1（目标事件）**：除明确的 clear-only 快捷键外，当主 editor 的实际 `app.clear` 回调执行且 `getText()` 非空时，插件从当前 editor 同步构造请求文本，调用一次 `copyToClipboard(text)`，随后调用原始 `app.clear` 回调一次；不依赖 Promise 的完成、失败、耗时或终端回执。
 - **P2（数据）**：保留非粘贴正文、换行、空格；对仍有正文映射的真实 pi 粘贴标记 `[paste #N …]`，输出 `[paste#N## ${正文} ##]`。多个标记各自展开一次；没有映射的同形文本按普通文字保留，不得伪造正文。空编辑器不提交复制请求。
 - **P3（默认行为）**：包装的是实际 action handler，不抢先按原始 Ctrl+C 字节猜测，也不延后清空；原 handler 的 500ms 双击退出、keybindings 重绑、extension shortcut 优先级由 pi 保持。不可因复制请求失败而跳过原 handler。
 - **P4（生命周期）**：仅 TUI 会话安装，订阅的终端监听器用于发现当前聚焦的 editor 并在其处理键前装入回调包装；会话停止时取消监听，并只恢复本插件拥有的包装，不触碰其它扩展后续替换的 handler；状态由会话闭包拥有，不建跨会话全局可变状态。
@@ -52,4 +56,4 @@
 
 **格式边界**：固定结束符 `##]` 让日常文本更容易批量匹配，但正文若也包含 `##]`，仅靠非贪婪正则仍可能提前结束；插件不删除正文、不转义用户粘贴内容。
 
-**仍然不能证明的更强命题**：终端一定接受 OSC 52、剪贴板最终持有内容、后续程序不会覆盖；这已被用户明确排除在本插件保证外。当前 pi 版本的 `pastes` 私有字段或 widget factory 时序若改变，精确 ID+正文格式需更新插件；不能把这种实现依赖偷换成稳定公开 API。当前定向测试 21/21、插件 TypeScript 检查和 `npm run check` 通过；包含真实 CustomEditor、原生 TuiAltScreen 与 headless terminal 的 Ctrl+C 分派及右上角提示测试。clipboard 使用假函数，未写入用户系统剪贴板。函数级步骤见 [detailed-design.md](detailed-design.md)，证明边界见 [correctness.md](correctness.md)。
+**仍然不能证明的更强命题**：终端一定接受 OSC 52、剪贴板最终持有内容、后续程序不会覆盖；这已被用户明确排除在本插件保证外。当前 pi 版本的 `pastes` 私有字段或 widget factory 时序若改变，精确 ID+正文格式需更新插件；不能把这种实现依赖偷换成稳定公开 API。当前定向测试 38/38、插件 TypeScript 检查和 `npm run check` 通过；包含真实 CustomEditor、原生 TuiAltScreen 与 headless terminal 的 Ctrl+C 分派、右上角提示、Working 同行 Clear 按钮、resize、鼠标点击与拖动测试，以及模式切换和钩子故障注入用例。clipboard 使用假函数，未写入用户系统剪贴板。函数级步骤见 [detailed-design.md](detailed-design.md)，证明边界见 [correctness.md](correctness.md)。
