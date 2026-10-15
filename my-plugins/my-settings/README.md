@@ -111,9 +111,34 @@ Ready channel `my-settings:ready:v1` carries `{ session, sessionId }` on `sessio
 ## Checks
 
 ```sh
-node --import ./my-plugins/my-settings/test/sdk-import.mjs --test my-plugins/my-settings/test/settings-*.test.ts
+node --import ./my-plugins/my-settings/test/sdk-import.mjs --test my-plugins/my-settings/test/settings-*.test.ts my-plugins/my-settings/test/setting-command*.test.ts
 node node_modules/typescript/bin/tsc -p my-plugins/my-settings/tsconfig.json
 node node_modules/@biomejs/biome/bin/biome lint --config-path my-plugins/my-settings/biome.json my-plugins/my-settings
 ```
+
+## E2E test
+
+`e2e/` contains a working demo consumer and mock LLM setup instructions:
+
+- `e2e/index.ts` — demo-settings-consumer extension (load alongside `my-settings` to verify end-to-end)
+- `e2e/mock-server.md` — how to run pi with a mock LLM and both extensions
+- `e2e/README.md` — consumer patterns and e2e interaction transcript
+
+Quick start:
+
+```sh
+# Start mock (see e2e/mock-server.md for full setup)
+pi --extension ./my-plugins/my-settings/index.ts --extension ./my-plugins/my-settings/e2e/index.ts --model mock/round-counter
+```
+
+Verified in a real pi session (mock LLM via [mock-with-pi](../../../workspace/ai-tools/mock-with-pi/), both `my-settings` and `demo-settings-consumer` loaded):
+
+- Ready event → consumer loads 9 keys including nested objects, arrays, matrix
+- Sub-JSON values (objects, arrays, deeply nested, `number[][]`) stored/retrieved as whole values via `saveLocalAndSession`
+- `/my-setting get` shows local + session layers with correct values; merged = session
+- `/demo-settings reset KEY` → session tombstone (`(unset)` in get), merged falls back to local file
+- `.pi/settings.json` on disk contains all saved keys with valid JSON
+
+See `my-plugins/demo-settings-consumer/` for the consumer-side reference implementation.
 
 `_cca_analysis/` holds the post-rewrite per-function verification (RUN 2026-10-15): 39/39 functions, zero explicit throw/reject, prototype semantics verified. `_cca_analysis-pre-repair/` preserves the earlier pre-repair report; it does not describe the current code.
