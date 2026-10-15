@@ -1,35 +1,42 @@
 import { completeProviderUsageArgs, createProviderUsageCompletion } from "./command-completion.js";
+import type { ControllerContext, UsageQueryRunner } from "./controller-contract.js";
 import { createController } from "./create-controller.js";
-import type { ControllerContext } from "./controller-contract.js";
-import type { UsageController } from "./usage-controller.js";
 import type { PiExtensionAPI, PiExtensionContext } from "./pi-extension-contract.js";
 import { runUsageCommand } from "./usage-command.js";
 import type { UsageModelRegistry } from "./usage-contract.js";
+import type { UsageController } from "./usage-controller.js";
+import { executeUsageQuery } from "./usage-query.js";
 
-function controllerContext(context: PiExtensionContext): ControllerContext {
+function controllerContext(context: PiExtensionContext, query: UsageQueryRunner): ControllerContext {
 	return {
 		sessionManager: context.sessionManager,
 		modelRegistry: context.modelRegistry,
+		query,
 		getContextUsage: () => context.getContextUsage(),
 		setFooter: (factory) => context.ui.setFooter(factory),
 	};
 }
 
-export default function register(pi: PiExtensionAPI): void {
+export default function register(
+	pi: PiExtensionAPI,
+	createQuery: (context: PiExtensionContext) => UsageQueryRunner = () => executeUsageQuery,
+): void {
 	let controller: UsageController | undefined;
 	let commandRegistry: UsageModelRegistry | undefined;
 	pi.registerCommand("provider-usage", {
 		description: "Query the current provider, --all, or named providers; Tab completes provider names",
 		getArgumentCompletions: (prefix) =>
-			commandRegistry ? completeProviderUsageArgs(prefix, commandRegistry, controller?.getFooterSnapshot().model) : null,
-		handler: runUsageCommand,
+			commandRegistry
+				? completeProviderUsageArgs(prefix, commandRegistry, controller?.getFooterSnapshot().model)
+				: null,
+		handler: (args, context) => runUsageCommand(args, context, createQuery(context)),
 	});
 	pi.on("session_start", (_event, context) => {
 		controller?.dispose();
 		controller = undefined;
 		commandRegistry = context.modelRegistry;
 		if (context.mode !== "tui") return;
-		controller = createController(controllerContext(context), context.model);
+		controller = createController(controllerContext(context, createQuery(context)), context.model);
 		if (context.thinkingLevel) controller.updateThinkingLevel(context.thinkingLevel);
 		context.ui.addAutocompleteProvider((current) =>
 			createProviderUsageCompletion(current, () => ({

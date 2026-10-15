@@ -64,6 +64,12 @@
 
 **来源：**用户要求“when refreshing, do not show `...`, show the original number”，并明确“simply remove the setting that when it starts running, reset the number to `...`”；随后补充“when failed, simply show NAME: OLD (err), when OLD is `...`, then show NAME: err as usual”。**判断力：**每次 `turn_end` 都把已有的 `(NAME: 72%(week))` 暂时变成 `(NAME: …)` 不合格。由 D.root 的 P8 承接。
 
+### Q.I.10 — 团队上下文关联与账号独立额度
+
+**采纳：confirmed（2026-10-15）。** 通过 `my-settings` 的 global 读取接口，由用量插件负责全局 `settings.json` 中的单个字段 `provider-usage.glmTeams`。每组组织和项目关联多个运行时 provider ID；同一团队各账号额度独立，分别使用当前模型的原生认证 key 查询，不保存共用查询 key，不修改模型推理认证，不使用项目/session 配置。显式关联决定国内团队查询路径，未关联时维持自动路由。重复关联及条目不完整须报错；认证失败不能借另一个账号或共用 key 查询。
+
+**来源：**用户提出“直接 import my-plugins/my-settings/”“负责一个字段”，并纠正“link 上好几个 provider”“只负责……global 接口”，随后批准实施与从指定本地脚本填入凭据。**判断力：**要求额外凭据文件、将 key 保存到 session log、重复填写同一团队组织/项目或受国际模型端点限制而不使用明确团队关联，均不合格。用户随后明确纠正“每个团队里面每个号都是独立的”；四把账号 key 带同一团队上下文已实测返回各自额度。多 provider 关联只共享团队上下文，不共享额度或账号身份。
+
 ## Q.A — 当前推理使用的事实前提
 
 以下是从本地源码与已有调查整理出的 **candidate Q.A**；`verified` 仅指所列对象和时点的证据，不代表用户已逐条确认。证据位置见 [evidence.md](evidence.md)。

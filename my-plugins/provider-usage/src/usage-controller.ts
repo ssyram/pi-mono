@@ -1,9 +1,22 @@
+import {
+	type ActiveJob,
+	type ControllerContext,
+	type PendingJob,
+	systemScheduler,
+	type UsageQueryRunner,
+} from "./controller-contract.js";
 import type { FooterSnapshot, UsageFooter } from "./footer-component.js";
 import { route } from "./route.js";
 import { captureSelection, sameSelection } from "./selection.js";
+import type {
+	ContextUsageSnapshot,
+	DisplayState,
+	QueryResult,
+	Selection,
+	UsageModel,
+	UsageModelRegistry,
+} from "./usage-contract.js";
 import { executeUsageQuery } from "./usage-query.js";
-import { systemScheduler, type ActiveJob, type ControllerContext, type PendingJob, type UsageQueryRunner } from "./controller-contract.js";
-import type { ContextUsageSnapshot, DisplayState, QueryResult, Selection, UsageModel, UsageModelRegistry } from "./usage-contract.js";
 
 export class UsageController {
 	readonly sessionManager: ControllerContext["sessionManager"];
@@ -59,8 +72,6 @@ export class UsageController {
 		else this.selection = nextSelection;
 		if (!nextSelection) return this.publishEmpty();
 		const nextRoute = route(nextSelection);
-		if (nextRoute.kind === "error") return this.publishResult(nextSelection, { kind: "error", code: nextRoute.code });
-		if (nextRoute.kind === "unsupported") return this.publishResult(nextSelection, { kind: "unsupported" });
 		this.latestPending = { selection: nextSelection, route: nextRoute, generation: this.generation };
 		if (!this.hasCurrentDisplay(nextSelection)) {
 			this.display = { kind: "loading", selection: nextSelection };
@@ -99,18 +110,15 @@ export class UsageController {
 		this.render();
 	}
 
-	private publishResult(selection: Selection, result: Exclude<QueryResult, { kind: "cancelled" }>): void {
-		this.latestPending = undefined;
-		this.clearWakeTimer();
-		this.setReady(selection, result);
-	}
-
 	private setReady(selection: Selection, result: Exclude<QueryResult, { kind: "cancelled" }>): void {
 		const previous = this.display;
-		this.display = result.kind === "error" && previous.kind === "ready" &&
-			previous.result.kind === "available" && sameSelection(previous.selection, selection)
-			? { kind: "ready", selection, result: previous.result, staleError: result.code }
-			: { kind: "ready", selection, result };
+		this.display =
+			result.kind === "error" &&
+			previous.kind === "ready" &&
+			previous.result.kind === "available" &&
+			sameSelection(previous.selection, selection)
+				? { kind: "ready", selection, result: previous.result, staleError: result.code }
+				: { kind: "ready", selection, result };
 		this.render();
 	}
 
@@ -136,7 +144,8 @@ export class UsageController {
 
 	private startOrSchedule(): void {
 		if (this.disposed || this.activeJob || !this.latestPending) return;
-		const elapsed = this.lastAttemptAt === undefined ? Number.POSITIVE_INFINITY : this.scheduler.now() - this.lastAttemptAt;
+		const elapsed =
+			this.lastAttemptAt === undefined ? Number.POSITIVE_INFINITY : this.scheduler.now() - this.lastAttemptAt;
 		if (elapsed >= 60_000) return this.startJob();
 		if (!this.wakeTimer) {
 			this.wakeTimer = this.scheduler.after(Math.max(0, 60_000 - elapsed), () => {

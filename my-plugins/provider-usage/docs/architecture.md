@@ -7,7 +7,7 @@
 | ID | 可判定要求 | 来源 |
 |---|---|---|
 | P1 同实例 | 名称取当前 `model.provider`，认证用该模型的 registry 解析；旧选择不得覆盖新选择 | Q.I.1/3 |
-| P2 识别 | 只按模型 API 协议和精确服务端点选择 Codex、Z.AI 国际或国内；其它显示 N/S，不根据实例名推测 | Q.I.3/7 |
+| P2 识别 | 显式全局 GLM 团队关联优先；未关联时按模型 API 协议和精确服务端点选择 Codex、Z.AI 国际或国内，不根据实例名猜测 | Q.I.3/7/10 |
 | P3 内容 | 每家解码、格式化自身响应；窗口由响应确定，不补造零或时间窗 | Q.I.4 |
 | P4 位置 | 费用后只显示不带 NAME 的短格式，有额度状态时取代 `(sub)`；重置时间和解析提示留给命令，原 token/cost/context 数值不变 | Q.I.5 |
 | P5 状态 | 确认无套餐→隐藏；未支持→N/S；认证/查询/格式错误→可见错误，不互相代替 | Q.I.6 |
@@ -15,7 +15,13 @@
 | P7 按需查询 | 命令按当前／运行时可用全部／显式名称查询；详情按账号输出，多参数 Tab 可补全 | Q.I.8 |
 | P8 刷新稳定 | 同账号已有成功值时刷新期间保留；成功换新值，失败显示 `旧值 (err)`；首次无成功值失败则只显示错误；换账号不沿用旧值 | Q.I.9 |
 
-**Global P（全部组件）：**不得 import、检测、读取或依赖 provider-profiles；认证与原始服务响应不得进入 footer/日志/磁盘；共享可变状态只属于当前会话，不使用跨会话全局缓存。
+**Global P（全部组件）：**不得 import、检测、读取或依赖 provider-profiles；认证与原始服务响应不得进入 footer/日志/session 记录；全局 settings.json 只保存团队组织/项目与 provider 关联，不保存查询 key；不使用跨会话全局缓存。
+
+## 显式 GLM 团队配置
+
+通过 `my-settings/index.ts` 初始化服务并创建客户端，仅查询 `scope: "global"` 的 `provider-usage.glmTeams`（默认 `[]`）。数组每项为 `{ providers: string[], organization: string, project: string }`。同一组团队上下文可关联多个运行时 provider ID，但各账号额度独立；查询 key 必须由 registry 为当前 model 解析，配置不能提供共用 key。重复关联及不完整条目为配置错误，不按先后猜测。my-settings 的会话身份仅用于服务调用，不读取/保存 session 配置，不读取项目层。
+
+footer 和详细命令共用查询入口，每次实际查询重新读取全局字段。显式关联优先于模型端点路由，但不替换账号身份：调用 registry.getApiKeyAndHeaders(selection.model)，使用该账号 apiKey 原值及配置的两项团队头访问固定国内 `?type=2` 接口。只发送这三项认证字段，不转发其它模型头，不影响模型推理。缺 key/认证失败返回 AUTH；取消后不启动 HTTP。未关联时维持原有路由及认证。设置读取失败返回错误；取消后不发 HTTP。账号 key 只在本次请求中使用，不写入团队设置、session 或日志。
 
 ## M — 组件、数据及接口
 
@@ -47,7 +53,7 @@ ExtensionContext.model → captureSelection → route(api,baseUrl)
 |---|---|---|
 | `Selection` | sessionId、model 快照、providerId=model.provider、api、endpoint；capture→router/controller | 不含凭据；一次事件同步捕获 |
 | `Route` | codex / zai / zai-cn / unsupported；router→controller | 不按 providerId 匹配；无套餐不是 route |
-| `RequestAuth` | 授权 header、Codex accountId、国内团队可选 organization/project、effectiveEndpoint；auth→query | 临时单 job；认证覆盖地址复判为相同 route 才可请求；组织头必须成对来自当前模型认证 |
+| `RequestAuth` | 授权 header、Codex accountId、国内团队可选 organization/project、effectiveEndpoint；auth→query | 临时单 job；显式团队使用当前 model 的 apiKey 和配置的组织/项目；否则认证覆盖地址须复判为相同 route，组织头成对来自模型认证 |
 | `UsageResult` | available(text, compact) / not-applicable / unsupported / error(auth/timeout/network/http/invalid-response)；adapter→controller/command | text 为详细文本，compact 为不含重置/解析提示的短文本；两者不含名称、凭据 |
 | `DisplayState` | empty / loading(selection) / ready(selection,result,staleError?)；controller→footer | 只发布当前世代；失败时若当前账号有 available 则保留其数值并标 err；跨账号清空 |
 
@@ -84,7 +90,7 @@ HTTPS、host、端口、pathname 规范化后全量匹配；不因同协议、�
 | N/S / 不适用 / 失败不混淆 | router 只产 unsupported；业务解析才产 not-applicable；错误返回 error；footer 按变体映射 |
 | 原生用量不和套餐用量混算 | footer 统计来自 session entries；额度仅作为费用后的独立片段 |
 
-**SCCO：**Sound 依赖公开 API、Codex 成功实测及 Z.AI 当前账号的业务失败/空订阅列表实测；它们不证明 Z.AI 成功额度路径已现场验收。Complete 涵盖三路由、选择与退出、业务状态和原位显示；国内无团队上下文时的套餐归属仍无法证实。Concise 不增宿主 API、kind 字段、profile adapter、历史库或统一 metrics schema。Optimality：setFooter 是现有唯一能在纯插件内控制目标行位置的 API，代价是自维护复制的 footer 统计及上述不可观测字段边界；这些不由局部接口的可用性推导为无代价。
+**SCCO：**Sound 依赖公开 API、Codex 成功实测、GLM 四账号各自 key 的团队查询与真实 Pi 切换/详情/reload 实测；国际/国内个人套餐成功额度仍待实测。Complete 涵盖三路由、选择与退出、业务状态和原位显示；国内无团队上下文时的套餐归属仍无法证实。Concise 不增宿主 API、kind 字段、profile adapter、历史库或统一 metrics schema。Optimality：setFooter 是现有唯一能在纯插件内控制目标行位置的 API，代价是自维护复制的 footer 统计及上述不可观测字段边界；这些不由局部接口的可用性推导为无代价。
 
 ## 首版完成门
 

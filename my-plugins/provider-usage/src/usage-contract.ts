@@ -24,7 +24,7 @@ export interface RequestAuth {
 	headers: Record<string, string>;
 }
 
-export type UsageErrorCode = "auth" | "timeout" | "network" | "http" | "invalid-response";
+export type UsageErrorCode = "auth" | "timeout" | "network" | "http" | "invalid-response" | "configuration";
 
 export type UsageResult =
 	| { kind: "available"; text: string; compact: string }

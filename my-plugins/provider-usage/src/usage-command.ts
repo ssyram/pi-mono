@@ -1,26 +1,30 @@
 import { resolveUsageTargets } from "./command-targets.js";
+import type { UsageQueryRunner } from "./controller-contract.js";
 import type { PiExtensionContext } from "./pi-extension-contract.js";
 import { route } from "./route.js";
 import { captureSelection } from "./selection.js";
-import { executeUsageQuery } from "./usage-query.js";
 import type { UsageModel } from "./usage-contract.js";
+import { executeUsageQuery } from "./usage-query.js";
 
-export async function queryUsageTarget(model: UsageModel, context: PiExtensionContext): Promise<string> {
+export async function queryUsageTarget(
+	model: UsageModel,
+	context: PiExtensionContext,
+	query: UsageQueryRunner = executeUsageQuery,
+): Promise<string> {
 	const name = model.provider;
 	const selection = captureSelection(context, model);
 	if (!selection) return `${name}: ERR`;
 	const selectedRoute = route(selection);
-	if (selectedRoute.kind === "unsupported") return `${name}: N/S`;
-	if (selectedRoute.kind === "error") return `${name}: ERR`;
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), 15_000);
 	timeout.unref();
 	try {
-		const result = await executeUsageQuery(selection, selectedRoute, context.modelRegistry, controller.signal);
+		const result = await query(selection, selectedRoute, context.modelRegistry, controller.signal);
 		if (controller.signal.aborted || result.kind === "cancelled") return `${name}: TIMEOUT`;
 		if (result.kind === "available") return `${name}: ${result.text}`;
 		if (result.kind === "not-applicable") return `${name}: 无适用套餐`;
 		if (result.kind === "unsupported") return `${name}: N/S`;
+		if (result.code === "configuration") return `${name}: CONFIG（检查全局 provider-usage.glmTeams）`;
 		if (result.code === "auth") return `${name}: AUTH`;
 		if (result.code === "timeout") return `${name}: TIMEOUT`;
 		return `${name}: ERR`;
@@ -31,7 +35,11 @@ export async function queryUsageTarget(model: UsageModel, context: PiExtensionCo
 	}
 }
 
-export async function runUsageCommand(args: string, context: PiExtensionContext): Promise<void> {
+export async function runUsageCommand(
+	args: string,
+	context: PiExtensionContext,
+	query: UsageQueryRunner = executeUsageQuery,
+): Promise<void> {
 	const target = resolveUsageTargets(args, context.model, context.modelRegistry);
 	if (target.kind === "error") {
 		context.ui.notify(target.message, "warning");
@@ -42,7 +50,7 @@ export async function runUsageCommand(args: string, context: PiExtensionContext)
 		return;
 	}
 	const lines: string[] = [];
-	for (const model of target.models) lines.push(await queryUsageTarget(model, context));
+	for (const model of target.models) lines.push(await queryUsageTarget(model, context, query));
 	for (const name of target.unknown) lines.push(`${name}: 未找到 provider`);
 	context.ui.notify(lines.join("\n"), "info");
 }

@@ -1,14 +1,5 @@
 import type { FooterFactory } from "./footer-component.js";
-import type {
-	ContextUsageSnapshot,
-	QueryResult,
-	Route,
-	Selection,
-	SupportedRouteKind,
-	UsageModelRegistry,
-} from "./usage-contract.js";
-
-type SupportedRoute = Extract<Route, { kind: SupportedRouteKind }>;
+import type { ContextUsageSnapshot, QueryResult, Route, Selection, UsageModelRegistry } from "./usage-contract.js";
 
 export interface UsageTimer {
 	clear(): void;
@@ -21,7 +12,7 @@ export interface UsageScheduler {
 
 export type UsageQueryRunner = (
 	selection: Selection,
-	route: SupportedRoute,
+	route: Route,
 	registry: Pick<UsageModelRegistry, "getApiKeyAndHeaders">,
 	signal: AbortSignal,
 ) => Promise<QueryResult>;
@@ -42,7 +33,7 @@ export interface ControllerContext {
 
 export interface PendingJob {
 	selection: Selection;
-	route: SupportedRoute;
+	route: Route;
 	generation: number;
 }
 

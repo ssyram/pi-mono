@@ -1,4 +1,24 @@
-# 设计证据 — 2026-09-23
+# 设计证据 — 更新至 2026-10-15
+
+## E10 — 当前账号 key 与真实 Pi 验证
+
+用户明确同一团队中各账号额度独立。2026-10-15 分别取 000/001 的 profile key、002/999 的 stored credential key（四把互不相同），带相同组织/项目请求国内 `?type=2`；四次均返回 HTTP 200、success=true、code=200 和两条 CREDIT_LIMIT。样本的 5h/week 已用比例为：000=76%/38%，001=100%/78%，002=1%/1%，999=1%/1%；后两者的已用计数为 151 和 0，百分比相同不等于相同账号数据。
+
+已修正为团队全局字段仅保留组织/项目和 providers，每次通过 registry 解析当前 model 的 apiKey，不再使用脚本 key。通过 my-settings saveGlobalOnly 从实际全局配置删除 key，保留四个关联和其它设置；不改模型凭据。旧 key 字段现在返回 CONFIG，避免继续错误共用。
+
+32 项插件测试通过，包括各 provider 分别发送自身 Authorization、返回不同额度，切换模型后 footer 随之更新，以及认证缺失/失败/取消不借用其他 key。已启动本机安装的真实 Pi（不是 mock）：只显式加载 provider-profiles 和本插件，四个账号逐个切换，footer 分别显示上述 5h/week；`/provider-usage` 四账号详情一致对应，`/reload` 后当前账号额度仍显示。无模型推理请求；宿主同时报告已有第三方主题 schema 警告，未修改主题。
+
+## E9 — 旧实现（已证实不满足账号隔离）
+
+用户提供的本地 Python 脚本包含独立团队 key、组织和项目，授权脱敏提取并写入全局 settings.json；未执行原脚本。此前已确认 `zai-000-g-l`、`zai-001-g-l` 为团队账号，本次由显式关联共同使用该三元组。通过 my-settings 的 `saveGlobalOnly` 写入单字段，保留其它全局设置并设当前文件权限为 0600；不写模型 auth/profiles 或 session log。
+
+2026-10-15 用新 `executeUsageQuery` 入口、global settings client 和真实国内固定 `?type=2` 接口分别查询两个关联 provider，均返回 available；测试中的模型认证入口禁止调用。没有发起模型推理请求，没有保存原始服务响应或把密钥输出到日志/仓库。此证据只能证明同一把 key 被重复查询成功；将其解释成共享团队额度是错误假设，已由 E10 的逐账号实测纠正。
+
+29 项插件直接测试通过，包括入口初始化、mock footer 和多 provider 命令共用团队凭据、修改全局设置后重读、忽略项目配置、不读写 session、重复关联/不完整字段拒绝、取消不发 HTTP、原路由保持，以及失败/空数据不回退模型 key。真实终端 /reload 后的显示仍由用户查看。
+
+静态检查边界：新增模块、命令接线与测试等 11 个文件的定向 Biome 检查通过；已有 controller 的三个 void-return 风格诊断未在本轮顺手改写。插件严格 tsc 的诊断均位于引入的 my-settings 源文件（其尚未满足消费者启用的 exactOptionalPropertyTypes/noUncheckedIndexedAccess），未放宽类型选项或修改该工作线。`npm run check` 在 my-settings/e2e/index.ts 的既有 DemoState 未使用警告处停止；该根脚本带 --write，本次报告自动格式化 36 个文件，因此不能把根检查称为通过，也未对共享工作区做不安全回退。
+
+以下 E1–E8 保留原调查时点，不能用早期无上下文失败覆盖 E10 的逐账号完整团队上下文成功证据。
 
 证据仅支持下列命题；源码、外部样例和本账号实测分开记录。
 

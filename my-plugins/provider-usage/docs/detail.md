@@ -6,6 +6,12 @@
 
 ## 1. 选择与认证
 
+### 全局 GLM 团队配置 — `bootstrap.ts` / `glm-team-settings.ts`
+
+`bootstrap(pi)` 等待 `mySettings(pi)` 初始化，再为 footer 与命令注入同一个查询工厂。客户端身份仅供服务调用；`query({ scope: "global", defaults: { "provider-usage.glmTeams": [] } })` 不读取项目/session 配置，也不保存任何设置。
+
+`resolveGlmTeam(value: unknown, providerId)` 验证数组、非空 providers 和组织/项目两项无换行的非空字符串；拒绝旧的共用 key 字段和重复关联，返回 absent/team(context)/error(configuration)。不输出原输入。`queryGlmTeam` 为当前 selection.model 调用 registry.getApiKeyAndHeaders，取该账号 apiKey 原值并与组织/项目一同发向国内固定 `?type=2` 接口；不转发模型 Authorization 或其它头。解析认证前后均检查取消，缺 key/失败返回 AUTH，不借其它账号凭据。没有关联才采用原路由。公共 my-settings 对坏文件/顶层类型不符会诊断后忽略来源，此时可能返回默认空数组；插件只对服务失败或收到的不完整条目返回 CONFIG。
+
 ### `captureSelection(ctx, model = ctx.model): Selection | undefined` — `selection.ts`
 
 Caller：session_start/model_select/turn_end 的同步事件体；model_select 显式传 `event.model`。Callees：`ctx.sessionManager.getSessionId()`、`ctx.modelRegistry.getProvider(model.provider)`。Pre：有效的本会话 context；不得在 await 后用旧 context 重采选择。
@@ -107,7 +113,7 @@ Caller：executeQuery；callees：requestJson→parseZaiQuota(region)→formatZa
 
 **私有状态** `Controller`：sessionId、selection?、generation、disposed、display、activeJob?、latestPending?、lastAttemptAt?、wakeTimer?、TUI?。`activeJob` 包含 generation、Selection、AbortController、15 秒 deadline timer、timedOut。state 只在该会话 controller 内；至多一个物理未 settle job 和一个覆盖式 pending。全局没有 session→controller Map。
 
-### `register(pi): void` — `provider-usage-extension.ts`
+### `register(pi, createQuery?): void` — `extension.ts`
 
 Caller：扩展加载器；callee：pi.on、createController、controller 方法。factory 阶段只注册事件；非 TUI 的 session_start 不安装 footer、不查网、不设 timer。TUI session_start 建 controller 并安装 `ctx.ui.setFooter(factory)`，从 ctx.thinkingLevel 初始化显示；model_select 用 event.model 并同步 ctx.thinkingLevel，thinking_level_select 同步更新显示用快照；turn_end 先同步 ctx.thinkingLevel 再请求刷新；session_shutdown dispose。所有 handler 立即返回，不把 HTTP Promise 交给串行事件链；异步拒绝在 controller 内处理。注册次数有限，无跨会话静态可变状态。导出默认函数在自己的入口文件，index.ts 只 re-export。
 
@@ -120,8 +126,8 @@ Caller：register 的 TUI session_start；callee：createUsageFooter、requestRe
 Caller：session_start/model_select/turn_end/尾随 timer；callee：captureSelection、route、startJob。Pre：有效会话；disposed 时直接返回。
 
 - 同步捕获新选择；model_select 即使标识相同也 generation++，取消旧 job、清旧数值，重置选择的限频。其它事件若 sessionId/providerId/modelId/api/endpoint 变化亦做相同动作；同选择 turn_end 保持世代与现有显示值；后台开始不写 loading。
-- 无模型→empty；非法端点→ERR；合法未匹配→N/S。三者清 pending，不调认证。
-- supported→覆盖 latestPending；同账号已有 ready 显示则不改成 loading，首次/新账号无值才显示 loading。activeJob 仍未 settle 时不启动第二个；超时有本账号旧成功值时显示 `旧值 (err)`，首次无值仍走 TIMEOUT。
+- 无模型→empty，清 pending；其余选择连同初步 Route 一并交给查询入口，避免在读取显式团队关联前被 endpoint 拒绝。没有团队关联时非法端点→ERR、合法未匹配→N/S，均不调认证。
+- 有模型→覆盖 latestPending；同账号已有 ready 显示则不改成 loading，首次/新账号无值才显示 loading。activeJob 仍未 settle 时不启动第二个；超时有本账号旧成功值时显示 `旧值 (err)`，首次无值仍走 TIMEOUT。
 - 无 active：若距 lastAttemptAt≥60 秒或新选择首次尝试→startJob；否则设置唯一 unref 的 wakeTimer 于到期时重调当前 pending。timer 不使用旧事件 ctx 重采会话。
 
 Post：旧选择立即不可显示、pending≤1、active≤1；只启动本选择当前请求。所有本地分支有限，副作用只有状态/UI/timer/abort。
@@ -132,7 +138,7 @@ Caller：requestRefresh/timer/finishJob。Pre：未 disposed、无 active、有�
 
 ### `executeQuery(job): Promise<UsageResult | cancelled>` — `usage-query.ts`
 
-Caller：startJob；callees：resolveAuth、对应 queryCodex/queryZai/queryZaiCn。Pre：job 有固定 Selection、route、私有 signal。认证失败/unsupported/cancelled直通；成功后再检查 signal，再调用该 route 唯一 adapter；adapter 结果直通。异常交给 startJob 的 catch。Post：通常一次额度 GET；国际 Z.AI 在精确业务失败后可再查一次同域订阅列表；无 UI 写入、不保存凭据。认证可能触发宿主原生刷新。
+Caller：startJob/详细命令；callees：global settings query、resolveGlmTeam、resolveAuth、对应 queryCodex/queryZai/queryZaiCn。Pre：job 有固定 Selection、初步 route、私有 signal。先检查取消，读取 global 设置后再次检查；服务失败或条目不合法→configuration。显式团队调用 queryGlmTeam，为当前 model 解析原生 apiKey 并访问国内团队接口；没有关联时按原 route 处理，再解析认证。认证失败/unsupported/cancelled直通；成功后再检查 signal，再调用该 route 唯一 adapter；adapter 结果直通。异常交给 startJob 的 catch。Post：通常一次额度 GET；国际 Z.AI 在精确业务失败后可再查一次同域订阅列表；无 UI 写入、不保存凭据。认证可能触发宿主原生刷新。
 
 ### `onDeadline(controller, job): void` — `usage-controller.ts`
 
@@ -200,7 +206,7 @@ Caller：命令 handler、参数补全。无参数且有当前模型→仅当前
 
 ### `queryUsageTarget(target, registry): Promise<string>` — `usage-command.ts`
 
-Caller：命令 handler；callees：captureSelection→route→executeUsageQuery。Pre：target 的 model/providerId 同源。对每个目标新建 AbortController，单次调用设置 15 秒 unref timer，`finally` 清 timer；取消的查询输出 TIMEOUT。支持成功输出 `${name}: ${result.text}`；不适用输出 `${name}: 无适用套餐`（仅有确证时）；未支持 N/S，认证 AUTH，其他错误 ERR。异常转 ERR，不输出凭据或原始响应。此函数不改当前模型、controller 世代或 footer；界内每目标最多一个 GET。
+Caller：命令 handler；callees：captureSelection→route→executeUsageQuery。Pre：target 的 model/providerId 同源。对每个目标新建 AbortController，单次调用设置 15 秒 unref timer，`finally` 清 timer；取消的查询输出 TIMEOUT。支持成功输出 `${name}: ${result.text}`；不适用输出 `${name}: 无适用套餐`（仅有确证时）；未支持 N/S，认证 AUTH，配置错误 CONFIG（仅给字段名，不输出值），其他错误 ERR。异常转 ERR，不输出凭据或原始响应。此函数不改当前模型、controller 世代或 footer；界内每目标最多一个 GET。
 
 ### `completeProviderUsageArgs(prefix, registry): AutocompleteItem[] | null` — `command-completion.ts`
 
@@ -218,6 +224,6 @@ Caller：`pi.registerCommand`。同步解析目标，再逐个 `await queryUsage
 
 **必须直接执行：**无 profiles 时内置 provider 和任意具名 provider 的同路由/不同凭据；三路由与相似域名；Codex 实测形状 primary=34%/week、secondary=null、附加额度；Z.AI 两区域旧新额度、TIME_LIMIT、未知 unit/空 limits；401/403/invalid JSON/超时/切换迟到；密集事件时单 job；shutdown 后无迟到 UI；footer 全 entries 的 R/W/CH/cost/context、费用后短文本取代 sub、窄屏、status、branch/theme；`/provider-usage` 当前/--all/多名称/未知名与参数 Tab；无费用时直接插用量；非 TUI 无自动请求。README 的日期和状态随实际功能更新。
 
-**未闭合，不用猜：**Z.AI 两区域目标账号尚未实测；精确“无套餐”响应合同仍需一手依据/脱敏实际响应；组织套餐协议未覆盖；宿主认证 Promise 不可取消；纯插件拿不到实时 `(auto)`，同时装载另一自定义 footer 存在独占冲突。上述边界保留到全局论证，不以编写测试或模型自述冒充已完成。
+**未闭合，不用猜：**国内团队独立三元组已实测，国际/国内个人套餐的成功额度仍待实测；宿主认证 Promise 不可取消；纯插件拿不到实时 `(auto)`，同时装载另一自定义 footer 存在独占冲突。上述边界保留到全局论证，不以编写测试或模型自述冒充已完成。
 
-**全局 SCCO：**identity/auth/query/footer 的 pre/post 顺接，并由世代门关闭异步时差，因此在已证输入范围内满足 Q.I.1–8；是否支持新的业务响应须回到供应商 adapter，不能改 Q。用量内容和 footer 布局彼此正交。除原生统计重建这项因纯插件硬边界而必要的复制外，不添加插件间桥接或通用度量框架。
+**全局 SCCO：**identity/auth/query/footer 的 pre/post 顺接，并由世代门关闭异步时差，因此在已证输入范围内满足 Q.I.1–8；是否支持新的业务响应须回到供应商 adapter，不能改 Q。用量内容和 footer 布局彼此正交。除原生统计重建这项因纯插件硬边界而必要的复制外，仅复用 my-settings 的 global 配置接口，不添加 profiles 桥接或通用度量框架。
