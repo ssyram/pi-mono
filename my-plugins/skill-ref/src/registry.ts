@@ -46,23 +46,27 @@ export function listEntries(getCommands: () => CommandLike[]): SkillRefEntry[] {
 	}
 
 	const entries: SkillRefEntry[] = [];
-	for (const command of commands) {
-		const kind: EntryKind | undefined =
-			command?.source === "skill" ? "skill" : command?.source === "prompt" ? "prompt" : undefined;
-		if (!kind) continue;
+	try {
+		for (const command of commands) {
+			const kind: EntryKind | undefined =
+				command?.source === "skill" ? "skill" : command?.source === "prompt" ? "prompt" : undefined;
+			if (!kind) continue;
 
-		const rawName = typeof command.name === "string" ? command.name : "";
-		const name = kind === "skill" && rawName.startsWith(SKILL_PREFIX) ? rawName.slice(SKILL_PREFIX.length) : rawName;
-		if (!name) continue;
+			const rawName = typeof command.name === "string" ? command.name : "";
+			const name = kind === "skill" && rawName.startsWith(SKILL_PREFIX) ? rawName.slice(SKILL_PREFIX.length) : rawName;
+			if (!name) continue;
 
-		entries.push({
-			kind,
-			name,
-			qualifiedName: `${kind}:${name}`,
-			description: typeof command.description === "string" ? command.description : "",
-			path: command.sourceInfo?.path ?? "",
-			baseDir: command.sourceInfo?.baseDir,
-		});
+			entries.push({
+				kind,
+				name,
+				qualifiedName: `${kind}:${name}`,
+				description: typeof command.description === "string" ? command.description : "",
+				path: command.sourceInfo?.path ?? "",
+				baseDir: command.sourceInfo?.baseDir,
+			});
+		}
+	} catch {
+		return [];
 	}
 
 	return entries;

@@ -1,0 +1,20 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.3.5/schema.json",
+	"root": false,
+	"formatter": { "indentStyle": "tab", "lineWidth": 120 },
+	"linter": { "rules": { "recommended": true, "style": { "noNonNullAssertion": "off" } } },
+	"files": {
+		"includes": [
+			"**/index.ts",
+			"**/src/reference-*.ts",
+			"**/src/exact-resource*.ts",
+			"**/src/printed-resources*.ts",
+			"**/src/transform-references*.ts",
+			"**/src/modifier-*.ts",
+			"**/src/autocomplete-result*.ts",
+			"**/src/registry.ts",
+			"**/src/registry.test.ts",
+			"**/src/integration.test.ts"
+		]
+	}
+}

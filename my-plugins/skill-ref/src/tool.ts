@@ -211,11 +211,12 @@ export function registerTryLoadTool(pi: ExtensionAPI, getEntries: () => SkillRef
 		name: "try_load_skill_or_prompt",
 		label: "Load Skill/Prompt",
 		description:
-			"Load the text of a skill or prompt the user referred to by name, typically a '/name' written mid-sentence. pi only expands slash commands at the very start of a message, so such a reference is inert text until this tool resolves it. A single exact match returns the resource's full text — treat it as instructions for the current task. Any other outcome returns matching identifiers ('/skill:NAME' / '/prompt:NAME'); call again with one of them, each is guaranteed to resolve uniquely.",
+			"Load the text of a skill or prompt the user referred to by name, typically a '/name' written mid-sentence. A single exact match returns the resource's full text — treat it as instructions for the current task. Any other outcome returns matching identifiers ('/skill:NAME' / '/prompt:NAME'); call again with one of them, each is guaranteed to resolve uniquely. If you have already loaded it once, in the subsequent calls, you don't need to reload it except when the user explicitly requests it, just carefully follow the loaded text before.",
 		promptSnippet: "Load the text of a skill or prompt referenced as /name",
 		promptGuidelines: [
 			"A '/name' that appears inside a user message rather than at its start is a skill or prompt reference: resolve it with try_load_skill_or_prompt before acting on the request.",
 			"Load skills and prompts through try_load_skill_or_prompt rather than reading their files; if it answers with a list of identifiers, call it again with one of them.",
+			"A user message ending with the printed-resources appendix (starting 'The following comes some of the referenced SKILLs') already carries those resources' full text; do not call try_load_skill_or_prompt for them.",
 		],
 		parameters: PARAMS,
 		async execute(_toolCallId, params) {

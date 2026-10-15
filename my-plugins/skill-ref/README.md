@@ -2,10 +2,11 @@
 
 A [pi](https://github.com/badlogic/pi-mono) extension for referring to skills and prompts **in the middle of a sentence**.
 
-Two halves of one idea:
+Three parts of one idea:
 
 1. **Mid-sentence `/` + Tab completes skills and prompts** instead of listing filesystem paths.
 2. **`try_load_skill_or_prompt`** turns such a reference into the resource's own text, so the model can actually act on it.
+3. **`:print` / `:path` modifiers** cash a reference in when the message is sent.
 
 The second half exists because pi only expands a slash command when it is the *first* thing in a message. A `/qpdi` written mid-sentence is plain text; this tool is how it gets cashed in.
 
@@ -25,6 +26,18 @@ The second half exists because pi only expands a slash command when it is the *f
 Selecting a candidate inserts `/name ` at the cursor. Menu entries are tagged and coloured by kind (skill / prompt) using the active theme.
 
 Matching is loose: `abc` means `.*a.*b.*c.*`, and `.` / `*` are wildcards rather than literals, so `x...a` and `x..a` both mean `.*x.*a.*`.
+
+### Modifiers
+
+| Sent text contains | Sent as |
+|---|---|
+| `/name :print` (any horizontal spacing; `/name:print`, `/name::print` equal) | `/name` with the resource's full text appended after a `---` appendix header |
+| `/name :path` | the reference replaced by the resource file's absolute path |
+| `/name \:` (then any text) | `/name :` — only the backslash is dropped; everything after flows verbatim |
+
+Only a unique, exact, loadable reference is transformed; anything else stays verbatim. The same file prints once per message. The leading reference of the first meaningful line belongs to pi's native command handling — there `:print` is an ordinary argument and nothing is stripped. Typing `/name :` offers the modifiers (and escaped literal variants) automatically.
+
+Resources already quoted in a message's appendix need no `try_load_skill_or_prompt` call — the tool's guidelines say so.
 
 ### Tool
 

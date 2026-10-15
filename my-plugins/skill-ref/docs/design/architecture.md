@@ -27,6 +27,16 @@
 
 两条链路共用 M1 + M2 —— 这是 R3（两处口径必须一致）的结构性保证。
 
+```
+用户发送含 /name :print|:path 的消息
+  └─ input handler（原生展开前）：transformReferences                    [M5]
+      ├─ 唯一同写精确命中 → 剥修饰符 + 附录正文 / 绝对路径替换
+      ├─ 首个有意义行行首引用 → 原样保留（P10，归 pi 官方）
+      └─ 未命中/歧义 → 原文不变（不猜选）
+
+句中 /name : 输入自动弹子命令菜单（: 触发字符 + modifier provider）  [M5]
+```
+
 ---
 
 ## 2. 数据结构（§3.1）
@@ -220,15 +230,34 @@ triggerCharacters：不设置（上游会过滤 "/"，设了也无效）
 renderResult 必须先运行时校验 details 形状；校验失败时退化为单行失败状态，不读取未知字段
 ```
 
+### M5 修饰符基础设施（2026-10-14 实现并接入；权威规约见 `docs/design/subplans/`）
+
+```
+模块：reference-pattern / reference-occurrences / exact-resource / transform-references /
+      printed-resources / modifier-context / modifier-items / autocomplete-result / modifier-autocomplete
+
+功能描述：把 /name :print|:path（零或任意横向空白等价）在发送时兑现为附录正文或绝对路径；
+          /name : 处自动弹子命令菜单。
+
+关键后置条件：
+  - 唯一同写精确命中 + 绝对路径 + 读取成功才转换；失败引用逐段原样保留（不猜选）
+  - P10：首个有意义行行首的引用归 pi 原生处理，区间原样保留（含修饰符与转义）
+  - 三个 provider 回调不抛出：null / 原快照 / false 收束；下层返回值快照归一化，
+    违规 thenable 的拒绝被吞除（F1–F5 修复，2026-10-14）
+  - loader 返回防御副本；registry try 覆盖整个遍历
+
+副作用：只读资源文件（请求内缓存）；无跨会话状态、无 watcher/timer/子进程
+```
+
 ### `index.ts`
 
 ```
 export default function (pi: ExtensionAPI): void
-  pi.on("session_start", (_e, ctx) => {
-    ctx.ui.addAutocompleteProvider((current) =>
-      createSkillRefProvider(current, () => listEntries(() => pi.getCommands())));
-  });
-  pi.registerTool(createTryLoadTool(() => listEntries(() => pi.getCommands())));
+  pi.registerTool(try_load_skill_or_prompt ...)                       [M4]
+  pi.on("input", e => { const t = transformReferences(e.text, getEntries());
+                        return t === e.text ? undefined : { action: "transform", text: t }); });   [M5]
+  pi.on("session_start", (_e, ctx) => ctx.ui.addAutocompleteProvider((current) =>
+    createModifierProvider(createSkillRefProvider(current, getEntries, theme), getEntries)));  [M5∘M3]
 ```
 
 - wrapper 必须在 `session_start` 内注册（H5：`/reload` 会清空 wrapper 数组）。

@@ -1,0 +1,24 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"declaration": false,
+		"declarationMap": false,
+		"sourceMap": false,
+		"inlineSources": false,
+		"allowImportingTsExtensions": true,
+		"rewriteRelativeImportExtensions": true
+	},
+	"include": [
+		"index.ts",
+		"src/reference-*.ts",
+		"src/exact-resource*.ts",
+		"src/printed-resources*.ts",
+		"src/transform-references*.ts",
+		"src/modifier-*.ts",
+		"src/autocomplete-result*.ts",
+		"src/registry.ts",
+		"src/registry.test.ts",
+		"src/integration.test.ts"
+	],
+}

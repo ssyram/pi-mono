@@ -35,7 +35,10 @@ describe("listEntries", () => {
 	});
 
 	it("drops entries whose name is empty after prefix stripping", () => {
-		assert.deepEqual(listEntries(() => [{ name: "skill:", source: "skill" }]), []);
+		assert.deepEqual(
+			listEntries(() => [{ name: "skill:", source: "skill" }]),
+			[],
+		);
 	});
 
 	it("returns [] instead of throwing when pi cannot answer", () => {
@@ -43,6 +46,26 @@ describe("listEntries", () => {
 			listEntries(() => {
 				throw new Error("not initialized");
 			}),
+			[],
+		);
+	});
+
+	it("returns [] when the command list is not iterable", () => {
+		assert.deepEqual(
+			listEntries(() => 42 as unknown as CommandLike[]),
+			[],
+		);
+	});
+
+	it("returns [] when an element exposes throwing getters", () => {
+		const hostile = {
+			name: "a",
+			get source(): string {
+				throw new Error("metadata");
+			},
+		};
+		assert.deepEqual(
+			listEntries(() => [hostile as CommandLike]),
 			[],
 		);
 	});
