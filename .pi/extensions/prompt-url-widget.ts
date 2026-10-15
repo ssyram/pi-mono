@@ -219,6 +219,7 @@ export default function promptUrlWidgetExtension(pi: ExtensionAPI) {
 
 	pi.on("before_agent_start", async (event, ctx) => {
 		if (!ctx.hasUI) return;
+		if (typeof event.prompt !== "string") return;
 		const match = extractPromptMatch(event.prompt);
 		if (!match) {
 			return;

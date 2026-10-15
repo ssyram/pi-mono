@@ -1,6 +1,6 @@
 # Mock LLM setup for e2e
 
-Uses [mock-with-pi](https://github.com/ssyram/mock-with-pi) (`~/workspace/ai-tools/mock-with-pi/`) to run pi without real credentials.
+Uses [llm-mock](https://github.com/ssyram/llm-mock) (`~/workspace/ai-tools/mock-with-pi/`) to run pi without real credentials.
 
 ```sh
 # 1. Build & start mock server with a round-counter script
