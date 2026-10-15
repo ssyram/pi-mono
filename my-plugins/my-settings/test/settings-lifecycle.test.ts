@@ -57,7 +57,7 @@ test("public ready event lets consumers initialize even when registered before t
 			values: { "example.enabled": false },
 		});
 	});
-	mySettings(h.pi);
+	await mySettings(h.pi);
 	h.fire("session_start");
 	assert.ok(result);
 	assert.deepEqual(await result, {
@@ -71,19 +71,19 @@ test("public ready event lets consumers initialize even when registered before t
 
 test("old client cannot access a replacement session sharing the same session manager", async () => {
 	const h = fixture();
-	mySettings(h.pi);
+	await mySettings(h.pi);
 	h.fire("session_start");
 	const first = createMySettingsClient(h.bus, h.ready[0]);
 	assert.equal((await first.saveSession({ values: { key: "first" } })).ok, true);
 	h.switchSession();
 	assert.equal(code(await first.saveSession({ values: { key: "stale" } })), "SESSION_UNAVAILABLE");
 	h.fire("session_start");
-	assert.equal(code(await first.saveSession({ values: { key: "stale" } })), "SERVICE_UNAVAILABLE");
+	assert.equal(code(await first.saveSession({ values: { key: "stale" } })), "SESSION_UNAVAILABLE");
 	const second = createMySettingsClient(h.bus, h.ready[1]);
 	assert.equal((await second.saveSession({ values: { key: "second" } })).ok, true);
 	assert.equal(h.branch().length, 1);
 	h.fire("session_shutdown");
-	assert.equal(code(await second.saveSession({ values: {} })), "SERVICE_UNAVAILABLE");
+	assert.equal(code(await second.saveSession({ values: {} })), "SESSION_UNAVAILABLE");
 	h.fire("session_start");
 	assert.equal(
 		(
@@ -95,9 +95,9 @@ test("old client cannot access a replacement session sharing the same session ma
 	);
 });
 
-test("tree changes publish readiness and startup faults do not escape into Pi", () => {
+test("tree changes publish readiness and startup faults do not escape into Pi", async () => {
 	const h = fixture();
-	mySettings(h.pi);
+	await mySettings(h.pi);
 	h.fire("session_start");
 	h.fire("session_tree");
 	assert.equal(h.ready.length, 2);
@@ -114,7 +114,7 @@ test("tree changes publish readiness and startup faults do not escape into Pi", 
 			},
 			registerCommand() {},
 		} as unknown as ExtensionAPI;
-		assert.doesNotThrow(() => mySettings(broken));
+		await assert.doesNotReject(async () => mySettings(broken));
 	} finally {
 		console.error = original;
 	}

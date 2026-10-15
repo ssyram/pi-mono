@@ -1,6 +1,11 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import { describeThrown } from "./boulder-inhibition/describe-error.js";
+import { reportBoulderDiagnostic } from "./boulder-inhibition/report-error.js";
 import { registerConsult } from "./commands/consult.js";
 import { registerReviewPlan } from "./commands/review-plan.js";
 import { registerStartWorkCommand } from "./commands/start-work.js";
@@ -8,20 +13,25 @@ import { registerTaskCommand } from "./commands/task.js";
 import { registerUltrawork } from "./commands/ultrawork.js";
 import { loadConfig } from "./config.js";
 import { registerBoulder } from "./hooks/boulder.js";
+import { registerBoulderInfoEntryRenderer } from "./hooks/boulder-info-entry.js";
+import { registerBoulderInhibitionAdapter } from "./hooks/boulder-inhibition-adapter.js";
+import mySettings from "../my-settings/index.ts";
 import { registerCommentChecker } from "./hooks/comment-checker.js";
 import { registerCustomCompaction } from "./hooks/custom-compaction.js";
 import { registerEditErrorRecovery } from "./hooks/edit-error-recovery.js";
 import { registerRulesInjector } from "./hooks/rules-injector.js";
 import { registerSisyphusPrompt } from "./hooks/sisyphus-prompt.js";
 import { registerTaskGate } from "./hooks/task-gate.js";
+import { registerTaskWidgetLifecycle } from "./hooks/task-widget-lifecycle.js";
 import { registerToolOutputTruncator } from "./hooks/tool-output-truncator.js";
 import { registerUltraworkPrompt } from "./hooks/ultrawork-prompt.js";
 import { ensureSubagentIntegration } from "./subagent-links.js";
-import { TaskWidgetComponent } from "./tools/task-display.js";
+import { createTaskGateSettings } from "./task-gate-settings.js";
+import { registerTaskTool } from "./tools/task.js";
 import { isUnblocked } from "./tools/task-dependencies.js";
+import { TaskWidgetComponent } from "./tools/task-display.js";
 import type { Task } from "./tools/task-types.js";
 import { isTaskWidgetVisible } from "./tools/task-widget-state.js";
-import { registerTaskTool } from "./tools/task.js";
 
 function renderTaskWidget(
 	context: ExtensionContext,
@@ -34,7 +44,9 @@ function renderTaskWidget(
 		return;
 	}
 	const hasActive = tasks.some(
-		(task) => task.status === "in_progress" || (task.status === "pending" && isUnblocked(task, tasks)),
+		(task) =>
+			task.status === "in_progress" ||
+			(task.status === "pending" && isUnblocked(task, tasks)),
 	);
 	if (!hasActive) {
 		if (notifyWhenComplete) {
@@ -54,6 +66,7 @@ function renderTaskWidget(
 }
 
 export default async function ohMyPiV2(pi: ExtensionAPI): Promise<void> {
+	mySettings(pi);
 	const directory = dirname(fileURLToPath(import.meta.url));
 	const agentsDirectory = resolve(directory, "agents");
 	await ensureSubagentIntegration(directory, agentsDirectory, process.cwd());
@@ -62,26 +75,42 @@ export default async function ohMyPiV2(pi: ExtensionAPI): Promise<void> {
 	try {
 		config = await loadConfig(process.cwd());
 	} catch (error) {
-		console.error(
-			`[oh-my-pi] Failed to load config, using defaults: ${error instanceof Error ? error.message : error}`,
+		reportBoulderDiagnostic(
+			`[oh-my-pi] Failed to load config, using defaults: ${describeThrown(error)}`,
 		);
 		config = {};
 	}
 
-	const { getTaskState, setOnTaskChange, runHumanTaskCommand } = registerTaskTool(pi);
+	const {
+		getTaskState,
+		getTaskAdmissionState,
+		setOnTaskChange,
+		runHumanTaskCommand,
+	} = registerTaskTool(pi);
 	setOnTaskChange((tasks, context) => {
 		try {
 			renderTaskWidget(context, tasks, undefined, true);
 		} catch (error) {
-			console.error(
-				`[oh-my-pi task] Widget update failed: ${error instanceof Error ? error.message : String(error)}`,
+			reportBoulderDiagnostic(
+				`[oh-my-pi task] Widget update failed: ${describeThrown(error)}`,
 			);
 		}
 	});
 
-	registerTaskGate(pi, getTaskState);
+	const taskGateSettings = createTaskGateSettings();
+	pi.on("session_start", (_event, context) => {
+		taskGateSettings.reload(context);
+	});
+	registerTaskGate(pi, getTaskAdmissionState, taskGateSettings.isEnabled);
 
-	if (config.boulder_enabled !== false) registerBoulder(pi, getTaskState);
+	registerBoulderInfoEntryRenderer(pi);
+	let boulderCancel: ((context: ExtensionContext) => void) | undefined;
+	if (config.boulder_enabled !== false) {
+		boulderCancel = registerBoulder(pi, getTaskState).cancelWait;
+	}
+	registerBoulderInhibitionAdapter(pi, (context) => {
+		boulderCancel?.(context);
+	});
 	registerSisyphusPrompt(pi, config, agentsDirectory);
 	registerUltraworkPrompt(pi);
 	registerCommentChecker(pi);
@@ -95,24 +124,16 @@ export default async function ohMyPiV2(pi: ExtensionAPI): Promise<void> {
 	registerUltrawork(pi);
 	registerTaskCommand(pi, {
 		getTasks: (context) => getTaskState(context).tasks,
-		setWidgetVisibility: (context, visible) => renderTaskWidget(context, getTaskState(context).tasks, visible),
+		setWidgetVisibility: (context, visible) =>
+			renderTaskWidget(context, getTaskState(context).tasks, visible),
 		runHumanTaskCommand,
+		setNoTaskNoTool: taskGateSettings.set,
 	});
 
-	pi.on("session_start", async (_event, context) => {
-		renderTaskWidget(context, getTaskState(context).tasks);
-	});
-	pi.on("session_tree", async (_event, context) => {
-		renderTaskWidget(context, getTaskState(context).tasks);
-	});
-	pi.on("resources_discover", () => ({ skillPaths: [resolve(directory, "skills")] }));
-	pi.on("session_shutdown", async (_event, context) => {
-		try {
-			context.ui.setWidget("omp-tasks", undefined);
-		} catch (error) {
-			console.error(
-				`[oh-my-pi task] Widget shutdown cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
-			);
-		}
-	});
+	registerTaskWidgetLifecycle(pi, (context) =>
+		renderTaskWidget(context, getTaskState(context).tasks),
+	);
+	pi.on("resources_discover", () => ({
+		skillPaths: [resolve(directory, "skills")],
+	}));
 }

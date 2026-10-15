@@ -140,14 +140,14 @@ test("client contains broken event bus emissions and rejected service replies", 
 	failed(await reject.query({ defaults: {} }), "OPERATION_FAILED");
 });
 
-test("requests for a different session do not reach the owning service", async (t) => {
+test("requests for a different session get SESSION_UNAVAILABLE, not silence", async (t) => {
 	const h = await settingsFixture(t);
 	for (const owner of [
 		{ session: {}, sessionId: h.owner.sessionId },
 		{ session: h.owner.session, sessionId: "different" },
 	]) {
 		const client = createMySettingsClient(h.bus, owner);
-		failed(await client.saveSession({ values: { key: 1 } }), "SERVICE_UNAVAILABLE");
+		failed(await client.saveSession({ values: { key: 1 } }), "SESSION_UNAVAILABLE");
 	}
 	assert.deepEqual(h.branch(), []);
 });

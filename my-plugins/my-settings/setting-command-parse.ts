@@ -9,9 +9,20 @@ export interface CommandPaths {
 
 export type ParsedSettingCommand =
 	| { kind: "help" }
-	| { kind: "set"; scopes: SettingScopeFlag[]; paths: CommandPaths; key: string; valueText: string }
+	| {
+			kind: "set";
+			scopes: SettingScopeFlag[];
+			paths: CommandPaths;
+			key: string;
+			valueText: string;
+	  }
 	| { kind: "get"; paths: CommandPaths; keys: string[] }
-	| { kind: "unset"; scopes: SettingScopeFlag[]; paths: CommandPaths; keys: string[] }
+	| {
+			kind: "unset";
+			scopes: SettingScopeFlag[];
+			paths: CommandPaths;
+			keys: string[];
+	  }
 	| { kind: "error"; message: string };
 
 export const MY_SETTING_HELP = [
@@ -56,7 +67,12 @@ function scanFlags(body: string, allowScopes: boolean): FlagScan {
 		if (token === "--global-file" || token === "--local-file") {
 			const next = matches[index + 1];
 			if (!next || next[0].startsWith("--") || next[0].startsWith('"')) {
-				return { scopes, paths, restStart, error: `${token} requires a bare path argument` };
+				return {
+					scopes,
+					paths,
+					restStart,
+					error: `${token} requires a bare path argument`,
+				};
 			}
 			paths[token === "--global-file" ? "globalFile" : "localFile"] = next[0];
 			index++;
@@ -92,28 +108,46 @@ export function parseSettingCommand(args: string): ParsedSettingCommand {
 		const scan = scanFlags(body, true);
 		if (scan.error) return { kind: "error", message: scan.error };
 		if (scan.scopes.length === 0)
-			return { kind: "error", message: "set requires at least one of --global/--local/--session" };
+			return {
+				kind: "error",
+				message: "set requires at least one of --global/--local/--session",
+			};
 		if (scan.restStart >= body.length) return { kind: "error", message: "set requires KEY VAL" };
 		const outcome = parseArg(body, scan.restStart);
 		if (!outcome.ok) return { kind: "error", message: outcome.message };
 		const { value: key, quoted, end } = outcome.arg;
 		if (quoted && end < body.length && !/\s/.test(body[end])) {
-			return { kind: "error", message: `KEY 引号后必须跟空白：${body.slice(scan.restStart, end + 1)}` };
+			return {
+				kind: "error",
+				message: `KEY 引号后必须跟空白：${body.slice(scan.restStart, end + 1)}`,
+			};
 		}
 		if (!quoted && key.startsWith("--")) return { kind: "error", message: "set requires KEY VAL" };
 		const valueText = body.slice(end).trim();
 		if (!valueText) return { kind: "error", message: "set requires KEY VAL" };
-		return { kind: "set", scopes: sortedScopes(scan.scopes), paths: scan.paths, key, valueText };
+		return {
+			kind: "set",
+			scopes: sortedScopes(scan.scopes),
+			paths: scan.paths,
+			key,
+			valueText,
+		};
 	}
 	if (sub === "get" || sub === "unset") {
 		const allowScopes = sub === "unset";
 		const scan = scanFlags(body, allowScopes);
 		if (scan.error) return { kind: "error", message: scan.error };
 		if (sub === "get" && scan.scopes.length > 0) {
-			return { kind: "error", message: "get takes no scope flags; it shows all layers" };
+			return {
+				kind: "error",
+				message: "get takes no scope flags; it shows all layers",
+			};
 		}
 		if (sub === "unset" && scan.scopes.length === 0) {
-			return { kind: "error", message: "unset requires at least one of --global/--local/--session" };
+			return {
+				kind: "error",
+				message: "unset requires at least one of --global/--local/--session",
+			};
 		}
 		const parsed = parseArgs(body, scan.restStart);
 		if (!parsed.ok) return { kind: "error", message: parsed.message };
@@ -122,7 +156,12 @@ export function parseSettingCommand(args: string): ParsedSettingCommand {
 		if (parsed.args.length === 0) return { kind: "error", message: `${sub} requires at least one KEY` };
 		const keys = parsed.args.map((arg) => arg.value);
 		if (sub === "get") return { kind: "get", paths: scan.paths, keys };
-		return { kind: "unset", scopes: sortedScopes(scan.scopes), paths: scan.paths, keys };
+		return {
+			kind: "unset",
+			scopes: sortedScopes(scan.scopes),
+			paths: scan.paths,
+			keys,
+		};
 	}
 	return { kind: "error", message: `Unknown subcommand: ${sub}` };
 }

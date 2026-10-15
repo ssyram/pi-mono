@@ -23,10 +23,17 @@ export function parseArg(body: string, start: number): ArgOutcome {
 				const span = body.slice(start, index + 1);
 				try {
 					const value: unknown = JSON.parse(span);
-					if (typeof value !== "string") return { ok: false, message: `KEY 引号内容必须是 JSON 字符串：${span}` };
+					if (typeof value !== "string")
+						return {
+							ok: false,
+							message: `KEY 引号内容必须是 JSON 字符串：${span}`,
+						};
 					return { ok: true, arg: { value, quoted: true, end: index + 1 } };
 				} catch {
-					return { ok: false, message: `KEY 引号内容不是合法 JSON 字符串：${span}` };
+					return {
+						ok: false,
+						message: `KEY 引号内容不是合法 JSON 字符串：${span}`,
+					};
 				}
 			}
 			index++;
@@ -35,7 +42,10 @@ export function parseArg(body: string, start: number): ArgOutcome {
 	}
 	const match = /\S+/.exec(body.slice(start));
 	if (!match || match.index !== 0) return { ok: false, message: "缺少 KEY" };
-	return { ok: true, arg: { value: match[0], quoted: false, end: start + match[0].length } };
+	return {
+		ok: true,
+		arg: { value: match[0], quoted: false, end: start + match[0].length },
+	};
 }
 
 export function parseArgs(
@@ -51,7 +61,10 @@ export function parseArgs(
 		if (!outcome.ok) return outcome;
 		const { arg } = outcome;
 		if (arg.quoted && arg.end < body.length && !/\s/.test(body[arg.end])) {
-			return { ok: false, message: `引号 KEY 后必须跟空白：${body.slice(index, arg.end + 1)}` };
+			return {
+				ok: false,
+				message: `引号 KEY 后必须跟空白：${body.slice(index, arg.end + 1)}`,
+			};
 		}
 		args.push(arg);
 		index = arg.end;

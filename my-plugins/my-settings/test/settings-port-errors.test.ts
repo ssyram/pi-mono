@@ -49,7 +49,7 @@ test("Pi port failures become explicit errors, including committed files with a 
 		},
 		registerCommand() {},
 	} as unknown as ExtensionAPI;
-	mySettings(pi);
+	await mySettings(pi);
 	assert.doesNotThrow(() => handlers.get("session_start")?.({}, context));
 	const client = createMySettingsClient(bus, {
 		session: manager,

@@ -36,7 +36,10 @@ export function registerMySettingsService(
 					accept(Promise.resolve(session));
 					return;
 				}
-				if (!session.value) return;
+				if (!session.value) {
+					accept(Promise.resolve(settingsFailure("SESSION_UNAVAILABLE", "no active session for this identity")));
+					return;
+				}
 				const operation = parseSettingsOperation("operation" in data ? data.operation : undefined);
 				let result: Promise<SettingsResult>;
 				if (!operation.ok) {

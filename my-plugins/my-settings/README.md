@@ -4,11 +4,39 @@ A shared settings service on Pi's public `pi.events` bus. Protocol v1 semantics 
 
 ## Load
 
+### As a standalone extension
+
 ```sh
 pi --extension ./my-plugins/my-settings/index.ts
 ```
 
-For persistent installation, add this local package using Pi's package configuration. Merely importing the client does not install or start the service. The host supplies `@earendil-works/pi-coding-agent`; no runtime dependencies are installed by this package.
+### Embedded by a consumer (recommended)
+
+You don't need to load my-settings as a separate extension. Any consumer plugin can import the factory and call it during its own initialization:
+
+```ts
+import mySettings from "../my-settings/index.ts";
+
+export default function myPlugin(pi: ExtensionAPI) {
+    mySettings(pi);  // starts the service; idempotent — multiple callers, one instance
+    // ... your plugin's own initialization
+}
+```
+
+The factory has a module-level guard: whoever calls it first starts the service; subsequent calls return immediately. All consumers in the same Pi process share the same service instance on `pi.events`.
+
+For a standalone repository (e.g., impression), add pi-mono as a submodule so the import path always resolves:
+
+```sh
+cd your-plugin/
+git submodule add https://github.com/ssyram/pi-mono vendor/pi-mono
+```
+
+```ts
+import mySettings from "./vendor/pi-mono/my-plugins/my-settings/index.ts";
+```
+
+For persistent standalone installation, add this local package using Pi's package configuration. The host supplies `@earendil-works/pi-coding-agent`; no runtime dependencies are installed by this package.
 
 ## Files and values
 

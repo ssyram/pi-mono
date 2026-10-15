@@ -1,7 +1,4 @@
-import type {
-	ExtensionAPI,
-	ExtensionCommandContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
 	createMySettingsClient,
 	MY_SETTINGS_READY_CHANNEL,
@@ -11,27 +8,6 @@ import {
 } from "../index.ts";
 
 // ── Schema: each key's default declares its kind; the service filters per-source ──
-
-interface DemoServer {
-	host: string;
-	port: number;
-	tls: boolean;
-}
-interface DemoRoute {
-	path: string;
-	methods: string[];
-}
-interface DemoState {
-	"demo.enabled": boolean;
-	"demo.greeting": string;
-	"demo.limit": number;
-	"demo.optional": null;
-	"demo.tags": string[];
-	"demo.server": DemoServer;
-	"demo.routes": DemoRoute[];
-	"demo.nested": { level1: { level2: { deep: string; arr: number[] } } };
-	"demo.matrix": number[][];
-}
 
 const DEFAULTS: Settings = {
 	"demo.enabled": true,
@@ -70,11 +46,18 @@ function validateDemo(values: Settings): string | null {
 	const server = v["demo.server"];
 	if (!server || typeof server !== "object" || Array.isArray(server)) return "demo.server must be object";
 	const s = server as Record<string, unknown>;
-	if (typeof s.host !== "string" || typeof s.port !== "number" || typeof s.tls !== "boolean") return "demo.server fields wrong";
+	if (typeof s.host !== "string" || typeof s.port !== "number" || typeof s.tls !== "boolean")
+		return "demo.server fields wrong";
 	const routes = v["demo.routes"];
 	if (!Array.isArray(routes)) return "demo.routes must be array";
 	for (const r of routes) {
-		if (!r || typeof r !== "object" || typeof (r as Record<string, unknown>).path !== "string" || !isStringArray((r as Record<string, unknown>).methods)) return "demo.routes elements wrong";
+		if (
+			!r ||
+			typeof r !== "object" ||
+			typeof (r as Record<string, unknown>).path !== "string" ||
+			!isStringArray((r as Record<string, unknown>).methods)
+		)
+			return "demo.routes elements wrong";
 	}
 	const nested = v["demo.nested"];
 	if (!nested || typeof nested !== "object") return "demo.nested must be object";
@@ -83,9 +66,11 @@ function validateDemo(values: Settings): string | null {
 	const n2 = (n1 as Record<string, unknown>).level2;
 	if (!n2 || typeof n2 !== "object") return "demo.nested.level2 must be object";
 	const nd = n2 as Record<string, unknown>;
-	if (typeof nd.deep !== "string" || !Array.isArray(nd.arr) || !nd.arr.every((x) => typeof x === "number")) return "demo.nested.level2 fields wrong";
+	if (typeof nd.deep !== "string" || !Array.isArray(nd.arr) || !nd.arr.every((x) => typeof x === "number"))
+		return "demo.nested.level2 fields wrong";
 	const matrix = v["demo.matrix"];
-	if (!Array.isArray(matrix) || !matrix.every((row) => Array.isArray(row) && row.every((x) => typeof x === "number"))) return "demo.matrix must be number[][]";
+	if (!Array.isArray(matrix) || !matrix.every((row) => Array.isArray(row) && row.every((x) => typeof x === "number")))
+		return "demo.matrix must be number[][]";
 	return null;
 }
 
@@ -161,7 +146,11 @@ export default function demoSettingsConsumer(pi: ExtensionAPI): void {
 				// Consumer-side type check before sending
 				const expected = typeof DEFAULTS[key];
 				if (typeof value !== expected) {
-					notify(ctx, `"${key}" expects ${expected}, got ${typeof value} (service kind filter would drop it anyway)`, "warning");
+					notify(
+						ctx,
+						`"${key}" expects ${expected}, got ${typeof value} (service kind filter would drop it anyway)`,
+						"warning",
+					);
 					return;
 				}
 				const saved = await client.saveLocalAndSession({ values: { [key]: value } as Settings });

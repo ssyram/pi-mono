@@ -4,12 +4,22 @@ import {
 	getAgentDir,
 	withFileMutationQueue,
 } from "@earendil-works/pi-coding-agent";
+import { createMySettingsClient } from "./client.ts";
 import { MY_SETTINGS_READY_CHANNEL, type SettingsReady } from "./protocol.ts";
 import { registerMySettingCommand } from "./setting-command.ts";
 import { reportSettingsError, settingsFailure } from "./settings-error.ts";
 import { registerMySettingsService } from "./settings-service.ts";
 
-export default function mySettings(pi: ExtensionAPI): void {
+export default async function mySettings(pi: ExtensionAPI): Promise<void> {
+	// Dynamic probe: is a my-settings service already responding on this bus?
+	const probe = createMySettingsClient(pi.events, {
+		session: {},
+		sessionId: "__probe__",
+	});
+	const probeResult = await probe.query({ defaults: {} });
+	if (probeResult.ok || probeResult.error.code !== "SERVICE_UNAVAILABLE") {
+		return; // Someone responded (even an error) — service is running
+	}
 	let active: { context: ExtensionContext; sessionId: string } | undefined;
 	try {
 		const registration = registerMySettingsService(
