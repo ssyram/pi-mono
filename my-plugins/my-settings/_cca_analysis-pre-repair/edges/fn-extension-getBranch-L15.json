@@ -1,0 +1,14 @@
+{
+	"fn": "extension.ts:L15::getBranch",
+	"registered_as": [
+		{
+			"op": "service:SettingsSession.getBranch port",
+			"fn": "extension.ts:L15::getBranch",
+			"role": "ext:12-17 返回的 SettingsSession 视图的 getBranch 端口",
+			"kind": "argument-passing-to-service",
+			"anchor": "extension.ts:15 闭包随视图对象在 ext:9-17 回调内构造；settings-service.ts:39 经 `session.getBranch()` 端口调用（svc:86 resolveSession 认领 → svc:39 使用）。callgraph 静态边 execute→getBranch 为真实调用边；mySettings/ext:9→getBranch 为构造嵌套伪影、自环为提取器伪影（open-questions.md:9）"
+		}
+	],
+	"builds_op": [],
+	"direct_edges": []
+}

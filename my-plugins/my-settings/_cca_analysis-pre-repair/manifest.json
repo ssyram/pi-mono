@@ -1,0 +1,660 @@
+[
+	{
+		"kind": "function",
+		"id": "client.ts:L13::createMySettingsClient",
+		"file": "client.ts",
+		"line": 13,
+		"analysis_file": "fn-client-createMySettingsClient-L13.md"
+	},
+	{
+		"kind": "function",
+		"id": "client.ts:L15::invoke",
+		"file": "client.ts",
+		"line": 15,
+		"analysis_file": "fn-client-invoke-L15.md"
+	},
+	{
+		"kind": "function",
+		"id": "client.ts:L21::accept",
+		"file": "client.ts",
+		"line": 21,
+		"analysis_file": "fn-client-accept-L21.md"
+	},
+	{
+		"kind": "function",
+		"id": "client.ts:L34::query",
+		"file": "client.ts",
+		"line": 34,
+		"analysis_file": "fn-client-query-L34.md"
+	},
+	{
+		"kind": "function",
+		"id": "client.ts:L35::saveGlobal",
+		"file": "client.ts",
+		"line": 35,
+		"analysis_file": "fn-client-saveGlobal-L35.md"
+	},
+	{
+		"kind": "function",
+		"id": "client.ts:L36::saveLocal",
+		"file": "client.ts",
+		"line": 36,
+		"analysis_file": "fn-client-saveLocal-L36.md"
+	},
+	{
+		"kind": "function",
+		"id": "client.ts:L37::saveSession",
+		"file": "client.ts",
+		"line": 37,
+		"analysis_file": "fn-client-saveSession-L37.md"
+	},
+	{
+		"kind": "function",
+		"id": "extension.ts:L6::mySettings",
+		"file": "extension.ts",
+		"line": 6,
+		"analysis_file": "fn-extension-mySettings-L6.md"
+	},
+	{
+		"kind": "function",
+		"id": "extension.ts:L9::registerMySettingsService",
+		"file": "extension.ts",
+		"line": 9,
+		"analysis_file": "fn-extension-registerMySettingsService-L9.md"
+	},
+	{
+		"kind": "function",
+		"id": "extension.ts:L14::isCurrent",
+		"file": "extension.ts",
+		"line": 14,
+		"analysis_file": "fn-extension-isCurrent-L14.md"
+	},
+	{
+		"kind": "function",
+		"id": "extension.ts:L15::getBranch",
+		"file": "extension.ts",
+		"line": 15,
+		"analysis_file": "fn-extension-getBranch-L15.md"
+	},
+	{
+		"kind": "function",
+		"id": "extension.ts:L16::appendEntry",
+		"file": "extension.ts",
+		"line": 16,
+		"analysis_file": "fn-extension-appendEntry-L16.md"
+	},
+	{
+		"kind": "function",
+		"id": "extension.ts:L19::bind",
+		"file": "extension.ts",
+		"line": 19,
+		"analysis_file": "fn-extension-bind-L19.md"
+	},
+	{
+		"kind": "function",
+		"id": "extension.ts:L32::on",
+		"file": "extension.ts",
+		"line": 32,
+		"analysis_file": "fn-extension-on-L32.md"
+	},
+	{
+		"kind": "function",
+		"id": "json-settings.ts:L3::checkValue",
+		"file": "json-settings.ts",
+		"line": 3,
+		"analysis_file": "fn-json_settings-checkValue-L3.md"
+	},
+	{
+		"kind": "function",
+		"id": "json-settings.ts:L17::copySettings",
+		"file": "json-settings.ts",
+		"line": 17,
+		"analysis_file": "fn-json_settings-copySettings-L17.md"
+	},
+	{
+		"kind": "function",
+		"id": "settings-error.ts:L3::settingsFailure",
+		"file": "settings-error.ts",
+		"line": 3,
+		"analysis_file": "fn-settings_error-settingsFailure-L3.md"
+	},
+	{
+		"kind": "function",
+		"id": "settings-files.ts:L9::settingsFilePath",
+		"file": "settings-files.ts",
+		"line": 9,
+		"analysis_file": "fn-settings_files-settingsFilePath-L9.md"
+	},
+	{
+		"kind": "function",
+		"id": "settings-files.ts:L22::readSettingsFile",
+		"file": "settings-files.ts",
+		"line": 22,
+		"analysis_file": "fn-settings_files-readSettingsFile-L22.md"
+	},
+	{
+		"kind": "function",
+		"id": "settings-files.ts:L33::writeSettingsFile",
+		"file": "settings-files.ts",
+		"line": 33,
+		"analysis_file": "fn-settings_files-writeSettingsFile-L33.md"
+	},
+	{
+		"kind": "function",
+		"id": "settings-files.ts:L39::queue",
+		"file": "settings-files.ts",
+		"line": 39,
+		"analysis_file": "fn-settings_files-queue-L39.md"
+	},
+	{
+		"kind": "function",
+		"id": "settings-files.ts:L51::catch",
+		"file": "settings-files.ts",
+		"line": 51,
+		"analysis_file": "fn-settings_files-catch-L51.md"
+	},
+	{
+		"kind": "function",
+		"id": "settings-operation.ts:L4::parseSettingsOperation",
+		"file": "settings-operation.ts",
+		"line": 4,
+		"analysis_file": "fn-settings_operation-parseSettingsOperation-L4.md"
+	},
+	{
+		"kind": "function",
+		"id": "settings-service.ts:L17::execute",
+		"file": "settings-service.ts",
+		"line": 17,
+		"analysis_file": "fn-settings_service-execute-L17.md"
+	},
+	{
+		"kind": "function",
+		"id": "settings-service.ts:L41::map",
+		"file": "settings-service.ts",
+		"line": 41,
+		"analysis_file": "fn-settings_service-map-L41.md"
+	},
+	{
+		"kind": "function",
+		"id": "settings-service.ts:L67::registerMySettingsService",
+		"file": "settings-service.ts",
+		"line": 67,
+		"analysis_file": "fn-settings_service-registerMySettingsService-L67.md"
+	},
+	{
+		"kind": "function",
+		"id": "settings-service.ts:L73::on",
+		"file": "settings-service.ts",
+		"line": 73,
+		"analysis_file": "fn-settings_service-on-L73.md"
+	},
+	{
+		"kind": "function",
+		"id": "settings-service.ts:L89::catch",
+		"file": "settings-service.ts",
+		"line": 89,
+		"analysis_file": "fn-settings_service-catch-L89.md"
+	},
+	{
+		"kind": "function",
+		"id": "settings-session-log.ts:L4::readSessionSettings",
+		"file": "settings-session-log.ts",
+		"line": 4,
+		"analysis_file": "fn-settings_session_log-readSessionSettings-L4.md"
+	},
+	{
+		"kind": "external",
+		"name": "Error",
+		"analysis_file": "external-Error.md"
+	},
+	{
+		"kind": "external",
+		"name": "Set",
+		"analysis_file": "external-Set.md"
+	},
+	{
+		"kind": "external",
+		"name": "String",
+		"analysis_file": "external-String.md"
+	},
+	{
+		"kind": "external",
+		"name": "add",
+		"analysis_file": "external-add.md"
+	},
+	{
+		"kind": "external",
+		"name": "all",
+		"analysis_file": "external-all.md"
+	},
+	{
+		"kind": "external",
+		"name": "delete",
+		"analysis_file": "external-delete.md"
+	},
+	{
+		"kind": "external",
+		"name": "dirname",
+		"analysis_file": "external-dirname.md"
+	},
+	{
+		"kind": "external",
+		"name": "emit",
+		"analysis_file": "external-emit.md"
+	},
+	{
+		"kind": "external",
+		"name": "error",
+		"analysis_file": "external-error.md"
+	},
+	{
+		"kind": "external",
+		"name": "fromEntries",
+		"analysis_file": "external-fromEntries.md"
+	},
+	{
+		"kind": "external",
+		"name": "getAgentDir",
+		"analysis_file": "external-getAgentDir.md"
+	},
+	{
+		"kind": "external",
+		"name": "getPrototypeOf",
+		"analysis_file": "external-getPrototypeOf.md"
+	},
+	{
+		"kind": "external",
+		"name": "getSessionId",
+		"analysis_file": "external-getSessionId.md"
+	},
+	{
+		"kind": "external",
+		"name": "has",
+		"analysis_file": "external-has.md"
+	},
+	{
+		"kind": "external",
+		"name": "isAbsolute",
+		"analysis_file": "external-isAbsolute.md"
+	},
+	{
+		"kind": "external",
+		"name": "isArray",
+		"analysis_file": "external-isArray.md"
+	},
+	{
+		"kind": "external",
+		"name": "isFinite",
+		"analysis_file": "external-isFinite.md"
+	},
+	{
+		"kind": "external",
+		"name": "join",
+		"analysis_file": "external-join.md"
+	},
+	{
+		"kind": "external",
+		"name": "keys",
+		"analysis_file": "external-keys.md"
+	},
+	{
+		"kind": "external",
+		"name": "mkdir",
+		"analysis_file": "external-mkdir.md"
+	},
+	{
+		"kind": "external",
+		"name": "parse",
+		"analysis_file": "external-parse.md"
+	},
+	{
+		"kind": "external",
+		"name": "randomUUID",
+		"analysis_file": "external-randomUUID.md"
+	},
+	{
+		"kind": "external",
+		"name": "readFile",
+		"analysis_file": "external-readFile.md"
+	},
+	{
+		"kind": "external",
+		"name": "relative",
+		"analysis_file": "external-relative.md"
+	},
+	{
+		"kind": "external",
+		"name": "rename",
+		"analysis_file": "external-rename.md"
+	},
+	{
+		"kind": "external",
+		"name": "resolve",
+		"analysis_file": "external-resolve.md"
+	},
+	{
+		"kind": "external",
+		"name": "resolveSession",
+		"analysis_file": "external-resolveSession.md"
+	},
+	{
+		"kind": "external",
+		"name": "startsWith",
+		"analysis_file": "external-startsWith.md"
+	},
+	{
+		"kind": "external",
+		"name": "stringify",
+		"analysis_file": "external-stringify.md"
+	},
+	{
+		"kind": "external",
+		"name": "trim",
+		"analysis_file": "external-trim.md"
+	},
+	{
+		"kind": "external",
+		"name": "unlink",
+		"analysis_file": "external-unlink.md"
+	},
+	{
+		"kind": "external",
+		"name": "values",
+		"analysis_file": "external-values.md"
+	},
+	{
+		"kind": "external",
+		"name": "writeFile",
+		"analysis_file": "external-writeFile.md"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L104::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L109::registerMySettingsService",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L109::registerMySettingsService#2",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L11::failed",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L121::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L18::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L24::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L35::accept",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L42::doesNotThrow",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L43::accept",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L43::doesNotThrow",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L47::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L56::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L68::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L75::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L84::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L94::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L96::emit",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L96::on",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L96::toString",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L98::emit",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-errors.test.ts:L98::on",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-fixture.ts:L11::settingsFixture",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-fixture.ts:L13::after",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-fixture.ts:L25::isCurrent",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-fixture.ts:L26::getBranch",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-fixture.ts:L27::appendEntry",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-fixture.ts:L32::registerMySettingsService",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-fixture.ts:L37::branch",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-fixture.ts:L38::setBranch",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-fixture.ts:L39::setActive",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-fixture.ts:L40::failAppend",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L13::on",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L18::getBranch",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L18::getSessionId",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L22::on",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L23::appendEntry",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L27::fire",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L28::branch",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L29::switchSession",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L33::code",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L39::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L42::on",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L54::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L73::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L83::on",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L85::doesNotThrow",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-lifecycle.test.ts:L9::fixture",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-query.test.ts:L21::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-query.test.ts:L31::map",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-query.test.ts:L41::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-query.test.ts:L51::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-query.test.ts:L65::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-query.test.ts:L67::from",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-query.test.ts:L68::every",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-query.test.ts:L70::from",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-query.test.ts:L74::test",
+		"reason": "test|example"
+	},
+	{
+		"kind": "skipped",
+		"id": "test/settings-query.test.ts:L8::test",
+		"reason": "test|example"
+	}
+]

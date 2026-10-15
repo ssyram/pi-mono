@@ -1,0 +1,27 @@
+{
+	"fn": "settings-service.ts:L14::registerMySettingsService",
+	"registered_as": [],
+	"builds_op": [
+		{
+			"op": "my-settings:service:v1",
+			"site": "settings-service.ts:L14::registerMySettingsService@L21"
+		}
+	],
+	"direct_edges": [
+		{
+			"from": "settings-service.ts:L14::registerMySettingsService",
+			"to": "extension.ts:L16::registerMySettingsService",
+			"why": "resolveSession parameter is bound to the resolver closure created in mySettings and passed at extension.ts:L14-59; invoked at settings-service.ts:L34 (extern-model.md Event bus dispatch)"
+		},
+		{
+			"from": "settings-service.ts:L14::registerMySettingsService",
+			"to": "settings-service.ts:L57::value",
+			"why": "dispose closure created inside registerMySettingsService (bus.on unsubscribe) and returned as SettingsOutcome.value at L55-65; invoked by the consumer to unregister"
+		},
+		{
+			"from": "settings-service.ts:L14::registerMySettingsService",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "catch arm at settings-service.ts:L67 folds a throwing bus.on registration into a structured OPERATION_FAILED SettingsOutcome"
+		}
+	]
+}

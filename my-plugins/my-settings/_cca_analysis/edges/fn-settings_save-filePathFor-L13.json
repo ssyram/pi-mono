@@ -1,0 +1,12 @@
+{
+	"fn": "settings-save.ts:L13::filePathFor",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-save.ts:L13::filePathFor",
+			"to": "settings-files.ts:L10::settingsFilePath",
+			"why": "settingsFilePath(globalRoot, save.globalPath) at settings-save.ts:L21 (global ops) and settingsFilePath(join(session.cwd, \".pi\"), save.localPath) at settings-save.ts:L22 (local ops); save-session returns undefined at L19 with no path resolution"
+		}
+	]
+}

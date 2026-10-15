@@ -1,0 +1,12 @@
+{
+	"fn": "extension.ts:L36::getBranch",
+	"registered_as": [
+		{
+			"op": "settings-session-ports",
+			"role": "session-port-getBranch",
+			"fn": "extension.ts:L36::getBranch"
+		}
+	],
+	"builds_op": [],
+	"direct_edges": []
+}

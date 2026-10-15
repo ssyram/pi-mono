@@ -1,0 +1,12 @@
+{
+	"fn": "settings-operation.ts:L13::readDataFields",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-operation.ts:L13::readDataFields",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "INVALID_REQUEST structured failures at settings-operation.ts:16 (non-object guard), :22 (accessor rejection), :27 (catch containment); callgraph already carries this edge"
+		}
+	]
+}

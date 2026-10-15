@@ -1,0 +1,176 @@
+[
+	{
+		"id": 0,
+		"members": ["client.ts:L21::accept"],
+		"is_cycle": false,
+		"level": 0
+	},
+	{
+		"id": 1,
+		"members": ["extension.ts:L14::isCurrent"],
+		"is_cycle": false,
+		"level": 0
+	},
+	{
+		"id": 2,
+		"members": ["extension.ts:L15::getBranch"],
+		"is_cycle": true,
+		"level": 0
+	},
+	{
+		"id": 3,
+		"members": ["extension.ts:L16::appendEntry"],
+		"is_cycle": true,
+		"level": 0
+	},
+	{
+		"id": 4,
+		"members": ["extension.ts:L32::on"],
+		"is_cycle": false,
+		"level": 0
+	},
+	{
+		"id": 5,
+		"members": ["json-settings.ts:L3::checkValue"],
+		"is_cycle": true,
+		"level": 0
+	},
+	{
+		"id": 6,
+		"members": ["settings-error.ts:L3::settingsFailure"],
+		"is_cycle": false,
+		"level": 0
+	},
+	{
+		"id": 7,
+		"members": ["settings-files.ts:L51::catch"],
+		"is_cycle": false,
+		"level": 0
+	},
+	{
+		"id": 8,
+		"members": ["settings-files.ts:L9::settingsFilePath"],
+		"is_cycle": false,
+		"level": 0
+	},
+	{
+		"id": 9,
+		"members": ["settings-service.ts:L41::map"],
+		"is_cycle": false,
+		"level": 0
+	},
+	{
+		"id": 10,
+		"members": ["extension.ts:L19::bind"],
+		"is_cycle": false,
+		"level": 1
+	},
+	{
+		"id": 11,
+		"members": ["extension.ts:L9::registerMySettingsService"],
+		"is_cycle": false,
+		"level": 1
+	},
+	{
+		"id": 12,
+		"members": ["json-settings.ts:L17::copySettings"],
+		"is_cycle": false,
+		"level": 1
+	},
+	{
+		"id": 13,
+		"members": ["settings-service.ts:L89::catch"],
+		"is_cycle": false,
+		"level": 1
+	},
+	{
+		"id": 14,
+		"members": ["extension.ts:L6::mySettings"],
+		"is_cycle": false,
+		"level": 2
+	},
+	{
+		"id": 15,
+		"members": ["settings-files.ts:L22::readSettingsFile"],
+		"is_cycle": false,
+		"level": 2
+	},
+	{
+		"id": 16,
+		"members": ["settings-operation.ts:L4::parseSettingsOperation"],
+		"is_cycle": false,
+		"level": 2
+	},
+	{
+		"id": 17,
+		"members": ["settings-session-log.ts:L4::readSessionSettings"],
+		"is_cycle": false,
+		"level": 2
+	},
+	{
+		"id": 18,
+		"members": ["settings-files.ts:L39::queue"],
+		"is_cycle": false,
+		"level": 3
+	},
+	{
+		"id": 19,
+		"members": ["settings-files.ts:L33::writeSettingsFile"],
+		"is_cycle": false,
+		"level": 4
+	},
+	{
+		"id": 20,
+		"members": ["settings-service.ts:L17::execute"],
+		"is_cycle": false,
+		"level": 5
+	},
+	{
+		"id": 21,
+		"members": ["settings-service.ts:L73::on"],
+		"is_cycle": false,
+		"level": 6
+	},
+	{
+		"id": 22,
+		"members": ["client.ts:L15::invoke"],
+		"is_cycle": false,
+		"level": 7
+	},
+	{
+		"id": 23,
+		"members": ["settings-service.ts:L67::registerMySettingsService"],
+		"is_cycle": false,
+		"level": 7
+	},
+	{
+		"id": 24,
+		"members": ["client.ts:L13::createMySettingsClient"],
+		"is_cycle": false,
+		"level": 8
+	},
+	{
+		"id": 25,
+		"members": ["client.ts:L34::query"],
+		"is_cycle": false,
+		"level": 8
+	},
+	{
+		"id": 26,
+		"members": ["client.ts:L35::saveGlobal"],
+		"is_cycle": false,
+		"level": 8
+	},
+	{
+		"id": 27,
+		"members": ["client.ts:L36::saveLocal"],
+		"is_cycle": false,
+		"level": 8
+	},
+	{
+		"id": 28,
+		"members": ["client.ts:L37::saveSession"],
+		"is_cycle": false,
+		"level": 8
+	}
+]

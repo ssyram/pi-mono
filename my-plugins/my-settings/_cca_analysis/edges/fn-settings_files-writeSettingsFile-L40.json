@@ -1,0 +1,32 @@
+{
+	"fn": "settings-files.ts:L40::writeSettingsFile",
+	"registered_as": [],
+	"builds_op": [
+		{
+			"op": "file-mutation-queue",
+			"site": "settings-files.ts:L40::writeSettingsFile@L51"
+		}
+	],
+	"direct_edges": [
+		{
+			"from": "settings-files.ts:L40::writeSettingsFile",
+			"to": "extension.ts:L26::isCurrent",
+			"why": "isCurrent parameter is session.isCurrent.bind(session) (settings-save.ts:L26) and is invoked at settings-files.ts:L53 and L63 through the SettingsSession port (extern-model.md Event bus dispatch)"
+		},
+		{
+			"from": "settings-files.ts:L40::writeSettingsFile",
+			"to": "json-settings.ts:L4::copySettings",
+			"why": "patch validation at settings-files.ts:L47 before any I/O (callgraph already carries this edge; merged into fn file)"
+		},
+		{
+			"from": "settings-files.ts:L40::writeSettingsFile",
+			"to": "settings-files.ts:L51::queue",
+			"why": "the mutation action closure is passed to the host queue parameter at settings-files.ts:L51 (callgraph already carries this edge; merged into fn file)"
+		},
+		{
+			"from": "settings-files.ts:L40::writeSettingsFile",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "OPERATION_FAILED fallback at settings-files.ts:L83 (callgraph already carries this edge; merged into fn file)"
+		}
+	]
+}

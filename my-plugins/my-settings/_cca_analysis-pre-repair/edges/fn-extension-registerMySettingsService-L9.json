@@ -1,0 +1,20 @@
+{
+	"fn": "extension.ts:L9::registerMySettingsService",
+	"registered_as": [
+		{
+			"op": "my-settings:service:v1:resolveSession",
+			"fn": "extension.ts:L9::registerMySettingsService",
+			"role": "registerMySettingsService 的 resolveSession 参数（会话认领回调）",
+			"kind": "argument-passing",
+			"anchor": "extension.ts:9 构造并作为第二实参传给 settings-service.ts:67 registerMySettingsService；svc:86 调用（emit 调用栈内同步）；edges/settings-service-on.json direct edge 已记录 on→本回调派发事实，join 去重"
+		}
+	],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "extension.ts:L9::registerMySettingsService",
+			"to": "extension.ts:L14::isCurrent",
+			"why": "回调体对象字面量（extension.ts:12-17）词法内定义 isCurrent/getBranch/appendEntry 三端口——静态提取器把闭包定义归到外层 mySettings（callgraph.json:62-73 的 mySettings→getBranch/appendEntry 边）；补记录构造流：视图与端口由本回调在 svc:86 每次认领时新建（定义/构造关系，非调用）"
+		}
+	]
+}

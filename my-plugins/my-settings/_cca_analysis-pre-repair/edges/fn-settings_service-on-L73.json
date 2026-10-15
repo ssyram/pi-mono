@@ -1,0 +1,30 @@
+{
+	"fn": "settings-service.ts:L73::on",
+	"registered_as": [
+		{
+			"op": "bus:my-settings:service:v1",
+			"fn": "settings-service.ts:L73::on",
+			"anchor": "settings-service.ts:73 bus.on(MY_SETTINGS_CHANNEL, (data) => {...}); manifest id 'on' is the anonymous service handler (extractor named it after bus.on); channel value 'my-settings:service:v1' from protocol.ts:1",
+			"kind": "event-bus-registration"
+		}
+	],
+	"builds_op": [
+		{
+			"op": "my-settings:service:v1:resolveSession",
+			"site": "settings-service.ts:L73::on@L86",
+			"anchor": "settings-service.ts:86 resolveSession(data.session, data.sessionId) — 调用点；join 闭合 on → ext:L9 回调（与下方 direct_edge 同语义，去重）"
+		}
+	],
+	"direct_edges": [
+		{
+			"from": "settings-service.ts:L73::on",
+			"to": "extension.ts:L9::registerMySettingsService",
+			"anchor": "settings-service.ts:86 resolveSession(data.session, data.sessionId) — resolveSession parameter is the callback constructed in extension.ts:9-17 and passed to registerMySettingsService at extension.ts:9 (construction flow closes dispatch proof, per extern-model.md 'Function-valued ports'); manifest id of that callback is 'extension.ts:L9::registerMySettingsService' (extractor named it after the enclosing call)"
+		},
+		{
+			"from": "settings-service.ts:L73::on",
+			"to": "client.ts:L21::accept",
+			"anchor": "settings-service.ts:79/83/90/93 data.accept(...) — accept is the callback defined at client.ts:21 and delivered inside the request object (client.ts:17-24) via bus.emit at client.ts:26; mirrors the static same-name edge already present in callgraph.json (recorded for provenance; join deduplicates)"
+		}
+	]
+}

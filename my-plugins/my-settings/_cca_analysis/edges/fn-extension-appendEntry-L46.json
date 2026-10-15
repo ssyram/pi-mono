@@ -1,0 +1,12 @@
+{
+	"fn": "extension.ts:L46::appendEntry",
+	"registered_as": [
+		{
+			"op": "settings-session-ports",
+			"role": "session-port-appendEntry",
+			"fn": "extension.ts:L46::appendEntry"
+		}
+	],
+	"builds_op": [],
+	"direct_edges": []
+}

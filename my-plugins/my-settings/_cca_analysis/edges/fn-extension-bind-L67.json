@@ -1,0 +1,17 @@
+{
+	"fn": "extension.ts:L67::bind",
+	"registered_as": [
+		{
+			"op": "session_start",
+			"role": "pi-lifecycle-callback",
+			"fn": "extension.ts:L67::bind"
+		},
+		{
+			"op": "session_tree",
+			"role": "pi-lifecycle-callback",
+			"fn": "extension.ts:L67::bind"
+		}
+	],
+	"builds_op": [{ "op": "my-settings:ready:v1", "site": "extension.ts:L67::bind@L74" }],
+	"direct_edges": []
+}

@@ -1,0 +1,12 @@
+{
+	"fn": "extension.ts:L82::on",
+	"registered_as": [
+		{
+			"op": "session_shutdown",
+			"role": "pi-lifecycle-callback",
+			"fn": "extension.ts:L82::on"
+		}
+	],
+	"builds_op": [],
+	"direct_edges": []
+}

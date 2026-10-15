@@ -1,0 +1,17 @@
+{
+	"fn": "settings-files.ts:L27::readSettingsFile",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-files.ts:L27::readSettingsFile",
+			"to": "json-settings.ts:L4::copySettings",
+			"why": "validated snapshot of parsed file content at settings-files.ts:30 (callgraph already carries this edge)"
+		},
+		{
+			"from": "settings-files.ts:L27::readSettingsFile",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "OPERATION_FAILED folding at settings-files.ts:31,36 (callgraph already carries this edge)"
+		}
+	]
+}

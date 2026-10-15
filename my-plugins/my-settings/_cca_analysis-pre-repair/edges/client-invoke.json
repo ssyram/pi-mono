@@ -1,0 +1,10 @@
+{
+	"fn": "client.ts:L15::invoke",
+	"builds_op": [
+		{
+			"op": "bus:my-settings:service:v1",
+			"site": "client.ts:L15::invoke@L26",
+			"anchor": "client.ts:26 bus.emit(MY_SETTINGS_CHANNEL, request); request object built at client.ts:17-24 carrying accept callback defined at client.ts:21; dispatch model: extern-model.md 'Event bus dispatch' — emit triggers handlers registered for MY_SETTINGS_CHANNEL, subject to channel match and session ownership guard (resolveSession identity check, settings-service.ts:86-87)"
+		}
+	]
+}

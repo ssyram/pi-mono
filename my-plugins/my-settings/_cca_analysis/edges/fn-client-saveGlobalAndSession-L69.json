@@ -1,0 +1,12 @@
+{
+	"fn": "client.ts:L69::saveGlobalAndSession",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "client.ts:L69::saveGlobalAndSession",
+			"to": "client.ts:L27::invoke",
+			"why": "arrow delegates every call to invoke with {op:\"save-global-and-session\", save} at client.ts:L69"
+		}
+	]
+}

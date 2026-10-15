@@ -1,0 +1,22 @@
+{
+	"fn": "settings-session-log.ts:L35::readSessionPatches",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-session-log.ts:L35::readSessionPatches",
+			"to": "settings-error.ts:L12::reportSettingsError",
+			"why": "per-entry corruption diagnostics at settings-session-log.ts:L44 and L49"
+		},
+		{
+			"from": "settings-session-log.ts:L35::readSessionPatches",
+			"to": "json-settings.ts:L4::copySettings",
+			"why": "copySettings((data as { values: unknown }).values) per entry at settings-session-log.ts:L47"
+		},
+		{
+			"from": "settings-session-log.ts:L35::readSessionPatches",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "catch fallback settingsFailure(\"OPERATION_FAILED\", error) at settings-session-log.ts:L56"
+		}
+	]
+}

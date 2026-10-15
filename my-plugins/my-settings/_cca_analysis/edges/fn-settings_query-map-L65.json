@@ -1,0 +1,7 @@
+{
+	"fn": "settings-query.ts:L65::map",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [],
+	"notes": "caller annotation (NOT a call edge; kept out of direct_edges so it does not feed edge_join): the arrow `(key) => [key, merged[key]]` is created and synchronously consumed by Array.prototype.map at settings-query.ts:65 inside executeSettingsQuery; the arrow body itself makes no calls (own-property read + array literal only), so it has no outgoing edges. The real caller edge executeSettingsQuery -> map is in the base graph."
+}

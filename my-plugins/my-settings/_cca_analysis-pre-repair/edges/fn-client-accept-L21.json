@@ -1,0 +1,14 @@
+{
+	"fn": "client.ts:L21::accept",
+	"registered_as": [
+		{
+			"op": "bus:my-settings:service:v1",
+			"fn": "client.ts:L21::accept",
+			"role": "request.accept 回调（随 emit 交付的请求对象传给 handler）",
+			"kind": "argument-passing-via-emit",
+			"anchor": "client.ts:21-23 定义于 request 字面量内、随 client.ts:26 emit 交付；被服务回调 settings-service.ts:79/83/90/93 调用（extern-model.md 'Event bus dispatch'：accept 连接服务回调与请求方）；callgraph 静态边 on→accept 已存在，本事实补'经 emit 实参传递'的注册角色"
+		}
+	],
+	"builds_op": [],
+	"direct_edges": []
+}

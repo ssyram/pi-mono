@@ -1,0 +1,12 @@
+{
+	"fn": "settings-files.ts:L10::settingsFilePath",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-files.ts:L10::settingsFilePath",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "structured rejection at settings-files.ts:14,19,23 (callgraph already carries this edge)"
+		}
+	]
+}

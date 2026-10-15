@@ -1,0 +1,10 @@
+{
+	"fn": "extension.ts:L19::bind",
+	"builds_op": [
+		{
+			"op": "bus:my-settings:ready:v1",
+			"site": "extension.ts:L19::bind@L23",
+			"anchor": "extension.ts:23 pi.events.emit(MY_SETTINGS_READY_CHANNEL, ready) with ready = { session: context.sessionManager, sessionId } built at extension.ts:22; dispatch model: extern-model.md — ready channel 'my-settings:ready:v1' is consumed only by external consumers (no production consumer migration in this source scope), so no in-package registered_as exists; expected dangling half-edge, not a broken chain"
+		}
+	]
+}

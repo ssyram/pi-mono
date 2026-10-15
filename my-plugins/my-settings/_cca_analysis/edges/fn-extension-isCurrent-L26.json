@@ -1,0 +1,12 @@
+{
+	"fn": "extension.ts:L26::isCurrent",
+	"registered_as": [
+		{
+			"op": "settings-session-ports",
+			"role": "session-port-isCurrent",
+			"fn": "extension.ts:L26::isCurrent"
+		}
+	],
+	"builds_op": [],
+	"direct_edges": []
+}

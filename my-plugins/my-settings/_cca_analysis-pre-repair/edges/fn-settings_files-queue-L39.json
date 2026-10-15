@@ -1,0 +1,25 @@
+{
+	"fn": "settings-files.ts:L39::queue",
+	"registered_as": [
+		{
+			"op": "queue:withFileMutationQueue",
+			"fn": "settings-files.ts:L39::queue",
+			"role": "writeSettingsFile 传给宿主 withFileMutationQueue(path, action) 的 async action",
+			"kind": "argument-passing-to-host",
+			"anchor": "settings-files.ts:39 `await queue(path, async () => {...})`；宿主在取得 path 的进程内 lane 后调用、finally 释放，action rejection 原样传播回 await（extern-model.md 'Mutation queue and Promise dispatch'）；callgraph 静态边 writeSettingsFile→queue 表达 enqueue，action 本体由宿主调用（本事实补半条，join 按函数指针端口闭合；op 名与 edges/fn-settings_files-writeSettingsFile-L33.json 的 builds_op 统一）"
+		}
+	],
+	"builds_op": [
+		{
+			"op": "service:SettingsSession.isCurrent port",
+			"site": "settings-files.ts:L39::queue@L40",
+			"anchor": "settings-files.ts:40 `if (!isCurrent()) throw ...` — isCurrent 引用（svc:54 注入）在 lane 内调用；L48 同款复查"
+		},
+		{
+			"op": "builtin:Promise.prototype.catch rejection handler",
+			"site": "settings-files.ts:L39::queue@L51",
+			"anchor": "settings-files.ts:51 `await unlink(temporary).catch(() => {})` — Promise 机制在 unlink reject 时调用本回调"
+		}
+	],
+	"direct_edges": []
+}

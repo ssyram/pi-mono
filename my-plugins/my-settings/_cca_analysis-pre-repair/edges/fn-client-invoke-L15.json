@@ -1,0 +1,12 @@
+{
+	"fn": "client.ts:L15::invoke",
+	"registered_as": [],
+	"builds_op": [
+		{
+			"op": "bus:my-settings:service:v1",
+			"site": "client.ts:L15::invoke@L26",
+			"anchor": "client.ts:26 bus.emit(MY_SETTINGS_CHANNEL, request); request 对象于 client.ts:17-24 内联构造，其 accept 方法即 client.ts:L21::accept；派发模型 extern-model.md 'Event bus dispatch'——emit 同步触发该频道 handler（settings-service.ts:L73::on），受频道匹配与会话认领（resolveSession 身份检查，svc:86-87）约束。与 edges/client-invoke.json 相同事实的本批副本，join 去重"
+		}
+	],
+	"direct_edges": []
+}

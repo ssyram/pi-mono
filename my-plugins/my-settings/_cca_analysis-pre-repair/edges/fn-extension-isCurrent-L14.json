@@ -1,0 +1,14 @@
+{
+	"fn": "extension.ts:L14::isCurrent",
+	"registered_as": [
+		{
+			"op": "service:SettingsSession.isCurrent port",
+			"fn": "extension.ts:L14::isCurrent",
+			"role": "ext:12-17 返回的 SettingsSession 视图的 isCurrent 端口；并被 svc:54 以未绑定方法引用注入 writeSettingsFile 作所有权守卫",
+			"kind": "argument-passing-to-service",
+			"anchor": "extension.ts:14 闭包随视图对象在 ext:9-17 回调内构造；端口路径 settings-service.ts:23/38/57 经 `session.isCurrent()` 调用；引用路径 svc:54 `session.isCurrent` 传入 writeSettingsFile → files:40/48 在队列 action 内调用（extern-model.md:36 明示该传递）。callgraph 静态边 execute/writeSettingsFile/queue→isCurrent 为真实调用边；构造伪影边（mySettings/ext:9→isCurrent）在 callgraph 中缺失，已入返回报告"
+		}
+	],
+	"builds_op": [],
+	"direct_edges": []
+}

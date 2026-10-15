@@ -1,0 +1,22 @@
+{
+	"fn": "settings-operation.ts:L31::parseSettingsOperation",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-operation.ts:L31::parseSettingsOperation",
+			"to": "settings-operation.ts:L13::readDataFields",
+			"why": "envelope pass at settings-operation.ts:33 ([op,query,save]) and payload pass at :39 ([globalPath,localPath,scope,defaults,values]); callgraph already carries this edge"
+		},
+		{
+			"from": "settings-operation.ts:L31::parseSettingsOperation",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "INVALID_REQUEST structured failures at settings-operation.ts:37 (unknown op), :52 (path type), :59 (scope whitelist), :78 (catch containment); callgraph already carries this edge"
+		},
+		{
+			"from": "settings-operation.ts:L31::parseSettingsOperation",
+			"to": "json-settings.ts:L4::copySettings",
+			"why": "defaults snapshot at settings-operation.ts:61 (query branch) and values snapshot at :68 (save branch); ok outputs are the well-formedness premise delivered to executeSettingsQuery/executeSettingsSave; callgraph already carries this edge"
+		}
+	]
+}

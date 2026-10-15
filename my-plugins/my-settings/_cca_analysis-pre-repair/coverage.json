@@ -1,0 +1,6 @@
+{
+	"functions": 29,
+	"external": 33,
+	"skipped": 58,
+	"note": "counts are AI-manifest declared, not an independent enumeration"
+}

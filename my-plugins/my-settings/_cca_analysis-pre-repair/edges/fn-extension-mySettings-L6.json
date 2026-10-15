@@ -1,0 +1,40 @@
+{
+	"fn": "extension.ts:L6::mySettings",
+	"registered_as": [
+		{
+			"op": "pi-event:session_start",
+			"fn": "extension.ts:L19::bind",
+			"anchor": "extension.ts:30 pi.on(\"session_start\", bind); dispatch model: extern-model.md 'Pi lifecycle dispatch' — host (packages/coding-agent/src/core/extensions/runner.ts) invokes callback with ExtensionContext",
+			"kind": "host-driven-registration"
+		},
+		{
+			"op": "pi-event:session_tree",
+			"fn": "extension.ts:L19::bind",
+			"anchor": "extension.ts:31 pi.on(\"session_tree\", bind); same host-driven model; bind re-registered for branch changes",
+			"kind": "host-driven-registration"
+		},
+		{
+			"op": "pi-event:session_shutdown",
+			"fn": "extension.ts:L32::on",
+			"anchor": "extension.ts:32 pi.on(\"session_shutdown\", () => { active = undefined; }); manifest id 'on' is the anonymous shutdown callback (extractor named it after the registration call)",
+			"kind": "host-driven-registration"
+		}
+	],
+	"builds_op": [
+		{
+			"op": "pi-event:session_start",
+			"site": "extension.ts:L6::mySettings@L30",
+			"anchor": "extension.ts:30 pi.on(\"session_start\", bind) — registration call site; join connects the registrar to the registered lifecycle callback"
+		},
+		{
+			"op": "pi-event:session_tree",
+			"site": "extension.ts:L6::mySettings@L31",
+			"anchor": "extension.ts:31 pi.on(\"session_tree\", bind) — registration call site"
+		},
+		{
+			"op": "pi-event:session_shutdown",
+			"site": "extension.ts:L6::mySettings@L32",
+			"anchor": "extension.ts:32 pi.on(\"session_shutdown\", () => { active = undefined; }) — registration call site"
+		}
+	]
+}

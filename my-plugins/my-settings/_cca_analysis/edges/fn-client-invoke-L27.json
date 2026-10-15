@@ -1,0 +1,15 @@
+{
+	"fn": "client.ts:L27::invoke",
+	"registered_as": [],
+	"builds_op": [
+		{ "op": "my-settings:service:v1", "site": "client.ts:L27::invoke@L49" },
+		{ "op": "my-settings:accept-callback", "site": "client.ts:L27::invoke@L36" }
+	],
+	"direct_edges": [
+		{
+			"from": "client.ts:L27::invoke",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "structured failures constructed at client.ts:L31 (initialFailure replay), L51 (SERVICE_UNAVAILABLE), L57 (service error replay), L60 (catch-all OPERATION_FAILED)"
+		}
+	]
+}

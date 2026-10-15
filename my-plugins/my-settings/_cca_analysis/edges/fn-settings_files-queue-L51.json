@@ -1,0 +1,33 @@
+{
+	"fn": "settings-files.ts:L51::queue",
+	"registered_as": [
+		{
+			"op": "file-mutation-queue",
+			"role": "queued-mutation-action",
+			"fn": "settings-files.ts:L51::queue"
+		}
+	],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-files.ts:L51::queue",
+			"to": "extension.ts:L26::isCurrent",
+			"why": "session gate (settings-files.ts:53) and pre-commit re-check (:63) invoke the isCurrent port synchronously inside the action (callgraph already carries this edge)"
+		},
+		{
+			"from": "settings-files.ts:L51::queue",
+			"to": "settings-files.ts:L27::readSettingsFile",
+			"why": "raw baseline read at settings-files.ts:56; corrupt original aborts the save without writing (:57) (callgraph already carries this edge)"
+		},
+		{
+			"from": "settings-files.ts:L51::queue",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "structured failures at settings-files.ts:55,65,79 (callgraph already carries this edge)"
+		},
+		{
+			"from": "settings-files.ts:L51::queue",
+			"to": "settings-error.ts:L12::reportSettingsError",
+			"why": "swallowed tmp-cleanup unlink failure diagnostic at settings-files.ts:74 (callgraph already carries this edge)"
+		}
+	]
+}

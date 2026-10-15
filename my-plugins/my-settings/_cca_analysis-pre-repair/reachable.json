@@ -1,0 +1,105 @@
+{
+	"generated_at": "2026-10-14T08:33:46.711705+00:00",
+	"entries": [
+		{
+			"id": "extension.ts:L6::mySettings",
+			"source": "README.md:5-11 (Load) + package.json pi.extensions + extern-model.md 'Public entry surface': Pi extension factory"
+		},
+		{
+			"id": "extension.ts:L19::bind",
+			"source": "extern-model.md 'Pi lifecycle dispatch': registered for session_start and session_tree at extension.ts:30-31; host-driven lifecycle entry"
+		},
+		{
+			"id": "extension.ts:L32::on",
+			"source": "extern-model.md 'Pi lifecycle dispatch': registered for session_shutdown at extension.ts:32 (anonymous callback; manifest id from extractor)"
+		},
+		{
+			"id": "settings-service.ts:L73::on",
+			"source": "extern-model.md 'Event bus dispatch': bus.on(MY_SETTINGS_CHANNEL, handler) at settings-service.ts:73; externally driven service entry"
+		},
+		{
+			"id": "client.ts:L13::createMySettingsClient",
+			"source": "index.ts:2 re-export + README.md:28-54 (Client) + extern-model.md 'Public entry surface': consumer factory"
+		},
+		{
+			"id": "client.ts:L34::query",
+			"source": "extern-model.md 'Public entry surface': returned client method, callable surface"
+		},
+		{
+			"id": "client.ts:L35::saveGlobal",
+			"source": "extern-model.md 'Public entry surface': returned client method, callable surface"
+		},
+		{
+			"id": "client.ts:L36::saveLocal",
+			"source": "extern-model.md 'Public entry surface': returned client method, callable surface"
+		},
+		{
+			"id": "client.ts:L37::saveSession",
+			"source": "extern-model.md 'Public entry surface': returned client method, callable surface"
+		},
+		{
+			"id": "settings-files.ts:L9::settingsFilePath",
+			"source": "extern-model.md 'Module-exported helpers are independently callable TypeScript exports'"
+		},
+		{
+			"id": "settings-files.ts:L22::readSettingsFile",
+			"source": "extern-model.md 'Module-exported helpers are independently callable TypeScript exports'"
+		},
+		{
+			"id": "settings-files.ts:L33::writeSettingsFile",
+			"source": "extern-model.md 'Module-exported helpers are independently callable TypeScript exports'"
+		},
+		{
+			"id": "settings-operation.ts:L4::parseSettingsOperation",
+			"source": "extern-model.md 'Module-exported helpers are independently callable TypeScript exports'"
+		},
+		{
+			"id": "settings-session-log.ts:L4::readSessionSettings",
+			"source": "extern-model.md 'Module-exported helpers are independently callable TypeScript exports'"
+		},
+		{
+			"id": "settings-error.ts:L3::settingsFailure",
+			"source": "extern-model.md 'Module-exported helpers are independently callable TypeScript exports'"
+		},
+		{
+			"id": "json-settings.ts:L17::copySettings",
+			"source": "extern-model.md 'Module-exported helpers are independently callable TypeScript exports'"
+		}
+	],
+	"fingerprint": {
+		"callgraph_nodes": 29,
+		"callgraph_edges": 59
+	},
+	"reachable": [
+		"client.ts:L13::createMySettingsClient",
+		"client.ts:L15::invoke",
+		"client.ts:L21::accept",
+		"client.ts:L34::query",
+		"client.ts:L35::saveGlobal",
+		"client.ts:L36::saveLocal",
+		"client.ts:L37::saveSession",
+		"extension.ts:L14::isCurrent",
+		"extension.ts:L15::getBranch",
+		"extension.ts:L16::appendEntry",
+		"extension.ts:L19::bind",
+		"extension.ts:L32::on",
+		"extension.ts:L6::mySettings",
+		"extension.ts:L9::registerMySettingsService",
+		"json-settings.ts:L17::copySettings",
+		"json-settings.ts:L3::checkValue",
+		"settings-error.ts:L3::settingsFailure",
+		"settings-files.ts:L22::readSettingsFile",
+		"settings-files.ts:L33::writeSettingsFile",
+		"settings-files.ts:L39::queue",
+		"settings-files.ts:L51::catch",
+		"settings-files.ts:L9::settingsFilePath",
+		"settings-operation.ts:L4::parseSettingsOperation",
+		"settings-service.ts:L17::execute",
+		"settings-service.ts:L41::map",
+		"settings-service.ts:L73::on",
+		"settings-service.ts:L89::catch",
+		"settings-session-log.ts:L4::readSessionSettings"
+	],
+	"non_reachable": ["settings-service.ts:L67::registerMySettingsService"],
+	"total_manifest_functions": 29
+}

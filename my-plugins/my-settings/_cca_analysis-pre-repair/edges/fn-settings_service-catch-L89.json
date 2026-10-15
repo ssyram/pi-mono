@@ -1,0 +1,14 @@
+{
+	"fn": "settings-service.ts:L89::catch",
+	"registered_as": [
+		{
+			"op": "promise-rejection:settings-service.ts:L17::execute@L89",
+			"fn": "settings-service.ts:L89::catch",
+			"role": "execute(...) 结果 Promise 的 .catch 折叠回调",
+			"kind": "promise-callback",
+			"anchor": "settings-service.ts:89 注册于 execute 的结果 Promise；由 ECMAScript rejection 语义在 reject 时以单实参调用（extern-model.md 'Mutation queue and Promise dispatch'）；callgraph 静态边 on→catch 已存在，本事实补'由 Promise 机制而非 handler 直接调用'的注册角色"
+		}
+	],
+	"builds_op": [],
+	"direct_edges": []
+}

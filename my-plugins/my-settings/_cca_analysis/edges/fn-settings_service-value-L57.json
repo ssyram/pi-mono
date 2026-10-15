@@ -1,0 +1,12 @@
+{
+	"fn": "settings-service.ts:L57::value",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-service.ts:L57::value",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "catch arm at settings-service.ts:L62 folds a throwing dispose() into a structured OPERATION_FAILED SettingsOutcome"
+		}
+	]
+}

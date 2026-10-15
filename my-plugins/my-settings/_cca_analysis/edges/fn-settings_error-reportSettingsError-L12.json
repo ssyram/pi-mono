@@ -1,0 +1,12 @@
+{
+	"fn": "settings-error.ts:L12::reportSettingsError",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-error.ts:L12::reportSettingsError",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "message folding at settings-error.ts:L14 calls settingsFailure then reads .error.message for the console.error template"
+		}
+	]
+}

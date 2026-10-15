@@ -1,0 +1,32 @@
+{
+	"fn": "settings-service.ts:L17::execute",
+	"registered_as": [],
+	"builds_op": [
+		{
+			"op": "promise-rejection:settings-service.ts:L17::execute@L89",
+			"site": "settings-service.ts:L17::execute@L89",
+			"anchor": "svc:89 `execute(...).catch((error) => settingsFailure(\"OPERATION_FAILED\", error))` 在 execute 的结果 Promise 上注册 rejection 回调（manifest fn settings-service.ts:L89::catch）——execute 的五个 rejection 出口（svc:23/34-37/38/39/54）经该折叠成为恒 resolve 的 SettingsResult"
+		},
+		{
+			"op": "service:SettingsSession.isCurrent port",
+			"site": "settings-service.ts:L17::execute@L23",
+			"anchor": "svc:23 `session.isCurrent()` 首检；同端口复查点 svc:38/57、守卫引用传递 svc:54（session.isCurrent 传入 writeSettingsFile）"
+		},
+		{
+			"op": "service:SettingsSession.getBranch port",
+			"site": "settings-service.ts:L17::execute@L39",
+			"anchor": "svc:39 `readSessionSettings(session.getBranch())` — 端口调用读取分支本地条目"
+		},
+		{
+			"op": "service:SettingsSession.appendEntry port",
+			"site": "settings-service.ts:L17::execute@L58",
+			"anchor": "svc:58 `session.appendEntry(MY_SETTINGS_ENTRY_TYPE, {...})` — 端口调用写会话日志"
+		},
+		{
+			"op": "builtin:Array.prototype.map callback",
+			"site": "settings-service.ts:L17::execute@L41",
+			"anchor": "svc:41 `Object.keys(defaults).map((key) => [key, merged[key]])` — builtin 高阶回调"
+		}
+	],
+	"direct_edges": []
+}

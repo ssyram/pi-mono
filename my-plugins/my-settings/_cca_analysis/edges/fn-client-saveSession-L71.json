@@ -1,0 +1,12 @@
+{
+	"fn": "client.ts:L71::saveSession",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "client.ts:L71::saveSession",
+			"to": "client.ts:L27::invoke",
+			"why": "arrow delegates every call to invoke with {op:\"save-session\", save} at client.ts:L71"
+		}
+	]
+}

@@ -1,0 +1,33 @@
+{
+	"fn": "settings-service.ts:L21::on",
+	"registered_as": [
+		{
+			"op": "my-settings:service:v1",
+			"role": "service-request-handler",
+			"fn": "settings-service.ts:L21::on"
+		}
+	],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-service.ts:L21::on",
+			"to": "client.ts:L36::accept",
+			"why": "handler extracts request.accept (data.accept.bind(data) at settings-service.ts:L25) and invokes it at L27/L36/L46/L49; the closure is created inside invoke at client.ts:L36-47 (extern-model.md Event bus dispatch)"
+		},
+		{
+			"from": "settings-service.ts:L21::on",
+			"to": "settings-operation.ts:L31::parseSettingsOperation",
+			"why": "operation envelope parsed at settings-service.ts:L40 after session identity validation"
+		},
+		{
+			"from": "settings-service.ts:L21::on",
+			"to": "settings-query.ts:L19::executeSettingsQuery",
+			"why": "query branch of the dispatch ternary at settings-service.ts:L43; its returned promise is handed to accept at L46 (Batch A settle premise, discharged in fn-settings_service-on-L21.md)"
+		},
+		{
+			"from": "settings-service.ts:L21::on",
+			"to": "settings-save.ts:L29::executeSettingsSave",
+			"why": "save branch of the dispatch ternary at settings-service.ts:L44; its returned promise is handed to accept at L46 (Batch A settle premise, discharged in fn-settings_service-on-L21.md)"
+		}
+	]
+}

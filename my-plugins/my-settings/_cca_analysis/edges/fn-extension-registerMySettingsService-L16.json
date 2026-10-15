@@ -1,0 +1,11 @@
+{
+	"fn": "extension.ts:L16::registerMySettingsService",
+	"registered_as": [],
+	"builds_op": [
+		{
+			"op": "settings-session-ports",
+			"site": "extension.ts:L16::registerMySettingsService@L22"
+		}
+	],
+	"direct_edges": []
+}

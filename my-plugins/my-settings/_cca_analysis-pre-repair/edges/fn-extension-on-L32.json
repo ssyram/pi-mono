@@ -1,0 +1,7 @@
+{
+	"fn": "extension.ts:L32::on",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [],
+	"note": "Anonymous session_shutdown callback (extension.ts:32, extractor named it after pi.on). Body is a single assignment `active = undefined`; no calls, no edge facts. Its registration fact (pi-event:session_shutdown) is recorded in edges/fn-extension-mySettings-L6.json."
+}

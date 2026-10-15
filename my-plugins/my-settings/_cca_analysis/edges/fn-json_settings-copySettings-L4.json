@@ -1,0 +1,12 @@
+{
+	"fn": "json-settings.ts:L4::copySettings",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "json-settings.ts:L4::copySettings",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "structured rejection constructor at json-settings.ts:7,35,37,41,46,49,57,61,82 (callgraph already carries this edge)"
+		}
+	]
+}

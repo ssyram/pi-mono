@@ -1,0 +1,27 @@
+{
+	"fn": "settings-kind.ts:L19::pickValidFields",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-kind.ts:L19::pickValidFields",
+			"to": "settings-kind.ts:L7::kindOf",
+			"why": "expected/actual kind classification at settings-kind.ts:24,26 (callgraph already carries this edge)"
+		},
+		{
+			"from": "settings-kind.ts:L19::pickValidFields",
+			"to": "settings-error.ts:L12::reportSettingsError",
+			"why": "kind-mismatch diagnostic at settings-kind.ts:28 (callgraph already carries this edge)"
+		},
+		{
+			"from": "settings-kind.ts:L19::pickValidFields",
+			"to": "json-settings.ts:L4::copySettings",
+			"why": "validated snapshot of picked fields at settings-kind.ts:33 (callgraph already carries this edge)"
+		},
+		{
+			"from": "settings-kind.ts:L19::pickValidFields",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "OPERATION_FAILED fallback at settings-kind.ts:35 (callgraph already carries this edge)"
+		}
+	]
+}

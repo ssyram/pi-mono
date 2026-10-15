@@ -1,0 +1,12 @@
+{
+	"fn": "client.ts:L66::query",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "client.ts:L66::query",
+			"to": "client.ts:L27::invoke",
+			"why": "arrow delegates every call to invoke with {op:\"query\", query} at client.ts:L66"
+		}
+	]
+}

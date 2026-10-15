@@ -1,0 +1,142 @@
+[
+	{
+		"id": "extension.ts:L11::mySettings",
+		"source": "Package default export via index.ts (README: pi plugin entry); registers lifecycle + service"
+	},
+	{
+		"id": "client.ts:L14::createMySettingsClient",
+		"source": "index.ts named export; consumer factory (extern-model.md Public entry surfaces)"
+	},
+	{ "id": "client.ts:L66::query", "source": "Returned client method (extern-model.md): query" },
+	{ "id": "client.ts:L67::saveGlobalOnly", "source": "Returned client method (extern-model.md): saveGlobalOnly" },
+	{ "id": "client.ts:L68::saveLocalOnly", "source": "Returned client method (extern-model.md): saveLocalOnly" },
+	{
+		"id": "client.ts:L69::saveGlobalAndSession",
+		"source": "Returned client method (extern-model.md): saveGlobalAndSession"
+	},
+	{
+		"id": "client.ts:L70::saveLocalAndSession",
+		"source": "Returned client method (extern-model.md): saveLocalAndSession"
+	},
+	{ "id": "client.ts:L71::saveSession", "source": "Returned client method (extern-model.md): saveSession" },
+	{
+		"id": "client.ts:L36::accept",
+		"source": "Request accept callback embedded in SettingsRequest and invoked by the service handler (extern-model.md Event bus dispatch); externally driven entry"
+	},
+	{
+		"id": "client.ts:L39::catch",
+		"source": "Promise reaction attached inside accept (Promise.resolve(result).catch); fires on any rejected/throwing response including late or duplicate accepts"
+	},
+	{
+		"id": "extension.ts:L16::registerMySettingsService",
+		"source": "Session resolver callback passed to registerMySettingsService at extension.ts:L16; invoked by service via resolveSession (extern-model.md Event bus dispatch)"
+	},
+	{
+		"id": "extension.ts:L26::isCurrent",
+		"source": "SettingsSession port built by resolver; invoked by service side through session abstraction (extern-model.md)"
+	},
+	{
+		"id": "extension.ts:L36::getBranch",
+		"source": "SettingsSession port built by resolver; invoked by service side through session abstraction (extern-model.md)"
+	},
+	{
+		"id": "extension.ts:L46::appendEntry",
+		"source": "SettingsSession port built by resolver; invoked by service side through session abstraction (extern-model.md)"
+	},
+	{
+		"id": "extension.ts:L67::bind",
+		"source": "pi.on lifecycle callback (session_start, session_tree) in extension.ts:L80-81; host-dispatched (extern-model.md Pi lifecycle dispatch)"
+	},
+	{
+		"id": "extension.ts:L82::on",
+		"source": "pi.on lifecycle callback (session_shutdown) at extension.ts:L82; host-dispatched (extern-model.md Pi lifecycle dispatch)"
+	},
+	{
+		"id": "settings-service.ts:L14::registerMySettingsService",
+		"source": "Public registration API (extern-model.md Public entry surfaces); returns dispose"
+	},
+	{
+		"id": "settings-service.ts:L21::on",
+		"source": "bus.on(MY_SETTINGS_CHANNEL) handler; dispatched by client invoke emit (extern-model.md Event bus dispatch)"
+	},
+	{
+		"id": "settings-service.ts:L57::value",
+		"source": "Dispose closure returned by registerMySettingsService to its caller; consumer-invoked unsubscribe"
+	},
+	{
+		"id": "settings-query.ts:L19::executeSettingsQuery",
+		"source": "Exported query executor (extern-model.md Public entry surfaces)"
+	},
+	{
+		"id": "settings-save.ts:L29::executeSettingsSave",
+		"source": "Exported save executor (extern-model.md Public entry surfaces)"
+	},
+	{
+		"id": "settings-kind.ts:L19::pickValidFields",
+		"source": "Exported field filter (extern-model.md Public entry surfaces)"
+	},
+	{
+		"id": "settings-session-log.ts:L16::appendSessionSettings",
+		"source": "Exported session log appender (extern-model.md Public entry surfaces)"
+	},
+	{
+		"id": "settings-session-log.ts:L35::readSessionPatches",
+		"source": "Exported session log reader (extern-model.md Public entry surfaces)"
+	},
+	{
+		"id": "settings-operation.ts:L31::parseSettingsOperation",
+		"source": "Exported operation parser (extern-model.md Public entry surfaces)"
+	},
+	{
+		"id": "json-settings.ts:L4::copySettings",
+		"source": "Exported JSON snapshot (extern-model.md Public entry surfaces)"
+	},
+	{
+		"id": "settings-files.ts:L10::settingsFilePath",
+		"source": "Exported file path helper (extern-model.md Public entry surfaces)"
+	},
+	{
+		"id": "settings-files.ts:L27::readSettingsFile",
+		"source": "Exported file reader (extern-model.md Public entry surfaces)"
+	},
+	{
+		"id": "settings-files.ts:L40::writeSettingsFile",
+		"source": "Exported atomic file writer (extern-model.md Public entry surfaces)"
+	},
+	{
+		"id": "settings-files.ts:L51::queue",
+		"source": "Queued mutation action handed to host withFileMutationQueue at settings-files.ts:L51; queue-dispatched (extern-model.md Pi lifecycle dispatch)"
+	},
+	{
+		"id": "settings-error.ts:L3::settingsFailure",
+		"source": "Exported failure constructor (extern-model.md Public entry surfaces)"
+	},
+	{
+		"id": "settings-error.ts:L12::reportSettingsError",
+		"source": "Exported safe diagnostic (extern-model.md Public entry surfaces)"
+	},
+	{
+		"id": "settings-kind.ts:L7::kindOf",
+		"source": "Not an entry: internal helper, reached from pickValidFields (settings-kind.ts:L24,L26)"
+	},
+	{
+		"id": "settings-operation.ts:L13::readDataFields",
+		"source": "Not an entry: internal helper, reached from parseSettingsOperation (settings-operation.ts:L33,L39)"
+	},
+	{
+		"id": "settings-query.ts:L9::loadFile",
+		"source": "Not an entry: internal helper, reached from executeSettingsQuery (settings-query.ts:L38-39)"
+	},
+	{
+		"id": "settings-save.ts:L13::filePathFor",
+		"source": "Not an entry: internal helper, reached from executeSettingsSave (settings-save.ts:L37)"
+	},
+	{
+		"id": "settings-save.ts:L25::saveFileOnly",
+		"source": "Not an entry: internal helper, reached from executeSettingsSave (settings-save.ts:L42)"
+	},
+	{
+		"id": "settings-query.ts:L65::map",
+		"source": "Not an entry: anonymous arrow inside executeSettingsQuery (Object.keys(...).map at settings-query.ts:L65); reached only via its sole caller"
+	}
+]

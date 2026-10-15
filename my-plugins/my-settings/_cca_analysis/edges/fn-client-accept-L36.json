@@ -1,0 +1,23 @@
+{
+	"fn": "client.ts:L36::accept",
+	"registered_as": [
+		{
+			"op": "my-settings:accept-callback",
+			"role": "request-accept-callback",
+			"fn": "client.ts:L36::accept"
+		}
+	],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "client.ts:L36::accept",
+			"to": "client.ts:L39::catch",
+			"why": "accept creates the rejection reaction and attaches it via Promise.resolve(result).catch(...) at client.ts:L39; the reaction is analyzed as client.ts:L39::catch"
+		},
+		{
+			"from": "client.ts:L36::accept",
+			"to": "settings-error.ts:L12::reportSettingsError",
+			"why": "accept's inner defensive catch reports unexpected synchronous failures at client.ts:L45 (unreachable by construction, see fn-client-accept-L36.md)"
+		}
+	]
+}

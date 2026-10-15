@@ -1,0 +1,12 @@
+{
+	"fn": "settings-files.ts:L33::writeSettingsFile",
+	"registered_as": [],
+	"builds_op": [
+		{
+			"op": "queue:withFileMutationQueue",
+			"site": "settings-files.ts:L33::writeSettingsFile@L39",
+			"anchor": "settings-files.ts:39 await queue(path, async () => {...}) hands the action closure (manifest node settings-files.ts:L39::queue, files:39-54) to the host withFileMutationQueue (extension.ts:18 injects it; extern-model.md 'Mutation queue and Promise dispatch': queue invokes the action on the file lane and propagates its rejection). The static graph already connects this chain via the writeSettingsFile -> queue-node edge (callgraph.json L115-117) plus the queue-node's own callee edges (L131-141), so this fact is dispatch provenance; join expects the action node's registered_as under the same op name if the gate needs a dynamic edge."
+		}
+	],
+	"direct_edges": []
+}

@@ -1,0 +1,10 @@
+{
+	"root": ".",
+	"sources": [
+		{
+			"dir": ".",
+			"exclude_names": ["_cca_analysis", "test"],
+			"exclude_paths": []
+		}
+	]
+}

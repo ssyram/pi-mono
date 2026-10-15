@@ -1,0 +1,57 @@
+{
+	"fn": "settings-query.ts:L19::executeSettingsQuery",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-query.ts:L19::executeSettingsQuery",
+			"to": "extension.ts:L26::isCurrent",
+			"why": "session.isCurrent() invoked at settings-query.ts:L33 and L42 through the SettingsSession abstraction; concrete ports are built by the resolver closure extension.ts:L16 (extern-model.md Event bus dispatch)"
+		},
+		{
+			"from": "settings-query.ts:L19::executeSettingsQuery",
+			"to": "extension.ts:L36::getBranch",
+			"why": "session.getBranch() invoked at settings-query.ts:L48 through the SettingsSession abstraction"
+		},
+		{
+			"from": "settings-query.ts:L19::executeSettingsQuery",
+			"to": "settings-files.ts:L10::settingsFilePath",
+			"why": "global path resolution at settings-query.ts:25 and local path resolution at :27 (short-circuited when scope === \"global\"); callgraph already carries this edge"
+		},
+		{
+			"from": "settings-query.ts:L19::executeSettingsQuery",
+			"to": "json-settings.ts:L4::copySettings",
+			"why": "defaults validation snapshot at settings-query.ts:30 and final detach snapshot at :66; callgraph already carries this edge"
+		},
+		{
+			"from": "settings-query.ts:L19::executeSettingsQuery",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "SESSION_UNAVAILABLE structured failures at settings-query.ts:35 (gate before await) and :44 (re-check after Promise.all); callgraph already carries this edge"
+		},
+		{
+			"from": "settings-query.ts:L19::executeSettingsQuery",
+			"to": "settings-query.ts:L9::loadFile",
+			"why": "parallel source reads as Promise.all elements at settings-query.ts:38 (global) and :39 (local); callgraph already carries this edge"
+		},
+		{
+			"from": "settings-query.ts:L19::executeSettingsQuery",
+			"to": "settings-error.ts:L12::reportSettingsError",
+			"why": "session-layer skip diagnostics at settings-query.ts:50 (getBranch failure) and :54 (readSessionPatches failure); callgraph already carries this edge"
+		},
+		{
+			"from": "settings-query.ts:L19::executeSettingsQuery",
+			"to": "settings-session-log.ts:L35::readSessionPatches",
+			"why": "session overlay patches read at settings-query.ts:52 after the :42 gate, synchronous segment, scope === \"session\" only; callgraph already carries this edge"
+		},
+		{
+			"from": "settings-query.ts:L19::executeSettingsQuery",
+			"to": "settings-kind.ts:L19::pickValidFields",
+			"why": "per-patch kind filtering in the overlay loop at settings-query.ts:57; callgraph already carries this edge"
+		},
+		{
+			"from": "settings-query.ts:L19::executeSettingsQuery",
+			"to": "settings-query.ts:L65::map",
+			"why": "defaults-keys projection arrow created and consumed at settings-query.ts:65 (Object.keys(validated.value).map(...)); callgraph already carries this edge"
+		}
+	]
+}

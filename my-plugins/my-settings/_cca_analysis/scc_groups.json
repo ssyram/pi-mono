@@ -1,0 +1,236 @@
+[
+	{
+		"id": 0,
+		"members": ["extension.ts:L82::on"],
+		"is_cycle": false,
+		"level": 0
+	},
+	{
+		"id": 1,
+		"members": ["settings-error.ts:L3::settingsFailure"],
+		"is_cycle": false,
+		"level": 0
+	},
+	{
+		"id": 2,
+		"members": ["settings-kind.ts:L7::kindOf"],
+		"is_cycle": false,
+		"level": 0
+	},
+	{
+		"id": 3,
+		"members": ["settings-query.ts:L65::map"],
+		"is_cycle": false,
+		"level": 0
+	},
+	{
+		"id": 4,
+		"members": ["extension.ts:L26::isCurrent"],
+		"is_cycle": false,
+		"level": 1
+	},
+	{
+		"id": 5,
+		"members": ["extension.ts:L36::getBranch"],
+		"is_cycle": true,
+		"level": 1
+	},
+	{
+		"id": 6,
+		"members": ["extension.ts:L46::appendEntry"],
+		"is_cycle": true,
+		"level": 1
+	},
+	{
+		"id": 7,
+		"members": ["json-settings.ts:L4::copySettings"],
+		"is_cycle": false,
+		"level": 1
+	},
+	{
+		"id": 8,
+		"members": ["settings-error.ts:L12::reportSettingsError"],
+		"is_cycle": false,
+		"level": 1
+	},
+	{
+		"id": 9,
+		"members": ["settings-files.ts:L10::settingsFilePath"],
+		"is_cycle": false,
+		"level": 1
+	},
+	{
+		"id": 10,
+		"members": ["settings-operation.ts:L13::readDataFields"],
+		"is_cycle": false,
+		"level": 1
+	},
+	{
+		"id": 11,
+		"members": ["settings-service.ts:L57::value"],
+		"is_cycle": false,
+		"level": 1
+	},
+	{
+		"id": 12,
+		"members": ["client.ts:L39::catch"],
+		"is_cycle": false,
+		"level": 2
+	},
+	{
+		"id": 13,
+		"members": ["extension.ts:L16::registerMySettingsService"],
+		"is_cycle": false,
+		"level": 2
+	},
+	{
+		"id": 14,
+		"members": ["extension.ts:L67::bind"],
+		"is_cycle": false,
+		"level": 2
+	},
+	{
+		"id": 15,
+		"members": ["settings-files.ts:L27::readSettingsFile"],
+		"is_cycle": false,
+		"level": 2
+	},
+	{
+		"id": 16,
+		"members": ["settings-kind.ts:L19::pickValidFields"],
+		"is_cycle": false,
+		"level": 2
+	},
+	{
+		"id": 17,
+		"members": ["settings-operation.ts:L31::parseSettingsOperation"],
+		"is_cycle": false,
+		"level": 2
+	},
+	{
+		"id": 18,
+		"members": ["settings-save.ts:L13::filePathFor"],
+		"is_cycle": false,
+		"level": 2
+	},
+	{
+		"id": 19,
+		"members": ["settings-session-log.ts:L16::appendSessionSettings"],
+		"is_cycle": false,
+		"level": 2
+	},
+	{
+		"id": 20,
+		"members": ["settings-session-log.ts:L35::readSessionPatches"],
+		"is_cycle": false,
+		"level": 2
+	},
+	{
+		"id": 21,
+		"members": ["client.ts:L36::accept"],
+		"is_cycle": false,
+		"level": 3
+	},
+	{
+		"id": 22,
+		"members": ["settings-files.ts:L51::queue"],
+		"is_cycle": false,
+		"level": 3
+	},
+	{
+		"id": 23,
+		"members": ["settings-query.ts:L9::loadFile"],
+		"is_cycle": false,
+		"level": 3
+	},
+	{
+		"id": 24,
+		"members": ["settings-files.ts:L40::writeSettingsFile"],
+		"is_cycle": false,
+		"level": 4
+	},
+	{
+		"id": 25,
+		"members": ["settings-query.ts:L19::executeSettingsQuery"],
+		"is_cycle": false,
+		"level": 4
+	},
+	{
+		"id": 26,
+		"members": ["settings-save.ts:L25::saveFileOnly"],
+		"is_cycle": false,
+		"level": 5
+	},
+	{
+		"id": 27,
+		"members": ["settings-save.ts:L29::executeSettingsSave"],
+		"is_cycle": false,
+		"level": 6
+	},
+	{
+		"id": 28,
+		"members": ["settings-service.ts:L21::on"],
+		"is_cycle": false,
+		"level": 7
+	},
+	{
+		"id": 29,
+		"members": ["client.ts:L27::invoke"],
+		"is_cycle": false,
+		"level": 8
+	},
+	{
+		"id": 30,
+		"members": ["settings-service.ts:L14::registerMySettingsService"],
+		"is_cycle": false,
+		"level": 8
+	},
+	{
+		"id": 31,
+		"members": ["client.ts:L14::createMySettingsClient"],
+		"is_cycle": false,
+		"level": 9
+	},
+	{
+		"id": 32,
+		"members": ["client.ts:L66::query"],
+		"is_cycle": false,
+		"level": 9
+	},
+	{
+		"id": 33,
+		"members": ["client.ts:L67::saveGlobalOnly"],
+		"is_cycle": false,
+		"level": 9
+	},
+	{
+		"id": 34,
+		"members": ["client.ts:L68::saveLocalOnly"],
+		"is_cycle": false,
+		"level": 9
+	},
+	{
+		"id": 35,
+		"members": ["client.ts:L69::saveGlobalAndSession"],
+		"is_cycle": false,
+		"level": 9
+	},
+	{
+		"id": 36,
+		"members": ["client.ts:L70::saveLocalAndSession"],
+		"is_cycle": false,
+		"level": 9
+	},
+	{
+		"id": 37,
+		"members": ["client.ts:L71::saveSession"],
+		"is_cycle": false,
+		"level": 9
+	},
+	{
+		"id": 38,
+		"members": ["extension.ts:L11::mySettings"],
+		"is_cycle": false,
+		"level": 9
+	}
+]

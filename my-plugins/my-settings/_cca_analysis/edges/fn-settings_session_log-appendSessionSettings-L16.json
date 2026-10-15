@@ -1,0 +1,27 @@
+{
+	"fn": "settings-session-log.ts:L16::appendSessionSettings",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-session-log.ts:L16::appendSessionSettings",
+			"to": "extension.ts:L26::isCurrent",
+			"why": "session.isCurrent() invoked at settings-session-log.ts:L18 through the SettingsSession abstraction"
+		},
+		{
+			"from": "settings-session-log.ts:L16::appendSessionSettings",
+			"to": "extension.ts:L46::appendEntry",
+			"why": "session.appendEntry(MY_SETTINGS_ENTRY_TYPE, {values}) invoked at settings-session-log.ts:L23 through the SettingsSession abstraction"
+		},
+		{
+			"from": "settings-session-log.ts:L16::appendSessionSettings",
+			"to": "json-settings.ts:L4::copySettings",
+			"why": "copySettings(values) snapshot before logging at settings-session-log.ts:L21"
+		},
+		{
+			"from": "settings-session-log.ts:L16::appendSessionSettings",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "settingsFailure(\"SESSION_UNAVAILABLE\", ...) at settings-session-log.ts:L20 and catch fallback settingsFailure(\"OPERATION_FAILED\", error) at settings-session-log.ts:L27 (Batch F merge)"
+		}
+	]
+}

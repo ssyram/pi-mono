@@ -1,0 +1,12 @@
+{
+	"fn": "client.ts:L68::saveLocalOnly",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "client.ts:L68::saveLocalOnly",
+			"to": "client.ts:L27::invoke",
+			"why": "arrow delegates every call to invoke with {op:\"save-local-only\", save} at client.ts:L68"
+		}
+	]
+}

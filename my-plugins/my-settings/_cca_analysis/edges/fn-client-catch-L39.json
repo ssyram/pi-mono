@@ -1,0 +1,17 @@
+{
+	"fn": "client.ts:L39::catch",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "client.ts:L39::catch",
+			"to": "settings-error.ts:L12::reportSettingsError",
+			"why": "non-selected (late/duplicate/closed) accept rejection reported as safe diagnostic at client.ts:L40"
+		},
+		{
+			"from": "client.ts:L39::catch",
+			"to": "settings-error.ts:L3::settingsFailure",
+			"why": "reaction return value is always a structured OPERATION_FAILED failure constructed at client.ts:L41"
+		}
+	]
+}

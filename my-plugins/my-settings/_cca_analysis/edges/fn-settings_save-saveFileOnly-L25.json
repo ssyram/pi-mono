@@ -1,0 +1,17 @@
+{
+	"fn": "settings-save.ts:L25::saveFileOnly",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-save.ts:L25::saveFileOnly",
+			"to": "extension.ts:L26::isCurrent",
+			"why": "session.isCurrent.bind(session) is passed as writeSettingsFile's isCurrent argument at settings-save.ts:L26; the static edge saveFileOnly->extension.ts:L67::bind is a name collision on 'bind' and carries no dispatch semantics"
+		},
+		{
+			"from": "settings-save.ts:L25::saveFileOnly",
+			"to": "settings-files.ts:L40::writeSettingsFile",
+			"why": "direct tail call writeSettingsFile(path, save.values, queue, <bound port>) at settings-save.ts:L26; returned promise adopted by this async function (Batch F merge)"
+		}
+	]
+}

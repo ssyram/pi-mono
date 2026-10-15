@@ -1,0 +1,12 @@
+{
+	"fn": "client.ts:L70::saveLocalAndSession",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "client.ts:L70::saveLocalAndSession",
+			"to": "client.ts:L27::invoke",
+			"why": "arrow delegates every call to invoke with {op:\"save-local-and-session\", save} at client.ts:L70"
+		}
+	]
+}

@@ -1,0 +1,22 @@
+{
+	"fn": "settings-query.ts:L9::loadFile",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-query.ts:L9::loadFile",
+			"to": "settings-files.ts:L27::readSettingsFile",
+			"why": "sole await at settings-query.ts:10; readSettingsFile's always-settles-fulfilled contract is the premise that makes loadFile never reject and Promise.all (settings-query.ts:37) never reject; callgraph already carries this edge"
+		},
+		{
+			"from": "settings-query.ts:L9::loadFile",
+			"to": "settings-error.ts:L12::reportSettingsError",
+			"why": "source-read-failure diagnostic at settings-query.ts:12 before skipping the source (prototype.md §4 queryFile Error branch); callgraph already carries this edge"
+		},
+		{
+			"from": "settings-query.ts:L9::loadFile",
+			"to": "settings-kind.ts:L19::pickValidFields",
+			"why": "per-key kind filtering of the successfully read source at settings-query.ts:15; callgraph already carries this edge"
+		}
+	]
+}

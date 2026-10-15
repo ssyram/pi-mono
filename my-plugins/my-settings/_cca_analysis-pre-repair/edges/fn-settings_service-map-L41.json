@@ -1,0 +1,14 @@
+{
+	"fn": "settings-service.ts:L41::map",
+	"registered_as": [
+		{
+			"op": "builtin:Array.prototype.map callback",
+			"fn": "settings-service.ts:L41::map",
+			"role": "execute 在 svc:41 传给 Object.keys(defaults).map(...) 的键映射回调",
+			"kind": "builtin-higher-order-callback",
+			"anchor": "settings-service.ts:41 `Object.keys(defaults).map((key) => [key, merged[key]])`——真实调用者是 ECMAScript 内建 Array.prototype.map（每元素同步一次、按序）；callgraph 静态边 execute→map 表达定义/传递关系，本事实记录派发机制（与 edges/fn-settings_files-queue-L39.json 同款处理）"
+		}
+	],
+	"builds_op": [],
+	"direct_edges": []
+}

@@ -1,0 +1,27 @@
+{
+	"fn": "settings-save.ts:L29::executeSettingsSave",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [
+		{
+			"from": "settings-save.ts:L29::executeSettingsSave",
+			"to": "settings-save.ts:L13::filePathFor",
+			"why": "filePathFor(op, save, session, globalRoot) at settings-save.ts:L37"
+		},
+		{
+			"from": "settings-save.ts:L29::executeSettingsSave",
+			"to": "settings-error.ts:L12::reportSettingsError",
+			"why": "AndSession diagnose-and-swallow of file-step failures at settings-save.ts:L40 and L45"
+		},
+		{
+			"from": "settings-save.ts:L29::executeSettingsSave",
+			"to": "settings-save.ts:L25::saveFileOnly",
+			"why": "await saveFileOnly(path.value, save, session, queue) at settings-save.ts:L42"
+		},
+		{
+			"from": "settings-save.ts:L29::executeSettingsSave",
+			"to": "settings-session-log.ts:L16::appendSessionSettings",
+			"why": "synchronous log step appendSessionSettings(session, save.values) at settings-save.ts:L50 (no await; decides overall result at L51)"
+		}
+	]
+}

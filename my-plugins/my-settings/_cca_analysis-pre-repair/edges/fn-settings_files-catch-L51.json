@@ -1,0 +1,14 @@
+{
+	"fn": "settings-files.ts:L51::catch",
+	"registered_as": [
+		{
+			"op": "builtin:Promise.prototype.catch rejection handler",
+			"fn": "settings-files.ts:L51::catch",
+			"role": "unlink(temporary) 的空 rejection 处理器（吞掉清理失败）",
+			"kind": "builtin-higher-order-callback",
+			"anchor": "settings-files.ts:51 `await unlink(temporary).catch(() => {})`——Promise 机制仅在 unlink reject 时以拒绝原因调用本回调（unlink fulfill 不调用）；callgraph 静态边 queue→catch-L51 表达注册点，本事实记录派发机制（与 edges/fn-settings_service-map-L41.json 同款处理）"
+		}
+	],
+	"builds_op": [],
+	"direct_edges": []
+}

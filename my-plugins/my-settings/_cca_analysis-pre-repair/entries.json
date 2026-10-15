@@ -1,0 +1,66 @@
+[
+	{
+		"id": "extension.ts:L6::mySettings",
+		"source": "README.md:5-11 (Load) + package.json pi.extensions + extern-model.md 'Public entry surface': Pi extension factory"
+	},
+	{
+		"id": "extension.ts:L19::bind",
+		"source": "extern-model.md 'Pi lifecycle dispatch': registered for session_start and session_tree at extension.ts:30-31; host-driven lifecycle entry"
+	},
+	{
+		"id": "extension.ts:L32::on",
+		"source": "extern-model.md 'Pi lifecycle dispatch': registered for session_shutdown at extension.ts:32 (anonymous callback; manifest id from extractor)"
+	},
+	{
+		"id": "settings-service.ts:L73::on",
+		"source": "extern-model.md 'Event bus dispatch': bus.on(MY_SETTINGS_CHANNEL, handler) at settings-service.ts:73; externally driven service entry"
+	},
+	{
+		"id": "client.ts:L13::createMySettingsClient",
+		"source": "index.ts:2 re-export + README.md:28-54 (Client) + extern-model.md 'Public entry surface': consumer factory"
+	},
+	{
+		"id": "client.ts:L34::query",
+		"source": "extern-model.md 'Public entry surface': returned client method, callable surface"
+	},
+	{
+		"id": "client.ts:L35::saveGlobal",
+		"source": "extern-model.md 'Public entry surface': returned client method, callable surface"
+	},
+	{
+		"id": "client.ts:L36::saveLocal",
+		"source": "extern-model.md 'Public entry surface': returned client method, callable surface"
+	},
+	{
+		"id": "client.ts:L37::saveSession",
+		"source": "extern-model.md 'Public entry surface': returned client method, callable surface"
+	},
+	{
+		"id": "settings-files.ts:L9::settingsFilePath",
+		"source": "extern-model.md 'Module-exported helpers are independently callable TypeScript exports'"
+	},
+	{
+		"id": "settings-files.ts:L22::readSettingsFile",
+		"source": "extern-model.md 'Module-exported helpers are independently callable TypeScript exports'"
+	},
+	{
+		"id": "settings-files.ts:L33::writeSettingsFile",
+		"source": "extern-model.md 'Module-exported helpers are independently callable TypeScript exports'"
+	},
+	{
+		"id": "settings-operation.ts:L4::parseSettingsOperation",
+		"source": "extern-model.md 'Module-exported helpers are independently callable TypeScript exports'"
+	},
+	{
+		"id": "settings-session-log.ts:L4::readSessionSettings",
+		"source": "extern-model.md 'Module-exported helpers are independently callable TypeScript exports'"
+	},
+	{
+		"id": "settings-error.ts:L3::settingsFailure",
+		"source": "extern-model.md 'Module-exported helpers are independently callable TypeScript exports'"
+	},
+	{
+		"id": "json-settings.ts:L17::copySettings",
+		"source": "extern-model.md 'Module-exported helpers are independently callable TypeScript exports'"
+	}
+]

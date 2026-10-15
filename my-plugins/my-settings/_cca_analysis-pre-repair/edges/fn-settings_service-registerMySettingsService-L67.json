@@ -1,0 +1,7 @@
+{
+	"fn": "settings-service.ts:L67::registerMySettingsService",
+	"registered_as": [],
+	"builds_op": [],
+	"direct_edges": [],
+	"note": "Registration wrapper: returns bus.on(MY_SETTINGS_CHANNEL, handler) unsubscription handle (settings-service.ts:73-96). The handler's own registration fact (op bus:my-settings:service:v1) lives in edges/fn-settings_service-on-L73.json. Static edges L67->{parseSettingsOperation,catch-L89,execute,accept,bind} are extractor nesting artifacts (handler-body calls attributed to the enclosing function; name collision data.accept.bind at svc:77) — adjudicated in open-questions.md."
+}

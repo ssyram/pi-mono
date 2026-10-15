@@ -1,0 +1,16 @@
+{
+	"fn": "extension.ts:L11::mySettings",
+	"registered_as": [],
+	"builds_op": [
+		{ "op": "session_start", "site": "extension.ts:L11::mySettings@L80" },
+		{ "op": "session_tree", "site": "extension.ts:L11::mySettings@L81" },
+		{ "op": "session_shutdown", "site": "extension.ts:L11::mySettings@L82" }
+	],
+	"direct_edges": [
+		{
+			"from": "extension.ts:L11::mySettings",
+			"to": "settings-service.ts:L14::registerMySettingsService",
+			"why": "direct call at extension.ts:L14-62 (4 args: pi.events, resolver closure, getAgentDir(), withFileMutationQueue); SettingsOutcome consumed at extension.ts:L63. Missing from callgraph.json — extractor only recorded the L14->L16 resolver bridge, not this caller edge"
+		}
+	]
+}

@@ -1,0 +1,14 @@
+{
+	"fn": "extension.ts:L16::appendEntry",
+	"registered_as": [
+		{
+			"op": "service:SettingsSession.appendEntry port",
+			"fn": "extension.ts:L16::appendEntry",
+			"role": "ext:12-17 返回的 SettingsSession 视图的 appendEntry 端口",
+			"kind": "argument-passing-to-service",
+			"anchor": "extension.ts:16 闭包随视图对象在 ext:9-17 回调内构造；settings-service.ts:58 经 `session.appendEntry(MY_SETTINGS_ENTRY_TYPE, {...})` 端口调用。callgraph 静态边 execute→appendEntry 为真实调用边；mySettings/ext:9→appendEntry 为构造嵌套伪影、自环为提取器伪影（open-questions.md:10）"
+		}
+	],
+	"builds_op": [],
+	"direct_edges": []
+}
