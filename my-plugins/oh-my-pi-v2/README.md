@@ -25,10 +25,17 @@ For detailed architecture documentation, see `docs/ARCHITECTURE.md`. The Task Li
 - Every compact task row occupies one terminal line. Long or multi-line text is whitespace-normalized and display-width truncated with `…`.
 - Unfinished groups keep execution order. `done` and `expired` groups display newest IDs first.
 - Blocked rows reserve space for up to three unresolved blocker IDs (`← #1,#2,#3,…`) before truncating task text.
-- `/task show on` and `/task show off` control the widget for the current session branch without disabling task tracking.
+- `/task show on|off [--persistent] [--global]` controls the widget without disabling task tracking. It uses my-settings key `omp-task:show` (default true); by default only the current session branch is saved.
 - `/task info` prints every task field and full text without compact-row truncation.
 - `/task help` and bare `/task` show command help.
-- `/task` arguments use prompted, hierarchical completion matching `/impression`: `show|info|help`, then `show on|off`.
+- `/task` arguments use prompted, hierarchical completion for task operations, widget controls, and gate settings.
+
+### Tool gate
+
+- `/task no-task-no-tool on|off [--persistent] [--global]` uses my-settings key `omp-task:no-task-no-tool` (default true). Default saves only the session; `--persistent` additionally saves project `.pi/settings.json`, and `--global` additionally saves global `settings.json`. Flags can be combined; `--global` does not imply local.
+- Both task settings use defaults < global < local < current-branch session values. OMP directly imports and awaits `../my-settings/index.ts`; configuration calls use its client. There is no second task setting cache or store.
+- `off` only disables the requirement for an unblocked in-progress task before non-task tools. Task tracking, widget controls, Boulder, and prompt rules are unchanged. Exact `task` remains exempt even when the settings service is unavailable.
+- Requested file failures are reported without overwriting corrupt files; the session save is still attempted once. Session failure reports uncertainty, never false success or rollback. Missing service returns an explicit installation/unavailable error, not defaults. Old `task.json` and `omp-task-widget-state` entries are no longer read or written; no automatic data migration is performed. Details and current evidence: [`docs/task-system/settings.md`](docs/task-system/settings.md).
 
 ### Model context and continuation
 
@@ -38,6 +45,14 @@ For detailed architecture documentation, see `docs/ARCHITECTURE.md`. The Task Li
 - Interactive/RPC input and non-Boulder custom information cancel a pending continuation. Queued external follow-ups finish before a new episode may start.
 - Print mode (`-p`) allows at most three attempts at `10s` each. Other modes allow ten attempts at `10s, 10s, 10s, 20s, 40s, 80s, 160s, 320s, 640s, 1280s`.
 - Scheduling immediately appends the AI-invisible entry `↻ Automatic Boulder n/N resume scheduled, restarting in XXs`; the status line refreshes the live countdown. Escape cancels the current wait.
+
+## Boulder inhibition
+
+- `/task boulder set <type> <true|false|t|f>` writes a branch-local signal. Boulder takes the latest valid value per type; any true blocks scheduling and sending.
+- Completion offers `boulder`, `set`, `loop|user`, and `true|false|t|f`; other source names remain valid manual input.
+- A loop scheduled with `--no-boulder` (or tool `inhibitBoulder: true`) holds the `loop` signal while active. Clearing it manually lasts only until loop next synchronizes.
+- These are AI-invisible custom entries, not model messages or background-work registrations. Signal changes cancel waits, not running agents or the task gate.
+- Runtime failures are handled inside the plugin boundary, not justified by Pi catching them. Current QPDI contracts, test/run evidence and remaining live acceptance are in [`docs/boulder-inhibition/`](docs/boulder-inhibition/delivery.md).
 
 ## Required Extension
 

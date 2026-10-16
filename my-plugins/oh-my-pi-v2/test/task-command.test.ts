@@ -3,17 +3,22 @@ import { describe, it } from "node:test";
 import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
-	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteProvider } from "@earendil-works/pi-tui";
-import { createTaskCompletionProvider, completeTaskArgument } from "../commands/task-completion.js";
-import { TASK_HELP_TEXT, parseTaskCommand, registerTaskCommand } from "../commands/task.js";
-import { TASK_INFO_ENTRY_TYPE, formatTaskInfo } from "../tools/task-info-entry.js";
-import type { Task } from "../tools/task-types.js";
 import {
-	TASK_WIDGET_STATE_ENTRY_TYPE,
-	isTaskWidgetVisible,
-} from "../tools/task-widget-state.js";
+	parseTaskCommand,
+	registerTaskCommand,
+	TASK_HELP_TEXT,
+} from "../commands/task.js";
+import {
+	completeTaskArgument,
+	createTaskCompletionProvider,
+} from "../commands/task-completion.js";
+import {
+	formatTaskInfo,
+	TASK_INFO_ENTRY_TYPE,
+} from "../tools/task-info-entry.js";
+import type { Task } from "../tools/task-types.js";
 
 const timestamp = Date.parse("2026-01-01T00:00:00.000Z");
 
@@ -27,10 +32,6 @@ function task(id: number, text = `task ${id}`): Task {
 		createdAt: timestamp,
 		updatedAt: timestamp,
 	};
-}
-
-function sessionManager(entries: unknown[]): ExtensionContext["sessionManager"] {
-	return { getBranch: () => entries } as unknown as ExtensionContext["sessionManager"];
 }
 
 function fallbackProvider(): AutocompleteProvider {
@@ -49,33 +50,62 @@ describe("task command", () => {
 		assert.deepEqual(parseTaskCommand(""), { action: "help" });
 		assert.deepEqual(parseTaskCommand("help"), { action: "help" });
 		assert.deepEqual(parseTaskCommand("info"), { action: "info" });
-		assert.deepEqual(parseTaskCommand("show on"), { action: "show", visible: true });
-		assert.deepEqual(parseTaskCommand("SHOW OFF"), { action: "show", visible: false });
-		assert.deepEqual(parseTaskCommand("show"), { action: "invalid", input: "show" });
-		assert.deepEqual(parseTaskCommand("off"), { action: "invalid", input: "off" });
+		assert.deepEqual(parseTaskCommand("show on"), {
+			action: "show",
+			visible: true,
+			targets: {},
+		});
+		assert.deepEqual(parseTaskCommand("SHOW OFF"), {
+			action: "show",
+			visible: false,
+			targets: {},
+		});
+		assert.deepEqual(parseTaskCommand("show"), {
+			action: "invalid",
+			input: "show",
+		});
+		assert.deepEqual(parseTaskCommand("off"), {
+			action: "invalid",
+			input: "off",
+		});
 	});
 
 	it("persists visibility and emits only custom entries", async () => {
 		const entries: Array<{ customType: string; data: unknown }> = [];
-		let handler: Parameters<ExtensionAPI["registerCommand"]>[1]["handler"] | undefined;
+		let handler:
+			| Parameters<ExtensionAPI["registerCommand"]>[1]["handler"]
+			| undefined;
 		const pi = {
 			registerEntryRenderer: () => undefined,
-			registerCommand: (_name: string, options: Parameters<ExtensionAPI["registerCommand"]>[1]) => {
+			registerCommand: (
+				_name: string,
+				options: Parameters<ExtensionAPI["registerCommand"]>[1],
+			) => {
 				handler = options.handler;
 			},
-			appendEntry: (customType: string, data: unknown) => entries.push({ customType, data }),
+			appendEntry: (customType: string, data: unknown) =>
+				entries.push({ customType, data }),
 			on: () => undefined,
 		} as unknown as ExtensionAPI;
 		const visibility: boolean[] = [];
 		const taskReadContexts: ExtensionCommandContext[] = [];
+		const saves: unknown[] = [];
 		registerTaskCommand(pi, {
+			updateSetting: async (_ctx, key, value, targets) => {
+				saves.push({ key, value, targets });
+				return { ok: true, applied: true, message: "saved" };
+			},
 			getTasks: (context) => {
 				taskReadContexts.push(context);
 				return [task(1, "full\ntext")];
 			},
-			setWidgetVisibility: (_ctx, visible) => visibility.push(visible),
+			setWidgetVisibility: (_ctx, visible) => {
+				visibility.push(visible);
+			},
 			runHumanTaskCommand: () => {
-				throw new Error("human command routing is covered by task-system-integration tests");
+				throw new Error(
+					"human command routing is covered by task-system-integration tests",
+				);
 			},
 		});
 		if (!handler) throw new Error("task command was not registered");
@@ -84,25 +114,34 @@ describe("task command", () => {
 		await handler("show off", context);
 		await handler("show on", context);
 		assert.deepEqual(visibility, [false, true]);
-		assert.equal(entries[0]?.customType, TASK_WIDGET_STATE_ENTRY_TYPE);
-		assert.equal(entries[1]?.customType, TASK_INFO_ENTRY_TYPE);
-		assert.equal(entries[2]?.customType, TASK_WIDGET_STATE_ENTRY_TYPE);
-
-		const statesBeforeInvalid = entries.filter((entry) => entry.customType === TASK_WIDGET_STATE_ENTRY_TYPE).length;
+		assert.deepEqual(saves, [
+			{ key: "omp-task:show", value: false, targets: {} },
+			{ key: "omp-task:show", value: true, targets: {} },
+		]);
+		assert.ok(
+			entries.every((entry) => entry.customType === TASK_INFO_ENTRY_TYPE),
+		);
+		const statesBeforeInvalid = saves.length;
 		const beforeInvalid = entries.length;
 		await handler("show", context);
 		assert.equal(entries.length, beforeInvalid + 1);
 		assert.equal(entries.at(-1)?.customType, TASK_INFO_ENTRY_TYPE);
-		assert.equal(
-			entries.filter((entry) => entry.customType === TASK_WIDGET_STATE_ENTRY_TYPE).length,
-			statesBeforeInvalid,
+		assert.equal(saves.length, statesBeforeInvalid);
+		assert.match(
+			String((entries.at(-1)?.data as { text?: string }).text),
+			/Unknown or incomplete/,
 		);
-		assert.match(String((entries.at(-1)?.data as { text?: string }).text), /Unknown or incomplete/);
 
 		await handler("", context);
-		assert.equal((entries.at(-1)?.data as { text?: string }).text, TASK_HELP_TEXT);
+		assert.equal(
+			(entries.at(-1)?.data as { text?: string }).text,
+			TASK_HELP_TEXT,
+		);
 		await handler("info", context);
-		assert.match(String((entries.at(-1)?.data as { text?: string }).text), /full\ntext/);
+		assert.match(
+			String((entries.at(-1)?.data as { text?: string }).text),
+			/full\ntext/,
+		);
 		assert.deepEqual(taskReadContexts, [context]);
 	});
 
@@ -119,34 +158,18 @@ describe("task command", () => {
 		assert.match(output, /createdAt: .* \(1767225600000\)/);
 		assert.match(output, /#2 \[pending\]/);
 	});
-
-	it("defaults visible and uses the latest valid branch state", () => {
-		assert.equal(isTaskWidgetVisible(sessionManager([])), true);
-		assert.equal(
-			isTaskWidgetVisible(
-				sessionManager([
-					{ type: "custom", customType: TASK_WIDGET_STATE_ENTRY_TYPE, data: { visible: false, changedAt: "a" } },
-					{ type: "custom", customType: TASK_WIDGET_STATE_ENTRY_TYPE, data: { visible: "bad" } },
-				]),
-			),
-			false,
-		);
-		assert.equal(
-			isTaskWidgetVisible(
-				sessionManager([
-					{ type: "custom", customType: TASK_WIDGET_STATE_ENTRY_TYPE, data: { visible: false, changedAt: "a" } },
-					{ type: "custom", customType: TASK_WIDGET_STATE_ENTRY_TYPE, data: { visible: true, changedAt: "b" } },
-				]),
-			),
-			true,
-		);
-	});
 });
 
 describe("task command completion", () => {
 	it("offers hierarchical candidates", () => {
-		assert.deepEqual(completeTaskArgument([])?.map((candidate) => candidate.value), ["show", "info", "help"]);
-		assert.deepEqual(completeTaskArgument(["show"])?.map((candidate) => candidate.value), ["on", "off"]);
+		assert.deepEqual(
+			completeTaskArgument([])?.map((candidate) => candidate.value),
+			["show", "info", "help", "no-task-no-tool"],
+		);
+		assert.deepEqual(
+			completeTaskArgument(["show"])?.map((candidate) => candidate.value),
+			["on", "off"],
+		);
 		assert.equal(completeTaskArgument(["info"]), null);
 	});
 
@@ -155,11 +178,22 @@ describe("task command completion", () => {
 		const suggestions = await provider.getSuggestions(["/task so tail"], 0, 8, {
 			signal: new AbortController().signal,
 		});
-		assert.deepEqual(suggestions?.items.map((item) => item.value), ["show"]);
-		const showSuggestions = await provider.getSuggestions(["/task show o"], 0, 12, {
-			signal: new AbortController().signal,
-		});
-		assert.deepEqual(showSuggestions?.items.map((item) => item.value), ["on", "off"]);
+		assert.deepEqual(
+			suggestions?.items.map((item) => item.value),
+			["show", "no-task-no-tool"],
+		);
+		const showSuggestions = await provider.getSuggestions(
+			["/task show o"],
+			0,
+			12,
+			{
+				signal: new AbortController().signal,
+			},
+		);
+		assert.deepEqual(
+			showSuggestions?.items.map((item) => item.value),
+			["on", "off"],
+		);
 		const completed = provider.applyCompletion(
 			["/task so tail"],
 			0,
@@ -168,6 +202,9 @@ describe("task command completion", () => {
 			"so",
 		);
 		assert.equal(completed.lines[0], "/task show  tail");
-		assert.equal(provider.shouldTriggerFileCompletion?.(["/task "], 0, 6), true);
+		assert.equal(
+			provider.shouldTriggerFileCompletion?.(["/task "], 0, 6),
+			true,
+		);
 	});
 });

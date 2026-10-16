@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { registerBoulderBackgroundWork } from "../hooks/boulder-background-work.js";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { registerBackgroundWorkProvider } from "../../../third-party-plugins/pi-subagents/src/api/background-work.js";
+import { createBoulderBackgroundWork } from "../hooks/boulder-background-work.js";
 
 function context(sessionId: string): ExtensionContext {
 	return {
@@ -12,40 +13,31 @@ function context(sessionId: string): ExtensionContext {
 	} as unknown as ExtensionContext;
 }
 
-function harness(): {
-	pi: ExtensionAPI;
-	emit(event: string, payload: unknown): void;
-} {
-	const handlers = new Map<string, Array<(payload: unknown) => void>>();
-	const emit = (event: string, payload: unknown): void => {
-		for (const handler of handlers.get(event) ?? []) handler(payload);
-	};
-	return {
-		pi: {
-			on: () => undefined,
-			events: {
-				on: (event: string, handler: (payload: unknown) => void) => {
-					const eventHandlers = handlers.get(event) ?? [];
-					eventHandlers.push(handler);
-					handlers.set(event, eventHandlers);
-					return () => undefined;
-				},
-				emit,
-			},
-		} as unknown as ExtensionAPI,
-		emit,
-	};
-}
-
 describe("Boulder background work", () => {
-	it("tracks async subagent lifecycle by owning session", () => {
-		const testHarness = harness();
-		const work = registerBoulderBackgroundWork(testHarness.pi);
-		testHarness.emit("subagent:async-started", { id: "run-1", sessionId: "session-a" });
+	it("reads live work for the owning session on every check", () => {
+		const activeSessions = new Set(["session-a"]);
+		const work = createBoulderBackgroundWork((sessionId) => activeSessions.has(sessionId));
+
 		assert.equal(work.isActive(context("session-a")), true);
 		assert.equal(work.isActive(context("session-b")), false);
-		testHarness.emit("subagent:async-complete", { runId: "run-1", sessionId: "session-a" });
+
+		activeSessions.delete("session-a");
 		assert.equal(work.isActive(context("session-a")), false);
 	});
 
+	it("reads the current provider snapshot without lifecycle events", () => {
+		let active = true;
+		const dispose = registerBackgroundWorkProvider({
+			name: "boulder-background-work-test",
+			listActiveWork: () => active ? [{ id: "run-1", sessionId: "session-a" }] : [],
+		});
+		try {
+			const work = createBoulderBackgroundWork();
+			assert.equal(work.isActive(context("session-a")), true);
+			active = false;
+			assert.equal(work.isActive(context("session-a")), false);
+		} finally {
+			dispose();
+		}
+	});
 });

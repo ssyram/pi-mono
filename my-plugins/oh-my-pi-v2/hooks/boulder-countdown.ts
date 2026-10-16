@@ -1,6 +1,8 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { matchesKey } from "@earendil-works/pi-tui";
 import { formatBoulderDelay } from "./boulder-retry-policy.js";
+import { describeThrown } from "../boulder-inhibition/describe-error.js";
+import { reportBoulderDiagnostic } from "../boulder-inhibition/report-error.js";
 
 const STATUS_KEY = "boulder-countdown";
 
@@ -30,8 +32,8 @@ export function startCountdown(options: CountdownOptions): CountdownHandle {
 		try {
 			onError(error);
 		} catch (reportError) {
-			console.error(
-				`[oh-my-pi boulder] Countdown error reporter failed: ${reportError instanceof Error ? reportError.message : String(reportError)}`,
+			reportBoulderDiagnostic(
+				`[oh-my-pi boulder] Countdown error reporter failed: ${describeThrown(reportError)}`,
 			);
 		}
 	};
@@ -68,8 +70,13 @@ export function startCountdown(options: CountdownOptions): CountdownHandle {
 		);
 		if (remainingMs <= 1_000) return;
 		refreshTimer = setTimeout(() => {
-			remainingMs -= 1_000;
-			renderStatus();
+			try {
+				remainingMs -= 1_000;
+				renderStatus();
+			} catch (error) {
+				cleanup();
+				reportError(error);
+			}
 		}, 1_000);
 	};
 
@@ -106,7 +113,11 @@ export function startSilentCountdown(
 		try {
 			onFinish();
 		} catch (error) {
-			onError(error);
+			try {
+				onError(error);
+			} catch (reportError) {
+				reportBoulderDiagnostic(`[oh-my-pi boulder] Silent countdown reporter failed: ${describeThrown(reportError)}`);
+			}
 		}
 	}, delayMs);
 	return {

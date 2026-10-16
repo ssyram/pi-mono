@@ -2,8 +2,8 @@
 	"compilerOptions": {
 		"noEmit": true,
 		"strict": true,
-		"target": "ES2022",
-		"lib": ["ES2022"],
+		"target": "ES2024",
+		"lib": ["ES2024"],
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"types": ["node"],
@@ -13,6 +13,7 @@
 		"paths": {
 			"@earendil-works/pi-ai": ["./test/compaction-reference-source-api.ts"],
 			"@earendil-works/pi-agent-core": ["../../packages/agent/src/types.ts"],
+			"@earendil-works/pi-tui": ["../../packages/tui/src/index.ts"],
 			"@earendil-works/pi-telemetry": ["../../packages/telemetry/src/index.ts"]
 		}
 	},

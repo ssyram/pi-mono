@@ -1,17 +1,37 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { registerBoulderBackgroundWork } from "./boulder-background-work.js";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import { checkBoulderInhibition } from "../boulder-inhibition/check-inhibition.js";
+import { describeThrown } from "../boulder-inhibition/describe-error.js";
+import { reportBoulderDiagnostic } from "../boulder-inhibition/report-error.js";
+import {
+	type BoulderBackgroundWork,
+	createBoulderBackgroundWork,
+} from "./boulder-background-work.js";
 import { startCountdown, startSilentCountdown } from "./boulder-countdown.js";
+import { appendBoulderInfoEntry } from "./boulder-info-entry.js";
 import { hasConfirmStop, wasAborted } from "./boulder-message-suppression.js";
 import {
 	BOULDER_RESUME_MESSAGE_TYPE,
-	registerBoulderResumeMessages,
 	type BoulderResumeController,
 	type BoulderResumeTask,
+	registerBoulderResumeMessages,
 } from "./boulder-resume-message.js";
-import { getBoulderAttemptDelayMs, getBoulderAttemptLimit, getBoulderContextMode } from "./boulder-retry-policy.js";
-import { appendBoulderScheduleEntry, registerBoulderScheduleEntryRenderer } from "./boulder-schedule-entry.js";
-import { createBoulderSessionStateStore, type BoulderSessionState } from "./boulder-session-state.js";
+import {
+	getBoulderAttemptDelayMs,
+	getBoulderAttemptLimit,
+	getBoulderContextMode,
+} from "./boulder-retry-policy.js";
+import {
+	appendBoulderScheduleEntry,
+	registerBoulderScheduleEntryRenderer,
+} from "./boulder-schedule-entry.js";
+import {
+	type BoulderSessionState,
+	createBoulderSessionStateStore,
+} from "./boulder-session-state.js";
 
 const COMPACTION_GUARD_MS = 10_000;
 
@@ -25,10 +45,15 @@ export interface BoulderTaskState {
 	readyTasks: BoulderTask[];
 }
 
-export type BoulderTaskStateReader = (context: ExtensionContext) => BoulderTaskState;
+export type BoulderTaskStateReader = (
+	context: ExtensionContext,
+) => BoulderTaskState;
 
 export function getActionableTasks(state: BoulderTaskState): BoulderTask[] {
-	return [...state.tasks.filter((task) => task.status === "in_progress"), ...state.readyTasks];
+	return [
+		...state.tasks.filter((task) => task.status === "in_progress"),
+		...state.readyTasks,
+	];
 }
 
 export function createBoulderEpisodeKey(tasks: BoulderTask[]): string {
@@ -38,12 +63,16 @@ export function createBoulderEpisodeKey(tasks: BoulderTask[]): string {
 		.join("|");
 }
 
+export interface BoulderHandle {
+	cancelWait(context: ExtensionContext): void;
+}
+
 export function registerBoulder(
 	pi: ExtensionAPI,
 	getTaskState: BoulderTaskStateReader,
-): void {
+	backgroundWork: BoulderBackgroundWork = createBoulderBackgroundWork(),
+): BoulderHandle {
 	const states = createBoulderSessionStateStore();
-	const backgroundWork = registerBoulderBackgroundWork(pi);
 	const resumeMessages = registerBoulderResumeMessages(pi);
 	registerBoulderScheduleEntryRenderer(pi);
 
@@ -53,7 +82,11 @@ export function registerBoulder(
 		resumeMessages.clear(context);
 	});
 	pi.on("message_start", (event, context) => {
-		if (!states.get(context).activeWait || !isExternalCustomMessage(event.message)) return;
+		if (
+			!states.get(context).activeWait ||
+			!isExternalCustomMessage(event.message)
+		)
+			return;
 		states.markExternalInformation(context);
 		resumeMessages.clear(context);
 	});
@@ -72,7 +105,12 @@ export function registerBoulder(
 		const state = states.get(context);
 		if (!state.lastAgentEndMessages) return;
 		try {
-			scheduleNextAttempt(state.lastAgentEndMessages, context, state, resumeMessages);
+			scheduleNextAttempt(
+				state.lastAgentEndMessages,
+				context,
+				state,
+				resumeMessages,
+			);
 		} catch (error) {
 			reportBoulderError(context, "Boulder hook failed", error);
 		}
@@ -84,18 +122,21 @@ export function registerBoulder(
 		state: BoulderSessionState,
 		controller: BoulderResumeController,
 	): void {
-		if (context.hasPendingMessages()) return;
+		if (state.activeWait || context.hasPendingMessages()) return;
 		const taskState = getTaskState(context);
 		if (taskState.actionableCount === 0) {
 			state.episode = undefined;
 			return;
 		}
 		if (hasConfirmStop(messages) || wasAborted(messages)) return;
-		if (compactionGuardActive(state) || backgroundWorkActive(context)) return;
+		if (compactionGuardActive(state) || backgroundWork.isActive(context))
+			return;
+		if (boulderInhibited(context)) return;
 
 		const actionableTasks = getActionableTasks(taskState);
 		const episodeKey = createBoulderEpisodeKey(actionableTasks);
-		if (state.episode?.key !== episodeKey) state.episode = { key: episodeKey, attemptsSent: 0 };
+		if (state.episode?.key !== episodeKey)
+			state.episode = { key: episodeKey, attemptsSent: 0 };
 		const limit = getBoulderAttemptLimit(getBoulderContextMode(context));
 		if (state.episode.attemptsSent >= limit) return;
 
@@ -104,14 +145,24 @@ export function registerBoulder(
 		const externalInputEpoch = state.externalInputEpoch;
 		const finish = (): void => {
 			state.activeWait = undefined;
-			if (!context.isIdle() || state.externalInputEpoch !== externalInputEpoch || context.hasPendingMessages()) return;
-			if (compactionGuardActive(state) || backgroundWorkActive(context)) return;
+			if (
+				!context.isIdle() ||
+				state.externalInputEpoch !== externalInputEpoch ||
+				context.hasPendingMessages()
+			)
+				return;
+			if (compactionGuardActive(state) || backgroundWork.isActive(context))
+				return;
+			if (boulderInhibited(context)) return;
 			const freshState = getTaskState(context);
 			if (freshState.actionableCount === 0) {
 				state.episode = undefined;
 				return;
 			}
-			state.episode = { key: createBoulderEpisodeKey(getActionableTasks(freshState)), attemptsSent: attempt };
+			state.episode = {
+				key: createBoulderEpisodeKey(getActionableTasks(freshState)),
+				attemptsSent: attempt,
+			};
 			try {
 				controller.send(context, getActionableTasks(freshState), {
 					attempt,
@@ -122,7 +173,8 @@ export function registerBoulder(
 				reportBoulderError(context, "Failed to dispatch Boulder resume", error);
 			}
 		};
-		const onError = (error: unknown): void => reportBoulderError(context, "Boulder wait failed", error);
+		const onError = (error: unknown): void =>
+			reportBoulderError(context, "Boulder wait failed", error);
 		appendSchedule(context, attempt, limit, delayMs);
 		const handle = context.hasUI
 			? startCountdown({
@@ -133,39 +185,71 @@ export function registerBoulder(
 					actionable: taskState.actionableCount,
 					onFinish: finish,
 					onError,
-					onEscape: () => { state.activeWait = undefined; },
+					onEscape: () => {
+						state.activeWait = undefined;
+					},
 				})
 			: startSilentCountdown(delayMs, finish, onError);
 		state.activeWait = { episodeKey, externalInputEpoch, attempt, handle };
 	}
 
-	function appendSchedule(context: ExtensionContext, attempt: number, maxAttempts: number, scheduledDelayMs: number): void {
+	function appendSchedule(
+		context: ExtensionContext,
+		attempt: number,
+		maxAttempts: number,
+		scheduledDelayMs: number,
+	): void {
 		try {
-			appendBoulderScheduleEntry(pi, { attempt, maxAttempts, scheduledDelayMs });
+			appendBoulderScheduleEntry(pi, {
+				attempt,
+				maxAttempts,
+				scheduledDelayMs,
+			});
 		} catch (error) {
 			reportBoulderError(context, "Failed to record Boulder schedule", error);
 		}
 	}
 
-	function backgroundWorkActive(context: ExtensionContext): boolean {
-		return backgroundWork.isActive(context);
+	function boulderInhibited(context: ExtensionContext): boolean {
+		const snapshot = checkBoulderInhibition(
+			{ getBranch: () => context.sessionManager.getBranch() },
+			(text) => {
+				appendBoulderInfoEntry(pi, { tone: "info", text });
+			},
+		);
+		return snapshot.inhibited;
 	}
+
+	return {
+		cancelWait: (context) => states.cancelWait(context),
+	};
 }
 
 function isExternalCustomMessage(message: AgentMessage): boolean {
-	return message.role === "custom" && message.customType !== BOULDER_RESUME_MESSAGE_TYPE;
+	return (
+		message.role === "custom" &&
+		message.customType !== BOULDER_RESUME_MESSAGE_TYPE
+	);
 }
 
 function compactionGuardActive(state: BoulderSessionState): boolean {
 	return Date.now() - state.lastCompactionTime < COMPACTION_GUARD_MS;
 }
 
-function reportBoulderError(context: ExtensionContext, message: string, error: unknown): void {
-	console.error(`[oh-my-pi boulder] ${message}: ${error instanceof Error ? error.message : String(error)}`);
-	if (!context.hasUI) return;
+function reportBoulderError(
+	context: ExtensionContext,
+	message: string,
+	error: unknown,
+): void {
+	reportBoulderDiagnostic(
+		`[oh-my-pi boulder] ${message}: ${describeThrown(error)}`,
+	);
 	try {
+		if (!context.hasUI) return;
 		context.ui.notify(message, "warning");
 	} catch (notifyError) {
-		console.error(`[oh-my-pi boulder] Failed to notify user: ${String(notifyError)}`);
+		reportBoulderDiagnostic(
+			`[oh-my-pi boulder] Failed to notify user: ${describeThrown(notifyError)}`,
+		);
 	}
 }

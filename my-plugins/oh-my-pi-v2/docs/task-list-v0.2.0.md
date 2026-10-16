@@ -8,6 +8,10 @@ Implemented and independently reviewed. Automated verification passes; environme
 - Scope: `oh-my-pi-v2` task list, task widget, `/task`, Boulder continuation, and task-to-model context
 - Non-goal: changing task lifecycle statuses, dependency semantics, or the task tool's public actions
 
+### Current settings supersession
+
+The visibility-entry design below records v0.2.0 history. Current task settings are owned by [my-settings integration](task-system/settings.md): `omp-task:show` and `omp-task:no-task-no-tool`, both default true; commands default to session, `--persistent` additionally saves local, `--global` additionally saves global. Old widget entries and `task.json` are no longer consumed. This does not change task records, dependencies or Boulder runtime signals.
+
 ### Post-v0.2 explicit done handoff
 
 The preceding non-goal records the accepted scope of v0.2.0 and is not rewritten. A later, separately approved task-system extension adds only `done.startNext: ID | ID[]`: it composes an existing successful `done` with explicit, ordered calls to the existing start transition. It adds no lifecycle status, dependency semantics, automatic ready-task selection, or human command grammar. The current specification and evidence for this later extension live in `docs/task-system/`.

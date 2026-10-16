@@ -3,8 +3,11 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { describeThrown } from "../boulder-inhibition/describe-error.js";
+import { reportBoulderDiagnostic } from "../boulder-inhibition/report-error.js";
 import { isUnblocked } from "./task-dependencies.js";
 import { renderTaskCall, renderTaskResult } from "./task-renderers.js";
+import type { TaskAdmissionReadState } from "./task-system/admission.js";
 import {
 	type TaskBoundaryErrorDetails,
 	taskBoundaryFailure,
@@ -37,6 +40,7 @@ export interface TaskToolState {
 
 export interface TaskToolHandle {
 	getTaskState(context: ExtensionContext): TaskToolState;
+	getTaskAdmissionState(context: ExtensionContext): TaskAdmissionReadState;
 	setOnTaskChange(callback: TaskChangeCallback): void;
 	runHumanTaskCommand(
 		args: string,
@@ -130,8 +134,8 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 				context,
 			);
 		} catch (error) {
-			console.error(
-				`[oh-my-pi task] Task change callback failed: ${error instanceof Error ? error.message : String(error)}`,
+			reportBoulderDiagnostic(
+				`[oh-my-pi task] Task change callback failed: ${describeThrown(error)}`,
 			);
 		}
 	};
@@ -158,13 +162,13 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 			const owner = stateFor(context);
 			const restored = ensureReady(context, owner);
 			if (!restored.ok) {
-				console.error(`[oh-my-pi task] ${restored.error}`);
+				reportBoulderDiagnostic(`[oh-my-pi task] ${restored.error}`);
 				return;
 			}
 			notifyChange(context, owner.controller.snapshot());
 		} catch (error) {
-			console.error(
-				`[oh-my-pi task] Task restore failed: ${error instanceof Error ? error.message : String(error)}`,
+			reportBoulderDiagnostic(
+				`[oh-my-pi task] Task restore failed: ${describeThrown(error)}`,
 			);
 		}
 	};
@@ -191,6 +195,18 @@ export function registerTaskTool(pi: ExtensionAPI): TaskToolHandle {
 		// Read-only consumers keep the retained snapshot; they never mutate or restore.
 		getTaskState: (context) =>
 			summarizeTaskState(stateFor(context).controller.snapshot()),
+		getTaskAdmissionState: (context) => {
+			try {
+				const owner = stateFor(context);
+				if (owner.ready) return summarizeTaskState(owner.controller.snapshot());
+			} catch {
+				// An unavailable owner is not an authoritative empty task state.
+			}
+			return {
+				error:
+					"Current branch task state is unavailable; use task to restore it.",
+			};
+		},
 		setOnTaskChange: (callback) => {
 			onTaskChange = callback;
 		},

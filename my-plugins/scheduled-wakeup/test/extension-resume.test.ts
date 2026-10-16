@@ -1,16 +1,23 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
-import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionCommandContext,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import { createEventBus } from "../../../packages/coding-agent/src/core/event-bus.ts";
 import scheduledWakeup from "../src/extension.js";
 import type { SessionLoopState } from "../src/v2/model.js";
 import type { SessionEntryLike } from "../src/v2/session-entry-adapter.js";
 
 const NOW = 1_700_000_000_000;
 const cleanups: (() => Promise<void>)[] = [];
-afterEach(async () => { for (const cleanup of cleanups.splice(0)) await cleanup(); });
+afterEach(async () => {
+	for (const cleanup of cleanups.splice(0)) await cleanup();
+});
 
 describe("extension close and resume wiring", () => {
 	it("resumes the remaining three minutes before arming a real poller", async (t) => {
@@ -20,11 +27,20 @@ describe("extension close and resume wiring", () => {
 		await setup.run("add 10m tick");
 		t.mock.timers.tick(420_000);
 		await setup.shutdown();
-		assert.deepEqual(setup.snapshot().tasks[0]?.progress, { status: "active", nextRunAt: NOW + 600_000, runCount: 0, suspendedAt: NOW + 420_000 });
+		assert.deepEqual(setup.snapshot().tasks[0]?.progress, {
+			status: "active",
+			nextRunAt: NOW + 600_000,
+			runCount: 0,
+			suspendedAt: NOW + 420_000,
+		});
 		t.mock.timers.tick(86_400_000);
 		setup.load();
 		await setup.start("resume");
-		assert.deepEqual(setup.snapshot().tasks[0]?.progress, { status: "active", nextRunAt: Date.now() + 180_000, runCount: 0 });
+		assert.deepEqual(setup.snapshot().tasks[0]?.progress, {
+			status: "active",
+			nextRunAt: Date.now() + 180_000,
+			runCount: 0,
+		});
 		t.mock.timers.tick(179_999);
 		assert.deepEqual(setup.sent, []);
 		t.mock.timers.tick(1);
@@ -44,7 +60,11 @@ describe("extension close and resume wiring", () => {
 		await setup.start("resume");
 		t.mock.timers.tick(0);
 		assert.deepEqual(setup.sent, []);
-		assert.deepEqual(setup.snapshot().tasks[0]?.progress, { status: "expired", expiredAt: NOW + 130_000, runCount: 0 });
+		assert.deepEqual(setup.snapshot().tasks[0]?.progress, {
+			status: "expired",
+			expiredAt: NOW + 130_000,
+			runCount: 0,
+		});
 		await setup.run("list");
 		assert.deepEqual(setup.sent, []);
 	});
@@ -62,7 +82,11 @@ describe("extension close and resume wiring", () => {
 		t.mock.timers.tick(90_000);
 		setup.load();
 		await setup.start("reload");
-		assert.deepEqual(setup.snapshot().tasks[0]?.progress, { status: "active", nextRunAt: NOW + 180_000, runCount: 0 });
+		assert.deepEqual(setup.snapshot().tasks[0]?.progress, {
+			status: "active",
+			nextRunAt: NOW + 180_000,
+			runCount: 0,
+		});
 		t.mock.timers.tick(59_999);
 		assert.deepEqual(setup.sent, []);
 		t.mock.timers.tick(1);
@@ -71,29 +95,80 @@ describe("extension close and resume wiring", () => {
 });
 
 function createSetup() {
-	const root = mkdtempSync(join(tmpdir(), "scheduled-wakeup-resume-extension-"));
+	const root = mkdtempSync(
+		join(tmpdir(), "scheduled-wakeup-resume-extension-"),
+	);
+	const sessionFile = join(root, "session.jsonl");
+	writeFileSync(sessionFile, "");
 	const branch: SessionEntryLike[] = [];
 	const sent: string[] = [];
-	const handlers = new Map<string, (event: unknown, ctx: ExtensionContext) => Promise<void>>();
-	let command: ((args: string, ctx: ExtensionCommandContext) => Promise<void>) | undefined;
+	const handlers = new Map<
+		string,
+		(event: unknown, ctx: ExtensionContext) => Promise<void>
+	>();
+	let command:
+		| ((args: string, ctx: ExtensionCommandContext) => Promise<void>)
+		| undefined;
 	const pi = {
-		on: (event: string, handler: (event: unknown, ctx: ExtensionContext) => Promise<void>) => { handlers.set(event, handler); },
-		registerCommand: (_name: string, definition: { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> }) => { command = definition.handler; },
+		events: createEventBus(),
+		on: (
+			event: string,
+			handler: (event: unknown, ctx: ExtensionContext) => Promise<void>,
+		) => {
+			handlers.set(event, handler);
+		},
+		registerCommand: (
+			_name: string,
+			definition: {
+				handler: (args: string, ctx: ExtensionCommandContext) => Promise<void>;
+			},
+		) => {
+			command = definition.handler;
+		},
 		registerTool: () => undefined,
-		appendEntry: (customType: string, data: unknown) => { branch.push({ type: "custom", customType, data }); },
-		sendUserMessage: (prompt: string) => { sent.push(prompt); },
+		appendEntry: (customType: string, data: unknown) => {
+			branch.push({ type: "custom", customType, data });
+		},
+		sendUserMessage: (prompt: string) => {
+			sent.push(prompt);
+		},
 	} as unknown as ExtensionAPI;
 	const ctx = {
-		cwd: root, mode: "tui", hasUI: false, isIdle: () => true,
-		sessionManager: { getSessionId: () => "restart-session", getBranch: () => branch }, ui: {},
+		cwd: root,
+		mode: "tui",
+		hasUI: false,
+		isIdle: () => true,
+		sessionManager: {
+			getSessionId: () => "restart-session",
+			getSessionFile: () => sessionFile,
+			getBranch: () => branch,
+		},
+		ui: {},
 	} as unknown as ExtensionContext;
-	const emit = async (type: string, reason: string) => { const handler = handlers.get(type); assert.ok(handler); await handler({ type, reason }, ctx); };
+	const emit = async (type: string, reason: string) => {
+		const handler = handlers.get(type);
+		assert.ok(handler);
+		await handler({ type, reason }, ctx);
+	};
 	const shutdown = (reason = "quit") => emit("session_shutdown", reason);
-	cleanups.push(async () => { await shutdown(); rmSync(root, { recursive: true, force: true }); });
+	cleanups.push(async () => {
+		await shutdown();
+		rmSync(root, { recursive: true, force: true });
+	});
 	scheduledWakeup(pi);
 	return {
-		sent, shutdown, load: () => scheduledWakeup(pi), start: (reason = "startup") => emit("session_start", reason),
-		run: async (args: string) => { assert.ok(command); await command(args, ctx as ExtensionCommandContext); },
-		snapshot: () => { const entry = branch.at(-1); assert.ok(entry); return entry.data as SessionLoopState; },
+		sent,
+		shutdown,
+		load: () => scheduledWakeup(pi),
+		start: (reason = "startup") => emit("session_start", reason),
+		run: async (args: string) => {
+			assert.ok(command);
+			await command(args, ctx as ExtensionCommandContext);
+		},
+		snapshot: () => {
+			const entry = branch.at(-1);
+			assert.ok(entry);
+			return entry.data as SessionLoopState;
+		},
 	};
 }

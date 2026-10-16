@@ -268,29 +268,37 @@ describe("task tool integration", () => {
 });
 
 describe("task gate integration", () => {
-	it("exempts only task and requires an unblocked in-progress task", () => {
+	it("exempts only task and requires an unblocked in-progress task", async () => {
 		const h = taskHarness();
 		const handle = registerTaskTool(h.pi);
-		registerTaskGate(h.pi, handle.getTaskState);
+		registerTaskGate(h.pi, handle.getTaskState, () => true);
 		const gate = h.handlers.get("tool_call");
 		assert.ok(gate, "tool_call gate was not registered");
-		assert.equal(gate({ toolName: "task" }, h.context), undefined);
-		const blocked = gate({ toolName: "read" }, h.context) as { block: boolean };
+		assert.equal(await gate({ toolName: "task" }, h.context), undefined);
+		const blocked = (await gate({ toolName: "read" }, h.context)) as {
+			block: boolean;
+		};
 		assert.equal(blocked.block, true);
 
 		handle.runHumanTaskCommand('add "进行中" --start', h.context);
-		assert.equal(gate({ toolName: "read" }, h.context), undefined);
+		assert.equal(await gate({ toolName: "read" }, h.context), undefined);
 
 		handle.runHumanTaskCommand('add "前置"', h.context);
 		handle.runHumanTaskCommand("modify 1 --blocked-by 2", h.context);
-		const demoted = gate({ toolName: "read" }, h.context) as { block: boolean };
+		const demoted = (await gate({ toolName: "read" }, h.context)) as {
+			block: boolean;
+		};
 		assert.equal(demoted.block, true);
 	});
 
 	it("reports a missing task capability without throwing", async () => {
 		const h = taskHarness({ allTools: ["read"] });
 		registerTaskTool(h.pi);
-		registerTaskGate(h.pi, () => ({ tasks: [] }));
+		registerTaskGate(
+			h.pi,
+			() => ({ tasks: [] }),
+			() => true,
+		);
 		const sessionStart = h.handlers.get("session_start");
 		assert.ok(sessionStart);
 		await sessionStart(undefined, h.context);
@@ -350,6 +358,11 @@ describe("task command routing", () => {
 		const calls: string[] = [];
 		const h = commandHarness();
 		registerTaskCommand(h.pi, {
+			updateSetting: async () => ({
+				ok: true,
+				applied: true,
+				message: "unused",
+			}),
 			getTasks: () => [],
 			setWidgetVisibility: noop,
 			runHumanTaskCommand: (args) => {
@@ -379,6 +392,11 @@ describe("task command routing", () => {
 		const calls: string[] = [];
 		const h = commandHarness();
 		registerTaskCommand(h.pi, {
+			updateSetting: async () => ({
+				ok: true,
+				applied: true,
+				message: "unused",
+			}),
 			getTasks: () => [],
 			setWidgetVisibility: noop,
 			runHumanTaskCommand: (args) => {
@@ -405,6 +423,11 @@ describe("task command routing", () => {
 			getTasks: () => [],
 			setWidgetVisibility: noop,
 			runHumanTaskCommand: () => humanResult("Task #99 not found"),
+			updateSetting: async () => ({
+				ok: true,
+				applied: true,
+				message: "unused",
+			}),
 		});
 		await h.handler("modify 99 --status done", {} as ExtensionContext);
 		const last = h.entries.at(-1)?.data as { tone: string; text: string };
@@ -420,6 +443,11 @@ describe("task command routing", () => {
 			getTasks: () => [],
 			setWidgetVisibility: noop,
 			runHumanTaskCommand: () => humanResult(),
+			updateSetting: async () => ({
+				ok: true,
+				applied: true,
+				message: "unused",
+			}),
 		});
 		await failing.handler("list", {} as ExtensionContext);
 	});
@@ -439,6 +467,11 @@ describe("task command routing", () => {
 			) => handlers.set(event, handler),
 		} as unknown as ExtensionAPI;
 		registerTaskCommand(pi, {
+			updateSetting: async () => ({
+				ok: true,
+				applied: true,
+				message: "unused",
+			}),
 			getTasks: () => [],
 			setWidgetVisibility: noop,
 			runHumanTaskCommand: () => {

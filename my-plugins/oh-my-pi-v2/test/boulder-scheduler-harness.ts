@@ -2,11 +2,11 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { BoulderExtensionMode } from "../hooks/boulder-retry-policy.js";
 import { registerBoulder, type BoulderTaskState } from "../hooks/boulder-scheduler.js";
+import { BOULDER_INFO_ENTRY_TYPE } from "../hooks/boulder-info-entry.js";
 import type { BoulderResumeDetails } from "../hooks/boulder-resume-message.js";
 import type { BoulderScheduleEntryData } from "../hooks/boulder-schedule-entry.js";
 
 export type BoulderEventHandler = (event: unknown, context: ExtensionContext) => unknown;
-type SharedEventHandler = (event: unknown) => unknown;
 
 export interface SentBoulderMessage {
 	customType: string;
@@ -25,14 +25,15 @@ export interface BoulderSchedulerHarness {
 	scheduleEntries: ScheduledBoulderEntry[];
 	statuses: Array<string | undefined>;
 	notifications: string[];
+	infoEntries: string[];
 	taskReadContexts: ExtensionContext[];
 	state: BoulderTaskState;
 	emit(event: string, payload: unknown): Promise<void>;
+	setBranchEntries(entries: Array<{ type: string; customType?: string; data?: unknown }>): void;
 	end(text?: string, stopReason?: "stop" | "aborted" | "error"): Promise<void>;
 	settle(): Promise<void>;
 	setIdle(idle: boolean): void;
-	backgroundStarted(): void;
-	backgroundCompleted(): void;
+	setLiveBackgroundWork(active: boolean): void;
 	setPendingMessages(pending: boolean): void;
 	failNextDispatch(): void;
 	terminalInput(data: string): { consume?: boolean } | undefined;
@@ -63,16 +64,18 @@ export function createBoulderSchedulerHarness(
 	hasUI = false,
 ): BoulderSchedulerHarness {
 	const handlers = new Map<string, BoulderEventHandler[]>();
-	const sharedHandlers = new Map<string, SharedEventHandler[]>();
 	const sent: SentBoulderMessage[] = [];
 	const scheduleEntries: ScheduledBoulderEntry[] = [];
 	const statuses: Array<string | undefined> = [];
 	const notifications: string[] = [];
+	const infoEntries: string[] = [];
 	const taskReadContexts: ExtensionContext[] = [];
 	let terminalHandler: ((data: string) => { consume?: boolean } | undefined) | undefined;
 	let idle = true;
+	let liveBackgroundWork = false;
 	let pendingMessages = false;
 	let dispatchShouldFail = false;
+	let branchEntries: Array<{ type: string; customType?: string; data?: unknown }> = [];
 	const state: BoulderTaskState = {
 		tasks: [{ id: 1, text: "active task", status: "in_progress", updatedAt: 1 }],
 		actionableCount: 1,
@@ -86,6 +89,7 @@ export function createBoulderSchedulerHarness(
 		sessionManager: {
 			getSessionFile: () => "test-session",
 			getSessionId: () => "test-session",
+			getBranch: () => [...branchEntries],
 		},
 		ui: {
 			setStatus: (_key: string, text: string | undefined) => statuses.push(text),
@@ -98,28 +102,20 @@ export function createBoulderSchedulerHarness(
 			},
 		},
 	} as unknown as ExtensionContext;
-	const emitShared = (event: string, payload: unknown): void => {
-		for (const handler of sharedHandlers.get(event) ?? []) handler(payload);
-	};
 	const pi = {
 		on: (event: string, handler: BoulderEventHandler) => {
 			const eventHandlers = handlers.get(event) ?? [];
 			eventHandlers.push(handler);
 			handlers.set(event, eventHandlers);
 		},
-		events: {
-			on: (event: string, handler: SharedEventHandler) => {
-				const eventHandlers = sharedHandlers.get(event) ?? [];
-				eventHandlers.push(handler);
-				sharedHandlers.set(event, eventHandlers);
-				return () => undefined;
-			},
-			emit: emitShared,
-		},
 		registerMessageRenderer: () => undefined,
 		registerEntryRenderer: () => undefined,
-		appendEntry: (customType: string, data: BoulderScheduleEntryData) => {
-			scheduleEntries.push({ customType, data });
+		appendEntry: (customType: string, data: unknown) => {
+			if (customType === BOULDER_INFO_ENTRY_TYPE) {
+				infoEntries.push(String((data as { text?: unknown }).text ?? ""));
+				return;
+			}
+			scheduleEntries.push({ customType, data: data as BoulderScheduleEntryData });
 		},
 		sendMessage: (message: SentBoulderMessage) => {
 			sent.push(message);
@@ -128,10 +124,14 @@ export function createBoulderSchedulerHarness(
 			throw new Error("planned dispatch failure");
 		},
 	} as unknown as ExtensionAPI;
-	registerBoulder(pi, (readerContext) => {
-		taskReadContexts.push(readerContext);
-		return state;
-	});
+	registerBoulder(
+		pi,
+		(readerContext) => {
+			taskReadContexts.push(readerContext);
+			return state;
+		},
+		{ isActive: () => liveBackgroundWork },
+	);
 	const emit = async (event: string, payload: unknown): Promise<void> => {
 		for (const handler of handlers.get(event) ?? []) await handler(payload, context);
 	};
@@ -142,9 +142,13 @@ export function createBoulderSchedulerHarness(
 		scheduleEntries,
 		statuses,
 		notifications,
+		infoEntries,
 		taskReadContexts,
 		state,
 		emit,
+		setBranchEntries(entries) {
+			branchEntries = entries;
+		},
 		end: async (text = "Finished the current step and should continue working.", stopReason = "stop") => {
 			await emit("agent_start", {});
 			await emit("agent_end", { messages: [assistantMessage(text, stopReason)] });
@@ -154,11 +158,8 @@ export function createBoulderSchedulerHarness(
 		setIdle(nextIdle) {
 			idle = nextIdle;
 		},
-		backgroundStarted() {
-			emitShared("subagent:async-started", { id: "run-1", sessionId: "test-session" });
-		},
-		backgroundCompleted() {
-			emitShared("subagent:async-complete", { runId: "run-1", sessionId: "test-session" });
+		setLiveBackgroundWork(active) {
+			liveBackgroundWork = active;
 		},
 		setPendingMessages(pending) {
 			pendingMessages = pending;

@@ -58,7 +58,9 @@ function parseReference(value: unknown): DefinitionReference | undefined {
 function parseDefinitionBase(value: Record<string, unknown>): Omit<SessionDefinition, "scope"> | undefined {
 	if (!isText(value.id) || !isText(value.prompt) || !isTimestamp(value.createdAt)) return undefined;
 	const schedule = parseSchedule(value.schedule);
-	return schedule === undefined ? undefined : { id: value.id, prompt: value.prompt, schedule, createdAt: value.createdAt };
+	if (schedule === undefined) return undefined;
+	const inhibitBoulder = value.inhibitBoulder === true ? true : undefined;
+	return { id: value.id, prompt: value.prompt, schedule, createdAt: value.createdAt, ...(inhibitBoulder !== undefined ? { inhibitBoulder } : {}) };
 }
 
 function parseSchedule(value: unknown): TaskSchedule | undefined {

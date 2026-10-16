@@ -4,8 +4,8 @@ import type { SharedScope, TaskSchedule } from "./model.js";
 import type { DeferTime } from "./defer-active-task.js";
 
 export type ParsedLoopV2Command =
-	| { kind: "add"; schedule: TaskSchedule; prompt: string }
-	| { kind: "define"; scope: SharedScope; schedule: TaskSchedule; prompt: string }
+	| { kind: "add"; schedule: TaskSchedule; prompt: string; inhibitBoulder?: boolean }
+	| { kind: "define"; scope: SharedScope; schedule: TaskSchedule; prompt: string; inhibitBoulder?: boolean }
 	| { kind: "available"; scopes: readonly SharedScope[] }
 	| { kind: "register"; scope: SharedScope; definitionId: string }
 	| { kind: "unregister"; registrationId: string }
@@ -64,30 +64,43 @@ export function loopV2HelpText(): string {
 		"/loop run <id>                                Deliver the prompt now, progress unchanged",
 		"/loop defer <id> <duration|time...>            Postpone only the next scheduled delivery",
 		"Defer durations extend max(now, next run); absolute times must be later than both.",
+		"--no-boulder may precede the schedule/prompt; it inhibits Boulder for the schedule's active lifetime.",
 		"/loop help                                    Show this help",
 		"Durations: 10s, 5m, 2h, 1d. Times: 12am tomorrow, 09:30 +08:00, 2026-08-05T00:00:00Z.",
 	].join("\n");
 }
 
 function parseAdd(tokens: string[], now: number): ParsedLoopV2Command {
-	const head = tokens[0];
-	if (head === "once") return parseOnce(tokens.slice(1), now);
-	if (head === "at") return parseAt(tokens.slice(1), now);
+	let inhibitBoulder = false;
+	let promptStarted = false;
+	let fields: "head" | "clock" | number = "head";
+	const rest = tokens.filter((token) => {
+		if (promptStarted) return true;
+		if (token === "--no-boulder") { inhibitBoulder = true; return false; }
+		if (fields === "head") fields = token === "once" ? 1 : token === "at" ? "clock" : 0;
+		else if (fields === "clock") { if (token === "--") promptStarted = true; }
+		else if (fields > 0) fields--;
+		else promptStarted = true;
+		return true;
+	});
+	const head = rest[0];
+	if (head === "once") return parseOnce(rest.slice(1), now, inhibitBoulder);
+	if (head === "at") return parseAt(rest.slice(1), now, inhibitBoulder);
 	if (head === undefined) return usageAdd();
-	const [intervalText, promptTokens] = takeFirst(tokens);
+	const [intervalText, promptTokens] = takeFirst(rest);
 	const intervalMs = intervalText === undefined ? undefined : parseDuration(intervalText);
 	if (intervalMs === undefined) return usageAdd();
-	return withPrompt({ kind: "interval", intervalMs }, joinPrompt(promptTokens));
+	return withPrompt({ kind: "interval", intervalMs }, joinPrompt(promptTokens), inhibitBoulder);
 }
 
-function parseOnce(tokens: string[], now: number): ParsedLoopV2Command {
+function parseOnce(tokens: string[], now: number, inhibitBoulder = false): ParsedLoopV2Command {
 	const [delayText, promptTokens] = takeFirst(tokens);
 	const delayMs = delayText === undefined ? undefined : parseDuration(delayText);
 	if (delayMs === undefined) return usageAdd();
-	return withPrompt({ kind: "once", runAt: now + delayMs }, joinPrompt(promptTokens));
+	return withPrompt({ kind: "once", runAt: now + delayMs }, joinPrompt(promptTokens), inhibitBoulder);
 }
 
-function parseAt(tokens: string[], now: number): ParsedLoopV2Command {
+function parseAt(tokens: string[], now: number, inhibitBoulder = false): ParsedLoopV2Command {
 	const separator = tokens.indexOf("--");
 	if (separator === -1) return usageAdd();
 	const expression = tokens.slice(0, separator).join(" ").trim();
@@ -96,7 +109,7 @@ function parseAt(tokens: string[], now: number): ParsedLoopV2Command {
 	if (runAt === undefined) {
 		return { kind: "error", message: `Invalid or past time "${expression}". Examples: 12am tomorrow, 09:30 +08:00, 2026-08-05T00:00:00Z.` };
 	}
-	return withPrompt({ kind: "once", runAt }, joinPrompt(tokens.slice(separator + 1)));
+	return withPrompt({ kind: "once", runAt }, joinPrompt(tokens.slice(separator + 1)), inhibitBoulder);
 }
 
 function parseDefine(tokens: string[], now: number): ParsedLoopV2Command {
@@ -105,7 +118,9 @@ function parseDefine(tokens: string[], now: number): ParsedLoopV2Command {
 		return { kind: "error", message: "Usage: /loop define <ws|workspace|global> <interval> <prompt...> | once <delay> <prompt...> | at <time...> -- <prompt...>" };
 	}
 	const parsed = parseAdd(tokens.slice(1), now);
-	return parsed.kind === "add" ? { kind: "define", scope, schedule: parsed.schedule, prompt: parsed.prompt } : parsed;
+	return parsed.kind === "add"
+		? { kind: "define", scope, schedule: parsed.schedule, prompt: parsed.prompt, ...(parsed.inhibitBoulder !== undefined ? { inhibitBoulder: parsed.inhibitBoulder } : {}) }
+		: parsed;
 }
 
 function parseAvailable(tokens: string[]): ParsedLoopV2Command {
@@ -163,10 +178,13 @@ function parseDelete(tokens: string[]): ParsedLoopV2Command {
 	return { kind: "delete", scope, definitionId: id, force };
 }
 
-function withPrompt(schedule: TaskSchedule, prompt: string): ParsedLoopV2Command {
-	return prompt.length > 0
-		? { kind: "add", schedule, prompt }
-		: { kind: "error", message: "Prompt must contain at least one non-empty token." };
+function withPrompt(schedule: TaskSchedule, prompt: string, inhibitBoulder = false): ParsedLoopV2Command {
+	if (prompt.length === 0) {
+		return { kind: "error", message: "Prompt must contain at least one non-empty token." };
+	}
+	return inhibitBoulder
+		? { kind: "add", schedule, prompt, inhibitBoulder: true }
+		: { kind: "add", schedule, prompt };
 }
 
 function usageAdd(): ParsedLoopV2Command {

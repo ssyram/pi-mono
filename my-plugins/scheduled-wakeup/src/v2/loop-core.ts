@@ -59,7 +59,7 @@ export class LoopV2Core {
 	createSessionTask(input: TaskInput): SessionDefinition {
 		return this.withStateLock(() => {
 			assertTaskInput(input);
-			const definition: SessionDefinition = { id: `session:${this.idFactory()}`, scope: "session", prompt: input.prompt.trim(), schedule: { ...input.schedule }, createdAt: this.currentNow() };
+			const definition: SessionDefinition = { id: `session:${this.idFactory()}`, scope: "session", prompt: input.prompt.trim(), schedule: { ...input.schedule }, createdAt: this.currentNow(), ...(input.inhibitBoulder !== undefined ? { inhibitBoulder: input.inhibitBoulder } : {}) };
 			this.sessionState.dispatch({ kind: "add-task", task: { definition, progress: initialProgress(definition.schedule, definition.createdAt) } });
 			return cloneDefinition(definition);
 		});
@@ -67,7 +67,7 @@ export class LoopV2Core {
 
 	createSharedDefinition(scope: SharedScope, input: TaskInput): SharedDefinition {
 		assertTaskInput(input);
-		const definition: SharedDefinition = { id: `${scope}:${this.idFactory()}`, scope, prompt: input.prompt.trim(), schedule: { ...input.schedule }, createdAt: this.currentNow() };
+		const definition: SharedDefinition = { id: `${scope}:${this.idFactory()}`, scope, prompt: input.prompt.trim(), schedule: { ...input.schedule }, createdAt: this.currentNow(), ...(input.inhibitBoulder !== undefined ? { inhibitBoulder: input.inhibitBoulder } : {}) };
 		return this.definitions.create(definition);
 	}
 
@@ -155,6 +155,22 @@ export class LoopV2Core {
 	executeSessionTask(id: string, deliver: DeliverTask): ExecutionResult { return this.sessionTaskExecutor.execute(id, deliver); }
 	runDue(deliver: DeliverTask): readonly ExecutionResult[] { return this.listActive().filter((item) => isDue(item.kind === "session" ? item.task.progress : item.registration.progress, this.currentNow())).map((item) => item.kind === "session" ? this.executeSessionTask(item.task.definition.id, deliver) : this.executeRegistration(item.registration.id, deliver)); }
 	snapshotSessionState(): SessionLoopState { this.sessionState.reload(); return cloneSessionState(this.sessionState.snapshot()); }
+
+	/** Resolves a registration's inhibition mark against the shared definition store.
+	 * Returns "missing" when the registration/definition is confirmed gone,
+	 * "unavailable" when the catalog cannot be read (never masquerades as missing). */
+	registrationInhibition(registrationId: string): { kind: "resolved"; inhibitBoulder: boolean } | { kind: "missing" } | { kind: "unavailable" } {
+		this.registrations.reload();
+		const registration = this.registrations.find(registrationId);
+		if (registration === undefined) return { kind: "missing" };
+		const index = { ...registration.reference, sessionId: this.sessionId, registrationId: registration.id, registeredAt: registration.registeredAt };
+		const status = this.definitions.registrationStatus(index);
+		if (status === "missing") return { kind: "missing" };
+		if (status === "unavailable") return { kind: "unavailable" };
+		const definition = this.definitions.get(registration.reference.scope, registration.reference.definitionId);
+		if (definition === undefined) return { kind: "unavailable" };
+		return { kind: "resolved", inhibitBoulder: definition.inhibitBoulder === true };
+	}
 	sharedDefinitionIds(scopes: readonly SharedScope[] = ["workspace", "global"]): readonly string[] { return this.definitionsIds(scopes); }
 	activeIds(): readonly string[] { return this.listActive().map((item) => item.kind === "session" ? item.task.definition.id : item.registration.id); }
 

@@ -2,8 +2,8 @@
 	"compilerOptions": {
 		"noEmit": true,
 		"strict": true,
-		"target": "ES2022",
-		"lib": ["ES2022"],
+		"target": "ES2024",
+		"lib": ["ES2024"],
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"types": ["node"],
@@ -14,6 +14,7 @@
 			"@earendil-works/pi-coding-agent": ["./test/task-system-source-api.ts"],
 			"@earendil-works/pi-ai": ["./test/task-system-ai-api.ts"],
 			"@earendil-works/pi-agent-core": ["../../packages/agent/src/types.ts"],
+			"@earendil-works/pi-tui": ["../../packages/tui/src/index.ts"],
 			"@earendil-works/pi-telemetry": ["../../packages/telemetry/src/index.ts"]
 		}
 	},
@@ -23,6 +24,7 @@
 		"commands/task.ts",
 		"hooks/task-gate.ts",
 		"test/task-system-*.ts",
+		"test/task-gate-*.ts",
 		"test/task-result-renderer.test.ts"
 	]
 }

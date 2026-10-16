@@ -16,9 +16,12 @@ export function cloneTasks(tasks: Task[]): Task[] {
 	}));
 }
 
-export function validateTaskStateEntryData(data: unknown): TaskStateEntry | undefined {
+export function validateTaskStateEntryData(
+	data: unknown,
+): TaskStateEntry | undefined {
 	if (!isRecord(data)) return undefined;
-	if (!Array.isArray(data.tasks) || typeof data.nextId !== "number") return undefined;
+	if (!Array.isArray(data.tasks) || typeof data.nextId !== "number")
+		return undefined;
 	if (!Number.isInteger(data.nextId) || data.nextId < 1) return undefined;
 
 	const tasks: Task[] = [];
@@ -41,12 +44,28 @@ export function validateTaskStateEntryData(data: unknown): TaskStateEntry | unde
 
 function parseTask(value: unknown): Task | undefined {
 	if (!isRecord(value)) return undefined;
-	if (typeof value.id !== "number" || !Number.isInteger(value.id) || value.id < 1) return undefined;
-	if (typeof value.text !== "string" || value.text.trim().length === 0) return undefined;
+	if (
+		typeof value.id !== "number" ||
+		!Number.isInteger(value.id) ||
+		value.id < 1
+	)
+		return undefined;
+	if (typeof value.text !== "string" || value.text.trim().length === 0)
+		return undefined;
 	if (!isTaskStatus(value.status)) return undefined;
-	if (!isNumberArray(value.blocks) || !isNumberArray(value.blockedBy)) return undefined;
-	if (!isTimestamp(value.createdAt) || !isTimestamp(value.updatedAt) || value.updatedAt < value.createdAt) return undefined;
-	if (value.expireReason !== undefined && typeof value.expireReason !== "string") return undefined;
+	if (!isNumberArray(value.blocks) || !isNumberArray(value.blockedBy))
+		return undefined;
+	if (
+		!isTimestamp(value.createdAt) ||
+		!isTimestamp(value.updatedAt) ||
+		value.updatedAt < value.createdAt
+	)
+		return undefined;
+	if (
+		value.expireReason !== undefined &&
+		typeof value.expireReason !== "string"
+	)
+		return undefined;
 	return {
 		id: value.id,
 		text: value.text,
@@ -64,20 +83,34 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isTaskStatus(value: unknown): value is TaskStatus {
-	return typeof value === "string" && TASK_STATUSES.includes(value as TaskStatus);
+	return (
+		typeof value === "string" && TASK_STATUSES.includes(value as TaskStatus)
+	);
 }
 
 function isNumberArray(value: unknown): value is number[] {
-	return Array.isArray(value)
-		&& value.every((item) => typeof item === "number" && Number.isInteger(item) && item > 0)
-		&& new Set(value).size === value.length;
+	return (
+		Array.isArray(value) &&
+		value.every(
+			(item) => typeof item === "number" && Number.isInteger(item) && item > 0,
+		) &&
+		new Set(value).size === value.length
+	);
 }
 
 function isTimestamp(value: unknown): value is number {
-	return typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value >= 0;
+	return (
+		typeof value === "number" &&
+		Number.isInteger(value) &&
+		value >= 0 &&
+		value <= 8_640_000_000_000_000
+	);
 }
 
-function dependenciesReferenceExistingTasks(tasks: Task[], ids: Set<number>): boolean {
+function dependenciesReferenceExistingTasks(
+	tasks: Task[],
+	ids: Set<number>,
+): boolean {
 	for (const task of tasks) {
 		for (const id of [...task.blocks, ...task.blockedBy]) {
 			if (id === task.id || !ids.has(id)) return false;

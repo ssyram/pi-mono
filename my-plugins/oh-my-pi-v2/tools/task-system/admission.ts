@@ -2,6 +2,10 @@ import type { ToolCallEventResult } from "@earendil-works/pi-coding-agent";
 import { taskRow } from "./list.js";
 import type { TaskRecord } from "./model.js";
 
+export type TaskAdmissionReadState =
+	| { tasks: readonly TaskRecord[] }
+	| { error: string };
+
 export function taskAdmission(
 	toolName: string,
 	readTasks: () => readonly TaskRecord[],

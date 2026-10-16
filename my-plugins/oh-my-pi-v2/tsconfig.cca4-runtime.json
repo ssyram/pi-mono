@@ -1,0 +1,17 @@
+{
+	"extends": "./tsconfig.compaction-references.json",
+	"compilerOptions": {
+		"paths": {
+			"@earendil-works/pi-ai": ["./test/compaction-reference-source-api.ts"],
+			"@earendil-works/pi-agent-core": ["../../packages/agent/src/types.ts"],
+			"@earendil-works/pi-tui": ["../../packages/tui/src/index.ts"],
+			"@earendil-works/pi-telemetry": ["../../packages/telemetry/src/index.ts"]
+		}
+	},
+	"include": [
+		"extension.ts",
+		"hooks/boulder-scheduler.ts",
+		"hooks/task-widget-lifecycle.ts",
+		"test/boulder-cca-scheduler.test.ts"
+	]
+}

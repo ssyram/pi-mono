@@ -1,4 +1,8 @@
-import type { AutocompleteItem, AutocompleteProvider, AutocompleteSuggestions } from "@earendil-works/pi-tui";
+import type {
+	AutocompleteItem,
+	AutocompleteProvider,
+	AutocompleteSuggestions,
+} from "@earendil-works/pi-tui";
 
 export interface TaskArgumentCandidate {
 	value: string;
@@ -12,13 +16,18 @@ interface ParsedTaskArguments {
 }
 
 export interface TaskAutocompleteProvider extends AutocompleteProvider {
-	shouldTriggerFileCompletion(lines: string[], cursorLine: number, cursorCol: number): boolean;
+	shouldTriggerFileCompletion(
+		lines: string[],
+		cursorLine: number,
+		cursorCol: number,
+	): boolean;
 }
 
 const ROOT_CANDIDATES: TaskArgumentCandidate[] = [
 	{ value: "show", description: "Control task widget visibility" },
 	{ value: "info", description: "Print complete task details" },
 	{ value: "help", description: "Show task command help" },
+	{ value: "no-task-no-tool", description: "Configure the task tool gate" },
 ];
 
 const SHOW_CANDIDATES: TaskArgumentCandidate[] = [
@@ -26,13 +35,48 @@ const SHOW_CANDIDATES: TaskArgumentCandidate[] = [
 	{ value: "off", description: "Hide the task widget" },
 ];
 
-export function completeTaskArgument(previousTokens: string[]): TaskArgumentCandidate[] | null {
+export function completeTaskArgument(
+	previousTokens: string[],
+): TaskArgumentCandidate[] | null {
 	if (previousTokens.length === 0) return ROOT_CANDIDATES;
-	if (previousTokens.length === 1 && previousTokens[0]?.toLowerCase() === "show") return SHOW_CANDIDATES;
+	if (["show", "no-task-no-tool"].includes(previousTokens[0]?.toLowerCase())) {
+		if (
+			previousTokens.length === 1 &&
+			previousTokens[0].toLowerCase() === "show"
+		)
+			return SHOW_CANDIDATES;
+		if (previousTokens.length === 1)
+			return [
+				{
+					value: "on",
+					description: "Require an unblocked in-progress task for other tools",
+				},
+				{ value: "off", description: "Disable the task tool gate" },
+			];
+		const flags = previousTokens.slice(2).map((token) => token.toLowerCase());
+		if (
+			previousTokens.length >= 2 &&
+			["on", "off"].includes(previousTokens[1].toLowerCase()) &&
+			new Set(flags).size === flags.length &&
+			flags.every((flag) => flag === "--persistent" || flag === "--global")
+		) {
+			return [
+				{
+					value: "--persistent",
+					description: "Also save to project settings.json",
+				},
+				{ value: "--global", description: "Also save to global settings.json" },
+			].filter((candidate) => !flags.some((flag) => flag === candidate.value));
+		}
+	}
 	return null;
 }
 
-function parseTaskArguments(lines: string[], cursorLine: number, cursorCol: number): ParsedTaskArguments | null {
+function parseTaskArguments(
+	lines: string[],
+	cursorLine: number,
+	cursorCol: number,
+): ParsedTaskArguments | null {
 	const line = lines[cursorLine] ?? "";
 	const beforeCursor = line.slice(0, cursorCol);
 	const trimmed = beforeCursor.trimStart();
@@ -48,7 +92,11 @@ function parseTaskArguments(lines: string[], cursorLine: number, cursorCol: numb
 		.trim()
 		.split(/\s+/)
 		.filter(Boolean);
-	return { previousTokens, token, tokenStart: beforeCursor.length - token.length };
+	return {
+		previousTokens,
+		token,
+		tokenStart: beforeCursor.length - token.length,
+	};
 }
 
 function matchesLoosely(query: string, text: string): boolean {
@@ -68,24 +116,45 @@ function candidatesFor(parsed: ParsedTaskArguments): TaskArgumentCandidate[] {
 	const token = parsed.token.toLowerCase();
 	return candidates
 		.filter((candidate) => matchesLoosely(parsed.token, candidate.value))
-		.map((candidate, index) => ({ candidate, index, prefix: candidate.value.toLowerCase().startsWith(token) }))
+		.map((candidate, index) => ({
+			candidate,
+			index,
+			prefix: candidate.value.toLowerCase().startsWith(token),
+		}))
 		.sort((left, right) =>
-			left.prefix === right.prefix ? left.index - right.index : left.prefix ? -1 : 1,
+			left.prefix === right.prefix
+				? left.index - right.index
+				: left.prefix
+					? -1
+					: 1,
 		)
 		.map((entry) => entry.candidate);
 }
 
 function toItem(candidate: TaskArgumentCandidate): AutocompleteItem {
-	return { value: candidate.value, label: candidate.value, description: candidate.description };
+	return {
+		value: candidate.value,
+		label: candidate.value,
+		description: candidate.description,
+	};
 }
 
-export function createTaskCompletionProvider(current: AutocompleteProvider): TaskAutocompleteProvider {
+export function createTaskCompletionProvider(
+	current: AutocompleteProvider,
+): TaskAutocompleteProvider {
 	return {
-		async getSuggestions(lines, cursorLine, cursorCol, options): Promise<AutocompleteSuggestions | null> {
+		async getSuggestions(
+			lines,
+			cursorLine,
+			cursorCol,
+			options,
+		): Promise<AutocompleteSuggestions | null> {
 			const parsed = parseTaskArguments(lines, cursorLine, cursorCol);
-			if (!parsed) return current.getSuggestions(lines, cursorLine, cursorCol, options);
+			if (!parsed)
+				return current.getSuggestions(lines, cursorLine, cursorCol, options);
 			const candidates = candidatesFor(parsed);
-			if (candidates.length === 0) return current.getSuggestions(lines, cursorLine, cursorCol, options);
+			if (candidates.length === 0)
+				return current.getSuggestions(lines, cursorLine, cursorCol, options);
 			return { items: candidates.map(toItem), prefix: parsed.token };
 		},
 
@@ -94,19 +163,37 @@ export function createTaskCompletionProvider(current: AutocompleteProvider): Tas
 			const isOurs =
 				parsed !== null &&
 				prefix === parsed.token &&
-				candidatesFor(parsed).some((candidate) => candidate.value === item.value);
-			if (!parsed || !isOurs) return current.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
+				candidatesFor(parsed).some(
+					(candidate) => candidate.value === item.value,
+				);
+			if (!parsed || !isOurs)
+				return current.applyCompletion(
+					lines,
+					cursorLine,
+					cursorCol,
+					item,
+					prefix,
+				);
 
 			const line = lines[cursorLine] ?? "";
 			const nextLines = [...lines];
-			nextLines[cursorLine] = `${line.slice(0, parsed.tokenStart)}${item.value} ${line.slice(cursorCol)}`;
-			return { lines: nextLines, cursorLine, cursorCol: parsed.tokenStart + item.value.length + 1 };
+			nextLines[cursorLine] =
+				`${line.slice(0, parsed.tokenStart)}${item.value} ${line.slice(cursorCol)}`;
+			return {
+				lines: nextLines,
+				cursorLine,
+				cursorCol: parsed.tokenStart + item.value.length + 1,
+			};
 		},
 
 		shouldTriggerFileCompletion(lines, cursorLine, cursorCol) {
 			if (parseTaskArguments(lines, cursorLine, cursorCol)) return true;
-			const fallback = current as AutocompleteProvider & Partial<TaskAutocompleteProvider>;
-			return fallback.shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ?? true;
+			const fallback = current as AutocompleteProvider &
+				Partial<TaskAutocompleteProvider>;
+			return (
+				fallback.shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ??
+				true
+			);
 		},
 	};
 }

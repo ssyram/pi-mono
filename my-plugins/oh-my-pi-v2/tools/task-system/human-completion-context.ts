@@ -17,6 +17,50 @@ const FLAGS: Readonly<Record<string, readonly string[]>> = {
 	clear: [],
 };
 
+const BOULDER_TYPES = ["loop", "user"];
+const BOULDER_VALUES = ["true", "false", "t", "f"];
+
+function boulderSlot(input: CompletionInput): CompletionSlot | undefined {
+	const { tokens, index, token } = input;
+	if (index === 1) {
+		return token.literal
+			? undefined
+			: {
+					kind: "fixed",
+					values: ["set"],
+					descriptions: { set: "set a Boulder inhibition signal" },
+				};
+	}
+	if (tokens[1]?.literal || tokens[1]?.value.toLowerCase() !== "set") return;
+	if (index === 2) {
+		return token.literal
+			? undefined
+			: {
+					kind: "fixed",
+					values: BOULDER_TYPES,
+					descriptions: {
+						loop: "loop plugin aggregate signal",
+						user: "manual user signal",
+					},
+				};
+	}
+	if (index === 3) {
+		return token.literal
+			? undefined
+			: {
+					kind: "fixed",
+					values: BOULDER_VALUES,
+					descriptions: {
+						true: "inhibit Boulder",
+						false: "release inhibition",
+						t: "true (short)",
+						f: "false (short)",
+					},
+				};
+	}
+	return;
+}
+
 function legacySlot(previous: string[], extra: string[] = []): CompletionSlot {
 	const candidates = completeTaskArgument(previous) ?? [];
 	return {
@@ -65,10 +109,21 @@ export function taskCompletionSlot(
 	if (index === 0)
 		return token.literal
 			? undefined
-			: legacySlot([], ["add", "modify", "list", "clear"]);
+			: legacySlot([], ["add", "modify", "list", "clear", "boulder"]);
 	const action = tokens[0].value;
-	if (action.toLowerCase() === "show" && index === 1 && !token.literal)
-		return legacySlot([action]);
+	if (action.toLowerCase() === "boulder" && !tokens[0].literal)
+		return boulderSlot(input);
+	if (
+		["no-task-no-tool", "show"].includes(action.toLowerCase()) &&
+		!tokens[0].literal &&
+		!token.literal
+	) {
+		const previous = tokens.slice(0, index);
+		if (previous.some((item) => item.literal)) return;
+		if (completeTaskArgument(previous.map((item) => item.value)))
+			return legacySlot(previous.map((item) => item.value));
+		return;
+	}
 	if (!Object.hasOwn(FLAGS, action) || tokens[0].literal) return;
 	const flags = FLAGS[action];
 	const start = action === "add" || action === "modify" ? 2 : 1;

@@ -32,6 +32,7 @@ it("dispatches the existing Boulder timer as a custom resume message", async (te
 	const sessionIdentity = {
 		getSessionFile: () => "integration-session",
 		getSessionId: () => "integration-session",
+		getBranch: () => [] as Array<{ type: string; customType?: string; data?: unknown }>,
 	};
 	const context = {
 		mode: "print",

@@ -94,10 +94,12 @@ describe("dormant human task autocomplete", () => {
 			"show",
 			"info",
 			"help",
+			"no-task-no-tool",
 			"add",
 			"modify",
 			"list",
 			"clear",
+			"boulder",
 		]);
 		assert.deepEqual(await values(provider, "/task md|"), ["modify"]);
 		assert.deepEqual(await values(provider, "/task SHOW o|"), ["on", "off"]);

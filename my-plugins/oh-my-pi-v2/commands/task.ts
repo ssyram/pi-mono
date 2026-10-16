@@ -3,6 +3,16 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteProvider } from "@earendil-works/pi-tui";
+import { executeBoulderSetCommand } from "../boulder-inhibition/command.js";
+import { describeThrown } from "../boulder-inhibition/describe-error.js";
+import { formatBoulderInhibition } from "../boulder-inhibition/format-inhibition.js";
+import { reportBoulderDiagnostic } from "../boulder-inhibition/report-error.js";
+import { createBoulderInhibitionClient } from "../boulder-inhibition/service-client.js";
+import type {
+	TaskSettingChange,
+	TaskSettingKey,
+	TaskSettingTargets,
+} from "../task-settings.js";
 import type { TaskToolHandle } from "../tools/task.js";
 import {
 	formatTaskInfo,
@@ -13,10 +23,9 @@ import {
 import { createHumanTaskCompletionProvider } from "../tools/task-system/human-completion.js";
 import type { Task } from "../tools/task-types.js";
 import {
-	createTaskWidgetState,
-	TASK_WIDGET_STATE_ENTRY_TYPE,
-	type TaskWidgetStateData,
-} from "../tools/task-widget-state.js";
+	parseTaskSettingCommand,
+	type TaskSettingCommand,
+} from "./task-setting-command.js";
 
 export const TASK_HELP_TEXT = [
 	"Task commands:",
@@ -24,7 +33,9 @@ export const TASK_HELP_TEXT = [
 	"  /task modify ID [--text TEXT] [--blocked-by IDS] [--status in_progress|done|expired] [--reason TEXT]",
 	"  /task list [--type TYPE] [--limit N]         List tasks (TYPE: open|closed|in_progress|ready|blocked|done|expired)",
 	"  /task clear --CONFIRMED                      Remove every task (requires the explicit --CONFIRMED flag; task ID allocation is preserved)",
-	"  /task show on|off                            Show or hide the task widget",
+	"  /task boulder set <type> <true|false|t|f>    Set a Boulder inhibition signal (e.g. /task boulder set loop false)",
+	"  /task show on|off [--persistent] [--global]   Show/hide widget (default: session; flags also save local/global)",
+	"  /task no-task-no-tool on|off [--persistent] [--global]  Set gate (default: session; flags also save local/global)",
 	"  /task info                                   Print complete task details",
 	"  /task help                                   Show this help",
 ].join("\n");
@@ -32,13 +43,22 @@ export const TASK_HELP_TEXT = [
 type ParsedTaskCommand =
 	| { action: "help" }
 	| { action: "info" }
-	| { action: "show"; visible: boolean }
+	| TaskSettingCommand
 	| { action: "invalid"; input: string };
 
 export interface TaskCommandOptions {
 	getTasks(context: ExtensionContext): Task[];
-	setWidgetVisibility(context: ExtensionContext, visible: boolean): void;
+	setWidgetVisibility(
+		context: ExtensionContext,
+		visible: boolean,
+	): void | Promise<void>;
 	runHumanTaskCommand: TaskToolHandle["runHumanTaskCommand"];
+	updateSetting(
+		context: ExtensionContext,
+		key: TaskSettingKey,
+		value: boolean,
+		targets: TaskSettingTargets,
+	): Promise<TaskSettingChange>;
 }
 
 interface PromptCompletionUI {
@@ -51,14 +71,10 @@ export function parseTaskCommand(args: string): ParsedTaskCommand {
 	const input = args.trim();
 	if (input === "") return { action: "help" };
 	const tokens = input.toLowerCase().split(/\s+/);
+	const setting = parseTaskSettingCommand(tokens);
+	if (setting) return setting;
 	if (tokens.length === 1 && tokens[0] === "help") return { action: "help" };
 	if (tokens.length === 1 && tokens[0] === "info") return { action: "info" };
-	if (tokens.length === 2 && tokens[0] === "show" && tokens[1] === "on") {
-		return { action: "show", visible: true };
-	}
-	if (tokens.length === 2 && tokens[0] === "show" && tokens[1] === "off") {
-		return { action: "show", visible: false };
-	}
 	return { action: "invalid", input };
 }
 
@@ -80,53 +96,106 @@ export function registerTaskCommand(
 	pi.registerCommand("task", {
 		description: "Manage tasks or control the task widget",
 		handler: async (args, ctx) => {
-			// Human commands receive the ENTIRE original string; quoted text must survive routing.
-			if (isHumanTaskCommand(args)) {
-				const result = options.runHumanTaskCommand(args, ctx);
-				const text = result.content
-					.map((block) => (block.type === "text" ? block.text : ""))
-					.join("\n");
-				try {
+			try {
+				// Human commands receive the ENTIRE original string; quoted text must survive routing.
+				if (isHumanTaskCommand(args)) {
+					const result = options.runHumanTaskCommand(args, ctx);
+					const text = result.content
+						.map((block) => (block.type === "text" ? block.text : ""))
+						.join("\n");
+					try {
+						appendOutput(pi, {
+							tone: result.details?.error ? "warning" : "info",
+							text,
+						});
+					} catch (error) {
+						reportBoulderDiagnostic(
+							`[oh-my-pi task] Failed to print task command output: ${describeThrown(error)}`,
+						);
+					}
+					return;
+				}
+				if (args.trim().split(/\s+/)[0]?.toLowerCase() === "boulder") {
+					const client = createBoulderInhibitionClient(
+						pi.events,
+						ctx.sessionManager,
+					);
+					const result = executeBoulderSetCommand(args, client);
+					// Route guarantees the first token is "boulder", so parse yields set/invalid/failed only.
+					if (
+						result.kind !== "set" &&
+						result.kind !== "invalid" &&
+						result.kind !== "failed"
+					) {
+						appendOutput(pi, { tone: "warning", text: TASK_HELP_TEXT });
+						return;
+					}
+					const text =
+						result.kind === "set"
+							? `Boulder signal ${result.signal.type}=${result.signal.value}; ${formatBoulderInhibition(result.snapshot)}`
+							: result.kind === "failed"
+								? `Boulder set failed: ${result.failure.message}`
+								: result.message;
 					appendOutput(pi, {
-						tone: result.details?.error ? "warning" : "info",
+						tone: result.kind === "set" ? "info" : "warning",
 						text,
 					});
-				} catch (error) {
-					console.error(
-						`[oh-my-pi task] Failed to print task command output: ${error instanceof Error ? error.message : String(error)}`,
-					);
+					return;
 				}
-				return;
+				const command = parseTaskCommand(args);
+				if (command.action === "help") {
+					appendOutput(pi, { tone: "info", text: TASK_HELP_TEXT });
+					return;
+				}
+				if (command.action === "no-task-no-tool" || command.action === "show") {
+					const key =
+						command.action === "show"
+							? "omp-task:show"
+							: "omp-task:no-task-no-tool";
+					const value =
+						command.action === "show" ? command.visible : command.enabled;
+					const result = await options.updateSetting(
+						ctx,
+						key,
+						value,
+						command.targets,
+					);
+					if (command.action === "show" && result.applied) {
+						try {
+							await options.setWidgetVisibility(ctx, value);
+						} catch (error) {
+							appendOutput(pi, {
+								tone: "warning",
+								text: `${result.message} Widget refresh failed: ${describeThrown(error)}`,
+							});
+							return;
+						}
+					}
+					appendOutput(pi, {
+						tone: result.ok ? "info" : "warning",
+						text: result.message,
+					});
+					return;
+				}
+				if (command.action === "info") {
+					appendOutput(pi, {
+						tone: "info",
+						text: formatTaskInfo(options.getTasks(ctx)),
+					});
+					return;
+				}
+				if (command.action === "invalid") {
+					appendOutput(pi, {
+						tone: "warning",
+						text: `Unknown or incomplete /task arguments: ${command.input || "(none)"}\n\n${TASK_HELP_TEXT}`,
+					});
+					return;
+				}
+			} catch (error) {
+				reportBoulderDiagnostic(
+					`[oh-my-pi task] Command failed: ${describeThrown(error)}. State may already have changed.`,
+				);
 			}
-			const command = parseTaskCommand(args);
-			if (command.action === "help") {
-				appendOutput(pi, { tone: "info", text: TASK_HELP_TEXT });
-				return;
-			}
-			if (command.action === "info") {
-				appendOutput(pi, {
-					tone: "info",
-					text: formatTaskInfo(options.getTasks(ctx)),
-				});
-				return;
-			}
-			if (command.action === "invalid") {
-				appendOutput(pi, {
-					tone: "warning",
-					text: `Unknown or incomplete /task arguments: ${command.input || "(none)"}\n\n${TASK_HELP_TEXT}`,
-				});
-				return;
-			}
-
-			pi.appendEntry<TaskWidgetStateData>(
-				TASK_WIDGET_STATE_ENTRY_TYPE,
-				createTaskWidgetState(command.visible),
-			);
-			options.setWidgetVisibility(ctx, command.visible);
-			appendOutput(pi, {
-				tone: "info",
-				text: `Task widget ${command.visible ? "shown" : "hidden"}.`,
-			});
 		},
 	});
 
@@ -139,8 +208,8 @@ export function registerTaskCommand(
 					),
 			);
 		} catch (error) {
-			console.error(
-				`[oh-my-pi task] Failed to install task autocomplete: ${error instanceof Error ? error.message : String(error)}`,
+			reportBoulderDiagnostic(
+				`[oh-my-pi task] Failed to install task autocomplete: ${describeThrown(error)}`,
 			);
 		}
 	});

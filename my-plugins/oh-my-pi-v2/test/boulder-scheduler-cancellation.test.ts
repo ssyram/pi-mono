@@ -153,13 +153,13 @@ describe("Boulder scheduler cancellation", () => {
 		testContext.mock.timers.enable({ apis: ["setTimeout"] });
 		const harness = createBoulderSchedulerHarness("tui");
 		await harness.emit("session_start", { reason: "new" });
-		harness.backgroundStarted();
+		harness.setLiveBackgroundWork(true);
 		await harness.end();
 		testContext.mock.timers.tick(10_000);
 		assert.equal(harness.scheduleEntries.length, 0);
 		assert.equal(harness.sent.length, 0);
 
-		harness.backgroundCompleted();
+		harness.setLiveBackgroundWork(false);
 		await harness.end();
 		assert.equal(harness.scheduleEntries.length, 1);
 		testContext.mock.timers.reset();
@@ -177,7 +177,7 @@ describe("Boulder scheduler cancellation", () => {
 		const background = createBoulderSchedulerHarness("tui");
 		await background.emit("session_start", { reason: "new" });
 		await background.end();
-		background.backgroundStarted();
+		background.setLiveBackgroundWork(true);
 		testContext.mock.timers.tick(10_000);
 		assert.equal(background.sent.length, 0);
 		testContext.mock.timers.reset();

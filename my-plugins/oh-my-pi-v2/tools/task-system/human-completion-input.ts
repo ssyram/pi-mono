@@ -104,9 +104,12 @@ export function taskCompletionInput(
 
 export function insertTaskCompletion(input: CompletionInput, value: string) {
 	const opening = input.text[input.token.start];
-	// Choices contain only canonical command/flag/value/ID characters, never quotes.
 	const replacement =
-		opening === "'" || opening === '"' ? `${opening}${value}${opening}` : value;
+		opening === "'"
+			? `'${value.replaceAll("'", "'\\''")}'`
+			: opening === '"'
+				? `"${value.replace(/[\\"]/g, "\\$&")}"`
+				: value.replace(/[\s\\'"]/g, "\\$&");
 	const suffix = input.text.slice(input.token.end);
 	const separator = /^\s/.test(suffix) ? "" : " ";
 	const text =

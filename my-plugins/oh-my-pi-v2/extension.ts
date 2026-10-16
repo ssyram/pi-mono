@@ -4,6 +4,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import mySettings from "../my-settings/index.ts";
 import { describeThrown } from "./boulder-inhibition/describe-error.js";
 import { reportBoulderDiagnostic } from "./boulder-inhibition/report-error.js";
 import { registerConsult } from "./commands/consult.js";
@@ -15,7 +16,6 @@ import { loadConfig } from "./config.js";
 import { registerBoulder } from "./hooks/boulder.js";
 import { registerBoulderInfoEntryRenderer } from "./hooks/boulder-info-entry.js";
 import { registerBoulderInhibitionAdapter } from "./hooks/boulder-inhibition-adapter.js";
-import mySettings from "../my-settings/index.ts";
 import { registerCommentChecker } from "./hooks/comment-checker.js";
 import { registerCustomCompaction } from "./hooks/custom-compaction.js";
 import { registerEditErrorRecovery } from "./hooks/edit-error-recovery.js";
@@ -26,17 +26,16 @@ import { registerTaskWidgetLifecycle } from "./hooks/task-widget-lifecycle.js";
 import { registerToolOutputTruncator } from "./hooks/tool-output-truncator.js";
 import { registerUltraworkPrompt } from "./hooks/ultrawork-prompt.js";
 import { ensureSubagentIntegration } from "./subagent-links.js";
-import { createTaskGateSettings } from "./task-gate-settings.js";
+import { createTaskSettings } from "./task-settings.js";
 import { registerTaskTool } from "./tools/task.js";
 import { isUnblocked } from "./tools/task-dependencies.js";
 import { TaskWidgetComponent } from "./tools/task-display.js";
 import type { Task } from "./tools/task-types.js";
-import { isTaskWidgetVisible } from "./tools/task-widget-state.js";
 
 function renderTaskWidget(
 	context: ExtensionContext,
 	tasks: Task[],
-	visible = isTaskWidgetVisible(context.sessionManager),
+	visible: boolean,
 	notifyWhenComplete = false,
 ): void {
 	if (!visible || tasks.length === 0) {
@@ -66,7 +65,7 @@ function renderTaskWidget(
 }
 
 export default async function ohMyPiV2(pi: ExtensionAPI): Promise<void> {
-	mySettings(pi);
+	await mySettings(pi);
 	const directory = dirname(fileURLToPath(import.meta.url));
 	const agentsDirectory = resolve(directory, "agents");
 	await ensureSubagentIntegration(directory, agentsDirectory, process.cwd());
@@ -87,21 +86,33 @@ export default async function ohMyPiV2(pi: ExtensionAPI): Promise<void> {
 		setOnTaskChange,
 		runHumanTaskCommand,
 	} = registerTaskTool(pi);
-	setOnTaskChange((tasks, context) => {
+	const settings = createTaskSettings(pi);
+	const refreshWidget = async (
+		context: ExtensionContext,
+		notifyWhenComplete = false,
+	): Promise<void> => {
 		try {
-			renderTaskWidget(context, tasks, undefined, true);
+			const visible = await settings.read(context, "omp-task:show");
+			if (!visible.ok) {
+				reportBoulderDiagnostic(`[oh-my-pi task] ${visible.error.message}`);
+				return;
+			}
+			renderTaskWidget(
+				context,
+				getTaskState(context).tasks,
+				visible.value,
+				notifyWhenComplete,
+			);
 		} catch (error) {
 			reportBoulderDiagnostic(
 				`[oh-my-pi task] Widget update failed: ${describeThrown(error)}`,
 			);
 		}
+	};
+	setOnTaskChange((_tasks, context) => {
+		void refreshWidget(context, true);
 	});
-
-	const taskGateSettings = createTaskGateSettings();
-	pi.on("session_start", (_event, context) => {
-		taskGateSettings.reload(context);
-	});
-	registerTaskGate(pi, getTaskAdmissionState, taskGateSettings.isEnabled);
+	registerTaskGate(pi, getTaskAdmissionState, settings.isEnabled);
 
 	registerBoulderInfoEntryRenderer(pi);
 	let boulderCancel: ((context: ExtensionContext) => void) | undefined;
@@ -127,12 +138,10 @@ export default async function ohMyPiV2(pi: ExtensionAPI): Promise<void> {
 		setWidgetVisibility: (context, visible) =>
 			renderTaskWidget(context, getTaskState(context).tasks, visible),
 		runHumanTaskCommand,
-		setNoTaskNoTool: taskGateSettings.set,
+		updateSetting: settings.set,
 	});
 
-	registerTaskWidgetLifecycle(pi, (context) =>
-		renderTaskWidget(context, getTaskState(context).tasks),
-	);
+	registerTaskWidgetLifecycle(pi, refreshWidget);
 	pi.on("resources_discover", () => ({
 		skillPaths: [resolve(directory, "skills")],
 	}));

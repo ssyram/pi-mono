@@ -23,22 +23,27 @@ interface TaskRenderArgs {
 }
 
 export function renderTaskCall(args: TaskRenderArgs, theme: Theme) {
-	let text =
-		theme.fg("toolTitle", theme.bold("task ")) + theme.fg("muted", args.action);
-	if (args.text) text += ` ${theme.fg("dim", `"${args.text}"`)}`;
-	if (args.id !== undefined) text += ` ${theme.fg("accent", `#${args.id}`)}`;
-	if (args.reason) text += ` ${theme.fg("dim", `[${args.reason}]`)}`;
-	if (args.blocks)
-		text += ` ${theme.fg("dim", `blocks=[${args.blocks.join(",")}]`)}`;
-	if (args.blockedBy)
-		text += ` ${theme.fg("dim", `blockedBy=[${args.blockedBy.join(",")}]`)}`;
-	if (args.startNext !== undefined) {
-		const ids = Array.isArray(args.startNext)
-			? args.startNext
-			: [args.startNext];
-		text += ` ${theme.fg("dim", `startNext=[${ids.join(",")}]`)}`;
+	try {
+		let text =
+			theme.fg("toolTitle", theme.bold("task ")) +
+			theme.fg("muted", args.action);
+		if (args.text) text += ` ${theme.fg("dim", `"${args.text}"`)}`;
+		if (args.id !== undefined) text += ` ${theme.fg("accent", `#${args.id}`)}`;
+		if (args.reason) text += ` ${theme.fg("dim", `[${args.reason}]`)}`;
+		if (args.blocks)
+			text += ` ${theme.fg("dim", `blocks=[${args.blocks.join(",")}]`)}`;
+		if (args.blockedBy)
+			text += ` ${theme.fg("dim", `blockedBy=[${args.blockedBy.join(",")}]`)}`;
+		if (args.startNext !== undefined) {
+			const ids = Array.isArray(args.startNext)
+				? args.startNext
+				: [args.startNext];
+			text += ` ${theme.fg("dim", `startNext=[${ids.join(",")}]`)}`;
+		}
+		return new Text(text, 0, 0);
+	} catch {
+		return new Text("Task call rendering unavailable.", 0, 0);
 	}
-	return new Text(text, 0, 0);
 }
 
 export function renderTaskResult(
@@ -46,27 +51,31 @@ export function renderTaskResult(
 	{ expanded }: ToolRenderResultOptions,
 	theme: Theme,
 ) {
-	const raw = result.details;
-	// details may be replaced by another plugin (e.g. impression distillation),
-	// so validate the shape at runtime before trusting it.
-	const details =
-		typeof raw === "object" &&
-		raw !== null &&
-		typeof (raw as Record<string, unknown>).action === "string" &&
-		Array.isArray((raw as Record<string, unknown>).tasks)
-			? (raw as TaskDetails)
-			: undefined;
+	try {
+		const raw = result.details;
+		// details may be replaced by another plugin (e.g. impression distillation),
+		// so validate the shape at runtime before trusting it.
+		const details =
+			typeof raw === "object" &&
+			raw !== null &&
+			typeof (raw as Record<string, unknown>).action === "string" &&
+			Array.isArray((raw as Record<string, unknown>).tasks)
+				? (raw as TaskDetails)
+				: undefined;
 
-	if (!details) {
-		const t = result.content[0];
-		return new Text(t?.type === "text" ? t.text : "", 0, 0);
+		if (!details) {
+			const t = result.content[0];
+			return new Text(t?.type === "text" ? t.text : "", 0, 0);
+		}
+		if (details.error)
+			return new Text(theme.fg("error", `Error: ${details.error}`), 0, 0);
+
+		if (details.action === "list")
+			return renderListResult(details.tasks, expanded, theme);
+		return renderMutatingResult(result, details, theme);
+	} catch {
+		return new Text("Task result rendering unavailable.", 0, 0);
 	}
-	if (details.error)
-		return new Text(theme.fg("error", `Error: ${details.error}`), 0, 0);
-
-	if (details.action === "list")
-		return renderListResult(details.tasks, expanded, theme);
-	return renderMutatingResult(result, details, theme);
 }
 
 // Human-only enrichment: the AI-facing content stays "#N done";
@@ -86,7 +95,7 @@ function renderMutatingResult(
 			descriptions.set(
 				task.id,
 				normalizeTaskDisplayText(formatTaskContent(task)),
-		);
+			);
 	}
 	try {
 		const lines = raw
