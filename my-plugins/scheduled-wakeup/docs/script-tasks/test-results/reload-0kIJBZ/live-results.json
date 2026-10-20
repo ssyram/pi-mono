@@ -1,0 +1,530 @@
+{
+  "summary": [
+    {
+      "label": "L01",
+      "taskId": "session:e4e2ee33-e42b-4701-b5f7-8d8aa3b22dff",
+      "entryId": "194be191",
+      "timestamp": "2026-10-20T08:52:45.567Z",
+      "shouldWake": false,
+      "success": "1/1",
+      "statuses": [
+        "success"
+      ],
+      "codes": [
+        0
+      ],
+      "passed": true
+    },
+    {
+      "label": "L02",
+      "taskId": "session:57cb2864-2136-473a-a440-5da931a04297",
+      "entryId": "0b686444",
+      "timestamp": "2026-10-20T08:52:45.587Z",
+      "shouldWake": false,
+      "success": "1/1",
+      "statuses": [
+        "success"
+      ],
+      "codes": [
+        0
+      ],
+      "passed": true
+    },
+    {
+      "label": "L03",
+      "taskId": "session:a75eedd8-96ee-4e76-aac5-a080f5716c87",
+      "entryId": "c2ae957a",
+      "timestamp": "2026-10-20T08:52:45.588Z",
+      "shouldWake": false,
+      "success": "1/2",
+      "statuses": [
+        "failed",
+        "success"
+      ],
+      "codes": [
+        7,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "label": "L04",
+      "taskId": "session:56a26880-01bb-453f-a61e-e1ef58b07117",
+      "entryId": "d66dff08",
+      "timestamp": "2026-10-20T08:59:59.614Z",
+      "shouldWake": true,
+      "success": "1/2",
+      "statuses": [
+        "failed",
+        "success"
+      ],
+      "codes": [
+        7,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "label": "L05",
+      "taskId": "session:f680a610-0494-4f64-a070-8e94db2f89e6",
+      "entryId": "2a701749",
+      "timestamp": "2026-10-20T08:59:59.614Z",
+      "shouldWake": true,
+      "success": "0/2",
+      "statuses": [
+        "failed",
+        "failed"
+      ],
+      "codes": [
+        7,
+        9
+      ],
+      "passed": true
+    },
+    {
+      "label": "L06",
+      "taskId": "session:1a4779c5-e72d-4769-883e-c07853e17511",
+      "entryId": "a3401331",
+      "timestamp": "2026-10-20T08:59:59.614Z",
+      "shouldWake": true,
+      "success": "1/2",
+      "statuses": [
+        "timeout",
+        "success"
+      ],
+      "codes": [
+        null,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "label": "L07",
+      "taskId": "session:feafe4f7-e079-4e12-bf06-4501033c719a",
+      "entryId": "9036055f",
+      "timestamp": "2026-10-20T08:59:59.614Z",
+      "shouldWake": true,
+      "success": "1/2",
+      "statuses": [
+        "start-failed",
+        "success"
+      ],
+      "codes": [
+        null,
+        0
+      ],
+      "passed": true
+    },
+    {
+      "label": "L08",
+      "taskId": "session:c758cadf-307b-478d-87f2-d47ad015672b",
+      "entryId": "09273ad8",
+      "timestamp": "2026-10-20T08:59:59.614Z",
+      "shouldWake": true,
+      "success": "3/3",
+      "statuses": [
+        "success",
+        "success",
+        "success"
+      ],
+      "codes": [
+        0,
+        0,
+        0
+      ],
+      "passed": true
+    }
+  ],
+  "rawMessages": [
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L01_NEVER_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L01_NEVER_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:e4e2ee33-e42b-4701-b5f7-8d8aa3b22dff/a53893df-fa7d-4384-bccf-720b8928aa89",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'RELOAD_L01_NEVER_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "RELOAD_L01_NEVER_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": false,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L01_NEVER_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L01_NEVER_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "194be191",
+      "parentId": "000b00dc",
+      "timestamp": "2026-10-20T08:52:45.567Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nRELOAD_L02: 测试结果汇集；仅当失败才应唤醒。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L02_OR_SUCCESS\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L02_OR_SUCCESS\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:57cb2864-2136-473a-a440-5da931a04297/66413661-74c7-4946-980e-e24a38a35050",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'RELOAD_L02_OR_SUCCESS\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "RELOAD_L02_OR_SUCCESS\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": false,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nRELOAD_L02: 测试结果汇集；仅当失败才应唤醒。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L02_OR_SUCCESS\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L02_OR_SUCCESS\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "0b686444",
+      "parentId": "194be191",
+      "timestamp": "2026-10-20T08:52:45.587Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nRELOAD_L03: 混合结果不应触发And唤醒。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"7\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L03_FAIL7\\\\n'; exit 7&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L03_FAIL7\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L03_AFTER_FAILURE_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L03_AFTER_FAILURE_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:a75eedd8-96ee-4e76-aac5-a080f5716c87/3bd7a913-06a1-4594-a703-f2c36203389c",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'RELOAD_L03_FAIL7\\n'; exit 7"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "failed",
+            "exitCode": 7,
+            "signal": null,
+            "stdout": "RELOAD_L03_FAIL7\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'RELOAD_L03_AFTER_FAILURE_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "RELOAD_L03_AFTER_FAILURE_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": false,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nRELOAD_L03: 混合结果不应触发And唤醒。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"7\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L03_FAIL7\\\\n'; exit 7&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L03_FAIL7\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L03_AFTER_FAILURE_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L03_AFTER_FAILURE_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "c2ae957a",
+      "parentId": "0b686444",
+      "timestamp": "2026-10-20T08:52:45.588Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nRELOAD_L04: 记录当前reload全面测试的Or混合失败结果；继续收齐其它用例，不重复登记。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"7\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L04_FAIL7\\\\n'; exit 7&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L04_FAIL7\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L04_AFTER_FAILURE_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L04_AFTER_FAILURE_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:56a26880-01bb-453f-a61e-e1ef58b07117/bf5b8a35-6fd4-4c4d-911f-81378a1513c5",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'RELOAD_L04_FAIL7\\n'; exit 7"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "failed",
+            "exitCode": 7,
+            "signal": null,
+            "stdout": "RELOAD_L04_FAIL7\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'RELOAD_L04_AFTER_FAILURE_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "RELOAD_L04_AFTER_FAILURE_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nRELOAD_L04: 记录当前reload全面测试的Or混合失败结果；继续收齐其它用例，不重复登记。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"7\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L04_FAIL7\\\\n'; exit 7&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L04_FAIL7\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L04_AFTER_FAILURE_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L04_AFTER_FAILURE_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "d66dff08",
+      "parentId": "e6fa8f3d",
+      "timestamp": "2026-10-20T08:59:59.614Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nRELOAD_L05: 记录And全部失败应唤醒；这是预期失败用例，不修脚本、不重复运行。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"7\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L05_FAIL7\\\\n'; exit 7&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L05_FAIL7\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"9\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L05_FAIL9\\\\n'; exit 9&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L05_FAIL9\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:f680a610-0494-4f64-a070-8e94db2f89e6/54f9f8e9-8840-4728-aeb7-6ab9e58b66dc",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'RELOAD_L05_FAIL7\\n'; exit 7"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "failed",
+            "exitCode": 7,
+            "signal": null,
+            "stdout": "RELOAD_L05_FAIL7\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'RELOAD_L05_FAIL9\\n'; exit 9"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "failed",
+            "exitCode": 9,
+            "signal": null,
+            "stdout": "RELOAD_L05_FAIL9\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 0,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nRELOAD_L05: 记录And全部失败应唤醒；这是预期失败用例，不修脚本、不重复运行。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"7\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L05_FAIL7\\\\n'; exit 7&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L05_FAIL7\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"9\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L05_FAIL9\\\\n'; exit 9&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L05_FAIL9\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "2a701749",
+      "parentId": "d66dff08",
+      "timestamp": "2026-10-20T08:59:59.614Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nRELOAD_L06: 检查超时1秒、后续脚本继续执行；保留实际SIGKILL及退出状态，勿将预期超时记为用例失败。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"unavailable\">\n*** FAILED ***\nstatus: timeout\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L06_TIMEOUT_BEGIN\\\\n'; /bin/sleep 10; printf 'RELOAD_L06_FORBIDDEN_END\\\\n'&quot;]\nsignal: SIGKILL\nerror: none\nstdout:\nRELOAD_L06_TIMEOUT_BEGIN\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L06_AFTER_TIMEOUT_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L06_AFTER_TIMEOUT_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:1a4779c5-e72d-4769-883e-c07853e17511/3535528d-42d6-4d49-b46a-ac68295f9ede",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'RELOAD_L06_TIMEOUT_BEGIN\\n'; /bin/sleep 10; printf 'RELOAD_L06_FORBIDDEN_END\\n'"
+              ],
+              "timeoutSeconds": 1
+            },
+            "status": "timeout",
+            "exitCode": null,
+            "signal": "SIGKILL",
+            "stdout": "RELOAD_L06_TIMEOUT_BEGIN\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'RELOAD_L06_AFTER_TIMEOUT_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "RELOAD_L06_AFTER_TIMEOUT_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nRELOAD_L06: 检查超时1秒、后续脚本继续执行；保留实际SIGKILL及退出状态，勿将预期超时记为用例失败。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"unavailable\">\n*** FAILED ***\nstatus: timeout\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L06_TIMEOUT_BEGIN\\\\n'; /bin/sleep 10; printf 'RELOAD_L06_FORBIDDEN_END\\\\n'&quot;]\nsignal: SIGKILL\nerror: none\nstdout:\nRELOAD_L06_TIMEOUT_BEGIN\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L06_AFTER_TIMEOUT_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L06_AFTER_TIMEOUT_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "a3401331",
+      "parentId": "2a701749",
+      "timestamp": "2026-10-20T08:59:59.614Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nRELOAD_L07: 检查不存在的可执行文件为start-failed且后续继续；不创建缺失文件，不重复登记。\n</prompts>\n<script=\"/tmp/loop-reload-test-missing-20261020-9b7616\", exit-code=\"unavailable\">\n*** FAILED ***\nstatus: start-failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: []\nsignal: none\nerror: spawn /tmp/loop-reload-test-missing-20261020-9b7616 ENOENT\nstdout:\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L07_AFTER_START_FAILURE_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L07_AFTER_START_FAILURE_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:feafe4f7-e079-4e12-bf06-4501033c719a/91982088-8286-4d90-a6a2-26705794c968",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/tmp/loop-reload-test-missing-20261020-9b7616",
+              "params": [],
+              "timeoutSeconds": 1800
+            },
+            "status": "start-failed",
+            "exitCode": null,
+            "signal": null,
+            "stdout": "",
+            "stderr": "",
+            "error": "spawn /tmp/loop-reload-test-missing-20261020-9b7616 ENOENT"
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'RELOAD_L07_AFTER_START_FAILURE_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "RELOAD_L07_AFTER_START_FAILURE_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nRELOAD_L07: 检查不存在的可执行文件为start-failed且后续继续；不创建缺失文件，不重复登记。\n</prompts>\n<script=\"/tmp/loop-reload-test-missing-20261020-9b7616\", exit-code=\"unavailable\">\n*** FAILED ***\nstatus: start-failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: []\nsignal: none\nerror: spawn /tmp/loop-reload-test-missing-20261020-9b7616 ENOENT\nstdout:\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L07_AFTER_START_FAILURE_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L07_AFTER_START_FAILURE_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "9036055f",
+      "parentId": "a3401331",
+      "timestamp": "2026-10-20T08:59:59.614Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nRELOAD_L08: 当前reload全面测试最后一项。收齐L01-L08的真实custom结果、核shouldWake及执行顺序、保存成功和预期失败记录，然后完成任务39/40并报告。不要重跑或另开审查。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L08_FIRST_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L08_FIRST_OK\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L08_SLEEP_BEGIN\\\\n'; /bin/sleep 10; printf 'RELOAD_L08_SLEEP_END\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L08_SLEEP_BEGIN\nRELOAD_L08_SLEEP_END\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L08_LAST_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L08_LAST_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:c758cadf-307b-478d-87f2-d47ad015672b/73a39a9f-a9f0-47ff-85e3-0e38c5d0f12c",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'RELOAD_L08_FIRST_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "RELOAD_L08_FIRST_OK\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'RELOAD_L08_SLEEP_BEGIN\\n'; /bin/sleep 10; printf 'RELOAD_L08_SLEEP_END\\n'"
+              ],
+              "timeoutSeconds": null
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "RELOAD_L08_SLEEP_BEGIN\nRELOAD_L08_SLEEP_END\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'RELOAD_L08_LAST_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "RELOAD_L08_LAST_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 3,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nRELOAD_L08: 当前reload全面测试最后一项。收齐L01-L08的真实custom结果、核shouldWake及执行顺序、保存成功和预期失败记录，然后完成任务39/40并报告。不要重跑或另开审查。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L08_FIRST_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L08_FIRST_OK\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L08_SLEEP_BEGIN\\\\n'; /bin/sleep 10; printf 'RELOAD_L08_SLEEP_END\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L08_SLEEP_BEGIN\nRELOAD_L08_SLEEP_END\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'RELOAD_L08_LAST_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nRELOAD_L08_LAST_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "09273ad8",
+      "parentId": "9036055f",
+      "timestamp": "2026-10-20T08:59:59.614Z"
+    }
+  ],
+  "registeredWithInhibitBoulder": true,
+  "limits": "Five wake requests, not proof of five separate model turns. NoWake results entered later context. These were executed before the English UI reload."
+}

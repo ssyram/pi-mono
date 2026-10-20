@@ -1,3 +1,4 @@
+import { captureWakeupPrompt } from "./capture-wakeup-prompt.js";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -47,6 +48,7 @@ export function loopBoulderFixture(
 		| undefined;
 	let tool: Tool | undefined;
 	const pi = {
+		registerMessageRenderer: () => undefined,
 		events: bus,
 		on(name: string, handler: Hook) {
 			const list = hooks.get(name) ?? [];
@@ -66,9 +68,7 @@ export function loopBoulderFixture(
 		appendEntry(customType: string, data: unknown) {
 			active.push({ type: "custom", customType, data });
 		},
-		sendUserMessage(text: string) {
-			sent.push(text);
-		},
+		sendMessage(message: { customType: string; content: unknown }) { sent.push(captureWakeupPrompt(message)); },
 	} as unknown as ExtensionAPI;
 	const session = (id: string): ExtensionContext => {
 		const sessionFile = join(cwd, `${id}.jsonl`);

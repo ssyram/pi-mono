@@ -1,0 +1,40 @@
+
+ ▀▀█  v1.2.0
+ █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more
+ Press ctrl+o to show full startup help and loaded resources.
+
+ Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.
+
+[Extensions]
+  reserve.ts, scheduled-wakeup
+
+
+ Warning: fd not found. Offline mode enabled, skipping download.
+
+ Scheduled wakeup loaded
+
+
+ Isolated persistent widget fixture; no provider call.
+
+
+ Fixture only.
+
+ Warning: No models available. Use /login to log into a provider via OAuth or API key. See:
+   /Users/ssyram/.pi/agent/install/releases/1.2.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md
+   /Users/ssyram/.pi/agent/install/releases/1.2.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md
+
+ Loop widget display off (session only; tasks unchanged).
+
+
+ Loop · 唤醒 ID: session:65b2933c-3d2e-4f31-99a5-40f981e6f238/560f0091-4ccf-49d7-a712-9914a8365c2f · 成功 1/1 · 不触发
+ 唤醒
+
+
+ Loop widget display on (session only; tasks unchanged).
+
+12 条预约了未来执行的任务 · 点击展开
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+~
+0.0%/0 (auto)                                                                                                    unknown

@@ -1,0 +1,108 @@
+{
+  "summary": [
+    {
+      "taskId": "session:72e56659-2c13-4144-b557-7f00e75f15eb",
+      "entryId": "b3900924",
+      "timestamp": "2026-10-20T10:21:53.670Z",
+      "success": "1/1",
+      "shouldWake": false,
+      "passed": true
+    },
+    {
+      "taskId": "session:638315fa-dd99-4f35-a053-9fe1d5e08e54",
+      "entryId": "a3266462",
+      "timestamp": "2026-10-20T10:22:13.770Z",
+      "success": "2/2",
+      "shouldWake": true,
+      "passed": true
+    }
+  ],
+  "rawMessages": [
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'ENGLISH_SMOKE_SILENT_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nENGLISH_SMOKE_SILENT_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:72e56659-2c13-4144-b557-7f00e75f15eb/c9b57320-ff77-41eb-acb1-ba9fdba0545c",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'ENGLISH_SMOKE_SILENT_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "ENGLISH_SMOKE_SILENT_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": false,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'ENGLISH_SMOKE_SILENT_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nENGLISH_SMOKE_SILENT_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "b3900924",
+      "parentId": "bfdd79bc",
+      "timestamp": "2026-10-20T10:21:53.670Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nEnglish UI smoke test complete. Collect both ENGLISH_SMOKE results, record actual statuses and wake decisions, and finish task 43. Do not rerun tests. Reply in Chinese.\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'ENGLISH_SMOKE_FIRST_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nENGLISH_SMOKE_FIRST_OK\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'ENGLISH_SMOKE_RUNNING\\\\n'; /bin/sleep 10; printf 'ENGLISH_SMOKE_LAST_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nENGLISH_SMOKE_RUNNING\nENGLISH_SMOKE_LAST_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:638315fa-dd99-4f35-a053-9fe1d5e08e54/422ffd90-0de5-47a6-932f-8b7f6e8bdbd2",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'ENGLISH_SMOKE_FIRST_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "ENGLISH_SMOKE_FIRST_OK\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'ENGLISH_SMOKE_RUNNING\\n'; /bin/sleep 10; printf 'ENGLISH_SMOKE_LAST_OK\\n'"
+              ],
+              "timeoutSeconds": null
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "ENGLISH_SMOKE_RUNNING\nENGLISH_SMOKE_LAST_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 2,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nEnglish UI smoke test complete. Collect both ENGLISH_SMOKE results, record actual statuses and wake decisions, and finish task 43. Do not rerun tests. Reply in Chinese.\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'ENGLISH_SMOKE_FIRST_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nENGLISH_SMOKE_FIRST_OK\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'ENGLISH_SMOKE_RUNNING\\\\n'; /bin/sleep 10; printf 'ENGLISH_SMOKE_LAST_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nENGLISH_SMOKE_RUNNING\nENGLISH_SMOKE_LAST_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "a3266462",
+      "parentId": "7148d3d3",
+      "timestamp": "2026-10-20T10:22:13.770Z"
+    }
+  ],
+  "limits": "Actual execution and wake decisions after user reload. Current-session widget/card visuals are not observable in this transcript; do not infer a new visual confirmation. No reruns."
+}

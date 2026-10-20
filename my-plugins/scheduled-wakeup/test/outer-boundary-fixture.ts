@@ -1,3 +1,4 @@
+import { captureWakeupPrompt } from "./capture-wakeup-prompt.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -30,6 +31,7 @@ export function createBoundaryFixture(t: TestContext) {
 	const entries: SessionEntryLike[] = [];
 	const notifications: string[] = [];
 	const sent: string[] = [];
+	const messages: { customType: string; content: unknown; details?: unknown; options?: { triggerTurn?: boolean } }[] = [];
 	const failures = { branch: false, append: false, notify: false };
 	const hooks = new Map<
 		string,
@@ -40,6 +42,7 @@ export function createBoundaryFixture(t: TestContext) {
 		| undefined;
 	let tool: BoundaryTool | undefined;
 	const pi = {
+		registerMessageRenderer: () => undefined,
 		on: (
 			name: string,
 			handler: (event: unknown, ctx: ExtensionContext) => Promise<void>,
@@ -50,7 +53,8 @@ export function createBoundaryFixture(t: TestContext) {
 		registerTool: (spec: unknown) => {
 			tool = spec as BoundaryTool;
 		},
-		sendUserMessage: (text: string) => sent.push(text),
+		sendUserMessage: () => assert.fail("automatic delivery must use custom messages"),
+		sendMessage: (message: { customType: string; content: unknown; details?: unknown }, options?: { triggerTurn?: boolean }) => { messages.push({ ...message, ...(options ? { options } : {}) }); sent.push(captureWakeupPrompt(message)); },
 		appendEntry: (customType: string, data: unknown) => {
 			if (failures.append) throw new Error("append failed");
 			entries.push({ type: "custom", customType, data });
@@ -93,6 +97,7 @@ export function createBoundaryFixture(t: TestContext) {
 		entries,
 		notifications,
 		sent,
+		messages,
 		failures,
 		ctx,
 		pi,

@@ -1,0 +1,23 @@
+{
+  "runtime": "official Pi 1.2.0",
+  "isolation": "offline; no credentials; temporary HOME/session; no user-session reload",
+  "suite": { "passed": 166, "failed": 0, "skipped": 0, "cancelled": 0, "suites": 16 },
+  "checks": {
+    "officialSdkTypes": "passed",
+    "scriptTaskTypes": "passed",
+    "targetedBiome": "passed",
+    "rootCheck": "blocked after Biome by unrelated pinned-dependency snapshot errors"
+  },
+  "observations": [
+    { "file": "fullscreen-expanded.txt", "result": "12 waiting items; summary plus 9 detail lines, inline" },
+    { "file": "short-collapsed.txt", "result": "12-row terminal remains one line after click" },
+    { "file": "occupied-collapsed.txt", "result": "20-row terminal with another 12-row widget remains one line after click" },
+    { "file": "mixed-running.txt", "result": "13 merged items; running (0/0/1) /bin/sleep 90 and waiting countdowns, one row each" },
+    { "file": "show-off.txt", "result": "widget hidden" },
+    { "file": "show-on-after-success.txt", "result": "sleep completed successfully while hidden; show on restores original 12 scheduled items" },
+    { "file": "zero-hidden.txt", "result": "stop all removes 12 scheduled items and widget" },
+    { "file": "legacy-single-line.txt", "result": "legacy remains one line after /loop running" }
+  ],
+  "cleanup": "Both owned tmux sessions exited normally; temporary scripts removed; evidence retained.",
+  "limits": "Direct behavior evidence, not a fresh CCA or universal no-throw proof. Unknown host layouts intentionally refuse expansion."
+}

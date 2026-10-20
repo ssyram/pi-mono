@@ -4,7 +4,10 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { notifyLoop as notify } from "./loop-notification.js";
+import type { RunningWidget } from "./loop-running-widget.js";
+import { LOOP_WIDGET_VISIBILITY } from "./loop-widget-visibility.js";
 import { runPromptNow } from "./run-prompt-now.js";
+import type { TaskDispatcher } from "./task-dispatcher.js";
 import type { AiSessionActions } from "./v2/ai-session-actions.js";
 import type { BoulderSyncBridge } from "./v2/boulder-sync.js";
 import type { DuePollerRefreshResult } from "./v2/due-poller.js";
@@ -18,10 +21,14 @@ import type { LoopV2Core } from "./v2/loop-core.js";
 import type { SharedDeleteResult } from "./v2/model.js";
 import type { ParsedLoopV2Command } from "./v2/parse-v2-command.js";
 import { loopV2HelpText } from "./v2/parse-v2-command.js";
+import { cloneTaskContent } from "./v2/task-content.js";
 import type { UserLoopV2Commands } from "./v2/user-commands.js";
 
 export type LoopV2Runtime = {
 	core: LoopV2Core;
+	dispatcher: TaskDispatcher;
+	widget: RunningWidget;
+	dispose(): void;
 	user: UserLoopV2Commands;
 	actions: AiSessionActions;
 	poller:
@@ -44,6 +51,18 @@ export function handleLoopCommand(
 		case "help":
 			notify(ctx, loopV2HelpText(), "info");
 			return;
+		case "show":
+			pi.appendEntry(LOOP_WIDGET_VISIBILITY, { visible: command.visible });
+			rt.widget.setVisible(command.visible);
+			notify(
+				ctx,
+				`Loop widget display ${command.visible ? "on" : "off"} (session only; tasks unchanged).`,
+				"info",
+			);
+			return;
+		case "running":
+			void rt.widget.show();
+			return;
 		case "list":
 			notify(ctx, formatActiveTasks(rt.core.listActive()), "info");
 			return;
@@ -56,7 +75,7 @@ export function handleLoopCommand(
 			return;
 		case "add": {
 			const task = rt.user.addSessionTask({
-				prompt: command.prompt,
+				...cloneTaskContent(command),
 				schedule: command.schedule,
 				...(command.inhibitBoulder !== undefined
 					? { inhibitBoulder: command.inhibitBoulder }
@@ -71,7 +90,7 @@ export function handleLoopCommand(
 		}
 		case "define": {
 			const definition = rt.user.defineSharedTask(command.scope, {
-				prompt: command.prompt,
+				...cloneTaskContent(command),
 				schedule: command.schedule,
 				...(command.inhibitBoulder !== undefined
 					? { inhibitBoulder: command.inhibitBoulder }

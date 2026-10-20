@@ -1,0 +1,50 @@
+{
+  "runtime": "official Pi 1.3.0",
+  "observations": [
+    {
+      "label": "ui-full-collapsed",
+      "passed": true
+    },
+    {
+      "label": "ui-full-expanded",
+      "passed": true
+    },
+    {
+      "label": "ui-countdown",
+      "passed": true
+    },
+    {
+      "label": "ui-short-collapsed",
+      "passed": true
+    },
+    {
+      "label": "ui-short-click-refused",
+      "passed": true
+    },
+    {
+      "label": "ui-show-off",
+      "passed": true
+    },
+    {
+      "label": "ui-show-on",
+      "passed": true
+    },
+    {
+      "label": "ui-zero-hidden",
+      "passed": true
+    },
+    {
+      "label": "ui-one-scheduled",
+      "passed": true
+    },
+    {
+      "label": "ui-legacy-summary",
+      "passed": true
+    },
+    {
+      "label": "ui-legacy-no-expand",
+      "passed": true
+    }
+  ],
+  "failure": "UI assertion timed out: ui-legacy-zero"
+}

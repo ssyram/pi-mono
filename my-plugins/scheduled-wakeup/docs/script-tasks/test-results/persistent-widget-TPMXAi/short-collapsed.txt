@@ -1,0 +1,12 @@
+ Fixture only.
+
+ Warning: No models available. Use /login to log into a provider via OAuth or API key. See:
+   /Users/ssyram/.pi/agent/install/releases/1.2.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md
+   /Users/ssyram/.pi/agent/install/releases/1.2.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md
+
+12 条预约了未来执行的任务 · 点击展开
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+~
+0.0%/0 (auto)                                                                                                    unknown

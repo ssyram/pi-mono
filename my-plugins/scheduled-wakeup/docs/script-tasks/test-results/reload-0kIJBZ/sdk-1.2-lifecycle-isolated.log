@@ -1,0 +1,13 @@
+✔ timeout directly kills a process that ignores SIGTERM and retains partial output (454.811625ms)
+✔ timeout kills same-group descendants, preventing their later writes (1516.381542ms)
+✔ ordinary completion cleans background members of the owned group (943.387417ms)
+✔ inherited pipes stay bounded by timeout even after the direct child exits (412.717917ms)
+✔ real batch continues after start failure, nonzero exit and timeout, then aggregates once (612.561875ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4143.809542

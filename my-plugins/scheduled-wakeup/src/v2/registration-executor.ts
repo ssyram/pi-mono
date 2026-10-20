@@ -1,8 +1,9 @@
-import { SharedDefinitionStore } from "./definition-store.js";
+import type { SharedDefinitionStore } from "./definition-store.js";
 import { advanceProgress, isDue, type ExecutionResult, type ExecutionTarget, type Registration, type SharedDefinition } from "./model.js";
-import { RegistrationExecutionLock } from "./registration-execution-lock.js";
-import { RegistrationStore } from "./registration-store.js";
+import type { RegistrationExecutionLock } from "./registration-execution-lock.js";
+import type { RegistrationStore } from "./registration-store.js";
 import { resumeProgress } from "./resume-progress.js";
+import { cloneTaskContent } from "./task-content.js";
 
 export type DeliverTask = (target: ExecutionTarget) => void;
 
@@ -54,7 +55,7 @@ export class RegistrationExecutor {
 
 	private deliver(registration: Registration, definition: SharedDefinition, deliver: DeliverTask): ExecutionResult | undefined {
 		try {
-			deliver({ id: registration.id, scope: definition.scope, prompt: definition.prompt });
+			deliver({ id: registration.id, scope: definition.scope, ...cloneTaskContent(definition) });
 			return undefined;
 		} catch (error) {
 			return { kind: "failed", id: registration.id, message: errorMessage(error) };

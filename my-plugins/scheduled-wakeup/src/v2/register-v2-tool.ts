@@ -2,77 +2,24 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
 import { loopErrorMessage } from "../loop-error-message.js";
+import { notifyLoop } from "../loop-notification.js";
 import { parseAtTime } from "../parse-at-time.js";
 import { parseDuration } from "../parse-duration.js";
+import { prepareScriptTask } from "../script-tasks/prepare-task.js";
 import type {
 	AiSessionActionResult,
 	AiSessionActions,
 } from "./ai-session-actions.js";
 import type { TaskSchedule } from "./model.js";
-
-const ScheduledWakeupParams = Type.Object({
-	inhibitBoulder: Type.Optional(
-		Type.Boolean({
-			description:
-				"Inhibit Boulder while this scheduled task is active. Optional for action=add.",
-		}),
-	),
-	action: Type.Union(
-		[
-			Type.Literal("add"),
-			Type.Literal("list"),
-			Type.Literal("cancel"),
-			Type.Literal("delete"),
-		],
-		{
-			description: "Action to perform",
-		},
-	),
-	prompt: Type.Optional(
-		Type.String({
-			description:
-				"Prompt to deliver when the wakeup fires. Required for action=add.",
-		}),
-	),
-	delay: Type.Optional(
-		Type.String({
-			description:
-				"One-shot relative delay such as 10s, 5m, 2h, or 1d. Use exactly one of delay, at, or interval for action=add.",
-		}),
-	),
-	at: Type.Optional(
-		Type.String({
-			description:
-				"One-shot absolute clock time such as 12am tomorrow, 09:30 +08:00, or 2026-08-05T00:00:00Z.",
-		}),
-	),
-	interval: Type.Optional(
-		Type.String({
-			description: "Recurring interval such as 10s, 5m, 2h, or 1d.",
-		}),
-	),
-	id: Type.Optional(
-		Type.String({
-			description:
-				"Active task id for action=cancel, or registration id for action=delete.",
-		}),
-	),
-});
-
-type ToolParams = {
-	action: "add" | "list" | "cancel" | "delete";
-	inhibitBoulder?: boolean | undefined;
-	prompt?: string | undefined;
-	delay?: string | undefined;
-	at?: string | undefined;
-	interval?: string | undefined;
-	id?: string | undefined;
-};
+import {
+	ScheduledWakeupParams,
+	type ToolParams,
+} from "./scheduled-wakeup-schema.js";
 
 export type ScheduledWakeupV2ToolOptions = {
 	getActions: (ctx: ExtensionContext) => AiSessionActions;
+	validateAdd?: (ctx: ExtensionContext) => string | undefined;
 	/** Called after every mutating action (add/cancel/delete) so the poller can reschedule. */
 	onMutation: () => string | undefined;
 	now?: () => number;
@@ -90,7 +37,7 @@ export function registerScheduledWakeupV2Tool(
 		promptSnippet:
 			"scheduled_wakeup: schedule/list/cancel timed future prompts shared with the /loop command.",
 		promptGuidelines: [
-			"Use scheduled_wakeup when you need Pi to resume later or periodically revisit a task.",
+			"Use scheduled_wakeup when you need Pi to resume later or run scheduled scripts. scriptTask runs every script, then applies its wakeUp policy; timeout defaults to 1800 seconds, null is unlimited.",
 			"Use exactly one of delay, at, or interval for action=add: delay/at are one-shot, interval is recurring.",
 			"AI actions are session-scoped: scope and force are not available; action=delete only removes a definition via your own registration id.",
 		],
@@ -99,7 +46,22 @@ export function registerScheduledWakeupV2Tool(
 			const toolParams = params as ToolParams;
 			let result: AiSessionActionResult;
 			try {
-				result = runAction(toolParams, options.getActions(ctx), options);
+				const error =
+					toolParams.action === "add" ? options.validateAdd?.(ctx) : undefined;
+				if (error !== undefined) {
+					notifyLoop(ctx, error, "error");
+					return {
+						content: [{ type: "text", text: `Error: ${error}` }],
+						details: { ok: false, message: `Error: ${error}`, active: null },
+						isError: true,
+					};
+				}
+				result = runAction(
+					toolParams,
+					options.getActions(ctx),
+					options,
+					ctx.cwd,
+				);
 			} catch (error) {
 				result = {
 					ok: false,
@@ -125,6 +87,7 @@ export function registerScheduledWakeupV2Tool(
 			return {
 				content: [{ type: "text", text: result.message }],
 				details: result,
+				isError: !result.ok,
 			};
 		},
 	});
@@ -134,10 +97,25 @@ function runAction(
 	params: ToolParams,
 	actions: AiSessionActions,
 	options: ScheduledWakeupV2ToolOptions,
+	cwd: string,
 ): AiSessionActionResult {
 	if (params.action === "add") {
 		const converted = convertSchedule(params, options.now?.() ?? Date.now());
 		if (typeof converted === "string") return failure(actions, converted);
+		if (Object.hasOwn(params, "scriptTask")) {
+			if (params.prompt !== undefined)
+				return failure(
+					actions,
+					"Error: use either prompt or scriptTask, not both.",
+				);
+			const prepared = prepareScriptTask(params.scriptTask, cwd);
+			if (!prepared.ok) return failure(actions, `Error: ${prepared.error}`);
+			return actions.execute({
+				...params,
+				scriptTask: prepared.task,
+				schedule: converted,
+			});
+		}
 		return actions.execute({ ...params, schedule: converted });
 	}
 	return actions.execute({ ...params });

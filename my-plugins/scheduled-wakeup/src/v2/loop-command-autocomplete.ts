@@ -1,3 +1,4 @@
+import type { ExtensionContext, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import type {
 	AutocompleteItem,
 	AutocompleteProvider,
@@ -37,6 +38,7 @@ export function createLoopCommandAutocompleteProvider(
 	const candidates = (parsed: Parsed): Candidate[] => {
 		const first = parsed.previous[0];
 		if (parsed.previous.length === 0) return topLevel();
+		if (first === "show") return parsed.previous.length === 1 ? [{ value: "off" }, { value: "on" }] : [];
 		if (first === "available")
 			return parsed.previous.length === 1 ? scopes() : [];
 		if (first === "define")
@@ -122,6 +124,11 @@ export function createLoopCommandAutocompleteProvider(
 			}
 		},
 	};
+}
+
+export function registerLoopAutocomplete(ctx: ExtensionContext, source: LoopCommandAutocompleteSource): void {
+	const ui = ctx.ui as ExtensionUIContext & { addAutocompleteProvider?(factory: (current: AutocompleteProvider) => AutocompleteProvider): void };
+	ui.addAutocompleteProvider?.((current) => createLoopCommandAutocompleteProvider(current, source));
 }
 
 function parse(lines: string[], row: number, col: number): Parsed | undefined {

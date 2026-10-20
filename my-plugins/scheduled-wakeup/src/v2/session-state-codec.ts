@@ -2,12 +2,13 @@ import type {
 	DefinitionReference,
 	ExecutionProgress,
 	Registration,
-	SessionDefinition,
+	SharedDefinition,
 	SessionLoopState,
 	SessionTask,
 	SharedScope,
 	TaskSchedule,
 } from "./model.js";
+import { readTaskContent, type TaskContent } from "./task-content.js";
 
 export function parseSessionLoopState(value: unknown): SessionLoopState | undefined {
 	if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.tasks) || !Array.isArray(value.registrations)) return undefined;
@@ -29,7 +30,7 @@ export function parseSessionLoopState(value: unknown): SessionLoopState | undefi
 	return { version: 1, tasks, registrations };
 }
 
-export function parseSharedDefinition(value: unknown): { id: string; scope: SharedScope; prompt: string; schedule: TaskSchedule; createdAt: number } | undefined {
+export function parseSharedDefinition(value: unknown): SharedDefinition | undefined {
 	if (!isRecord(value) || !isSharedScope(value.scope)) return undefined;
 	const base = parseDefinitionBase(value);
 	return base === undefined ? undefined : { ...base, scope: value.scope };
@@ -55,12 +56,13 @@ function parseReference(value: unknown): DefinitionReference | undefined {
 	return { scope: value.scope, definitionId: value.definitionId };
 }
 
-function parseDefinitionBase(value: Record<string, unknown>): Omit<SessionDefinition, "scope"> | undefined {
-	if (!isText(value.id) || !isText(value.prompt) || !isTimestamp(value.createdAt)) return undefined;
+function parseDefinitionBase(value: Record<string, unknown>): (TaskContent & { id: string; schedule: TaskSchedule; createdAt: number; inhibitBoulder?: boolean }) | undefined {
+	if (!isText(value.id) || !isTimestamp(value.createdAt)) return undefined;
+	const content = readTaskContent(value);
 	const schedule = parseSchedule(value.schedule);
-	if (schedule === undefined) return undefined;
+	if (schedule === undefined || content === undefined) return undefined;
 	const inhibitBoulder = value.inhibitBoulder === true ? true : undefined;
-	return { id: value.id, prompt: value.prompt, schedule, createdAt: value.createdAt, ...(inhibitBoulder !== undefined ? { inhibitBoulder } : {}) };
+	return { ...content, id: value.id, schedule, createdAt: value.createdAt, ...(inhibitBoulder !== undefined ? { inhibitBoulder } : {}) };
 }
 
 function parseSchedule(value: unknown): TaskSchedule | undefined {

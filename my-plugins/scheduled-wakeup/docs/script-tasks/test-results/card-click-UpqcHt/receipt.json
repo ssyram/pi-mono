@@ -1,0 +1,14 @@
+{
+  "observations": [
+    "full-collapsed",
+    "full-A-expanded",
+    "full-body-not-toggle",
+    "full-A-collapsed",
+    "full-B-independent",
+    "full-global-expand",
+    "full-global-collapse",
+    "legacy-collapsed",
+    "legacy-expand"
+  ],
+  "failure": null
+}

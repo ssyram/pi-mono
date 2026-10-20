@@ -5,10 +5,11 @@ import {
 	type ExecutionTarget,
 	type SessionTask,
 } from "./model.js";
-import { RegistrationExecutionLock } from "./registration-execution-lock.js";
-import { SessionEntryAdapter } from "./session-entry-adapter.js";
+import type { RegistrationExecutionLock } from "./registration-execution-lock.js";
+import type { SessionEntryAdapter } from "./session-entry-adapter.js";
 import type { DeliverTask } from "./registration-executor.js";
 import { resumeProgress } from "./resume-progress.js";
+import { cloneTaskContent } from "./task-content.js";
 
 export class SessionTaskExecutor {
 	private readonly sessionState: SessionEntryAdapter;
@@ -55,7 +56,7 @@ export class SessionTaskExecutor {
 
 	private deliver(task: SessionTask, deliver: DeliverTask): ExecutionResult | undefined {
 		try {
-			const target: ExecutionTarget = { id: task.definition.id, scope: "session", prompt: task.definition.prompt };
+			const target: ExecutionTarget = { id: task.definition.id, scope: "session", ...cloneTaskContent(task.definition) };
 			deliver(target);
 			return undefined;
 		} catch (error) {

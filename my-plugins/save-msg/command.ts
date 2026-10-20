@@ -1,9 +1,12 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { groupIntoTurns, serializeTurns } from "./turns.js";
 import { showMessagePicker } from "./message-list.js";
 import { outputResult } from "./output.js";
 import { parseArgs } from "./parse-args.js";
-import { type ArgumentCandidate, createCommandArgumentProvider } from "./tab-complete.js";
+import {
+	type ArgumentCandidate,
+	createCommandArgumentProvider,
+} from "./tab-complete.js";
+import { groupIntoTurns, serializeTurns } from "./turns.js";
 
 /** Menu shown by Tab after `/save-msg `. Mirrors the options parseArgs accepts. */
 const OPTION_CANDIDATES: ArgumentCandidate[] = [
@@ -15,13 +18,18 @@ const OPTION_CANDIDATES: ArgumentCandidate[] = [
 	{ value: "--help", description: "显示帮助" },
 ];
 
-function completeSaveMsgArgument(previousTokens: string[], token: string): ArgumentCandidate[] | null {
+function completeSaveMsgArgument(
+	previousTokens: string[],
+	token: string,
+): ArgumentCandidate[] | null {
 	// A token that does not look like an option is a path — leave it to the
 	// underlying provider so file completion still works there.
 	if (token && !token.startsWith("-")) return null;
 
 	const used = new Set(previousTokens);
-	const remaining = OPTION_CANDIDATES.filter((candidate) => !used.has(candidate.value));
+	const remaining = OPTION_CANDIDATES.filter(
+		(candidate) => !used.has(candidate.value),
+	);
 	return remaining.length > 0 ? remaining : null;
 }
 
@@ -39,6 +47,7 @@ const HELP = `\
 
 选项可组合：/save-msg --with-tools --raw output.json
 
+相对路径基于当前 cwd，~/ 基于当前用户主目录。
 省略路径时复制到剪贴板。
 在 /save-msg 后按 Tab 可列出选项菜单。`;
 
@@ -46,12 +55,16 @@ export default function (pi: ExtensionAPI) {
 	// Autocomplete wrappers are cleared on /reload, so re-register every session.
 	pi.on("session_start", (_event, ctx) => {
 		ctx.ui.addAutocompleteProvider((current) =>
-			createCommandArgumentProvider(current, { command: "save-msg", complete: completeSaveMsgArgument }),
+			createCommandArgumentProvider(current, {
+				command: "save-msg",
+				complete: completeSaveMsgArgument,
+			}),
 		);
 	});
 
 	pi.registerCommand("save-msg", {
-		description: "Save the last assistant reply (or picked messages) to a path or clipboard",
+		description:
+			"Save the last assistant reply (or picked messages) to a path or clipboard",
 		handler: async (args, ctx) => {
 			if (!args.trim()) {
 				ctx.ui.notify(HELP, "info");
@@ -78,14 +91,23 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			const lastAssistant = [...turns].reverse().find(t => t.role === "assistant");
+			const lastAssistant = [...turns]
+				.reverse()
+				.find((t) => t.role === "assistant");
 			if (!lastAssistant) {
 				ctx.ui.notify("No assistant message found", "warning");
 				return;
 			}
 
-			const text = serializeTurns([lastAssistant], opts.raw, opts.withTools, opts.noHeader);
-			await outputResult(text, opts.path, opts.append, ctx.cwd, (m, l) => ctx.ui.notify(m, l));
+			const text = serializeTurns(
+				[lastAssistant],
+				opts.raw,
+				opts.withTools,
+				opts.noHeader,
+			);
+			await outputResult(text, opts.path, opts.append, ctx.cwd, (m, l) =>
+				ctx.ui.notify(m, l),
+			);
 		},
 	});
 }

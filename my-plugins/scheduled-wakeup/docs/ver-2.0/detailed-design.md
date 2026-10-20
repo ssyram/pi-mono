@@ -8,9 +8,27 @@
 4. Every executable shared registration has a matching catalog definition and index entry for its stable `sessionId` and registration ID.
 5. Progress belongs only to a session task/registration. Force deletion may invalidate remote local references but never overwrites another session JSONL.
 
+## Script content and running batches
+
+TaskContent is a mutually exclusive prompt/scriptTask union. Creation prepares relative/home paths against ctx.cwd and persists absolute ScriptSpec values. cloneTaskContent copies policy/scripts/params; readTaskContent refuses conflicting or malformed payloads rather than downgrading to a prompt. The session/shared decoder preserves all fields; registration records still contain only references/private progress.
+
+Dispatch returns synchronously once a batch starts; core runCount/nextRunAt advance then. Dispatcher refuses same-ID overlap, sequentially awaits every ordinary script result, and sends one `loop-task-run` custom message. Never uses triggerTurn:false (no extra turn; future context can include it); wake policies use true/followUp. Ordinary runner/publication/hook failures are contained and reported; UI errors cannot rewrite committed schedule progress. No crash exactly-once claim or new retry system is introduced.
+
+The widget merges listActive() schedules with dispatcher.list() by ID; running once-items remain until completion, and running recurring items count once. It displays a single summary while N>0 and removes itself at N=0. Fullscreen click on the summary or /loop running toggles inline details, max10 total lines (summary+up to9 items). Each item is exactly one line: waiting remaining time, or executing I/K/M and current command. I=success terminals, K=all ended attempts (not current), M=script count. Legacy has no mouse handler and /loop running cannot expand it; the old overlay is gone.
+
+Space checks use the public TUI children/render API of the verified Pi1.2 seven-component mount: document then six fixed input-dock components. During measurement our renderer returns only the summary, preventing recursion; actual dock heights include other widgets and editor, with one transcript row reserved. If our summary is not observed, mount shape differs, or insufficient height remains, do not expand; resize may collapse it. No private field/method or host modification is used.
+
+Widget snapshots refresh at start/tree, command/tool mutation, due-run and runner progress. The countdown interval merely requests render of cached waiting deadlines while expanded; hidden/collapsed/legacy/closed states have no countdown timer. loop-widget-visibility.ts reads the latest legal scheduled-wakeup/widget-visibility custom record, default true. show off/on appends that record before applying UI state; failures report possible partial effects, never promise rollback. It is session/branch-local like tasking's default show behavior, without adding persistent/global parameters or a settings-service dependency. Display toggles never touch schedules or running children. Public UI/timer/render callbacks contain ordinary failures, and sanitization/truncation is display-only.
+
+Stop/cancel leaves an already-started batch running and may still yield its final wakeup. Session shutdown/reload disposes its runner/widget: optional AbortSignal kills only owned groups, removes listeners/timers on settlement, prevents new children after cancellation and suppresses results on an invalidated context. Partial batches are not resumed. Existing detached-descendant/OS kill refusal limits remain.
+
 ## Session state and progress
 
-`SessionEntryAdapter.reload()` recovers the newest valid custom snapshot. `dispatch()` computes the reducer result, appends it, then updates memory. Single tasks complete after success; interval tasks advance to `now + intervalMs`; failed delivery does not advance.
+Creation at Pi-facing command/tool boundaries requires an existing regular file at `ctx.sessionManager.getSessionFile()`. Missing/undefined/non-file paths return an error before any creation, shared index write or append; notification is best-effort and cannot escape. Commands gate `add`/`define`/`register`, the tool gates only `add`; queries remain usable. Once a real conversation saves the file, the same runtime can create tasks without reload. This does not certify later writes or force Pi to persist a custom-only session, and does not add synthetic messages/provider calls/storage.
+
+One session transcript has one executor by user contract; multiple executors for the same transcript are UB. No freshness repair or owner-admission layer is required for that case. Different session transcripts still share catalog transactions.
+
+`SessionEntryAdapter.reload()` recovers the newest valid custom snapshot. `dispatch()` computes the reducer result, appends it, then updates memory. Single schedules complete after successful dispatch; intervals advance to dispatch time plus intervalMs. A later script failure is a batch result, not a failed dispatch/retry.
 
 ## Close and resume contract
 
@@ -30,7 +48,9 @@ The command re-arms the poller. Successful execution then uses the existing rule
 
 ## Shared catalog transaction
 
-`SharedDefinitionStore` locks one scope file, loads/validates its complete catalog, applies one operation, writes a temporary JSON file, then atomically renames it. `create`, `indexRegistration`, `removeRegistration`, `delete`, and definition/index checks use this transaction. Normal lock contention returns `busy` for deletion; malformed catalogs are unavailable rather than partly accepted.
+`SharedDefinitionStore` acquires the existing proper-lockfile directory lock before loading/validating the scope catalog, applies one operation, writes a temporary JSON file, then atomically renames it while holding the lock. `create`, `indexRegistration`, `removeRegistration` and `delete` use this write transaction. Queries retain lock-free complete snapshots. Lock contention returns `busy` for deletion and an internal busy error for other writes; malformed catalogs are unavailable rather than partly accepted.
+
+`lockfile.lockSync(path, { realpath: false, retries: 0, stale: 30000, onCompromised: () => undefined })` creates the existing `.lock` directory. The library refreshes its timestamp when the event loop runs, and another writer may reclaim it after 30 seconds without refresh. Finally releases the lock, ignoring an already-stale release failure. The user explicitly accepts that a writer paused/blocked beyond this interval and later resumed can overwrite an intervening update. This is not strict exclusion under arbitrary process suspension. SQLite, fencing, auxiliary writer processes and stronger pause/crash guarantees are deliberately excluded.
 
 ### Registration ordering
 
@@ -58,9 +78,19 @@ type SharedDeleteResult =
 
 ## Command autocomplete
 
-`createLoopCommandAutocompleteProvider(current, source)` wraps Pi's current autocomplete provider. It claims forced Tab after `/loop `, uses case-insensitive subsequence matching, and delegates unsupported positions to the wrapped provider. Candidates: top-level `add`, `define`, `available`, `register`, `unregister`, `list`, `stop`, `delete`, `run`, `defer`, `help`; shared scopes; active IDs (unregister offers only `registration:*` IDs); `--force`; and shared definition IDs. `src/extension.ts` registers it on every `session_start`.
+`createLoopCommandAutocompleteProvider(current, source)` wraps Pi's current autocomplete provider. It claims forced Tab after `/loop `, uses case-insensitive subsequence matching, and delegates unsupported positions to the wrapped provider. Candidates: top-level `add`, `define`, `available`, `register`, `unregister`, `list`, `running`, `show`, `stop`, `delete`, `run`, `defer`, `help`; shared scopes; active IDs (unregister offers only `registration:*` IDs); `--force`; and shared definition IDs. `src/extension.ts` registers it on every `session_start`.
+
+## Boulder lifecycle and completion
+
+`inhibitBoulder` is an optional definition boolean (default false), persisted by core/codec and accepted by tool schema plus AI input validation. CLI `--no-boulder` is recognized only before free prompt text (after `at`'s `--` it is literal); add/define Tab candidates follow the same boundary, including `ws` alias, and never apply to available.
+
+`create-loop-runtime` builds session-bound core/actions/bridge/poller; ensure compares cwd, manager and session ID. Bridge sync uses actual session tasks plus active registrations with resolved/missing/unavailable semantics. An indexed record whose definition read fails is unavailable, not resolved false. Mutation/afterRun/start/tree/OMP-ready recompute through the public service. Failed sync reports inside its catch and does not fake rollback or add schedules.
+
+Each completion method contains its operations and delegation; getSuggestions awaits the delegate to capture Promise rejection. Current pre/post, branches, failure termination and loop reasoning are delegated to [Boulder integration contracts](../../../oh-my-pi-v2/docs/boulder-inhibition/integration-contracts.md), not a second copy of the same rules.
 
 ## Runtime wiring
+
+`claimLoopInstance(manager, dispose)` keeps reload ownership keyed by the public SessionManager object. Claiming that same object disposes only its previous instance; another manager, even in the same cwd, is independent. Release removes only the matching claim, so a retired callback cannot remove its successor. Extension teardown marks its closure inactive and releases its own claim; retired tools cannot recreate the runtime. The process-level WeakMap is only identity-keyed lifecycle bookkeeping, not shared task state. Manager replacement releases the old claim and the existing ensure path disposes/rebuilds that instance's runtime.
 
 - `parse-v2-command.ts` parses the full `/loop` grammar (see README for the surface) into the dispatch union; `interval`/`delay` reuse `src/parse-duration.ts`. Creation `at` expressions reuse `src/parse-at-time.ts` and require the `--` prompt separator. `defer` takes one active ID followed by the entire duration/time expression, with no prompt separator. `delete` derives scope from the ID prefix and accepts `--force` anywhere in the token list.
 - `due-poller.ts` arms one timer at the nearest active `nextRunAt`, chunks waits beyond `MAX_TIMEOUT` (~24.8 days), runs `core.runDue(deliver)` on fire, and re-arms. Non-`executed` outcomes (failed/locked/unavailable/not-due-due-to-race) arm the next timer no sooner than 60s later to avoid hot-looping. Handles are unref'd unless `PI_SCHEDULED_WAKEUP_RUNNER=1`. `extension.ts` calls `reschedule()` after every mutating command and tool action.
@@ -70,4 +100,14 @@ type SharedDeleteResult =
 
 ## Correctness boundaries
 
-Definition/index mutation is atomic per scope catalog, but external Pi delivery and session entry append cannot be one transaction. Locks prevent healthy same-session overlap. Force invalidates future resolution immediately but cannot revoke a delivery already in progress.
+Definition/index mutation uses atomic per-file replacement, but external Pi delivery and session entry append cannot be one transaction. Same-transcript multiple executors are outside the supported contract. Different-session catalog writers retain the existing expiring directory lock; the user accepts the long-pause lost-update boundary recorded in [the findings](../script-tasks/audit/cca-findings.md). Force invalidates future resolution immediately but cannot revoke a delivery already in progress. Pi may change its in-memory branch before a failed append, and custom-only sessions may not be flushed (creation is now rejected while their file is absent); append return/throw is not an unconditional durable-commit or rollback signal.
+
+## Ordinary error containment
+
+`extension.ts` contains factory, command and lifecycle failures, including setup/teardown/reporting. Internal core/store/port methods still raise errors where their contracts require it. The tool boundary also contains getActions/conversion/action failures; active-query failure is `null` with an error rather than zero tasks. Post-action refresh failure reports separately without rewriting the committed action outcome. `DuePoller.reschedule()` returns `{ok:true}` or `{ok:false,message,cause?}`; stopped/disposed pollers return failure rather than pretending that polling resumed. The command, lifecycle and tool adapters consume that failure without throwing or retrying; a committed action remains committed and its message identifies the schedule-refresh failure. Notifications do not belong to the delivery try.
+
+The completion provider catches its own source operations and awaits async delegation within try; failure yields no suggestions, unchanged text/cursor, or false trigger. The existing poller start path can still propagate to the containing startup boundary; reschedule now clears running state and returns explicit failure, containing cleanup failure too. The actual timer callback additionally contains re-arm/diagnostic failures and stops rather than adding a new retry policy. Delegates receive copied editor arrays, and error-message conversion occurs inside its own try, including a non-string Error.message. These repairs are not a proof that every existing internal function is nonthrowing; current CCA coverage/SDK/usability boundaries are recorded in [the CCA4 adjudication](../../../oh-my-pi-v2/docs/task-system/cca4-findings.md).
+
+`valid-once-time.ts` establishes new once timestamps in `(0, 8640000000000000]`; safe sums outside this range are invalid. `format-timestamp.ts` retains readable epoch-ms output for existing out-of-range values. `shared-catalog-codec.ts` owns complete scope/identity validation and unique registration pairs; `atomic-catalog-write.ts` owns temporary replacement and best-effort failure cleanup while preserving the primary write error. Other splits (`create-loop-core`, `runner-mode`, `run-prompt-now`, completion candidates) isolate existing responsibilities to retain the source-file limit, not add features.
+
+Regression tests and residual boundaries are in [the correction contract](../script-tasks/outer-boundary-fix.md) and [test evidence](../script-tasks/test-report.md).

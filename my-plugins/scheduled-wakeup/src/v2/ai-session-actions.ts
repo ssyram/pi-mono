@@ -1,6 +1,7 @@
-import type { LoopV2Core } from "./loop-core.js";
 import { loopErrorMessage } from "../loop-error-message.js";
+import type { LoopV2Core } from "./loop-core.js";
 import type { ActiveTask, TaskInput, TaskSchedule } from "./model.js";
+import { readTaskContent } from "./task-content.js";
 import { validOnceTime } from "./valid-once-time.js";
 
 export type AiSessionActionResult = {
@@ -55,7 +56,7 @@ export class AiSessionActions {
 		if (task === undefined)
 			return this.result(
 				false,
-				"Error: add requires a nonempty prompt and a valid schedule.",
+				"Error: add requires a valid prompt or prepared scriptTask and a valid schedule.",
 			);
 		return this.result(
 			true,
@@ -101,13 +102,18 @@ export class AiSessionActions {
 }
 
 function parseTaskInput(input: Record<string, unknown>): TaskInput | undefined {
-	if (!text(input.prompt)) return undefined;
-	if (input.inhibitBoulder !== undefined && typeof input.inhibitBoulder !== "boolean") return undefined;
+	const content = readTaskContent(input);
+	if (content === undefined) return undefined;
+	if (
+		input.inhibitBoulder !== undefined &&
+		typeof input.inhibitBoulder !== "boolean"
+	)
+		return undefined;
 	const schedule = parseSchedule(input.schedule);
 	if (schedule === undefined) return undefined;
 	const inhibitBoulder = input.inhibitBoulder === true ? true : undefined;
 	return {
-		prompt: input.prompt,
+		...content,
 		schedule,
 		...(inhibitBoulder !== undefined ? { inhibitBoulder } : {}),
 	};

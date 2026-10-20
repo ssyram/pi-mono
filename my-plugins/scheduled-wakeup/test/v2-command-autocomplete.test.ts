@@ -6,7 +6,7 @@ import { createLoopCommandAutocompleteProvider, type LoopCommandAutocompleteSour
 describe("Loop 2.0 command autocomplete", () => {
 	it("completes top-level commands and scope positions with loose matching", async () => {
 		const provider = createLoopCommandAutocompleteProvider(fallback(), source());
-		assert.deepEqual(await values(provider, "/loop "), ["add", "define", "available", "register", "unregister", "list", "stop", "delete", "run", "defer", "help"]);
+		assert.deepEqual(await values(provider, "/loop "), ["add", "define", "available", "register", "unregister", "list", "running", "show", "stop", "delete", "run", "defer", "help"]);
 		assert.deepEqual(await values(provider, "/loop d"), ["define", "delete", "defer", "add"]);
 		assert.deepEqual(await values(provider, "/loop define "), ["workspace", "global"]);
 		assert.deepEqual(await values(provider, "/loop register g"), ["global"]);

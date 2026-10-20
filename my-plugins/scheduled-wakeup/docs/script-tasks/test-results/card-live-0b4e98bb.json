@@ -1,0 +1,91 @@
+{
+  "summary": [
+    {
+      "taskId": "session:0b4e98bb-e121-4c2c-ab8a-234d3c857f6d",
+      "entryId": "7514466a",
+      "timestamp": "2026-10-20T11:06:54.116Z",
+      "success": "1/1",
+      "shouldWake": false,
+      "executionPassed": true
+    },
+    {
+      "taskId": "session:e5b5c3c1-4edc-42d3-8d38-d8d2f0e0aa6b",
+      "entryId": "1b1e6a50",
+      "timestamp": "2026-10-20T11:07:04.264Z",
+      "success": "1/1",
+      "shouldWake": true,
+      "executionPassed": true
+    }
+  ],
+  "rawMessages": [
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'CLICK_TEST_SILENT_BODY\\\\nExpand the card title to see this output.\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nCLICK_TEST_SILENT_BODY\nExpand the card title to see this output.\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:0b4e98bb-e121-4c2c-ab8a-234d3c857f6d/5f37ec20-8dbd-46d6-b91e-41f567ae44a9",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'CLICK_TEST_SILENT_BODY\\nExpand the card title to see this output.\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "CLICK_TEST_SILENT_BODY\nExpand the card title to see this output.\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": false,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'CLICK_TEST_SILENT_BODY\\\\nExpand the card title to see this output.\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nCLICK_TEST_SILENT_BODY\nExpand the card title to see this output.\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "7514466a",
+      "parentId": "f0578e44",
+      "timestamp": "2026-10-20T11:06:54.116Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nCLICK_TEST_WAKE: collect the two current click-test results and report execution status in Chinese. Do not claim the user's click worked without their confirmation; do not rerun tests.\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'CLICK_TEST_WAKE_BODY\\\\nClick the title again to collapse.\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nCLICK_TEST_WAKE_BODY\nClick the title again to collapse.\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:e5b5c3c1-4edc-42d3-8d38-d8d2f0e0aa6b/03d1a41b-192c-4712-9c22-6150018f5b86",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'CLICK_TEST_WAKE_BODY\\nClick the title again to collapse.\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "CLICK_TEST_WAKE_BODY\nClick the title again to collapse.\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nCLICK_TEST_WAKE: collect the two current click-test results and report execution status in Chinese. Do not claim the user's click worked without their confirmation; do not rerun tests.\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'CLICK_TEST_WAKE_BODY\\\\nClick the title again to collapse.\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nCLICK_TEST_WAKE_BODY\nClick the title again to collapse.\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "1b1e6a50",
+      "parentId": "5ca2a0a3",
+      "timestamp": "2026-10-20T11:07:04.264Z"
+    }
+  ],
+  "currentSessionClick": "User confirmed title-click expand/collapse works in the current session after reload. This confirmation is separate from script execution success."
+}

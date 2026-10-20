@@ -1,0 +1,44 @@
+
+> pi-monorepo@0.0.3 check
+> node scripts/biome-check.mjs --write && npm run check:pinned-deps && npm run check:runtime-deps && npm run check:ts-imports && npm run check:entry-graphs && npm run check:install-lock:coding-agent && tsc --noEmit && npm run check:browser-smoke
+
+Checked 1868 files in 40s. No fixes applied.
+
+> pi-monorepo@0.0.3 check:pinned-deps
+> node scripts/check-pinned-deps.mjs
+
+Direct registry dependencies must use exact versions:
+  .local/stability-against-oc/sources/pi-v1.2.0/packages/agent/package.json: dependencies.@earendil-works/pi-ai must be pinned, found ^1.2.0
+  .local/stability-against-oc/sources/pi-v1.2.0/packages/ai/package.json: dependencies.@earendil-works/pi-telemetry must be pinned, found ^1.2.0
+  .local/stability-against-oc/sources/pi-v1.2.0/packages/coding-agent/package.json: dependencies.@earendil-works/pi-agent-core must be pinned, found ^1.2.0
+  .local/stability-against-oc/sources/pi-v1.2.0/packages/coding-agent/package.json: dependencies.@earendil-works/pi-ai must be pinned, found ^1.2.0
+  .local/stability-against-oc/sources/pi-v1.2.0/packages/coding-agent/package.json: dependencies.@earendil-works/pi-codemode must be pinned, found ^1.2.0
+  .local/stability-against-oc/sources/pi-v1.2.0/packages/coding-agent/package.json: dependencies.@earendil-works/pi-mcp must be pinned, found ^1.2.0
+  .local/stability-against-oc/sources/pi-v1.2.0/packages/coding-agent/package.json: dependencies.@earendil-works/pi-tui must be pinned, found ^1.2.0
+  .local/stability-against-oc/sources/pi-v1.2.0/packages/durable/package.json: dependencies.@earendil-works/chord must be pinned, found ^1.2.0
+  .local/stability-against-oc/sources/pi-v1.2.0/packages/durable/package.json: dependencies.@earendil-works/pi-ai must be pinned, found ^1.2.0
+  .local/stability-against-oc/sources/pi-v1.2.0/packages/durable/package.json: dependencies.@earendil-works/pi-codemode must be pinned, found ^1.2.0
+  .local/stability-against-oc/sources/pi-v1.2.0/packages/env/package.json: dependencies.@earendil-works/chord must be pinned, found ^1.2.0
+  .local/stability-against-oc/sources/pi-v1.2.0/packages/env/package.json: dependencies.@earendil-works/pi-durable must be pinned, found ^1.2.0
+  .local/stability-against-oc/sources/pi-v1.2.0/packages/evals/package.json: devDependencies.@earendil-works/pi-ai must be pinned, found ^1.2.0
+  .local/stability-against-oc/sources/pi-v1.2.0/packages/evals/package.json: devDependencies.@earendil-works/pi-coding-agent must be pinned, found ^1.2.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/agent/package.json: dependencies.@earendil-works/pi-ai must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/ai/package.json: dependencies.@earendil-works/pi-telemetry must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/client/package.json: dependencies.@earendil-works/chord must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/client/package.json: dependencies.@earendil-works/pi-protocol must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/coding-agent/package.json: dependencies.@earendil-works/chord must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/coding-agent/package.json: dependencies.@earendil-works/pi-agent-core must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/coding-agent/package.json: dependencies.@earendil-works/pi-ai must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/coding-agent/package.json: dependencies.@earendil-works/pi-codemode must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/coding-agent/package.json: dependencies.@earendil-works/pi-mcp must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/coding-agent/package.json: dependencies.@earendil-works/pi-tui must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/coding-agent/package.json: devDependencies.@earendil-works/pi-client must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/coding-agent/package.json: devDependencies.@earendil-works/pi-protocol must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/coding-agent/package.json: devDependencies.@earendil-works/pi-server must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/durable/package.json: dependencies.@earendil-works/chord must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/durable/package.json: dependencies.@earendil-works/pi-ai must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/evals/package.json: devDependencies.@earendil-works/pi-ai must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/evals/package.json: devDependencies.@earendil-works/pi-coding-agent must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/protocol/package.json: dependencies.@earendil-works/chord must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/server/package.json: dependencies.@earendil-works/chord must be pinned, found ^1.0.0
+  my-plugins/impression-demo/runs/sdk-snapshots/pi-0d77872/packages/server/package.json: dependencies.@earendil-works/pi-protocol must be pinned, found ^1.0.0

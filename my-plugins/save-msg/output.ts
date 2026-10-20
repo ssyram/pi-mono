@@ -1,12 +1,16 @@
-import { writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import { execSync } from "node:child_process";
+import { writeFile } from "node:fs/promises";
+import { resolveUserPath } from "../file-path/resolve-user-path.js";
 
 export async function outputResult(
-	text: string, filePath: string | undefined, append: boolean, cwd: string, notify: (msg: string, level: "info" | "warning") => void,
+	text: string,
+	filePath: string | undefined,
+	append: boolean,
+	cwd: string,
+	notify: (msg: string, level: "info" | "warning") => void,
 ) {
 	if (filePath) {
-		const abs = resolve(cwd, filePath);
+		const abs = resolveUserPath(filePath, cwd);
 		try {
 			await writeFile(abs, text, { flag: append ? "a" : "w" });
 			notify(`Saved to ${abs}`, "info");

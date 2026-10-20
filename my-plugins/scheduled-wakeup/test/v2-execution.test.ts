@@ -17,7 +17,7 @@ describe("Loop 2.0 execution", () => {
 		const definition = first.createSharedDefinition("workspace", { prompt: "only once", schedule: { kind: "once", runAt: NOW } });
 		const registration = first.registerSharedDefinition("workspace", definition.id);
 		const second = createCore("same-session", journal.port, roots);
-		const delivered: string[] = [];
+		const delivered: (string | undefined)[] = [];
 
 		const result = first.executeRegistration(registration.id, (target) => {
 			delivered.push(target.prompt);

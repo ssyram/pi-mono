@@ -1,3 +1,8 @@
+import {
+	cloneTaskContent,
+	readTaskContent,
+	type TaskContent,
+} from "./task-content.js";
 import { validOnceTime } from "./valid-once-time.js";
 
 export type SharedScope = "workspace" | "global";
@@ -7,16 +12,14 @@ export type TaskSchedule =
 	| { kind: "once"; runAt: number }
 	| { kind: "interval"; intervalMs: number };
 
-export type TaskInput = {
-	prompt: string;
+export type TaskInput = TaskContent & {
 	schedule: TaskSchedule;
 	inhibitBoulder?: boolean;
 };
 
-export type TaskDefinition = {
+export type TaskDefinition = TaskContent & {
 	id: string;
 	scope: Scope;
-	prompt: string;
 	schedule: TaskSchedule;
 	createdAt: number;
 	inhibitBoulder?: boolean;
@@ -70,7 +73,7 @@ export type ActiveTask =
 			registration: Registration;
 			definition: SharedDefinition | undefined;
 	  };
-export type ExecutionTarget = { id: string; scope: Scope; prompt: string };
+export type ExecutionTarget = TaskContent & { id: string; scope: Scope };
 export type ExecutionResult =
 	| { kind: "executed"; id: string; runCount: number }
 	| { kind: "locked"; id: string }
@@ -90,8 +93,8 @@ export function isSharedScope(scope: Scope): scope is SharedScope {
 }
 
 export function assertTaskInput(input: TaskInput): void {
-	if (input.prompt.trim().length === 0)
-		throw new Error("Task prompt must not be empty");
+	if (readTaskContent({ ...input }) === undefined)
+		throw new Error("Task requires a nonempty prompt or a prepared scriptTask");
 	if (
 		input.inhibitBoulder !== undefined &&
 		typeof input.inhibitBoulder !== "boolean"
@@ -153,7 +156,11 @@ export function cloneProgress(progress: ExecutionProgress): ExecutionProgress {
 }
 
 export function cloneDefinition<T extends TaskDefinition>(definition: T): T {
-	return { ...definition, schedule: cloneSchedule(definition.schedule) };
+	return {
+		...definition,
+		...cloneTaskContent(definition),
+		schedule: cloneSchedule(definition.schedule),
+	};
 }
 
 export function cloneRegistration(registration: Registration): Registration {

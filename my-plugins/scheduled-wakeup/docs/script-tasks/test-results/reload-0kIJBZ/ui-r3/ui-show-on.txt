@@ -1,0 +1,40 @@
+
+ ▀▀█  v1.3.0
+ █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more
+ Press ctrl+o to show full startup help and loaded resources.
+
+ Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.
+
+[Extensions]
+  scheduled-wakeup
+
+
+ Warning: fd not found. Offline mode enabled, skipping download.
+
+ Scheduled wakeup loaded
+
+
+ Offline widget test fixture.
+
+
+ Fixture only.
+
+ Warning: No models available. Use /login to log into a provider via OAuth or API key. See:
+   /Users/ssyram/.pi/agent/install/releases/1.3.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md
+   /Users/ssyram/.pi/agent/install/releases/1.3.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md
+
+ Loop widget display on (session only; tasks unchanged).
+
+
+
+
+
+
+
+
+Loop · 12 scheduled · expand
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+~
+0.0%/0 (auto)                                                                                                    unknown

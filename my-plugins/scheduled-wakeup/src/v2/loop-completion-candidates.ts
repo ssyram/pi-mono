@@ -1,5 +1,6 @@
 import type { LoopCommandAutocompleteSource } from "./loop-command-autocomplete.js";
 import type { SharedScope } from "./model.js";
+import { readScriptOptions } from "./script-task-options.js";
 
 export type Candidate = { value: string; description?: string };
 
@@ -11,6 +12,8 @@ export function topLevel(): Candidate[] {
 		"register",
 		"unregister",
 		"list",
+		"running",
+		"show",
 		"stop",
 		"delete",
 		"run",
@@ -69,11 +72,21 @@ export function defineFlags(previous: string[]): Candidate[] {
 }
 
 function scheduleFlags(previous: string[]): Candidate[] {
-	if (previous.includes("--no-boulder")) return [];
-	const head = previous[0];
-	const allowed = head === undefined || (head === "once" ? previous.length <= 2
-		: head === "at" ? !previous.includes("--") : previous.length === 1);
-	return allowed ? [{ value: "--no-boulder", description: "inhibit Boulder auto-resume while this schedule is active" }] : [];
+	if (previous.at(-1) === "--wake") return ["always", "on-error", "never"].map((value) => ({ value }));
+	if (previous.at(-1) === "--error-mode") return ["or", "and"].map((value) => ({ value }));
+	const parsed = readScriptOptions(previous.join(" "));
+	if (!parsed.ok) return [];
+	const rest = parsed.rest.split(/\s+/).filter(Boolean);
+	const head = rest[0];
+	const allowed = head === undefined || (head === "once" ? rest.length <= 2 : head === "at" ? !rest.includes("--") : rest.length === 1);
+	if (!allowed) return [];
+	const flags: Candidate[] = parsed.inhibit || rest.includes("--no-boulder") ? [] : [{ value: "--no-boulder", description: "inhibit Boulder while this schedule is active" }];
+	if (rest.length === 0) {
+		flags.push({ value: "--script", description: "append one JSON script object" });
+		if (!previous.includes("--wake")) flags.push({ value: "--wake", description: "always, on-error or never" });
+		if (parsed.options?.wake === "on-error" && !previous.includes("--error-mode")) flags.push({ value: "--error-mode", description: "or (default) or and" });
+	}
+	return flags;
 }
 
 function isScope(value: string): value is SharedScope {

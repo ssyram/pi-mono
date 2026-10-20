@@ -1,0 +1,271 @@
+✔ flag parsing preserves literal prompt text and at separator (155.48225ms)
+✔ Tab offers the flag only in add/define option positions, including ws alias (1.530959ms)
+[scheduled-wakeup boulder] sync error: state busy
+▶ boulder-sync bridge
+  ✔ writes loop=true when an active special task exists and false when all are gone (4.079125ms)
+  ✔ writes loop=false on the first sync when no special task exists (0.230333ms)
+  ✔ does not re-write when the aggregate has not changed (55.173375ms)
+  ✔ does not throw when the service has no provider (0.924542ms)
+✔ boulder-sync bridge (61.442625ms)
+✔ loop delegated suggestions preserve editor input: plain (2.730083ms)
+✔ loop delegated suggestions preserve editor input: /loop unknown  (0.336041ms)
+✔ loop delegated suggestions preserve editor input: /loop stop  (0.201041ms)
+✔ loop delegated application and trigger preserve editor input after mutation then throw (0.233875ms)
+✔ reschedule failure states that polling stopped and retains the underlying cause (0.40775ms)
+✔ loop diagnostics contain non-string Error.message conversion failures (0.8165ms)
+✔ a committed wakeup reports refresh failure without throwing or pretending rollback (111.356458ms)
+▶ Loop defer progress
+  ✔ extends repeated durations without changing schedule or execution history, and survives restart (230.03475ms)
+  ✔ defers an overdue one-shot from now, then completes once (5.791458ms)
+  ✔ sets an absolute next run and rejects earlier, invalid, or overflowing times without writing (235.083709ms)
+  ✔ keeps both shared scopes and another session's registrations unchanged (122.876791ms)
+  ✔ does not mutate when either target execution lock or session state lock is held (72.663875ms)
+  ✔ keeps persisted progress unchanged on append failure and releases locks (5.502ms)
+✔ Loop defer progress (673.774916ms)
+▶ defer command delivery
+  ✔ parses, persists, notifies and re-arms before resuming the original interval (103.431208ms)
+  ✔ accepts a later absolute time and leaves timer and progress alone on rejected commands (171.397958ms)
+✔ defer command delivery (284.041333ms)
+▶ DuePoller
+  ✔ arms the nearest nextRunAt, delivers due work, and re-arms recurring tasks (8.32125ms)
+  ✔ chunks oversized waits through MAX_TIMEOUT and resumes with the remainder (2.692834ms)
+  ✔ clears the timer when the active set empties and stops cleanly (10.259958ms)
+  ✔ reschedules after mutations and backs off when delivery keeps failing (5.046833ms)
+  ✔ unrefs normal timers and keeps runner timers referenced (5.338541ms)
+✔ DuePoller (113.105417ms)
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+▶ extension close and resume wiring
+  ✔ resumes the remaining three minutes before arming a real poller (292.288333ms)
+  ✔ expires a one-shot before startup timers can deliver it (203.872708ms)
+  ✔ keeps a deferred one-shot's absolute deadline across reload (120.433708ms)
+✔ extension close and resume wiring (629.934292ms)
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+▶ scheduledWakeup v2 extension lifecycle
+  ✔ does not start the poller in print mode but keeps commands working (244.125542ms)
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+  ✔ starts the runner poller but expires old one-shots before delivery (328.422458ms)
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+  ✔ delivers in tui mode and clears pending timers on session_shutdown (1031.608083ms)
+  ✔ reconciles stale registrations and wires autocomplete to live core ids (21.785917ms)
+✔ scheduledWakeup v2 extension lifecycle (1628.697542ms)
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+✔ different SDK managers in the same cwd keep independent extension instances (44.132875ms)
+✔ replacement on the same manager retires old tools without reviving their runtime (57.027917ms)
+✔ same-manager replacement cleans only its previous instance; stale release cannot remove its successor (0.244584ms)
+[scheduled-wakeup boulder] sync failed: Boulder inhibition session unavailable
+✔ loop inhibition synchronizes for either startup order (loopFirst=true) (74.052458ms)
+✔ loop inhibition synchronizes for either startup order (loopFirst=false) (9.526333ms)
+✔ tool schema exposes inhibitBoulder and stores the true flag (4.812958ms)
+✔ same cwd session replacement cannot reuse the previous core or client (136.727125ms)
+✔ branch refresh recalculates the signal from the new branch state (5.608083ms)
+✔ one-shot completion closes its inhibition through the poller afterRun callback (48.184833ms)
+✔ rows are one per item with countdown or I/K/M and current command (14.642083ms)
+✔ waiting items keep a nonzero summary; zero and show off hide it (2.738834ms)
+✔ fullscreen clicks expand in place with at most ten total lines and live snapshots (0.974458ms)
+✔ short terminals, occupied input docks and unknown layouts stay collapsed (0.544458ms)
+✔ legacy never expands, including the old keyboard command (0.171459ms)
+✔ countdown ticks repaint cached data only, and stop while hidden or disposed (1.493125ms)
+✔ invalid context and failing diagnostics do not escape widget operations (0.408625ms)
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+✔ CLI manual script run uses real processes, custom NoWake output, and leaves schedule progress unchanged (405.509ms)
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+✔ tool script preparation, actual timer dispatch and immediate run-count advancement work together (1297.583125ms)
+✔ stop cancels future schedule but does not terminate the batch already started (363.056625ms)
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+✔ scheduled and running items merge by id, retaining a running once item until it ends (9.82675ms)
+✔ visibility is session/branch-local, defaults on and ignores malformed records (13.7595ms)
+✔ show off/on changes only widget display and restores after reload (93.927ms)
+✔ failed show save is reported without changing the display or tasks (12.358208ms)
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync error: branch unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+✔ commands return normally for invalid time and missing registration (33.54125ms)
+✔ tool rejects out-of-Date once before saving (4.626542ms)
+✔ startup and shutdown failures do not reject; inactive tool cannot recreate runtime (5.36375ms)
+✔ a failed query is null, not a fake empty active set; error construction stays nothrow (12.714792ms)
+✔ post-mutation refresh failure preserves successful result and does not reject (5.951333ms)
+✔ notify failure cannot turn successful manual delivery into a failure (6.575208ms)
+✔ command ordinary append failure is reported even when UI is unavailable (135.507916ms)
+✔ async completion rejection is caught, and the next call remains usable (1.644166ms)
+✔ completion source and sync delegation failures preserve input without escaping (0.676083ms)
+✔ timer re-arm failure stops polling and remains nothrow even if diagnostics fail (8.708209ms)
+✔ start failure cannot leave a running poller without a timer (103.191125ms)
+✔ new once schedules use Date domain, while old out-of-range data stays displayable (5.656833ms)
+✔ failed rename cleans its own temporary and preserves the original failure (40.449166ms)
+✔ partial write failure cleans temporary and preserves the primary failure (49.735916ms)
+✔ catalog rejects duplicate session/registration pairs across definitions (6.181333ms)
+▶ parseAtTime
+  ✔ parses tomorrow clock expressions in local time (71.918625ms)
+  ✔ parses clock expressions with UTC (16.342083ms)
+  ✔ parses clock expressions with numeric timezone offsets (0.207ms)
+  ✔ parses ISO timestamps with explicit timezone (0.33175ms)
+  ✔ rejects past or ambiguous values (35.681417ms)
+✔ parseAtTime (196.629459ms)
+▶ parseDuration
+  ✔ parses supported units (8.0175ms)
+  ✔ rejects invalid values (0.199125ms)
+✔ parseDuration (9.421667ms)
+▶ parseLoopV2Command
+  ✔ parses session recurring and one-shot delay forms (4.124917ms)
+  ✔ consumes at expressions up to the -- separator (2.846042ms)
+  ✔ parses define in all three schedule forms with scope aliases (0.305458ms)
+  ✔ defaults available to both scopes and accepts an explicit one (0.205125ms)
+  ✔ parses register, unregister, list, stop, and run (0.220042ms)
+  ✔ parses defer durations and multi-token absolute times (0.266875ms)
+  ✔ derives delete scope from the id prefix and keeps --force user-only by parsing it (0.2555ms)
+  ✔ returns help for empty args and help, and errors on unknown commands (0.108084ms)
+  ✔ reports invalid durations, overflow, missing prompts, and bad at expressions (0.267042ms)
+✔ parseLoopV2Command (10.256209ms)
+▶ registerScheduledWakeupV2Tool
+  ✔ converts delay, at, and interval into schedules and calls onMutation (88.115291ms)
+  ✔ rejects unusable add inputs with precise messages (8.488416ms)
+  ✔ forwards scope and force to the session-only action surface, which rejects them (172.800667ms)
+  ✔ cancels by id, lists without mutating, and keeps AiSessionActionResult details (22.299166ms)
+✔ registerScheduledWakeupV2Tool (308.301542ms)
+▶ session schedule suspension and expiration
+  ✔ resumes the three remaining minutes of a ten-minute interval after days offline (107.685833ms)
+  ✔ expires past one-shots on resume without delivery, execution history, or reactivation (24.423ms)
+  ✔ keeps future and exact-resume one-shot deadlines absolute (8.503666ms)
+  ✔ uses deferred deadlines and preserves the deferred interval countdown (7.873833ms)
+  ✔ suspends shared registrations privately without modifying either catalog (174.238542ms)
+  ✔ restores unavailable shared registrations only after their catalog recovers (30.184417ms)
+  ✔ expires shared one-shots without deleting index membership (6.32525ms)
+  ✔ does not fabricate a remaining time if no shutdown marker was saved (40.097625ms)
+  ✔ persists each transition atomically and leaves the old snapshot after append failure (36.503125ms)
+  ✔ rejects invalid persisted suspension and expiration timestamps (4.102583ms)
+✔ session schedule suspension and expiration (505.293708ms)
+✔ session abort kills a real unlimited script and settles once (268.038542ms)
+✔ already-aborted session never starts the script (0.351583ms)
+✔ Boulder provenance, user-specified tags and focused failure markers (19.250958ms)
+✔ dynamic delimiters and attribute quotes cannot create extra structural blocks (0.259875ms)
+✔ generated text inputs preserve one genuine block per result (115.578583ms)
+✔ expanded display reuses model content exactly and short display includes ID and counts (0.377ms)
+✔ timeout directly kills a process that ignores SIGTERM and retains partial output (542.863041ms)
+✔ timeout kills same-group descendants, preventing their later writes (1523.795417ms)
+✔ ordinary completion cleans background members of the owned group (1276.709333ms)
+✔ inherited pipes stay bounded by timeout even after the direct child exits (419.057625ms)
+✔ real batch continues after start failure, nonzero exit and timeout, then aggregates once (636.618ms)
+✔ save-msg regression: expand home before resolving relative paths (1.91425ms)
+✔ prepare defaults and resolve script relative to its own cwd (33.867458ms)
+✔ valid policy variants, absolute paths and empty pure prompt task (0.286ms)
+✔ invalid JSON structure and empty non-actionable tasks return errors (15.637875ms)
+✔ script validation covers every field and preserves null timeout (0.548708ms)
+✔ exhaustive truth tables for every success/failure vector up to eight scripts (2.591291ms)
+✔ every non-success terminal status is an error (0.16125ms)
+✔ execute every script once in order for all policies, retaining failures (1.40975ms)
+✔ pure prompt task calls no runner and still builds content (0.224625ms)
+✔ real process captures cwd, argv boundaries and stdout/stderr without shell expansion (138.825ms)
+✔ real executable path supports spaces and Unicode, no extension inference (1096.692291ms)
+✔ nonzero and signal exits remain failures with genuine exit metadata (721.690125ms)
+✔ spawn errors and synchronous invalid arguments are terminal start failures (8.433459ms)
+✔ UTF-8 decoding retains characters split across pipe writes (350.511458ms)
+✔ null timeout allows natural completion and concurrent runs stay isolated (239.927292ms)
+✔ close cancels the timer and duplicate terminal events cannot change the result (23.095542ms)
+✔ timeout remains failure even if the close event carries zero (0.861875ms)
+✔ group cleanup failure cannot masquerade as success (0.548917ms)
+✔ error after spawn settles once and cancels its timer (0.519708ms)
+✔ platform boundary reports unsupported Windows without spawning (7.075542ms)
+✔ timeout priority survives an error terminal event (3.973708ms)
+✔ start failure retains its cause and any group cleanup error (0.447458ms)
+✔ script CLI preserves argv spaces, defaults and literals after the schedule (2.339792ms)
+✔ invalid options and non-actionable script tasks return errors (16.230875ms)
+✔ session and shared definitions round-trip script payloads without executing them (38.545167ms)
+✔ finite timeout fires exactly once and can be cancelled (2.738584ms)
+✔ null timeout creates no timer (0.451666ms)
+✔ timeouts beyond Node timer limit are chunked rather than wrapping (0.229542ms)
+✔ cancelling after the first chunk cancels the rearmed timer (13.548792ms)
+✔ group kill addresses only the owned negative PID and reports OS errors (3.14825ms)
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+✔ a real custom-only SDK session rejects creation without changing its entries (28.554459ms)
+✔ missing or non-file session paths reject creation, not queries; notification failure stays contained (13.696958ms)
+✔ progress tracks current script and I/K/M; all scripts finish before one custom wakeup (57.816708ms)
+✔ dispatcher applies never policy without changing execution order (14.323458ms)
+✔ dispatcher applies always policy without changing execution order (0.898375ms)
+✔ dispatcher applies on-error policy without changing execution order (7.922458ms)
+✔ shutdown aborts owned work, never publishes late results, and contains callback errors (9.41425ms)
+▶ Loop 2.0 command autocomplete
+  ✔ completes top-level commands and scope positions with loose matching (113.861167ms)
+  ✔ uses dynamic ids for register, stop, and delete force paths (16.713541ms)
+  ✔ claims forced Tab positions, applies candidates, and falls back when unsupported (2.228792ms)
+✔ Loop 2.0 command autocomplete (157.341792ms)
+▶ Loop 2.0 scopes and registrations
+  ✔ keeps AI actions session-only while explicit user commands define and register shared work (16.829916ms)
+  ✔ rejects a shared document containing a definition for another scope (3.198042ms)
+  ✔ keeps an active registration listed when its shared document is corrupt (119.286333ms)
+  ✔ keeps registration relationships and progress isolated across sessions (10.342791ms)
+✔ Loop 2.0 scopes and registrations (150.911542ms)
+▶ Loop 2.0 execution
+  ✔ excludes a concurrent process from executing the same registration and restores completed progress (48.713709ms)
+  ✔ runs due session work once, leaves failed delivery retryable, and supports explicit cancellation (27.635042ms)
+  ✔ returns busy when cancellation meets another task's state lock (119.877583ms)
+✔ Loop 2.0 execution (197.551625ms)
+▶ Loop 2.0 session custom-entry state
+  ✔ persists reducer snapshots as plain custom entries and restores the newest valid snapshot (57.894ms)
+  ✔ rejects interval progress that would overflow a persisted timestamp (0.709791ms)
+  ✔ does not mutate in-memory state when custom-entry persistence fails (0.220291ms)
+✔ Loop 2.0 session custom-entry state (60.095833ms)
+▶ Loop 2.0 shared registration index and deletion
+  ✔ indexes two sessions independently and blocks ordinary deletion while another session remains (65.601541ms)
+  ✔ lets AI cancel only its registration, rejects force, and applies ordinary deletion rules (161.923459ms)
+  ✔ force delete invalidates remote old references and reconciliation removes them later (40.775417ms)
+  ✔ keeps an index after a failed first session append and removes it only after session removal persists (58.375959ms)
+✔ Loop 2.0 shared registration index and deletion (329.809542ms)
+ℹ tests 166
+ℹ suites 16
+ℹ pass 166
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 13705.409625

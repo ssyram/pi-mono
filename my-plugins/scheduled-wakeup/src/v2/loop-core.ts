@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { cloneTaskContent } from "./task-content.js";
 import { join } from "node:path";
 import { SharedDefinitionStore } from "./definition-store.js";
 import { deferActiveTask, type DeferResult, type DeferTime } from "./defer-active-task.js";
@@ -59,7 +60,7 @@ export class LoopV2Core {
 	createSessionTask(input: TaskInput): SessionDefinition {
 		return this.withStateLock(() => {
 			assertTaskInput(input);
-			const definition: SessionDefinition = { id: `session:${this.idFactory()}`, scope: "session", prompt: input.prompt.trim(), schedule: { ...input.schedule }, createdAt: this.currentNow(), ...(input.inhibitBoulder !== undefined ? { inhibitBoulder: input.inhibitBoulder } : {}) };
+			const definition: SessionDefinition = { id: `session:${this.idFactory()}`, scope: "session", ...cloneTaskContent(input.scriptTask === undefined ? { prompt: input.prompt.trim() } : input), schedule: { ...input.schedule }, createdAt: this.currentNow(), ...(input.inhibitBoulder !== undefined ? { inhibitBoulder: input.inhibitBoulder } : {}) };
 			this.sessionState.dispatch({ kind: "add-task", task: { definition, progress: initialProgress(definition.schedule, definition.createdAt) } });
 			return cloneDefinition(definition);
 		});
@@ -67,7 +68,7 @@ export class LoopV2Core {
 
 	createSharedDefinition(scope: SharedScope, input: TaskInput): SharedDefinition {
 		assertTaskInput(input);
-		const definition: SharedDefinition = { id: `${scope}:${this.idFactory()}`, scope, prompt: input.prompt.trim(), schedule: { ...input.schedule }, createdAt: this.currentNow(), ...(input.inhibitBoulder !== undefined ? { inhibitBoulder: input.inhibitBoulder } : {}) };
+		const definition: SharedDefinition = { id: `${scope}:${this.idFactory()}`, scope, ...cloneTaskContent(input.scriptTask === undefined ? { prompt: input.prompt.trim() } : input), schedule: { ...input.schedule }, createdAt: this.currentNow(), ...(input.inhibitBoulder !== undefined ? { inhibitBoulder: input.inhibitBoulder } : {}) };
 		return this.definitions.create(definition);
 	}
 

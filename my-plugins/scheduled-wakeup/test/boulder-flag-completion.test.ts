@@ -16,6 +16,7 @@ test("flag parsing preserves literal prompt text and at separator", () => {
 		const result = parseLoopV2Command(input);
 		if (result.kind !== "add") assert.fail("expected add");
 		assert.equal(result.inhibitBoulder, undefined);
+		assert.ok(result.prompt !== undefined);
 		assert.match(result.prompt, /--no-boulder/);
 	}
 });
@@ -26,7 +27,8 @@ test("Tab offers the flag only in add/define option positions, including ws alia
 		applyCompletion: (lines, cursorLine, cursorCol) => ({ lines, cursorLine, cursorCol }),
 	}, { activeIds: () => [], sharedDefinitionIds: () => [] });
 	for (const text of ["/loop add ", "/loop add 1h ", "/loop add once ", "/loop define ws "]) {
-		assert.deepEqual((await provider.getSuggestions([text], 0, text.length, options))?.items.map((item) => item.value), ["--no-boulder"]);
+		assert.deepEqual((await provider.getSuggestions([text], 0, text.length, options))?.items.map((item) => item.value),
+			text === "/loop add " || text === "/loop define ws " ? ["--no-boulder", "--script", "--wake"] : ["--no-boulder"]);
 	}
 	for (const text of ["/loop available workspace ", "/loop add 1h prompt ", "/loop add --no-boulder 1h ", "/loop add at tomorrow -- "]) {
 		assert.equal(await provider.getSuggestions([text], 0, text.length, options), null);

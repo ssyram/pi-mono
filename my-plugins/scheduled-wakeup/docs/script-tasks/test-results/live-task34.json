@@ -1,0 +1,592 @@
+{
+  "summary": {
+    "rows": [
+      {
+        "name": "original",
+        "id": "session:a2cd06e5-d8b7-4f39-bb6b-f89de1eb2532",
+        "expectedWake": true,
+        "inhibitBoulder": false,
+        "schedule": {
+          "kind": "once",
+          "runAt": 1792481249568
+        },
+        "progress": {
+          "status": "completed",
+          "runCount": 1,
+          "lastRunAt": 1792481249581
+        },
+        "messageAt": "2026-10-20T07:32:12.347Z",
+        "actualWakeDecision": true,
+        "success": 1,
+        "total": 1,
+        "results": [
+          {
+            "status": "success",
+            "code": 0,
+            "signal": null,
+            "stdout": ""
+          }
+        ]
+      },
+      {
+        "name": "T01",
+        "id": "session:48a04a3c-b331-412a-83cc-1fde2e7f1e74",
+        "expectedWake": false,
+        "inhibitBoulder": true,
+        "schedule": {
+          "kind": "once",
+          "runAt": 1792481627392
+        },
+        "progress": {
+          "status": "completed",
+          "runCount": 1,
+          "lastRunAt": 1792481627411
+        },
+        "messageAt": "2026-10-20T07:34:46.309Z",
+        "actualWakeDecision": false,
+        "success": 1,
+        "total": 1,
+        "results": [
+          {
+            "status": "success",
+            "code": 0,
+            "signal": null,
+            "stdout": "LIVE_T01_NEVER_OK\n"
+          }
+        ]
+      },
+      {
+        "name": "T02",
+        "id": "session:aea09ed0-04a9-4669-955f-cb4188c34dfa",
+        "expectedWake": false,
+        "inhibitBoulder": true,
+        "schedule": {
+          "kind": "once",
+          "runAt": 1792481642402
+        },
+        "progress": {
+          "status": "completed",
+          "runCount": 1,
+          "lastRunAt": 1792481642419
+        },
+        "messageAt": "2026-10-20T07:34:46.310Z",
+        "actualWakeDecision": false,
+        "success": 1,
+        "total": 1,
+        "results": [
+          {
+            "status": "success",
+            "code": 0,
+            "signal": null,
+            "stdout": "LIVE_T02_OR_ALL_OK\n"
+          }
+        ]
+      },
+      {
+        "name": "T03",
+        "id": "session:51b4b882-9011-4b6a-b9b2-0f526fdeed08",
+        "expectedWake": false,
+        "inhibitBoulder": true,
+        "schedule": {
+          "kind": "once",
+          "runAt": 1792481657403
+        },
+        "progress": {
+          "status": "completed",
+          "runCount": 1,
+          "lastRunAt": 1792481657418
+        },
+        "messageAt": "2026-10-20T07:34:46.312Z",
+        "actualWakeDecision": false,
+        "success": 1,
+        "total": 2,
+        "results": [
+          {
+            "status": "failed",
+            "code": 7,
+            "signal": null,
+            "stdout": "LIVE_T03_AND_FAIL\n"
+          },
+          {
+            "status": "success",
+            "code": 0,
+            "signal": null,
+            "stdout": "LIVE_T03_AND_OK\n"
+          }
+        ]
+      },
+      {
+        "name": "T04",
+        "id": "session:2a6a6504-3c1b-4dd0-9026-b474d1a99897",
+        "expectedWake": true,
+        "inhibitBoulder": true,
+        "schedule": {
+          "kind": "once",
+          "runAt": 1792481672405
+        },
+        "progress": {
+          "status": "completed",
+          "runCount": 1,
+          "lastRunAt": 1792481672408
+        },
+        "messageAt": "2026-10-20T07:34:46.317Z",
+        "actualWakeDecision": true,
+        "success": 1,
+        "total": 2,
+        "results": [
+          {
+            "status": "failed",
+            "code": 7,
+            "signal": null,
+            "stdout": "LIVE_T04_OR_FAIL\n"
+          },
+          {
+            "status": "success",
+            "code": 0,
+            "signal": null,
+            "stdout": "LIVE_T04_OR_OK\n"
+          }
+        ]
+      },
+      {
+        "name": "T05",
+        "id": "session:6e2f5d0c-2565-48ea-a303-13f2e49efabd",
+        "expectedWake": true,
+        "inhibitBoulder": true,
+        "schedule": {
+          "kind": "once",
+          "runAt": 1792481687407
+        },
+        "progress": {
+          "status": "completed",
+          "runCount": 1,
+          "lastRunAt": 1792481687412
+        },
+        "messageAt": "2026-10-20T07:35:09.908Z",
+        "actualWakeDecision": true,
+        "success": 0,
+        "total": 2,
+        "results": [
+          {
+            "status": "failed",
+            "code": 7,
+            "signal": null,
+            "stdout": "LIVE_T05_AND_FAIL_1\n"
+          },
+          {
+            "status": "failed",
+            "code": 9,
+            "signal": null,
+            "stdout": "LIVE_T05_AND_FAIL_2\n"
+          }
+        ]
+      },
+      {
+        "name": "T06",
+        "id": "session:4dd6e09d-191b-441a-bbfb-c3cb9a6eb505",
+        "expectedWake": true,
+        "inhibitBoulder": true,
+        "schedule": {
+          "kind": "once",
+          "runAt": 1792481702409
+        },
+        "progress": {
+          "status": "completed",
+          "runCount": 1,
+          "lastRunAt": 1792481702415
+        },
+        "messageAt": "2026-10-20T07:35:09.909Z",
+        "actualWakeDecision": true,
+        "success": 1,
+        "total": 2,
+        "results": [
+          {
+            "status": "timeout",
+            "code": null,
+            "signal": "SIGKILL",
+            "stdout": "LIVE_T06_TIMEOUT_BEGIN\n"
+          },
+          {
+            "status": "success",
+            "code": 0,
+            "signal": null,
+            "stdout": "LIVE_T06_AFTER_TIMEOUT_OK\n"
+          }
+        ]
+      },
+      {
+        "name": "T07",
+        "id": "session:6a0cfc45-dc30-47f1-a3f1-189b4eb548c1",
+        "expectedWake": true,
+        "inhibitBoulder": true,
+        "schedule": {
+          "kind": "once",
+          "runAt": 1792481717411
+        },
+        "progress": {
+          "status": "completed",
+          "runCount": 1,
+          "lastRunAt": 1792481717419
+        },
+        "messageAt": "2026-10-20T07:35:27.455Z",
+        "actualWakeDecision": true,
+        "success": 1,
+        "total": 1,
+        "results": [
+          {
+            "status": "success",
+            "code": 0,
+            "signal": null,
+            "stdout": "LIVE_T07_BEGIN\nLIVE_T07_END\n"
+          }
+        ]
+      }
+    ],
+    "missing": [],
+    "wakeDecisionMismatches": [],
+    "batchWakeRequests": 4,
+    "batchNonWakeResults": 3,
+    "modelTurnCount": "Not inferred from message count; native follow-up requests can merge while busy"
+  },
+  "rawMessages": [
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n这是用户刚才明确要求的现场实测：两分钟后执行 /bin/sleep 10，完成后唤醒。收到本条自动消息后，请向用户报告实际收到的结果消息、脚本路径/参数、退出码和成功数；不要把任务创建成功当作执行成功，不要额外安排新的唤醒。随后将本次现场实测的 task #33 标记完成。\n</prompts>\n<script=\"/bin/sleep\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;10&quot;]\nsignal: none\nerror: none\nstdout:\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:a2cd06e5-d8b7-4f39-bb6b-f89de1eb2532/0e3f2d32-92b3-48d7-b518-551d49941f57",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sleep",
+              "params": [
+                "10"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n这是用户刚才明确要求的现场实测：两分钟后执行 /bin/sleep 10，完成后唤醒。收到本条自动消息后，请向用户报告实际收到的结果消息、脚本路径/参数、退出码和成功数；不要把任务创建成功当作执行成功，不要额外安排新的唤醒。随后将本次现场实测的 task #33 标记完成。\n</prompts>\n<script=\"/bin/sleep\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;10&quot;]\nsignal: none\nerror: none\nstdout:\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "58a85673",
+      "parentId": "22a59341",
+      "timestamp": "2026-10-20T07:32:12.347Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T01_NEVER_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T01_NEVER_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:48a04a3c-b331-412a-83cc-1fde2e7f1e74/5db2c118-b85b-4d51-892a-662da3d2506c",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'LIVE_T01_NEVER_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "LIVE_T01_NEVER_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": false,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T01_NEVER_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T01_NEVER_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "0c99f169",
+      "parentId": "ffb091a0",
+      "timestamp": "2026-10-20T07:34:46.309Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n现场实测LIVE_T02：全成功，预期不唤醒；若收到新回合须如实报告，不新增任务。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T02_OR_ALL_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T02_OR_ALL_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:aea09ed0-04a9-4669-955f-cb4188c34dfa/518d13ff-a4d5-4b8c-8afc-ef22a993b65b",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'LIVE_T02_OR_ALL_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "LIVE_T02_OR_ALL_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": false,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n现场实测LIVE_T02：全成功，预期不唤醒；若收到新回合须如实报告，不新增任务。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T02_OR_ALL_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T02_OR_ALL_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "b32ec3ce",
+      "parentId": "0c99f169",
+      "timestamp": "2026-10-20T07:34:46.310Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n现场实测LIVE_T03：一失败一成功，and预期不唤醒；若本条启动新回合须如实报告，不新增任务。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"7\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T03_AND_FAIL\\\\n'; exit 7&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T03_AND_FAIL\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T03_AND_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T03_AND_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:51b4b882-9011-4b6a-b9b2-0f526fdeed08/968b9737-4721-4649-897f-df15bbf9cb63",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'LIVE_T03_AND_FAIL\\n'; exit 7"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "failed",
+            "exitCode": 7,
+            "signal": null,
+            "stdout": "LIVE_T03_AND_FAIL\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'LIVE_T03_AND_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "LIVE_T03_AND_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": false,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n现场实测LIVE_T03：一失败一成功，and预期不唤醒；若本条启动新回合须如实报告，不新增任务。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"7\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T03_AND_FAIL\\\\n'; exit 7&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T03_AND_FAIL\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T03_AND_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T03_AND_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "f3f55264",
+      "parentId": "b32ec3ce",
+      "timestamp": "2026-10-20T07:34:46.312Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n现场实测LIVE_T04：or，一失败一成功，预期触发唤醒。只按实际script结果报告本例，并留意此前LIVE_T01/T02/T03结果是否出现在上下文；这是task #34七例批次，最终LIVE_T07再汇总。不要重建/新增唤醒，不把创建成功算通过。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"7\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T04_OR_FAIL\\\\n'; exit 7&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T04_OR_FAIL\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T04_OR_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T04_OR_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:2a6a6504-3c1b-4dd0-9026-b474d1a99897/2a9d262f-66fb-4db2-8ed5-deafd025304d",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'LIVE_T04_OR_FAIL\\n'; exit 7"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "failed",
+            "exitCode": 7,
+            "signal": null,
+            "stdout": "LIVE_T04_OR_FAIL\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'LIVE_T04_OR_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "LIVE_T04_OR_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n现场实测LIVE_T04：or，一失败一成功，预期触发唤醒。只按实际script结果报告本例，并留意此前LIVE_T01/T02/T03结果是否出现在上下文；这是task #34七例批次，最终LIVE_T07再汇总。不要重建/新增唤醒，不把创建成功算通过。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"7\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T04_OR_FAIL\\\\n'; exit 7&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T04_OR_FAIL\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T04_OR_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T04_OR_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "4b42502b",
+      "parentId": "f3f55264",
+      "timestamp": "2026-10-20T07:34:46.317Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n现场实测LIVE_T05：and，两条均失败，预期触发唤醒。只按实际退出码/成功数报告本例；task #34批次由最后LIVE_T07汇总，不新增唤醒。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"7\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T05_AND_FAIL_1\\\\n'; exit 7&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T05_AND_FAIL_1\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"9\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T05_AND_FAIL_2\\\\n'; exit 9&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T05_AND_FAIL_2\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:6e2f5d0c-2565-48ea-a303-13f2e49efabd/6765303a-e53a-428a-824a-6e0d92ca7eaa",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'LIVE_T05_AND_FAIL_1\\n'; exit 7"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "failed",
+            "exitCode": 7,
+            "signal": null,
+            "stdout": "LIVE_T05_AND_FAIL_1\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'LIVE_T05_AND_FAIL_2\\n'; exit 9"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "failed",
+            "exitCode": 9,
+            "signal": null,
+            "stdout": "LIVE_T05_AND_FAIL_2\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 0,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n现场实测LIVE_T05：and，两条均失败，预期触发唤醒。只按实际退出码/成功数报告本例；task #34批次由最后LIVE_T07汇总，不新增唤醒。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"7\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T05_AND_FAIL_1\\\\n'; exit 7&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T05_AND_FAIL_1\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"9\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T05_AND_FAIL_2\\\\n'; exit 9&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T05_AND_FAIL_2\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "65a88c7a",
+      "parentId": "5cfcb56d",
+      "timestamp": "2026-10-20T07:35:09.908Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n现场实测LIVE_T06：第一项1秒超时，第二项仍须执行成功，or预期触发唤醒。只按实际结果验证timeout、后续stdout标记和成功数；task #34批次最后LIVE_T07汇总，不新增任务。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"unavailable\">\n*** FAILED ***\nstatus: timeout\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T06_TIMEOUT_BEGIN\\\\n'; /bin/sleep 5; printf 'LIVE_T06_SHOULD_NOT_APPEAR\\\\n'&quot;]\nsignal: SIGKILL\nerror: none\nstdout:\nLIVE_T06_TIMEOUT_BEGIN\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T06_AFTER_TIMEOUT_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T06_AFTER_TIMEOUT_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:4dd6e09d-191b-441a-bbfb-c3cb9a6eb505/37a0a531-f931-4153-ae06-baa32ce7cac9",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'LIVE_T06_TIMEOUT_BEGIN\\n'; /bin/sleep 5; printf 'LIVE_T06_SHOULD_NOT_APPEAR\\n'"
+              ],
+              "timeoutSeconds": 1
+            },
+            "status": "timeout",
+            "exitCode": null,
+            "signal": "SIGKILL",
+            "stdout": "LIVE_T06_TIMEOUT_BEGIN\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'LIVE_T06_AFTER_TIMEOUT_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "LIVE_T06_AFTER_TIMEOUT_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n现场实测LIVE_T06：第一项1秒超时，第二项仍须执行成功，or预期触发唤醒。只按实际结果验证timeout、后续stdout标记和成功数；task #34批次最后LIVE_T07汇总，不新增任务。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"unavailable\">\n*** FAILED ***\nstatus: timeout\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T06_TIMEOUT_BEGIN\\\\n'; /bin/sleep 5; printf 'LIVE_T06_SHOULD_NOT_APPEAR\\\\n'&quot;]\nsignal: SIGKILL\nerror: none\nstdout:\nLIVE_T06_TIMEOUT_BEGIN\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T06_AFTER_TIMEOUT_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T06_AFTER_TIMEOUT_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "5c3ab42e",
+      "parentId": "65a88c7a",
+      "timestamp": "2026-10-20T07:35:09.909Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n现场实测LIVE_T07：本批最后一例，always，sleep10秒后成功应触发唤醒。请按真正收到的回执汇总task #34的七例LIVE_T01到T07：T01 never成功不唤醒、T02 or全成功不唤醒、T03 and混合不唤醒、T04 or混合唤醒、T05 and全失败唤醒、T06 timeout后继续成功且唤醒、T07 always成功唤醒。区分消息保存与是否新启动AI回合，不能仅有结果消息就判唤醒；忙时可能合并后续回合。缺失证据标未验证。所有任务已设inhibitBoulder:true，若仍收到提前Boulder提醒须记录，不冒充脚本回执。必要时只读当前会话自身custom entries补齐结果，不修改历史、不另建任务。另核原始task #33的/bin/sleep10结果。实际证据齐后完成#33/#34并清理本批临时状态读取脚本；不要重跑求过。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T07_BEGIN\\\\n'; /bin/sleep 10; printf 'LIVE_T07_END\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T07_BEGIN\nLIVE_T07_END\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:6a0cfc45-dc30-47f1-a3f1-189b4eb548c1/852a43ce-9bd1-487c-afbb-2bb1009c5c6d",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'LIVE_T07_BEGIN\\n'; /bin/sleep 10; printf 'LIVE_T07_END\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "LIVE_T07_BEGIN\nLIVE_T07_END\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n现场实测LIVE_T07：本批最后一例，always，sleep10秒后成功应触发唤醒。请按真正收到的回执汇总task #34的七例LIVE_T01到T07：T01 never成功不唤醒、T02 or全成功不唤醒、T03 and混合不唤醒、T04 or混合唤醒、T05 and全失败唤醒、T06 timeout后继续成功且唤醒、T07 always成功唤醒。区分消息保存与是否新启动AI回合，不能仅有结果消息就判唤醒；忙时可能合并后续回合。缺失证据标未验证。所有任务已设inhibitBoulder:true，若仍收到提前Boulder提醒须记录，不冒充脚本回执。必要时只读当前会话自身custom entries补齐结果，不修改历史、不另建任务。另核原始task #33的/bin/sleep10结果。实际证据齐后完成#33/#34并清理本批临时状态读取脚本；不要重跑求过。\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'LIVE_T07_BEGIN\\\\n'; /bin/sleep 10; printf 'LIVE_T07_END\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nLIVE_T07_BEGIN\nLIVE_T07_END\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "1f180d60",
+      "parentId": "72dd4b43",
+      "timestamp": "2026-10-20T07:35:27.455Z"
+    }
+  ]
+}

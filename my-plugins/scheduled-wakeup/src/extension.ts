@@ -1,58 +1,56 @@
 import type {
 	ExtensionAPI,
 	ExtensionContext,
-	ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
-import type { AutocompleteProvider } from "@earendil-works/pi-tui";
 import { BOULDER_INHIBITION_READY_CHANNEL } from "../../oh-my-pi-v2/boulder-inhibition/service-protocol.js";
 import {
 	handleLoopCommand,
 	type LoopV2Runtime,
 } from "./loop-command-handler.js";
 import { loopErrorMessage } from "./loop-error-message.js";
+import { claimLoopInstance } from "./loop-instance-owner.js";
 import { notifyLoop } from "./loop-notification.js";
+import { readLoopWidgetVisibility } from "./loop-widget-visibility.js";
+import { sessionPersistenceError } from "./session-persistence-error.js";
+import { registerTaskRunRenderer } from "./task-run-renderer.js";
 import { createLoopRuntime } from "./v2/create-loop-runtime.js";
-import { createLoopCommandAutocompleteProvider } from "./v2/loop-command-autocomplete.js";
+import { registerLoopAutocomplete } from "./v2/loop-command-autocomplete.js";
 import { parseLoopV2Command } from "./v2/parse-v2-command.js";
 import { registerScheduledWakeupV2Tool } from "./v2/register-v2-tool.js";
-
-type Instance = { dispose(): void };
-
-declare global {
-	var __scheduledWakeupInstance: Instance | undefined;
-}
 
 export default function scheduledWakeup(pi: ExtensionAPI): void {
 	let cleanup: (() => void) | undefined;
 	try {
-		globalThis.__scheduledWakeupInstance?.dispose();
-
 		let runtime: LoopV2Runtime | undefined;
+		let owner: object | undefined;
+		let releaseOwner: (() => void) | undefined;
 		let unsubscribeReady: (() => void) | undefined;
 		let disposed = false;
 		const dispose = (): void => {
 			disposed = true;
 			unsubscribeReady?.();
 			unsubscribeReady = undefined;
-			runtime?.poller?.dispose();
+			runtime?.dispose();
 			runtime = undefined;
-			if (globalThis.__scheduledWakeupInstance?.dispose === dispose) {
-				globalThis.__scheduledWakeupInstance = undefined;
-			}
+			releaseOwner?.();
+			releaseOwner = undefined;
 		};
 		cleanup = dispose;
-		const isActive = (): boolean =>
-			!disposed && globalThis.__scheduledWakeupInstance?.dispose === dispose;
-		globalThis.__scheduledWakeupInstance = { dispose };
+		const isActive = (): boolean => !disposed;
 
 		const ensure = (ctx: ExtensionContext): LoopV2Runtime => {
+			if (owner !== ctx.sessionManager) {
+				releaseOwner?.();
+				releaseOwner = claimLoopInstance(ctx.sessionManager, dispose);
+				owner = ctx.sessionManager;
+			}
 			if (
 				runtime?.cwd === ctx.cwd &&
 				runtime.sessionManager === ctx.sessionManager &&
 				runtime.sessionId === ctx.sessionManager.getSessionId()
 			)
 				return runtime;
-			runtime?.poller?.dispose();
+			runtime?.dispose();
 			runtime = undefined;
 			runtime = createLoopRuntime(pi, ctx);
 			return runtime;
@@ -82,30 +80,22 @@ export default function scheduledWakeup(pi: ExtensionAPI): void {
 			},
 		);
 		const reschedule = (): string | undefined => {
+			runtime?.widget.refresh();
 			const result = runtime?.poller?.reschedule();
 			return result?.ok === false ? result.message : undefined;
 		};
 
-		const registerAutocomplete = (ctx: ExtensionContext): void => {
-			const registrar = ctx.ui as ExtensionUIContext & {
-				addAutocompleteProvider?(
-					factory: (current: AutocompleteProvider) => AutocompleteProvider,
-				): void;
-			};
-			registrar.addAutocompleteProvider?.((current) =>
-				createLoopCommandAutocompleteProvider(current, {
-					activeIds: () => runtime?.core.activeIds() ?? [],
-					sharedDefinitionIds: (scopes) =>
-						runtime?.core.sharedDefinitionIds(scopes) ?? [],
-				}),
-			);
-		};
+		registerTaskRunRenderer(pi);
 
 		pi.on("session_start", async (_event, ctx) => {
 			if (!isActive()) return;
 			try {
 				ensure(ctx);
-				registerAutocomplete(ctx);
+				registerLoopAutocomplete(ctx, {
+					activeIds: () => runtime?.core.activeIds() ?? [],
+					sharedDefinitionIds: (scopes) =>
+						runtime?.core.sharedDefinitionIds(scopes) ?? [],
+				});
 				const refreshError = reschedule();
 				if (refreshError !== undefined) {
 					notifyLoop(ctx, refreshError, "error");
@@ -124,7 +114,11 @@ export default function scheduledWakeup(pi: ExtensionAPI): void {
 		pi.on("session_tree", async (_event, ctx) => {
 			if (!isActive()) return;
 			try {
-				ensure(ctx).boulderSync?.sync();
+				const current = ensure(ctx);
+				current.widget.setVisible(
+					readLoopWidgetVisibility(ctx.sessionManager.getBranch()),
+				);
+				current.boulderSync?.sync();
 				const refreshError = reschedule();
 				if (refreshError !== undefined) notifyLoop(ctx, refreshError, "error");
 			} catch (error) {
@@ -139,7 +133,7 @@ export default function scheduledWakeup(pi: ExtensionAPI): void {
 		pi.on("session_shutdown", async (_event, ctx) => {
 			if (!isActive()) return;
 			try {
-				runtime?.poller?.dispose();
+				runtime?.dispose();
 				runtime?.core.suspendSchedules();
 			} catch (error) {
 				notifyLoop(
@@ -165,13 +159,19 @@ export default function scheduledWakeup(pi: ExtensionAPI): void {
 			handler: async (args, ctx) => {
 				if (!isActive()) return;
 				try {
-					handleLoopCommand(
-						pi,
-						parseLoopV2Command(args),
-						ensure(ctx),
-						ctx,
-						reschedule,
-					);
+					const command = parseLoopV2Command(args, Date.now(), ctx.cwd);
+					if (
+						command.kind === "add" ||
+						command.kind === "define" ||
+						command.kind === "register"
+					) {
+						const error = sessionPersistenceError(ctx);
+						if (error !== undefined) {
+							notifyLoop(ctx, error, "error");
+							return;
+						}
+					}
+					handleLoopCommand(pi, command, ensure(ctx), ctx, reschedule);
 					runtime?.boulderSync?.sync();
 				} catch (error) {
 					notifyLoop(
@@ -184,6 +184,7 @@ export default function scheduledWakeup(pi: ExtensionAPI): void {
 		});
 
 		registerScheduledWakeupV2Tool(pi, {
+			validateAdd: sessionPersistenceError,
 			getActions: (ctx) => {
 				if (!isActive()) throw new Error("Loop instance is inactive");
 				return ensure(ctx).actions;

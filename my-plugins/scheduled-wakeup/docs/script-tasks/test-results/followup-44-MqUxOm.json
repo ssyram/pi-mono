@@ -1,0 +1,527 @@
+{
+  "summary": [
+    {
+      "label": "A",
+      "taskId": "session:29d60345-0385-42e0-b478-012c735d13c1",
+      "entryId": "75e56cd9",
+      "transcriptIndex": 2854,
+      "timestamp": "2026-10-20T10:26:46.491Z",
+      "shouldWake": true,
+      "statuses": [
+        "success",
+        "success"
+      ],
+      "codes": [
+        0,
+        0
+      ],
+      "relativeToEnd": "after",
+      "passed": true
+    },
+    {
+      "label": "B",
+      "taskId": "session:e2b36f6c-b3fe-4a62-9cc9-343c0a1b86f2",
+      "entryId": "cf168053",
+      "transcriptIndex": 2850,
+      "timestamp": "2026-10-20T10:26:46.490Z",
+      "shouldWake": true,
+      "statuses": [
+        "success"
+      ],
+      "codes": [
+        0
+      ],
+      "relativeToEnd": "after",
+      "passed": true
+    },
+    {
+      "label": "C",
+      "taskId": "session:7ddd6c74-1fff-449f-a7f0-a179e18a67d3",
+      "entryId": "0f955003",
+      "transcriptIndex": 2851,
+      "timestamp": "2026-10-20T10:26:46.490Z",
+      "shouldWake": true,
+      "statuses": [
+        "failed",
+        "success"
+      ],
+      "codes": [
+        7,
+        0
+      ],
+      "relativeToEnd": "after",
+      "passed": true
+    },
+    {
+      "label": "D",
+      "taskId": "session:fcc2abe4-52b9-4483-882a-e37123c44e17",
+      "entryId": "67bfcbd6",
+      "transcriptIndex": 2841,
+      "timestamp": "2026-10-20T10:26:30.590Z",
+      "shouldWake": false,
+      "statuses": [
+        "success"
+      ],
+      "codes": [
+        0
+      ],
+      "relativeToEnd": "before",
+      "passed": true
+    },
+    {
+      "label": "E",
+      "taskId": "session:bbffe06c-0c1f-418c-8221-050a2f4d418a",
+      "entryId": "a1959149",
+      "transcriptIndex": 2842,
+      "timestamp": "2026-10-20T10:26:30.594Z",
+      "shouldWake": false,
+      "statuses": [
+        "failed",
+        "success"
+      ],
+      "codes": [
+        9,
+        0
+      ],
+      "relativeToEnd": "before",
+      "passed": true
+    },
+    {
+      "label": "F",
+      "taskId": "session:61de433e-7215-476e-9a77-a364763f9fb7",
+      "entryId": "534cb6eb",
+      "transcriptIndex": 2852,
+      "timestamp": "2026-10-20T10:26:46.491Z",
+      "shouldWake": true,
+      "statuses": [
+        "timeout",
+        "success"
+      ],
+      "codes": [
+        null,
+        0
+      ],
+      "relativeToEnd": "after",
+      "passed": true
+    },
+    {
+      "label": "G",
+      "taskId": "session:24b44834-5f53-4468-a464-fa0de0b803af",
+      "entryId": "b1408b0c",
+      "transcriptIndex": 2853,
+      "timestamp": "2026-10-20T10:26:46.491Z",
+      "shouldWake": true,
+      "statuses": [],
+      "codes": [],
+      "relativeToEnd": "after",
+      "passed": true
+    },
+    {
+      "label": "H",
+      "taskId": "session:655da2d9-e88c-4713-872a-6a965f78bbeb",
+      "entryId": "bd9dd213",
+      "transcriptIndex": 2855,
+      "timestamp": "2026-10-20T10:26:46.491Z",
+      "shouldWake": true,
+      "statuses": [],
+      "codes": [],
+      "relativeToEnd": "after",
+      "passed": true
+    }
+  ],
+  "observedOrder": [
+    "D",
+    "E",
+    "B",
+    "C",
+    "F",
+    "G",
+    "A",
+    "H"
+  ],
+  "originalEnd": {
+    "entryId": "372907cc",
+    "transcriptIndex": 2849,
+    "timestamp": "2026-10-20T10:26:46.473Z",
+    "text": "ORIGINAL_TURN_END\n\n60 秒在途窗口已结束。到现在只进入上下文的是两条不唤醒结果；其他唤醒标记尚未插入本回合。接下来观察它们是否在这个结束标记之后到达。"
+  },
+  "window": [
+    {
+      "kind": "WINDOW_START",
+      "at": "2026-10-20T10:25:30.556Z",
+      "elapsedMs": 11
+    },
+    {
+      "kind": "WINDOW_TICK",
+      "at": "2026-10-20T10:25:35.578Z",
+      "elapsedMs": 5022
+    },
+    {
+      "kind": "WINDOW_TICK",
+      "at": "2026-10-20T10:25:40.584Z",
+      "elapsedMs": 10027
+    },
+    {
+      "kind": "WINDOW_TICK",
+      "at": "2026-10-20T10:25:45.589Z",
+      "elapsedMs": 15033
+    },
+    {
+      "kind": "WINDOW_TICK",
+      "at": "2026-10-20T10:25:50.591Z",
+      "elapsedMs": 20035
+    },
+    {
+      "kind": "WINDOW_TICK",
+      "at": "2026-10-20T10:25:55.594Z",
+      "elapsedMs": 25038
+    },
+    {
+      "kind": "WINDOW_TICK",
+      "at": "2026-10-20T10:26:00.599Z",
+      "elapsedMs": 30042
+    },
+    {
+      "kind": "WINDOW_TICK",
+      "at": "2026-10-20T10:26:05.603Z",
+      "elapsedMs": 35046
+    },
+    {
+      "kind": "WINDOW_TICK",
+      "at": "2026-10-20T10:26:10.604Z",
+      "elapsedMs": 40048
+    },
+    {
+      "kind": "WINDOW_TICK",
+      "at": "2026-10-20T10:26:15.609Z",
+      "elapsedMs": 45052
+    },
+    {
+      "kind": "WINDOW_TICK",
+      "at": "2026-10-20T10:26:20.611Z",
+      "elapsedMs": 50054
+    },
+    {
+      "kind": "WINDOW_TICK",
+      "at": "2026-10-20T10:26:25.613Z",
+      "elapsedMs": 55057
+    },
+    {
+      "kind": "WINDOW_TICK",
+      "at": "2026-10-20T10:26:30.557Z",
+      "elapsedMs": 60001
+    },
+    {
+      "kind": "WINDOW_DONE",
+      "at": "2026-10-20T10:26:30.558Z",
+      "elapsedMs": 60001
+    }
+  ],
+  "rawMessages": [
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_D_SILENT_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_D_SILENT_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:fcc2abe4-52b9-4483-882a-e37123c44e17/9cae23b3-26fb-402c-bf7a-29d76a3454b9",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'FUP44_D_SILENT_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "FUP44_D_SILENT_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": false,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\n\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_D_SILENT_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_D_SILENT_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "67bfcbd6",
+      "parentId": "521840da",
+      "timestamp": "2026-10-20T10:26:30.590Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nFUP44_E: mixed result; no wake expected.\n</prompts>\n<script=\"/bin/sh\", exit-code=\"9\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_E_FAIL9\\\\n'; exit 9&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_E_FAIL9\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_E_AFTER_FAILURE_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_E_AFTER_FAILURE_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:bbffe06c-0c1f-418c-8221-050a2f4d418a/bc995785-446d-494b-91b0-7023638e0d76",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'FUP44_E_FAIL9\\n'; exit 9"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "failed",
+            "exitCode": 9,
+            "signal": null,
+            "stdout": "FUP44_E_FAIL9\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'FUP44_E_AFTER_FAILURE_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "FUP44_E_AFTER_FAILURE_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": false,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nFUP44_E: mixed result; no wake expected.\n</prompts>\n<script=\"/bin/sh\", exit-code=\"9\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_E_FAIL9\\\\n'; exit 9&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_E_FAIL9\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_E_AFTER_FAILURE_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_E_AFTER_FAILURE_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "a1959149",
+      "parentId": "67bfcbd6",
+      "timestamp": "2026-10-20T10:26:30.594Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nFUP44_B: short success completed.\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_B_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_B_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:e2b36f6c-b3fe-4a62-9cc9-343c0a1b86f2/ea2ace0a-e545-48a3-b9f0-7ed7ab4b2b5b",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'FUP44_B_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "FUP44_B_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nFUP44_B: short success completed.\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_B_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_B_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "cf168053",
+      "parentId": "372907cc",
+      "timestamp": "2026-10-20T10:26:46.490Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nFUP44_C: mixed failure completed.\n</prompts>\n<script=\"/bin/sh\", exit-code=\"7\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_C_FAIL7\\\\n'; exit 7&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_C_FAIL7\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_C_AFTER_FAILURE_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_C_AFTER_FAILURE_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:7ddd6c74-1fff-449f-a7f0-a179e18a67d3/64cebc62-dd5f-4aed-8863-0046315ed7e3",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'FUP44_C_FAIL7\\n'; exit 7"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "failed",
+            "exitCode": 7,
+            "signal": null,
+            "stdout": "FUP44_C_FAIL7\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'FUP44_C_AFTER_FAILURE_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "FUP44_C_AFTER_FAILURE_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nFUP44_C: mixed failure completed.\n</prompts>\n<script=\"/bin/sh\", exit-code=\"7\">\n*** FAILED ***\nstatus: failed\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_C_FAIL7\\\\n'; exit 7&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_C_FAIL7\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_C_AFTER_FAILURE_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_C_AFTER_FAILURE_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "0f955003",
+      "parentId": "cf168053",
+      "timestamp": "2026-10-20T10:26:46.490Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nFUP44_F: timeout batch completed.\n</prompts>\n<script=\"/bin/sh\", exit-code=\"unavailable\">\n*** FAILED ***\nstatus: timeout\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_F_TIMEOUT_BEGIN\\\\n'; /bin/sleep 10; printf 'FUP44_F_FORBIDDEN_END\\\\n'&quot;]\nsignal: SIGKILL\nerror: none\nstdout:\nFUP44_F_TIMEOUT_BEGIN\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_F_AFTER_TIMEOUT_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_F_AFTER_TIMEOUT_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:61de433e-7215-476e-9a77-a364763f9fb7/2191cfdc-573e-4391-8b4f-6828fe993394",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'FUP44_F_TIMEOUT_BEGIN\\n'; /bin/sleep 10; printf 'FUP44_F_FORBIDDEN_END\\n'"
+              ],
+              "timeoutSeconds": 1
+            },
+            "status": "timeout",
+            "exitCode": null,
+            "signal": "SIGKILL",
+            "stdout": "FUP44_F_TIMEOUT_BEGIN\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'FUP44_F_AFTER_TIMEOUT_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "FUP44_F_AFTER_TIMEOUT_OK\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 1,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nFUP44_F: timeout batch completed.\n</prompts>\n<script=\"/bin/sh\", exit-code=\"unavailable\">\n*** FAILED ***\nstatus: timeout\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_F_TIMEOUT_BEGIN\\\\n'; /bin/sleep 10; printf 'FUP44_F_FORBIDDEN_END\\\\n'&quot;]\nsignal: SIGKILL\nerror: none\nstdout:\nFUP44_F_TIMEOUT_BEGIN\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_F_AFTER_TIMEOUT_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_F_AFTER_TIMEOUT_OK\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "534cb6eb",
+      "parentId": "0f955003",
+      "timestamp": "2026-10-20T10:26:46.491Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nFUP44_G: pure-prompt Loop delivered.\n</prompts>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:24b44834-5f53-4468-a464-fa0de0b803af/2c8695d5-c9cc-442e-9774-5bdc4483f9fd",
+        "results": [],
+        "successCount": 0,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nFUP44_G: pure-prompt Loop delivered.\n</prompts>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "b1408b0c",
+      "parentId": "534cb6eb",
+      "timestamp": "2026-10-20T10:26:46.491Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nFUP44_A: long batch completed.\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_A_FIRST_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_A_FIRST_OK\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_A_RUNNING\\\\n'; /bin/sleep 35; printf 'FUP44_A_END\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_A_RUNNING\nFUP44_A_END\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:29d60345-0385-42e0-b478-012c735d13c1/48e39fde-41e9-417c-b431-51a39ead7dad",
+        "results": [
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'FUP44_A_FIRST_OK\\n'"
+              ],
+              "timeoutSeconds": 1800
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "FUP44_A_FIRST_OK\n",
+            "stderr": "",
+            "error": null
+          },
+          {
+            "script": {
+              "cwd": "/Users/ssyram/workspace/ai-tools/pi-mono",
+              "path": "/bin/sh",
+              "params": [
+                "-c",
+                "printf 'FUP44_A_RUNNING\\n'; /bin/sleep 35; printf 'FUP44_A_END\\n'"
+              ],
+              "timeoutSeconds": null
+            },
+            "status": "success",
+            "exitCode": 0,
+            "signal": null,
+            "stdout": "FUP44_A_RUNNING\nFUP44_A_END\n",
+            "stderr": "",
+            "error": null
+          }
+        ],
+        "successCount": 2,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nFUP44_A: long batch completed.\n</prompts>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_A_FIRST_OK\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_A_FIRST_OK\n\nstderr:\n\n</script>\n<script=\"/bin/sh\", exit-code=\"0\">\nstatus: success\ncwd: /Users/ssyram/workspace/ai-tools/pi-mono\nparams: [&quot;-c&quot;,&quot;printf 'FUP44_A_RUNNING\\\\n'; /bin/sleep 35; printf 'FUP44_A_END\\\\n'&quot;]\nsignal: none\nerror: none\nstdout:\nFUP44_A_RUNNING\nFUP44_A_END\n\nstderr:\n\n</script>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "75e56cd9",
+      "parentId": "b1408b0c",
+      "timestamp": "2026-10-20T10:26:46.491Z"
+    },
+    {
+      "type": "custom_message",
+      "customType": "loop-task-run",
+      "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nFUP44_H: later comparison prompt delivered.\n</prompts>\n</SYSTEM:loop-wakeup>",
+      "display": true,
+      "details": {
+        "wakeUpId": "session:655da2d9-e88c-4713-872a-6a965f78bbeb/0e77f8be-1134-4c87-97df-375f518fea30",
+        "results": [],
+        "successCount": 0,
+        "shouldWake": true,
+        "content": "<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.\n<prompts>\nFUP44_H: later comparison prompt delivered.\n</prompts>\n</SYSTEM:loop-wakeup>"
+      },
+      "id": "bd9dd213",
+      "parentId": "75e56cd9",
+      "timestamp": "2026-10-20T10:26:46.491Z"
+    }
+  ],
+  "limits": "Observed current-session ordering, not a universal proof. NoWake before end is append-only, not an AI wake. Session-entry timestamps are persistence/consumption times, not script completion times. H is a later comparison; independent idle-state delivery is not established. No reruns or host modifications."
+}

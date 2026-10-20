@@ -1,0 +1,20 @@
+   /Users/ssyram/.pi/agent/install/releases/1.2.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md
+   /Users/ssyram/.pi/agent/install/releases/1.2.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md
+
+12 条预约了未来执行的任务 · 点击展开
+ layout fixture 0
+ layout fixture 1
+ layout fixture 2
+ layout fixture 3
+ layout fixture 4
+ layout fixture 5
+ layout fixture 6
+ layout fixture 7
+ layout fixture 8
+ layout fixture 9
+ ... (widget truncated)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+~
+0.0%/0 (auto)                                                                                                    unknown

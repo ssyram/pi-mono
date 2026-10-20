@@ -6,6 +6,7 @@ import type {
 	SharedDefinition,
 	TaskSchedule,
 } from "./model.js";
+import { describeTaskContent } from "./task-content.js";
 
 export function describeSchedule(schedule: TaskSchedule): string {
 	if (schedule.kind === "interval")
@@ -28,7 +29,7 @@ export function formatAvailableDefinitions(
 	return definitions
 		.map(
 			(definition) =>
-				`${definition.id} | ${definition.scope} | ${describeSchedule(definition.schedule)} | ${definition.prompt}`,
+				`${definition.id} | ${definition.scope} | ${describeSchedule(definition.schedule)} | ${describeTaskContent(definition)}`,
 		)
 		.join("\n");
 }
@@ -40,7 +41,7 @@ function formatActiveTask(item: ActiveTask, now: number): string {
 			definition.id,
 			definition.scope,
 			describeSchedule(definition.schedule),
-			definition.prompt,
+			describeTaskContent(definition),
 			item.task.progress,
 			now,
 		);
@@ -60,7 +61,7 @@ function formatActiveTask(item: ActiveTask, now: number): string {
 		registration.id,
 		registration.reference.scope,
 		describeSchedule(definition.schedule),
-		`${definition.prompt} (definition available)`,
+		`${describeTaskContent(definition)} (definition available)`,
 		registration.progress,
 		now,
 	);

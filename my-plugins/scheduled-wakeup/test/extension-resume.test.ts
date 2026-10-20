@@ -1,3 +1,4 @@
+import { captureWakeupPrompt } from "./capture-wakeup-prompt.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -110,6 +111,7 @@ function createSetup() {
 		| ((args: string, ctx: ExtensionCommandContext) => Promise<void>)
 		| undefined;
 	const pi = {
+		registerMessageRenderer: () => undefined,
 		events: createEventBus(),
 		on: (
 			event: string,
@@ -129,9 +131,8 @@ function createSetup() {
 		appendEntry: (customType: string, data: unknown) => {
 			branch.push({ type: "custom", customType, data });
 		},
-		sendUserMessage: (prompt: string) => {
-			sent.push(prompt);
-		},
+		sendUserMessage: () => assert.fail("must use custom messages"),
+		sendMessage: (message: { customType: string; content: unknown }) => { sent.push(captureWakeupPrompt(message)); },
 	} as unknown as ExtensionAPI;
 	const ctx = {
 		cwd: root,

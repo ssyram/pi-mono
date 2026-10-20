@@ -1,0 +1,40 @@
+
+ ▀▀█  v1.2.0
+ █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more
+ Press ctrl+o to show full startup help and loaded resources.
+
+ Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.
+
+[Extensions]
+  reserve.ts, scheduled-wakeup
+
+
+ Warning: fd not found. Offline mode enabled, skipping download.
+
+ Scheduled wakeup loaded
+
+
+ Isolated persistent widget fixture; no provider call.
+
+
+ Fixture only.
+
+ Warning: No models available. Use /login to log into a provider via OAuth or API key. See:
+   /Users/ssyram/.pi/agent/install/releases/1.2.0/node_modules/@earendil-works/pi-coding-agent/docs/providers.md
+   /Users/ssyram/.pi/agent/install/releases/1.2.0/node_modules/@earendil-works/pi-coding-agent/docs/models.md
+
+12 条预约了未来执行的任务 · 点击收起（成功/已执行/总数）
+等待中 3454s · session:c69e78e6-6703-4512-b580-d351f64e451a
+等待中 3455s · session:bbac6499-38c0-4a28-a0a9-2f748625b0f1
+等待中 3456s · session:53a20195-1c88-44c1-a1b0-8e53261bd1c5
+等待中 3457s · session:bef3179d-1ef1-4a0b-9d25-f98377890212
+等待中 3458s · session:6b6b31d6-fed1-4d2b-aa66-10d53c595dd0
+等待中 3459s · session:a40bca68-8530-48f1-bd37-448994013b8e
+等待中 3460s · session:e6963c0b-17d8-4cf9-af34-e9148628f87f
+等待中 3461s · session:c0e4f97e-edc0-4796-b110-e466bf42b444
+等待中 3462s · session:a7c4c894-815a-4ca8-a9ff-12353d3a623e
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+~
+0.0%/0 (auto)                                                                                                    unknown

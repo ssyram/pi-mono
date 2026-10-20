@@ -3,10 +3,12 @@ import type {
 	ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
 import type { LoopV2Runtime } from "./loop-command-handler.js";
+import { loopErrorMessage } from "./loop-error-message.js";
 import { notifyLoop } from "./loop-notification.js";
+import { cloneTaskContent } from "./v2/task-content.js";
 
 export function runPromptNow(
-	pi: ExtensionAPI,
+	_pi: ExtensionAPI,
 	rt: LoopV2Runtime,
 	id: string,
 	ctx: ExtensionCommandContext,
@@ -19,20 +21,25 @@ export function runPromptNow(
 					? item.task.definition.id
 					: item.registration.id) === id,
 		);
-	let prompt: string | undefined;
-	if (active?.kind === "session") prompt = active.task.definition.prompt;
-	if (active?.kind === "registration" && active.definition !== undefined)
-		prompt = active.definition.prompt;
-	if (active === undefined || prompt === undefined) {
+	const definition =
+		active?.kind === "session" ? active.task.definition : active?.definition;
+	if (!definition) {
 		notifyLoop(ctx, `No runnable active task ${id}.`, "warning");
 		return;
 	}
 	try {
-		if (ctx.isIdle()) pi.sendUserMessage(prompt);
-		else pi.sendUserMessage(prompt, { deliverAs: "followUp" });
+		rt.dispatcher.dispatch({
+			id,
+			scope: definition.scope,
+			...cloneTaskContent(definition),
+		});
 	} catch (error) {
-		notifyLoop(ctx, `Delivery of ${id} failed: ${String(error)}`, "error");
+		notifyLoop(
+			ctx,
+			`Delivery of ${id} failed: ${loopErrorMessage(error)}`,
+			"error",
+		);
 		return;
 	}
-	notifyLoop(ctx, `Delivered ${id}.`, "info");
+	notifyLoop(ctx, `Started ${id}.`, "info");
 }

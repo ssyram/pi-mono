@@ -1,0 +1,30 @@
+ Scheduled wakeup loaded
+
+
+ Isolated persistent widget fixture; no provider call.
+
+
+ Fixture only.
+
+
+ Loop · 唤醒 ID: session:65b2933c-3d2e-4f31-99a5-40f981e6f238/560f0091-4ccf-49d7-a712-9914a8365c2f
+ · 成功 1/1 · 不触发唤醒
+
+
+ Warning: No models available. Use /login to log into a provider via OAuth or API key. See:
+
+ /Users/ssyram/.pi/agent/install/releases/1.2.0/node_modules/@earendil-works/pi-coding-agent/docs/p
+ roviders.md
+
+ /Users/ssyram/.pi/agent/install/releases/1.2.0/node_modules/@earendil-works/pi-coding-agent/docs/m
+ odels.md
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ Scheduled session task session:af267de2-dbd9-4471-997f-4a5b417c774f: every 1h.
+
+1 条预约了未来执行的任务
+────────────────────────────────────────────────────────────────────────────────────────────────────
+[scheduled-wakeup boulder] sync failed: Boulder inhibition service unavailable
+────────────────────────────────────────────────────────────────────────────────────────────────────
+~
+0.0%/0 (auto)                                                                                unknown

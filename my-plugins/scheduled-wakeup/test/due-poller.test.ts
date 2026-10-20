@@ -16,7 +16,7 @@ describe("DuePoller", () => {
 		const timers = createManualTimers();
 		const core = createCore(createJournal().port, clock);
 		core.createSessionTask({ prompt: "tick", schedule: { kind: "interval", intervalMs: 300_000 } });
-		const delivered: string[] = [];
+		const delivered: (string | undefined)[] = [];
 		const poller = new DuePoller({ core, deliver: (target) => delivered.push(target.prompt), now: () => clock.value, timers: timers.timers });
 
 		poller.start();
@@ -53,7 +53,7 @@ describe("DuePoller", () => {
 		const timers = createManualTimers();
 		const core = createCore(createJournal().port, clock);
 		core.createSessionTask({ prompt: "once", schedule: { kind: "once", runAt: NOW + 1_000 } });
-		const delivered: string[] = [];
+		const delivered: (string | undefined)[] = [];
 		const poller = new DuePoller({ core, deliver: (target) => delivered.push(target.prompt), now: () => clock.value, timers: timers.timers });
 
 		poller.start();

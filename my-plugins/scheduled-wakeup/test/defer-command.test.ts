@@ -117,7 +117,7 @@ function createSetup() {
 		cleared: number;
 	} = { delay: undefined, handler: undefined, cleared: 0 };
 	const handle: TimerHandle = {};
-	const delivered: string[] = [];
+	const delivered: (string | undefined)[] = [];
 	const poller = new DuePoller({
 		core,
 		now: () => clock.value,
@@ -151,6 +151,9 @@ function createSetup() {
 	} as unknown as ExtensionCommandContext;
 	const runtime: LoopV2Runtime = {
 		core,
+		dispatcher: { dispatch: () => assert.fail("defer must not dispatch"), list: () => [], dispose() {} },
+		widget: { refresh() {}, show: async () => {}, setVisible() {}, dispose() {} },
+		dispose: () => poller.dispose(),
 		user: new UserLoopV2Commands(core),
 		actions: new AiSessionActions(core),
 		poller,
