@@ -1,0 +1,17 @@
+[smoke-harness 18:25:23] 启动 CCV v3 mock on Pi：pi-v3-20261020-182523
+[smoke-harness 18:25:32] smoke daemon（独立 data-dir）：/Users/ssyram/workspace/work-fv/c-code-verify/.local/fsm-pi-v3-20261020-182523/d；status=running (pid 15804, start_time_ms 1792491932416726)
+[smoke-harness 18:25:36] 官方工作区就绪：/Users/ssyram/ccv-verify/ccv-pi-182523
+[smoke-harness 18:25:37] ext_b50.c/ext_b50.i 已放工作区根（92 字节 .i）
+[smoke-harness 18:25:37] mock server :18355，挂载 ccv-pi-mock → /Users/ssyram/workspace/work-fv/c-code-verify/.local/ccv-caller-callee-closure-v1/tests/mocker/scenario_ext_v3.py
+[smoke-harness 18:25:37] Pi 项目就绪：/Users/ssyram/ccv-verify/ccv-pi-182523-pi
+[smoke-harness 18:25:55] Pi 已启动（task gate 已满足），prompt 已提交（tmux fsm-ccv-pi:pi）
+[smoke-harness 18:25:55] Pi 已启动。进入观察循环（OC 同款 watch/stop）…
+[smoke-harness 18:25:55] status={'phase': 'preparing', 't': 'P01', 'updated': '2026-10-20T10:25:23Z'}
+[smoke-harness 18:27:31] status={'phase': 'endpoint', 't': 'V3', 'updated': '2026-10-20T10:27:31Z', 'detail': 'v3 direct channel observed; Main remains V_A_LOOP', 'endpoint_at': '2026-10-20T10:27:31Z'}
+[smoke-harness 18:27:42] 观察结束：endpoint，tmux 已停止
+[smoke-harness 18:27:42] 全部就绪。在 tmux 里观察：
+[smoke-harness 18:27:42]   tmux attach -t fsm-ccv-pi
+[smoke-harness 18:27:42]   mock 端口 :18355，剧本 ccv-pi-mock
+[smoke-harness 18:27:42]   FSM 数据 /Users/ssyram/workspace/work-fv/c-code-verify/.local/fsm-pi-v3-20261020-182523/d
+[smoke-harness 18:27:42]   工作区 /Users/ssyram/ccv-verify/ccv-pi-182523
+[smoke-harness 18:27:42]   产物目录 /Users/ssyram/workspace/work-fv/c-code-verify/.local/ccv-caller-callee-closure-v1/tests/mocker/run/pi-v3-20261020-182523

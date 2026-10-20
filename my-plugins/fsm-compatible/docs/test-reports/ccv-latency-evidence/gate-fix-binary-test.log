@@ -1,0 +1,11 @@
+✔ real daemon repeated permission/Stop checks do not wait for identity TTL (1933.078542ms)
+ℹ {"agentId":"main","permissionMs":451.946208,"stopMs":531.523666}
+ℹ {"agentId":"child-1","permissionMs":415.8348330000001,"stopMs":396.41337499999986}
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2150.177458

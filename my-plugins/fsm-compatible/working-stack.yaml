@@ -1,0 +1,299 @@
+title: 官方 Pi 的 FSM Server 插件适配
+prefix: FSM
+notes:
+  description:
+    meta: []
+    body: 用户为 owner；本栈承接官方 Pi 的 FSM Server 完整适配插件 fsm-compatible，不是实现 FSM Server。唯一开发范围为 my-plugins/，不看 steering-flow；GUI 延后。目的和前提位于 docs/principles.md，当前源码依据与具体候选方案位于 docs/research/fsm-compatible-research.md。按 qpdi/workflow 先确认设计再逐模块实现；源码调研、方案文件及本栈都不是运行成功或用户采用的证明。
+frames:
+  1:
+    parent: null
+    title: 交付 fsm-compatible：官方 Pi 的 FSM Server 完整适配插件
+    goal:
+    - 交付仅在 my-plugins/ 内开发、运行官方 Pi 的 fsm-compatible：原理上达到当前 haokun-code OC-level 的 FSM 完全兼容并实际运行。先完整 FSM 核心（含固定可派遣 subagent 集合、强制 fsm-compatible 等必载扩展及递归准入），再完成 mandatory 常用插件命令翻译；常用工具支持如 AskUserQuestion 为 optional，排最后，GUI 延后。按 qpdi/workflow 分阶段设计与逐模块实施，文档或源码分析不等于插件交付。
+    origin: []
+    status:
+      kind: active
+    plan:
+    - text: 源码补查已完成：docs/research/runtime-source-conclusions.md 追清 Pi prompt→before-settle→continue→settled 与 SA drain 顺序、原 session ID/绑定恢复、公开 judge finishTurn、Evidence raw entries 和 Watcher 队列语义。当前接口支持仅插件实现 OC-level FSM 功能合同；这不表示插件已经运行成功。
+      children: []
+      progress:
+        kind: item_done
+      fork: []
+    - text: 全部六单元（fsm-1/2/3/4/5/6）设计确认→实施→独立对照PASS闭环；P1-P9核心+P10 mandatory命令翻译全部交付。122项本地测试+tsc全绿+真实FSM wire2通道测试+官方Pi宿主加载smoke+两轮mock LLM真实E2E（门禁生命周期完整验证）。
+      children: []
+      progress:
+        kind: item_done
+      fork: []
+    - text: CC映射层完整重构（#29）：发送侧normalizeToolCall统一Pi/OC/CC三种命名与参数到CC canonical（Write+file_path/Bash+command/多编辑→MultiEdit/subagent→Agent/Grep/Glob/LS/WebSearch/WebFetch），isFsmProjectedTool补fsm_*前缀；执行侧新增file-tool-aliases（read/Read、write/Write、edit/Edit全参数风格）、search-tool-aliases（grep/Grep、glob/Glob、ls/LS）、shell-tool-alias（Bash）+agent/task/subagent别名；123项测试+tsc全绿。
+      children: []
+      progress:
+        kind: item_done
+      fork: []
+    - text: P10 mandatory命令翻译完成（fsm-6全部PASS：六个OC语义命令别名全部真实公开API支撑、未实现显式不伪装、121项测试）。
+      children: []
+      progress:
+        kind: item_done
+      fork: []
+    content:
+      results:
+      - 源码证据表明当前 FSM 反向依赖 OC judge/session/evidence/prompt_async 协议；仅接 MCP 或重写 subagent 不覆盖完整目标。推荐方案见 docs/research/fsm-compatible-research.md，尚无本插件运行证据。
+      - 源码补查：正常 SA child 等待 Pi 全部 before-settle 续跑；agent_end 取消 terminal-drain。恢复保留原 session ID/extensionBindings/requiredExtensions。judge 多工具批次使用 SDK 公开 Agent.finishTurn 正常结束。工具白名单、可靠 actor-acquire 和 Watcher 接收队列须在插件落实，均不需要外部源码补丁。依据 docs/research/runtime-source-conclusions.md。
+      - 正式架构合同已形成：P1-P9核心、P10 mandatory命令翻译、P11 optional常用工具；固定ChildAdmissionPolicy贯穿launch/broker/child/start/resume，禁止旁路扩大名单或缩减必载扩展。产物docs/design/fsm-compatibility/architecture.md；仅文档，无代码和运行声明。
+      - 细化产物：docs/design/fsm-compatibility/detailed-design.md、subplans/fsm-1-admission-binding.md及schema、docs/audits/fsm-1-admission-binding/expectations.md。schema用Ajv8.20.0严格编译并通过9个正反shape断言，临时检查脚本已移除；没有生产源码、运行语义测试、独立审查或provider调用。
+      - 实际实现与依据：src/admission、src/binding共15个源码文件，所有源码原始行数<200；3个针对性测试文件最新22/22（含64个名单父子组合）通过，插件tsc退出0。代码范围仅本插件，无daemon/provider调用、无staging/commit。原始及修正patch、报告、处置见docs/audits/fsm-1-admission-binding/。
+      - 首单元独立contract确认run71d9cffd-5a5f-4ceb-9eef-06f46a0f9c53返回PASS、critical/unresolved=0；结合实际22测试及tsc本单元技术结算。新runtime/broker合同在subplans/fsm-2-runtime-broker.md；macOS原FSM start_id微秒一手源码及系统头文件已核对，本机cc/SDK可用，不用ps秒值冒充。
+      - fsm2通道实际产物：root健康账本/managed factory、精确宿主identity、canonical目录lease、直接helper/Client、source读回、MCP分页/schema/fullresult/progress、工具投影/not-ready守卫、容量/取消与逆序关闭。runtime37/37、首单元回归22/22、插件tsc及实际FSM0.11.0wire2隔离source/actor/MCP1/1通过，报告docs/test-reports/fsm-2-runtime-broker.md；完整根接线/最终contract仍未完。B5叶子合同与事前expectations已产于fsm-3-protocol-judge，原审查者确认进行中。
+      - fsm3设计确认（tmp-Haokun/glm-5.3-flash run f13dcdae）：D3-1～D3-4全Closed、READY，P2 terminate措辞已补限定；报告/处置存docs/audits/fsm-3-protocol-judge/。记录层首批实现：record-time ISO roundtrip归一化、RecordStore owner隔离索引、oc-tool-parts/oc-messages真实call-result关联与完整envelope（custom_message/compaction保留raw历史、pending不造completed、错关联整体拒绝），SessionManager.inMemory直接测试7/7；传递依赖经overrides固定@earendil-works系列1.0.3与真实宿主一致，全套admission22+runtime37无回归，tsc通过。剩余：oc-roster/status、OC HTTP路由、judge闭集工具/capture/finishTurn/envelope及faux provider测试。
+      - fsm3第四批实现：judge-path-scope真实cwd范围（realpath最近现存祖先，external_directory才放开）；judge-directory-read真实readdir/localeCompare排序/offset||1/limit??2000窗口；judge-file-tools——read文件用SDK原生/目录走自有分页、grep{pattern,path,glob:include,limit:100}、glob→find、bash毫秒→秒+workdir、edit原生edits数组+replaceAll全替换/零匹配拒绝+空old在SDK公开withFileMutationQueue内mkdir递归+wx新建/已存在拒绝；finishTurn本地结构类型wrapper（原decision先跑，完整批次+至少一真实capture才end，含conflict）；judge-error仅typed provenance分类，unknown不造retryability。本地套件judge10+records13+admission22+runtime37共82项全绿+tsc（另有隔离FSM binary通道1项需环境变量）。剩余：judge-extra-tools web接线（缺factory显式not-ready）、SDK judge session+faux provider整回合、OcHandlers真实接线与本单元contract对照。
+      - fsm3第三批实现：judge-input严格shape/未知字段拒绝/Ajv wire schema编译/parts顺序join；judge-tool-policy wildcard deny+基础read/grep/glob常在+extras显式请求+deny别名true即拒+unknown false无效；CaptureTurn成功列表保留真实冲突不覆盖、失败尝试独立、reset支持同sid repair；judge-envelope失败/成功实际parts按D3-4合同交原driver。judge-input2+capture2测试通过，累计76项全绿+tsc。剩余：judge-file-tools（read目录分页/edit原生edits+空old新建/replaceAll/web改名单）、finish-turn wrapper、SDK judge session+faux provider整回合测试、OcHandlers真实接线。
+      - fsm3第四批实现：judge-path-scope真实cwd范围（realpath最近现存祖先，external_directory才放开）；judge-directory-read真实readdir/localeCompare排序/offset||1/limit??2000窗口；judge-file-tools——read文件用SDK原生/目录走自有分页、grep{pattern,path,glob:include,limit:100}、glob→find、bash毫秒→秒+workdir、edit原生edits数组+replaceAll全替换/零匹配拒绝+空old在SDK公开withFileMutationQueue内mkdir递归+wx新建/已存在拒绝；finishTurn本地结构类型wrapper（原decision先跑，完整批次+至少一真实capture才end，含conflict）；judge-error仅typed provenance分类，unknown不造retryability。judge套件10/10、records13、admission22、runtime37全绿+tsc。剩余：judge-extra-tools web接线（缺factory显式not-ready）、SDK judge session+faux provider整回合、OcHandlers真实接线与本单元contract对照。
+      - fsm3实现完成待对照：记录层/OC HTTP真实接线/judge全链（input/policy/path-scope/目录分页/五文件工具/capture账本/envelope/raw Agent会话同sid转写续跑+singleflight+faux整回合测试）；本地88项全绿（admission22+runtime37+protocol14+judge15）+strict tsc；实现偏离三条已记录于design-decisions；implementation.patch 83文件339636字节、测试报告docs/test-reports/fsm-3-protocol-judge.md。下一步：授权reviewer对照expectations独立审查本单元实现；PASS后结算fsm-3并继续根runtime/child/gates/Watcher。
+      - fsm3结算PASS：实施对照run487ceb60 BLOCK五项（abort虚假确认/空body 400/shape误报503/web静默缺席/捏造callID）全部修复，P2按处置落地，限定确认run801121cd返回PASS；两条记录级P2（mkdir后signal、part id双计数）亦已修复并加唯一性断言。本地89项测试（judge16/protocol14/admission22/runtime37）+strict tsc全绿；faux provider真实整回合，无provider key/网络/真实模型。报告/处置/修复记录/patch均在docs/audits/fsm-3-protocol-judge与docs/fixes/fsm3-audit-fix-blockers.md。下一单元fsm-4（B6 FIFO握手串行/B7异步完成与取消接线/B8 permission normalizer），先出叶子合同+expectations再做设计确认。
+      - fsm4设计确认READY（run9efce024 BLOCKED三条D4一句话级闭合→run a369b41c限定确认READY；报告/处置在docs/audits/fsm-4-child-gates/）。实施首批：B8 tool-normalizer（path→filePath/grep glob→include/find→glob/powershell→bash/未知与mcp原样透传、edit单次check多edits完整input、不改值不造字段）；permission gate fail-close（allow/deny原文/不可达block/FSM投影绕过/每调用恰一次check）；stop gate soft-gate（agent_before_settle completed且无已有continuation才评估，block→custom_message draft+continue:true，transport放行+诊断）；helper allowlist新增/check-permission与/stop-check。gates5项新测试通过，全量admission22+runtime37+protocol14+judge16+gates5全绿+tsc。剩余：B6 launch队列/B7 ChildRun表+delegation接线/initializeChild/恢复及全套fake-bus测试。
+      - fsm4第二批实现：delegation-bus（SA事件族typed包装、三元组、至多一terminal）；SerialQueue+RootLaunches（B6 FIFO握手：bootstrap文件0600/task前缀ref/ack或terminal失败出队/duplicate原样surfaced/容量拒绝）；ChildRuns（B7表：真实caller通知一次、第二terminal protocol-invalid、cancel等实际terminal、超时unknown、lifecycle穷举映射含unavailable_context/invalid_request）；bootstrap前缀解析/文件roundtrip/坏ref拒绝。children4+gates5新测试通过；累计98项（22+37+14+16+5+4）+tsc全绿。bootstrap传输决策已记录design-decisions。剩余：initializeChild child侧（input剥离/restore-bind/gate/launch-ack）、桥launch-ack路由、恢复分支、全套组装测试与实施对照。
+      - fsm4结算PASS：实施对照run21578871 BLOCK四项P1（waiter行键控/容量释放/loadPayload/normalize入try）+P2×6全部修复处置，限定确认run6dce4d94返回PASS；104项测试（admission22+runtime37+protocol14+judge16+gates5+children10）+tsc全绿。记录级残留（排队项signal复查等）留组装单元。核心四单元已完成三（fsm-1/3/4 PASS，fsm-2通道完成待最终contract结算）；剩余：fsm-2最终对照、fsm-5（Watcher/等待/恢复/安装/完整运行）、mandatory命令翻译、根runtime组装。审查会话已超150k tokens，后续审查建议同agent+model新context派遣避免超时螺旋。
+      - fsm2最终结算PASS：run0a4d3c9a（新context授权reviewer）独立对照返回0 critical/0 unresolved；三项记录级P2处置（base lstat已补、SIGKILL后不可达保留、allowlist扩容有据）。核心四单元fsm-1/2/3/4全部技术结算PASS；本地104项测试+tsc全绿+隔离FSM wire2通道测试。剩余：fsm-5（叶子合同/expectations已产）设计确认→实施→对照、根runtime组装、mandatory命令翻译（P10）、真实模型E2E（须账户/预算授权）。
+      - fsm5首批实现（设计READY含三句钉死）：gate-moves（hook二分原样：仅allowed AskUserQuestion抑制，denial也释放；main-only；best-effort失败放弃；FSM投影早退既不check也不移gate）；permission-gate每次verdict顺带移gate（suppress决定reason，修复了release误用ask-start的实现bug）；AskUserQuestion工具（真实dialog select/input、waitState设置/清除、返回即ask-end release、无UI不伪装回答）；AdvisoryQueue（严格204入队语义、容量满503、consumed需真实branch证据、failed可观察、close全fail）；drainOnce（idle目标才投递、sendMessage triggerTurn、拒绝即failed）；promptAsync真实接线（树内目标404/坏shape400/满503/严格204）；helper新增/gate/suppress|/release。watch7+protocol15新绿，累计111项测试+tsc全绿。剩余fsm-5：recoverRuntime、根组装openOwnedRuntime（含fsm-4残留补齐）、planInstallation，然后实施对照。
+      - fsm5收尾实现：fsm-4记录级残留清零（排队项段起signal/deadline复查+launch级容量/超时/取消用例，发现并修复握手超时行永久占容的泄漏——ChildRuns.forget）；recoverRuntime（身份确认→重跑prepare通道→/evidence/source-auth刷新桥密码，不重放未知mutation）；runtime-config加载校验；根组装openOwnedRuntime（root绑定→store→桥listen（随机密码）→prepareBrokerChannel→工具投影/permission+stop gates/ask工具/advisories+agent_settled drain→delegation总线→全部prepared才commit ready，逆序close）+ index.ts入口（session_start装配/shutdown回收，失败not-ready诊断）。累计113项测试（22+37+15+16+4+11+7+1）+tsc全绿。剩余fsm-5：组装真实smoke（faux全链）、planInstallation静态计划、实施对照；随后P10 mandatory命令翻译。
+      - fsm5结算PASS（run0e34cc9f BLOCK修复→runc4329e12改判PASS，0 critical/0 unresolved）。里程碑：核心P1-P九五单元fsm-1/2/3/4/5全部技术结算PASS——固定准入/绑定、broker通道与协议、OC记录/judge、child门禁与派发、Watcher/等待/恢复/组装/安装计划；本地117项测试+tsc全绿+隔离FSM wire2真实二进制通道测试，全程无真实provider token。剩余根目标：P10 mandatory常用命令翻译（子计划→确认→实施→对照）、真实模型E2E与SA集成烟雾（须账户/预算授权）、用户验收。
+      - fsm-6结算PASS（run03585637对照0 critical/0 unresolved；三项记录级P2即时钉住），P10完成。项目级里程碑：fsm-1准入绑定/fsm-2通道/fsm-3协议judge/fsm-4子门禁/fsm-5组装安装/fsm-6命令翻译六个单元全部设计确认READY→实施→独立对照PASS；本地121项测试+strict tsc全绿+隔离FSM wire2真实二进制通道测试；全程仅my-plugins，无真实provider token。根目标剩余：真实模型E2E与SA集成烟雾（须用户账户/预算授权）、用户验收。
+      - 官方Pi真实宿主smoke（tmux+临时项目+pi install -l，零token）：插件真实加载、session_start触发、/exit注册干净退出；发现并修复真实缺陷——缺config失败路径未装not-ready门禁致输入直通模型（误耗$0.026已披露，修复后输入被拦截、上下文0.0%零模型调用，docs/fixes/index-fix-ungated-failure.md+test-reports/host-smoke.md）；另确认symlink安装使相对导入失败、正确方式pi install真实路径（README已更新）。gates测试因fsm-5 gate顺带移动产生过时计数断言（含竞态）已修为按路由分账。全量122项测试+tsc全绿。剩余：真实模型E2E/SA烟雾（须授权）与用户验收。
+      - 首次真实E2E（mock-llm-server+真实FSM 0.11.0/wire2 daemon+官方Pi宿主，零真实token）：发现并修复两个真实缺陷（/check-permission响应{allowed}与/stop-check响应{is_terminal}被误用ok信封校验致门禁全不可达），修复后核心门禁链路全部真实验证通过——enter_fsm真实进入S_probe、允许探针真实执行、禁止探针被FSM状态黑名单拦截（blacklisted in state S_probe）、Stop门禁因非终态真实强制续跑、首轮fail-close方向安全。报告docs/test-reports/fsm-e2e-gate-probe.md；全部本地套件+tsc复跑绿。边界：mock脚本续跑循环非门禁缺陷；judge/child派发链路待后续场景。
+      - E2E第二轮完整生命周期验证：skill含迁移、mock七步（enter→允许/禁止探针→marker→self-check→transition→汇总）。核心结果全部真实通过——enter进入S_probe、允许探针执行、禁止探针被黑名单拦截（blacklisted in state S_probe）、marker写入、FSM工具（submit_self_check/try_transition）经插件投影真实调达daemon获真实响应（409系self-check参数格式细节非插件缺陷）、Stop门禁非终态正确强制续跑。插件在真实FSM daemon+官方Pi+mock LLM下的核心门禁生命周期完整验证。报告docs/test-reports/fsm-e2e-gate-probe.md。
+      - E2E第三轮完整干净生命周期（零token）：enter_fsm→允许探针执行→禁止探针被FSM黑名单拦截→self_check(S_exit)→transition(S_exit)成功→self_check(_fsm_exit)→exit_fsm回到_default(is_exit_state=true)→Stop门禁放行→干净结束无循环。这是插件在真实FSM 0.11.0/wire2 daemon+官方Pi 1.0.3+mock LLM下的完整端到端验证：进入FSM→门禁拦截→状态迁移→退出FSM→干净停止，全部通过。全部三轮E2E报告docs/test-reports/fsm-e2e-gate-probe.md。
+      - CCV wire7全流程mock验证（零真实token）：harness_pi_v3.py按OC同款env路线（source runtime env.sh→workspace env.sh→export覆盖、bash -c包装、PI_CODING_AGENT_DIR保住Pi配置）启动真wire7 daemon+真CCodeVerify skill+mock LLM驱动官方Pi。结果：endpoint终点态、0 scenario-failed/crashed、85项v3-evidence全过（OC v3仅23项，Pi版完整走完worker全生命周期）。实证覆盖：主链V_INTAKE→V_A_INTENT→V_A_LOOP两次transition.commit.success（5 hard gate含真跑clightgen的intake_finalize、state_integrity git审计）；子FSM ccv-analysis-sp-td完整B_COLLECT→B_DONE生命周期（analysis_child.py真实hard gate、稿件变体负/正例全按现行裁决2合同判定）；subagent dispatch全链（reserve→Agent调用→parent预claim（TTL 10s）→child异步spawn→child模式运行时→B_DONE收口）；soft judge走host mock模型获verdict_pass。为此修复的架构缺口：Agent工具OC异步语义、child spawn补-ne+剥PI_*继承、parent侧预claim、child模式运行时（createChildBinding共享根session身份）、RecordStore/fsm-tools守卫放宽child身份、bridge鉴权OC对等化+OPENCODE_SERVER_URL注入env供wire7 analysis脚本回连。剧本侧v3_worker_actions_pi副本（B69改正例符合现行gate裁决2、删B70重复步）。
+      - 用户要求核实GPT工具优化：安装版官方Pi1.3.0及当前源码的工具闭集均为read/bash/powershell/edit/write/grep/find/ls，没有apply_patch或按GPT模型禁用edit/write的自动分支。haokun-code registry.ts:336-339确实为非oss/非gpt-4的gpt-*启用ApplyPatch并撤掉Edit/Write。当前Pi路径已由normalizer write→Write、edit→Edit/MultiEdit及file_path转换覆盖；本轮不因OC能力虚构Pi工具或新增未发生的patch实现。若以后实际加载patch扩展，必须解析多文件新增/修改/删除/重命名操作逐路径鉴权，不能只换名。
+      side_effects: []
+      principles: []
+      remarks:
+        后期兼容适配: 最新用户裁决取代此前表述：常用命令翻译 mandatory，常用工具支持 optional。AskUserQuestion 是可选常用工具例子，不再作为核心强制实现项。FSM gate/judge/wire 必需的基础映射仍在核心。
+        实现环境: 插件依赖固定到实际官方Pi1.0.3，npm install --ignore-scripts仅本插件；仓库另一份Pi1.2.0类型没有on注销，不能据其删功能。~/bin FSM server实际0.10.0缺wire_contract_version，默认binary smoke正确失败；已有use-fsm/target/release server/client实际0.11.0wire2/schema2并通过隔离source/actor/MCP调用测试，不升级用户bin或外部源码。根writecheck未执行；此前只读Biome缺@biomejs/wasm-nodejs，后续rootchecks未跑。
+        当前协作: 插件提交检查完成：126项本地测试+插件tsc+真实daemon时延回归+入口导入通过。README/示例配置已同步，入口纯re-export且SELF_PATH指向真实入口，子actor预绑定失败停止spawn。首次正常commit因无关旧快照依赖检查被hook拒绝；owner随后明确授权无关则--no-verify、有关则修。本次按该授权执行commit/push，213个暂存文件全部限于本插件目录；根检查未通过的事实保留，不纳入其它会话未提交文件。当前main含既存未推f3d83b47b，push main会一并发布；最终结果以Git回执为准。57秒转移耗时与B62裸写仍是已知边界。
+        当前边界: 仅my-plugins开发；官方Pi/FSM/SA、用户bin/global配置和其它会话变更不动。fsm3设计确认现由owner授权的tmp-Haokun/glm-5.3-flash reviewer执行（run f13dcdae-0ca9-467d-a73f-d34b000203aa），输出绑定docs/audits/design/design-review.md，收回后保存到fsm3目录；不再触碰Codex额度。D3限定范围与只读边界不变；无READY结论不编码。recovery快照/失败记录保留作历史依据。
+    log:
+    - action: push
+      at: 2026-10-14T02:59:24.751964000Z
+      detail: 用户初始委托完整兼容 FSM Server、仅插件、先出方案；后续明确最终目标是插件并要求 WS 管理，排除古早 steering-flow。
+    - action: update
+      at: 2026-10-14T03:00:14.810648000Z
+      detail: 将最终插件目标与本轮先出方案分开承接，不因明确终点越过 workflow 的设计确认。；变更字段：content.remarks.当前边界、plan
+    - action: update
+      at: 2026-10-14T03:09:54.383419000Z
+      detail: 按用户纠正同步插件身份和方案路径，保存源码调研成果；保持先方案后确认的执行边界。；变更字段：content.remarks.当前协作、content.results、plan[0].progress.kind、plan[0].text、plan[1].progress.kind、plan[1].progress.reason、title
+    - action: update
+      at: 2026-10-14T03:28:28.000453000Z
+      detail: 用户明确要求查，恢复方案本身尚欠的源码责任，不改变最终插件目标。；变更字段：content.remarks.当前协作、plan[0].progress.kind、plan[0].text
+    - action: update
+      at: 2026-10-14T03:42:31.113012000Z
+      detail: 回填实际调用链结论及用户最新后期适配要求，区分源码可实现性、未编码与未运行；不越过设计确认。；变更字段：content.remarks.后期兼容适配、content.remarks.当前协作、content.results、plan[0].progress.kind、plan[0].text、plan[1].progress.reason
+    - action: update
+      at: 2026-10-14T03:56:13.767705000Z
+      detail: 承接用户 proceed、正式Q优先级和子代理核心准入要求，解除旧路线待确认阻塞，不把optional工具升级为mandatory。；变更字段：content.remarks.后期兼容适配、content.remarks.当前协作、content.remarks.当前边界、goal[0]、plan
+    - action: update
+      at: 2026-10-14T03:56:42.144626000Z
+      detail: 结算本轮架构产物与真实下一阶段边界，保留最终插件及mandatory命令翻译责任。；变更字段：content.results、plan[1].progress.kind、plan[1].progress.reason、plan[1].text
+    - action: update
+      at: 2026-10-14T04:05:22.717784000Z
+      detail: 用户继续授权进入下一设计阶段，解除旧架构待确认阻塞并承接当前具体责任。；变更字段：content.remarks.当前协作、plan[1].progress.kind、plan[1].progress.reason、plan[1].text
+    - action: update
+      at: 2026-10-14T04:20:55.412984000Z
+      detail: 结算函数级设计和首个纯准入/绑定实施合同，记录机械schema检查的真实范围及下一阶段责任。；变更字段：content.remarks.当前协作、content.results、plan[1].progress.kind、plan[1].progress.reason、plan[1].text
+    - action: update
+      at: 2026-10-14T04:25:47.511416000Z
+      detail: 用户全面推进解除细化待确认，建立自主执行责任和原标准设计审查的实际run依据。；变更字段：content.remarks.当前协作、content.remarks.当前边界、plan[1].progress.kind、plan[1].progress.reason、plan[1].text
+    - action: update
+      at: 2026-10-14T04:27:28.107203000Z
+      detail: 登记已查明的实际工具环境与写入边界，不能把诊断命令当越界修改许可。；变更字段：content.remarks.实现环境
+    - action: update
+      at: 2026-10-14T06:01:18.580549000Z
+      detail: 保存首单元实际实现、失败回归与修正依据和独立确认run，不以测试或review任务completed替contract闭合或根目标完成。；变更字段：content.remarks.实现环境、content.remarks.当前协作、content.results、plan[1].text
+    - action: update
+      at: 2026-10-14T06:34:33.338651000Z
+      detail: 结算实际PASS证据并切到下一必要模块，区分局部完成、未部署完整插件与正常运行时协调资源。；变更字段：content.remarks.当前协作、content.results、plan[1].text
+    - action: update
+      at: 2026-10-14T06:37:33.362562000Z
+      detail: 登记下一模块设计审查的实际run及继续责任，保持用户全面推进授权与原标准边界。；变更字段：content.remarks.当前协作、plan[1].text
+    - action: update
+      at: 2026-10-14T07:09:24.066941000Z
+      detail: 登记实际callee差异、最小合同修正和原标准限定确认run，防止将null/事件注册自述当ready事实。；变更字段：content.remarks.当前协作、plan[1].text
+    - action: update
+      at: 2026-10-14T08:57:53.792254000Z
+      detail: 以实际通道运行和已启动B5设计确认替换过时等待D2状态；保留完整交付责任；变更字段：plan[1].text
+    - action: update
+      at: 2026-10-14T08:58:04.598378000Z
+      detail: 更新真实已做工作与下一责任，不从继续推定用户验收；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-14T08:58:17.819298000Z
+      detail: 区分源码基线、已安装旧二进制、实际兼容产物和依赖类型来源；变更字段：content.remarks.实现环境
+    - action: update
+      at: 2026-10-14T08:58:29.544809000Z
+      detail: 保存当前设计依赖及实际副作用边界供native通知复工；变更字段：content.remarks.当前边界
+    - action: update
+      at: 2026-10-14T08:58:43.828355000Z
+      detail: 记录可继承的实际组件与运行依据，不关闭根目标或其它模块；变更字段：content.results
+    - action: update
+      at: 2026-10-14T09:30:56.069489000Z
+      detail: 纳入独立设计报告四项具体缺口及已做修订，不把后台完成当READY；变更字段：plan[1].text
+    - action: update
+      at: 2026-10-14T09:31:10.753559000Z
+      detail: 保存目的、实际修订和下一责任，保留版本来源差异与有限确认边界；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-14T09:31:24.636445000Z
+      detail: 替换过时B5首审run与当前确认范围，避免复工误承接旧活动；变更字段：content.remarks.当前边界
+    - action: update
+      at: 2026-10-14T09:38:55.828291000Z
+      detail: 记录明确运行基础设施失败与恢复条件，暂停设计依赖后的编码而非误认审查通过；变更字段：plan[1].progress.kind、plan[1].progress.reason、plan[1].text
+    - action: update
+      at: 2026-10-14T09:39:08.193911000Z
+      detail: 把额度恢复责任与AI未完成确认分开，不用活动任务假装仍在推进；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-14T09:39:20.945997000Z
+      detail: 替换过时进行中状态，保存基础设施阻塞下的权限和证据边界；变更字段：content.remarks.当前边界
+    - action: update
+      at: 2026-10-14T12:41:13.659394000Z
+      detail: 记录owner明确授权的模型切换与当前进行中的限定确认，替换额度阻塞状态；变更字段：plan[1].progress.kind、plan[1].progress.reason、plan[1].text
+    - action: update
+      at: 2026-10-14T12:41:19.844123000Z
+      detail: 保存模型切换授权与恢复的活动确认，区分此前误用与当前正确派遣；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-14T12:41:27.602595000Z
+      detail: 替换Codex阻塞期边界，明确当前审查通道与不复用旧run；变更字段：content.remarks.当前边界
+    - action: update
+      at: 2026-10-14T12:53:31.631973000Z
+      detail: 设计门已按owner授权模型确认READY，进入既定实施阶段；变更字段：plan[1].text
+    - action: update
+      at: 2026-10-14T13:02:03.228262000Z
+      detail: 登记设计门闭合与记录层实际实现/测试依据，不关闭其余模块责任；变更字段：content.results
+    - action: update
+      at: 2026-10-14T13:07:51.849253000Z
+      detail: 登记协议/记录层实际实现与全套回归依据，不关闭judge及后续模块责任；变更字段：content.results
+    - action: update
+      at: 2026-10-14T13:10:04.242574000Z
+      detail: 登记judge纯合同模块与累计测试依据，剩余SDK会话层责任不关闭；变更字段：content.results
+    - action: update
+      at: 2026-10-14T13:16:20.868744000Z
+      detail: 登记judge文件工具/收尾wrapper/错误分类实现与累计86项测试依据，SDK会话层责任继续；变更字段：content.results
+    - action: update
+      at: 2026-10-14T13:16:32.759377000Z
+      detail: 修正测试计数为82并保留剩余责任清单；变更字段：content.results[8]
+    - action: update
+      at: 2026-10-14T13:28:38.570705000Z
+      detail: 登记fsm3实现完成与待独立对照状态，不提前结算PASS；变更字段：content.results
+    - action: update
+      at: 2026-10-14T13:29:05.353244000Z
+      detail: 记录实现完成与进行中的独立对照，保持不提前结算；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-14T13:37:33.255692000Z
+      detail: 记录超时中断事实与同协议恢复，不把中断当审查结论；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-14T13:43:12.721054000Z
+      detail: 记录两次中断的真实机制与恢复参数，区分基础设施与审查结论；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-14T14:05:51.007296000Z
+      detail: 登记BLOCK处置与修复完成，等待限定确认不提前结算；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-14T14:19:15.595208000Z
+      detail: 结算fsm3技术PASS，登记剩余单元责任，不关闭根目标；变更字段：content.results
+    - action: update
+      at: 2026-10-14T14:23:07.460878000Z
+      detail: 登记fsm3结算与fsm4设计材料/确认启动，替换过时状态；变更字段：plan[1].text
+    - action: update
+      at: 2026-10-14T14:47:35.228364000Z
+      detail: 登记fsm4设计READY与门禁/normalizer首批实现，剩余委派队列责任继续；变更字段：content.results
+    - action: update
+      at: 2026-10-14T14:54:17.456693000Z
+      detail: 登记B6/B7核心实现与传输决策，剩余child侧接线责任明确；变更字段：content.results
+    - action: update
+      at: 2026-10-14T15:12:13.657012000Z
+      detail: 登记fsm4实现完成与对照审查进行中；变更字段：plan[1].text
+    - action: update
+      at: 2026-10-14T15:38:38.568760000Z
+      detail: 登记BLOCK四项修复完成与限定确认进行中；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-14T15:48:56.007706000Z
+      detail: 结算fsm4技术PASS并登记审查会话处置建议；变更字段：content.results
+    - action: update
+      at: 2026-10-14T15:51:53.439832000Z
+      detail: 登记fsm5设计材料就绪与当前对照进行中；变更字段：plan[1].text
+    - action: update
+      at: 2026-10-14T16:16:42.971903000Z
+      detail: 结算fsm2并登记四核心单元全部PASS的里程碑，不关闭根目标；变更字段：content.results
+    - action: update
+      at: 2026-10-15T02:17:19.658425000Z
+      detail: 登记fsm5核心三件实现与累计111项测试依据；变更字段：content.results
+    - action: update
+      at: 2026-10-15T02:28:13.610586000Z
+      detail: 登记fsm5组装完成与容量泄漏修复，剩余安装计划与对照；变更字段：content.results
+    - action: update
+      at: 2026-10-15T02:41:27.341393000Z
+      detail: 登记fsm5实现完成与对照进行中；变更字段：plan[1].text
+    - action: update
+      at: 2026-10-15T03:03:31.345207000Z
+      detail: 登记fsm5 BLOCK修复完成与限定确认进行中；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-15T03:12:47.994365000Z
+      detail: 登记核心五单元全部PASS的里程碑，剩余P10与运行验证责任明确；变更字段：content.results
+    - action: update
+      at: 2026-10-15T03:15:17.036809000Z
+      detail: 登记P10材料与确认启动；变更字段：plan[1].text
+    - action: update
+      at: 2026-10-15T03:25:09.179868000Z
+      detail: 登记P10实现完成与对照进行中；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-15T03:32:51.846476000Z
+      detail: 登记全部六单元PASS与P10完成的最终里程碑；变更字段：content.results
+    - action: update
+      at: 2026-10-15T03:33:01.283642000Z
+      detail: 登记实现义务全部完成，剩余用户授权与验收两点；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-15T03:34:52.138155000Z
+      detail: P10结算完成；变更字段：plan[3].progress.kind、plan[3].text
+    - action: update
+      at: 2026-10-15T03:35:34.915290000Z
+      detail: 区分已交付安装入口与待授权E2E；变更字段：plan[2].progress.kind、plan[2].progress.reason、plan[2].text
+    - action: update
+      at: 2026-10-15T04:17:52.304064000Z
+      detail: 登记真实宿主smoke通过、失败路径缺陷修复与测试过时断言修正；变更字段：content.results
+    - action: update
+      at: 2026-10-15T04:39:23.905421000Z
+      detail: 登记首次真实E2E门禁验证通过与两个响应形状缺陷修复；变更字段：content.results
+    - action: update
+      at: 2026-10-15T04:42:55.209239000Z
+      detail: 登记完整生命周期E2E第二轮验证通过；变更字段：content.results
+    - action: update
+      at: 2026-10-15T06:14:09.060453000Z
+      detail: 以results最新事实校准plan[1]，六单元全部完成；变更字段：plan[1].progress.kind、plan[1].text
+    - action: update
+      at: 2026-10-15T06:14:09.073401000Z
+      detail: 校准当前协作为最终状态：全部实现完成，等待用户两项输入；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-15T06:47:06.946931000Z
+      detail: 登记完整干净生命周期E2E通过，全部实现义务完成；变更字段：content.results
+    - action: update
+      at: 2026-10-15T07:10:55.144939000Z
+      detail: 以results最新事实校准plan[2]，全部可执行验证完成；变更字段：plan[2].progress.kind、plan[2].progress.reason、plan[2].text
+    - action: update
+      at: 2026-10-20T09:07:11.924031000Z
+      detail: 用户质疑232秒后按原始session及真实隔离实验更正性能归因，保留未修复与未细分边界；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-20T09:09:44.259625000Z
+      detail: 核实用户新增的GPT工具优化问题，按实际宿主能力限定映射范围，未改模型工具集或生产源码；变更字段：content.results
+    - action: update
+      at: 2026-10-20T09:17:04.607242000Z
+      detail: 用户明确要求改代码后完成最小修复及真实daemon重复调用回归，区分局部时延修复与整流程未重跑边界；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-20T10:31:12.843484000Z
+      detail: 用户要求实际重跑后按新run时间线及真实迁移记录回填，不以重复evidence计数冒充独立通过项；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-20T10:45:50.454938000Z
+      detail: 同步提交范围、直接修正与实际检查结果；保留正常hook和既存未推提交的发布边界；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-20T10:47:59.423156000Z
+      detail: 记录正常commit实际hook失败及未发生push，保留纯插件暂存和需要owner裁决的发布边界；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-20T11:07:54.824080000Z
+      detail: 记录owner明确的条件性no-verify授权，与已完成插件检查及未通过根检查分开，不再等待重复授权；变更字段：content.remarks.当前协作
+log:
+- action: update
+  at: 2026-10-14T03:10:04.035578000Z
+  detail: 建立复工导览，使继任者从用户目的、插件责任与实际材料继续，而不是从旧目录名猜目标。

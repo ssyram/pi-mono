@@ -1,0 +1,315 @@
+{
+  "run": "pi-v3-20261020-143605",
+  "totals_ms": {
+    "outer_gap": 4909.0,
+    "prepare_finalize": 116572.0,
+    "execute": 111156.0,
+    "other_execute": 3993.0,
+    "transition_execute": 38252.0,
+    "wait_child_execute": 68911.0
+  },
+  "batches": [
+    {
+      "at": "2026-10-20T06:36:30.935000+00:00",
+      "tools": [
+        "read",
+        "read"
+      ],
+      "wall_ms": 10141.0,
+      "execute_ms": 3,
+      "outside_execute_ms": 10138.0,
+      "model_or_interbatch_ms": 820
+    },
+    {
+      "at": "2026-10-20T06:36:41.191000+00:00",
+      "tools": [
+        "bash"
+      ],
+      "wall_ms": 265.0,
+      "execute_ms": 131,
+      "outside_execute_ms": 134.0,
+      "model_or_interbatch_ms": 115.0
+    },
+    {
+      "at": "2026-10-20T06:36:41.556000+00:00",
+      "tools": [
+        "fsm_fsm_enter"
+      ],
+      "wall_ms": 358.0,
+      "execute_ms": 356,
+      "outside_execute_ms": 2.0,
+      "model_or_interbatch_ms": 100.0
+    },
+    {
+      "at": "2026-10-20T06:36:42.117000+00:00",
+      "tools": [
+        "fsm_fsm_get_state"
+      ],
+      "wall_ms": 402.0,
+      "execute_ms": 401,
+      "outside_execute_ms": 1.0,
+      "model_or_interbatch_ms": 203.0
+    },
+    {
+      "at": "2026-10-20T06:36:42.638000+00:00",
+      "tools": [
+        "bash"
+      ],
+      "wall_ms": 8725.0,
+      "execute_ms": 31,
+      "outside_execute_ms": 8694.0,
+      "model_or_interbatch_ms": 119.0
+    },
+    {
+      "at": "2026-10-20T06:36:51.476000+00:00",
+      "tools": [
+        "write"
+      ],
+      "wall_ms": 134.0,
+      "execute_ms": 1,
+      "outside_execute_ms": 133.0,
+      "model_or_interbatch_ms": 113.0
+    },
+    {
+      "at": "2026-10-20T06:36:51.720000+00:00",
+      "tools": [
+        "bash"
+      ],
+      "wall_ms": 9748.0,
+      "execute_ms": 92,
+      "outside_execute_ms": 9656.0,
+      "model_or_interbatch_ms": 110.0
+    },
+    {
+      "at": "2026-10-20T06:37:01.624000+00:00",
+      "tools": [
+        "fsm_fsm_submit_self_check"
+      ],
+      "wall_ms": 382.0,
+      "execute_ms": 380,
+      "outside_execute_ms": 2.0,
+      "model_or_interbatch_ms": 156.0
+    },
+    {
+      "at": "2026-10-20T06:37:02.133000+00:00",
+      "tools": [
+        "fsm_fsm_try_transition"
+      ],
+      "wall_ms": 20128.0,
+      "execute_ms": 20126,
+      "outside_execute_ms": 2.0,
+      "model_or_interbatch_ms": 127.0
+    },
+    {
+      "at": "2026-10-20T06:37:22.367000+00:00",
+      "tools": [
+        "read",
+        "read"
+      ],
+      "wall_ms": 10309.0,
+      "execute_ms": 7,
+      "outside_execute_ms": 10302.0,
+      "model_or_interbatch_ms": 106.0
+    },
+    {
+      "at": "2026-10-20T06:37:32.883000+00:00",
+      "tools": [
+        "write"
+      ],
+      "wall_ms": 148.0,
+      "execute_ms": 2,
+      "outside_execute_ms": 146.0,
+      "model_or_interbatch_ms": 207.0
+    },
+    {
+      "at": "2026-10-20T06:37:33.164000+00:00",
+      "tools": [
+        "bash"
+      ],
+      "wall_ms": 221.0,
+      "execute_ms": 83,
+      "outside_execute_ms": 138.0,
+      "model_or_interbatch_ms": 133.0
+    },
+    {
+      "at": "2026-10-20T06:37:33.504000+00:00",
+      "tools": [
+        "fsm_fsm_submit_self_check"
+      ],
+      "wall_ms": 427.0,
+      "execute_ms": 427,
+      "outside_execute_ms": 0.0,
+      "model_or_interbatch_ms": 119.0
+    },
+    {
+      "at": "2026-10-20T06:37:34.081000+00:00",
+      "tools": [
+        "fsm_fsm_try_transition"
+      ],
+      "wall_ms": 18128.0,
+      "execute_ms": 18126,
+      "outside_execute_ms": 2.0,
+      "model_or_interbatch_ms": 150.0
+    },
+    {
+      "at": "2026-10-20T06:37:52.364000+00:00",
+      "tools": [
+        "write"
+      ],
+      "wall_ms": 167.0,
+      "execute_ms": 1,
+      "outside_execute_ms": 166.0,
+      "model_or_interbatch_ms": 155.0
+    },
+    {
+      "at": "2026-10-20T06:37:52.762000+00:00",
+      "tools": [
+        "write"
+      ],
+      "wall_ms": 9769.0,
+      "execute_ms": 1,
+      "outside_execute_ms": 9768.0,
+      "model_or_interbatch_ms": 231.0
+    },
+    {
+      "at": "2026-10-20T06:38:02.680000+00:00",
+      "tools": [
+        "write"
+      ],
+      "wall_ms": 9860.0,
+      "execute_ms": 3,
+      "outside_execute_ms": 9857.0,
+      "model_or_interbatch_ms": 149.0
+    },
+    {
+      "at": "2026-10-20T06:38:12.675000+00:00",
+      "tools": [
+        "bash"
+      ],
+      "wall_ms": 618.0,
+      "execute_ms": 459,
+      "outside_execute_ms": 159.0,
+      "model_or_interbatch_ms": 135.0
+    },
+    {
+      "at": "2026-10-20T06:38:13.433000+00:00",
+      "tools": [
+        "bash"
+      ],
+      "wall_ms": 9720.0,
+      "execute_ms": 304,
+      "outside_execute_ms": 9416.0,
+      "model_or_interbatch_ms": 140.0
+    },
+    {
+      "at": "2026-10-20T06:38:23.316000+00:00",
+      "tools": [
+        "bash"
+      ],
+      "wall_ms": 9723.0,
+      "execute_ms": 213,
+      "outside_execute_ms": 9510.0,
+      "model_or_interbatch_ms": 163.0
+    },
+    {
+      "at": "2026-10-20T06:38:33.161000+00:00",
+      "tools": [
+        "bash"
+      ],
+      "wall_ms": 9893.0,
+      "execute_ms": 231,
+      "outside_execute_ms": 9662.0,
+      "model_or_interbatch_ms": 122.0
+    },
+    {
+      "at": "2026-10-20T06:38:43.193000+00:00",
+      "tools": [
+        "agent"
+      ],
+      "wall_ms": 260.0,
+      "execute_ms": 133,
+      "outside_execute_ms": 127.0,
+      "model_or_interbatch_ms": 139.0
+    },
+    {
+      "at": "2026-10-20T06:38:43.676000+00:00",
+      "tools": [
+        "bash"
+      ],
+      "wall_ms": 33121.0,
+      "execute_ms": 23918,
+      "outside_execute_ms": 9203.0,
+      "model_or_interbatch_ms": 223.0
+    },
+    {
+      "at": "2026-10-20T06:39:16.961000+00:00",
+      "tools": [
+        "bash"
+      ],
+      "wall_ms": 368.0,
+      "execute_ms": 244,
+      "outside_execute_ms": 124.0,
+      "model_or_interbatch_ms": 164.0
+    },
+    {
+      "at": "2026-10-20T06:39:17.441000+00:00",
+      "tools": [
+        "write"
+      ],
+      "wall_ms": 123.0,
+      "execute_ms": 5,
+      "outside_execute_ms": 118.0,
+      "model_or_interbatch_ms": 112.0
+    },
+    {
+      "at": "2026-10-20T06:39:17.676000+00:00",
+      "tools": [
+        "bash"
+      ],
+      "wall_ms": 9604.0,
+      "execute_ms": 192,
+      "outside_execute_ms": 9412.0,
+      "model_or_interbatch_ms": 112.0
+    },
+    {
+      "at": "2026-10-20T06:39:27.449000+00:00",
+      "tools": [
+        "write"
+      ],
+      "wall_ms": 130.0,
+      "execute_ms": 3,
+      "outside_execute_ms": 127.0,
+      "model_or_interbatch_ms": 169.0
+    },
+    {
+      "at": "2026-10-20T06:39:27.701000+00:00",
+      "tools": [
+        "bash"
+      ],
+      "wall_ms": 54384.0,
+      "execute_ms": 44993,
+      "outside_execute_ms": 9391.0,
+      "model_or_interbatch_ms": 122.0
+    },
+    {
+      "at": "2026-10-20T06:40:22.178000+00:00",
+      "tools": [
+        "write"
+      ],
+      "wall_ms": 91.0,
+      "execute_ms": 1,
+      "outside_execute_ms": 90.0,
+      "model_or_interbatch_ms": 93.0
+    },
+    {
+      "at": "2026-10-20T06:40:22.371000+00:00",
+      "tools": [
+        "bash"
+      ],
+      "wall_ms": 381.0,
+      "execute_ms": 289,
+      "outside_execute_ms": 92.0,
+      "model_or_interbatch_ms": 102.0
+    }
+  ]
+}

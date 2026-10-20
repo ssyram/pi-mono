@@ -1,0 +1,60 @@
+{
+  "child_preparation_wait_intersections": [
+    {
+      "wait": 1,
+      "tool": "bash,bash",
+      "overlap_ms": 13367.0
+    },
+    {
+      "wait": 1,
+      "tool": "write",
+      "overlap_ms": 108.0
+    },
+    {
+      "wait": 1,
+      "tool": "fsm_fsm_submit_self_check",
+      "overlap_ms": 3.0
+    },
+    {
+      "wait": 1,
+      "tool": "write",
+      "overlap_ms": 8965.0
+    },
+    {
+      "wait": 1,
+      "tool": "bash",
+      "overlap_ms": 135.0
+    },
+    {
+      "wait": 2,
+      "tool": "write",
+      "overlap_ms": 1499.0
+    },
+    {
+      "wait": 2,
+      "tool": "write",
+      "overlap_ms": 9862.0
+    },
+    {
+      "wait": 2,
+      "tool": "write",
+      "overlap_ms": 9878.0
+    },
+    {
+      "wait": 2,
+      "tool": "fsm_fsm_submit_self_check",
+      "overlap_ms": 2.0
+    },
+    {
+      "wait": 2,
+      "tool": "write",
+      "overlap_ms": 8719.0
+    },
+    {
+      "wait": 2,
+      "tool": "write",
+      "overlap_ms": 9194.0
+    }
+  ],
+  "total_ms": 61732.0
+}

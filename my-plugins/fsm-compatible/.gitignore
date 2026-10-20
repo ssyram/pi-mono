@@ -1,0 +1,8 @@
+node_modules/
+.runtime/
+_cca_analysis/
+test/.tmp/
+fsm-compatible.config.json
+.fsm-agent-logs/
+!docs/test-reports/ccv-latency-evidence/gate-fix-binary-test.log
+!docs/test-reports/ccv-latency-evidence/rerun-after-fix.log

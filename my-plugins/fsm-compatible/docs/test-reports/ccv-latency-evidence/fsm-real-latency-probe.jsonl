@@ -1,0 +1,10 @@
+{"test":"runtime","node":"v26.8.1","binary":"/Users/ssyram/workspace/work-fv/c-code-verify/.local/fsm-runtime-caller-callee-closure-v1/oi/bin/mcp-server-fsm"}
+{"test":"helper","name":"Read","identity":true,"elapsed_ms":145.23,"status":200,"allowed":true}
+{"test":"helper","name":"Read","identity":true,"elapsed_ms":10005.82,"status":200,"allowed":true}
+{"test":"helper","name":"Write","identity":true,"elapsed_ms":324.3,"status":200,"allowed":true}
+{"test":"helper","name":"Write","identity":true,"elapsed_ms":9946.71,"status":200,"allowed":true}
+{"test":"helper","name":"Write","identity":true,"elapsed_ms":10004.87,"status":200,"allowed":true}
+{"test":"helper","name":"Read","identity":false,"elapsed_ms":120.66,"status":200,"allowed":true}
+{"test":"helper","name":"Read","identity":false,"elapsed_ms":114.15,"status":200,"allowed":true}
+{"test":"helper","name":"Read","identity":false,"elapsed_ms":128.11,"status":200,"allowed":true}
+{"test":"direct-no-identity","calls":3,"total_ms":11.39}

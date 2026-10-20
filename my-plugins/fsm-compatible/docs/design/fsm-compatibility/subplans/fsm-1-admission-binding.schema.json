@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:fsm-compatible:admission-binding:1",
+  "$ref": "#/definitions/PolicyInput",
+  "definitions": {
+    "Identifier": {
+      "type": "string",
+      "minLength": 1,
+      "allOf": [
+        { "pattern": "^\\S(?:.*\\S)?$" },
+        { "not": { "pattern": "\u0000" } }
+      ]
+    },
+    "RequiredExtensionInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "path": { "$ref": "#/definitions/Identifier" }
+      }
+    },
+    "MandatorySnapshot": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": { "$ref": "#/definitions/RequiredExtensionInput" },
+      "contains": {
+        "type": "object",
+        "required": ["id"],
+        "properties": { "id": { "const": "fsm-compatible" } }
+      }
+    },
+    "PolicyInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowedAgentNames", "requiredExtensions", "maxDepth"],
+      "properties": {
+        "allowedAgentNames": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/definitions/Identifier" }
+        },
+        "requiredExtensions": {
+          "type": "array",
+          "maxItems": 32,
+          "items": { "$ref": "#/definitions/RequiredExtensionInput" }
+        },
+        "maxDepth": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "LaunchRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agentName", "executionMode"],
+      "properties": {
+        "agentName": { "$ref": "#/definitions/Identifier" },
+        "executionMode": { "enum": ["sync", "async"] },
+        "resumeSessionFile": { "$ref": "#/definitions/Identifier" }
+      }
+    },
+    "PersistedBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version", "rootSessionId", "sessionId", "parentSessionId",
+        "agentId", "kind", "agentName", "bootstrapRef", "requiredExtensions"
+      ],
+      "properties": {
+        "version": { "const": 1 },
+        "requiredExtensions": { "$ref": "#/definitions/MandatorySnapshot" },
+        "rootSessionId": { "$ref": "#/definitions/Identifier" },
+        "sessionId": { "$ref": "#/definitions/Identifier" },
+        "parentSessionId": {
+          "anyOf": [{ "$ref": "#/definitions/Identifier" }, { "type": "null" }]
+        },
+        "agentId": { "$ref": "#/definitions/Identifier" },
+        "kind": { "enum": ["execution-root", "execution-child"] },
+        "agentName": {
+          "anyOf": [{ "$ref": "#/definitions/Identifier" }, { "type": "null" }]
+        },
+        "bootstrapRef": {
+          "anyOf": [{ "$ref": "#/definitions/Identifier" }, { "type": "null" }]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "execution-root" } } },
+          "then": {
+            "properties": {
+              "parentSessionId": { "type": "null" },
+              "agentId": { "const": "main" },
+              "agentName": { "type": "null" },
+              "bootstrapRef": { "type": "null" }
+            }
+          },
+          "else": {
+            "properties": {
+              "agentId": { "not": { "const": "main" } },
+              "parentSessionId": { "$ref": "#/definitions/Identifier" },
+              "agentName": { "$ref": "#/definitions/Identifier" },
+              "bootstrapRef": { "$ref": "#/definitions/Identifier" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

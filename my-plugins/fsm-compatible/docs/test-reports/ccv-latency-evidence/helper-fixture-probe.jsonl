@@ -1,0 +1,12 @@
+{"event":"server-response","path":"/identity/acquire","elapsed_ms":164.902709}
+{"event":"server-response","path":"/check-permission","elapsed_ms":180.36375}
+{"event":"stdout","elapsed_ms":182.97225}
+{"event":"close","code":0,"elapsed_ms":195.25866700000003}
+{"event":"server-response","path":"/identity/acquire","elapsed_ms":161.31349999999998}
+{"event":"server-response","path":"/check-permission","elapsed_ms":174.32570799999996}
+{"event":"stdout","elapsed_ms":176.35787499999998}
+{"event":"close","code":0,"elapsed_ms":208.16341699999998}
+{"event":"server-response","path":"/identity/acquire","elapsed_ms":219.28445799999997}
+{"event":"server-response","path":"/check-permission","elapsed_ms":235.97524999999996}
+{"event":"stdout","elapsed_ms":238.00745800000004}
+{"event":"close","code":0,"elapsed_ms":250.36312499999997}

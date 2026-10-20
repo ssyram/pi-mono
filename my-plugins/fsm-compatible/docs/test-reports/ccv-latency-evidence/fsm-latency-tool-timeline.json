@@ -1,0 +1,783 @@
+[
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "read",
+    "call": "call_smoke_0",
+    "result_at": "2026-10-20T06:36:41.075Z",
+    "duration_ms": 2,
+    "wall_ms": 10140.0,
+    "input": {
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/AGENTS.md"
+    }
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "read",
+    "call": "call_smoke_1",
+    "result_at": "2026-10-20T06:36:41.076Z",
+    "duration_ms": 1,
+    "wall_ms": 10141.0,
+    "input": {
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/.ccv-config/toolchain"
+    }
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "bash",
+    "call": "call_smoke_2",
+    "result_at": "2026-10-20T06:36:41.456Z",
+    "duration_ms": 131,
+    "wall_ms": 265.0,
+    "input": {
+      "command": "opam switch show --switch fcil 2>&1 | head -2; command -v ccomp; echo arch=$(uname -m)"
+    },
+    "unaccounted_ms": 134.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "fsm_fsm_enter",
+    "call": "call_smoke_3",
+    "result_at": "2026-10-20T06:36:41.914Z",
+    "duration_ms": 356,
+    "wall_ms": 358.0,
+    "input": {
+      "name": "CCodeVerify",
+      "vars": {
+        "parallel_worker_capacity": "6",
+        "toolchain_switch": "fcil"
+      }
+    },
+    "unaccounted_ms": 2.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "fsm_fsm_get_state",
+    "call": "call_smoke_4",
+    "result_at": "2026-10-20T06:36:42.519Z",
+    "duration_ms": 401,
+    "wall_ms": 402.0,
+    "input": {},
+    "unaccounted_ms": 1.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "bash",
+    "call": "call_smoke_5",
+    "result_at": "2026-10-20T06:36:51.363Z",
+    "duration_ms": 31,
+    "wall_ms": 8725.0,
+    "input": {
+      "command": "mkdir -p /Users/ssyram/ccv-verify/ccv-pi-143605/input/src && cp /Users/ssyram/ccv-verify/ccv-pi-143605/ext_b50.i /Users/ssyram/ccv-verify/ccv-pi-143605/input/src/ext_b50.i"
+    },
+    "unaccounted_ms": 8694.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "write",
+    "call": "call_smoke_6",
+    "result_at": "2026-10-20T06:36:51.610Z",
+    "duration_ms": 1,
+    "wall_ms": 134.0,
+    "input": {
+      "content": "targets:\n  - memory_safety\n  - leak_freedom\narch: aarch64\n",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/input/targets.yaml"
+    },
+    "unaccounted_ms": 133.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "bash",
+    "call": "call_smoke_7",
+    "result_at": "2026-10-20T06:37:01.468Z",
+    "duration_ms": 92,
+    "wall_ms": 9748.0,
+    "input": {
+      "command": "cd /Users/ssyram/ccv-verify/ccv-pi-143605 && git add -A && git commit -m 'V_INTAKE: ext-b50 输入就位'"
+    },
+    "unaccounted_ms": 9656.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "fsm_fsm_submit_self_check",
+    "call": "call_smoke_8",
+    "result_at": "2026-10-20T06:37:02.006Z",
+    "duration_ms": 380,
+    "wall_ms": 382.0,
+    "input": {
+      "checks": [],
+      "target": "V_A_INTENT"
+    },
+    "unaccounted_ms": 2.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "fsm_fsm_try_transition",
+    "call": "call_smoke_9",
+    "result_at": "2026-10-20T06:37:22.261Z",
+    "duration_ms": 20126,
+    "wall_ms": 20128.0,
+    "input": {
+      "evidence": "ext-b50 输入就位后转移",
+      "target": "V_A_INTENT"
+    },
+    "unaccounted_ms": 2.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "read",
+    "call": "call_smoke_10",
+    "result_at": "2026-10-20T06:37:32.675Z",
+    "duration_ms": 3,
+    "wall_ms": 10308.0,
+    "input": {
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/nl-analysis/functions.json"
+    }
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "read",
+    "call": "call_smoke_11",
+    "result_at": "2026-10-20T06:37:32.676Z",
+    "duration_ms": 4,
+    "wall_ms": 10309.0,
+    "input": {
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/nl-analysis/callgraph.json"
+    }
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "write",
+    "call": "call_smoke_12",
+    "result_at": "2026-10-20T06:37:33.031Z",
+    "duration_ms": 2,
+    "wall_ms": 148.0,
+    "input": {
+      "content": "# intent.md — ext-b50（module_id=ext_b50，单 TU）\n\n## 程序意图\n\nSCOPE: fn=2 | public=1 | static=1 | ext_b50=2\n\n**程序 = 两函数最小算术库**：`api(uchar n)` 返回 `inc(n)`；`inc(n)=n+1U`\n（ext_b50.c:1–2）。无全局状态、无堆、无 external。\n\n## 入口与理由\n\n| ENTRY | ext_b50::api | include | 唯一 public=公开入口 | ext_b50.c:2 |\n| ENTRY | ext_b50::inc | exclude | static 内部链接 | ext_b50.c:1 |\n\n## 公开输入域\n\nDOMAIN-SCOPE: 本 run 自由输入域 = api 的 unsigned char 参数全域；无其他自由输入维。\n| INPUT | ext_b50::api | 进程由宿主启动、无额外前置 | uchar 全域（0..255） | ext_b50.c:2 定义 | uchar 全域每个值都有定义 |\n\n## 补边裁决\n\nNONE\n\n## 自检\n\nPublicWithInternalCaller: 合成结论（ext-b50）。\nRootIsNotEntry: 合成结论（ext-b50）。\nCallbackOrIndirect: 合成结论（ext-b50）。\nFactAnchor: 合成结论（ext-b50）。\nSelfConsistency: 合成结论（ext-b50）。\nReadingCoverage: 合成结论（ext-b50）。\n",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/nl-analysis/intent.md"
+    },
+    "unaccounted_ms": 146.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "bash",
+    "call": "call_smoke_13",
+    "result_at": "2026-10-20T06:37:33.385Z",
+    "duration_ms": 83,
+    "wall_ms": 221.0,
+    "input": {
+      "command": "cd /Users/ssyram/ccv-verify/ccv-pi-143605 && git add -A && git commit -m 'V_A_INTENT: ext-b50 intent'"
+    },
+    "unaccounted_ms": 138.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "fsm_fsm_submit_self_check",
+    "call": "call_smoke_14",
+    "result_at": "2026-10-20T06:37:33.931Z",
+    "duration_ms": 427,
+    "wall_ms": 427.0,
+    "input": {
+      "checks": [],
+      "target": "V_A_LOOP"
+    },
+    "unaccounted_ms": 0.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "fsm_fsm_try_transition",
+    "call": "call_smoke_15",
+    "result_at": "2026-10-20T06:37:52.209Z",
+    "duration_ms": 18126,
+    "wall_ms": 18128.0,
+    "input": {
+      "evidence": "ext-b50 intent 就绪",
+      "target": "V_A_LOOP"
+    },
+    "unaccounted_ms": 2.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "write",
+    "call": "call_smoke_16",
+    "result_at": "2026-10-20T06:37:52.531Z",
+    "duration_ms": 1,
+    "wall_ms": 167.0,
+    "input": {
+      "content": "# ext_b50::api — 第 1 稿\n\n## 身份与调用关系\n\n- FunctionID=ext_b50::api；callers=[]；callees=['ext_b50::inc']（callgraph）。\n\n## Caller 输入\n\n- 已知 caller 传参域见各自稿。（无 caller）\n\n## 可观察行为\n\n- 返回值=纯算术（无副作用、无状态）。\n\n## 候选合同\n\n- PRE：参数域内任意。POST：按定义式返回。第 1 稿（v3 seed）。\n\n## 逐语句 SP\n\n- 调用 `ext_b50::inc`（ext_b50.c）：需求见 Callee Expectations。\n\n\n## Callee Expectations\n\n- `ext_b50::inc` @ ext_b50.c: 调用点：需求=返回供给待被调方回验（v3 seed）。\n\n\n## 控制流闭合\n\n- 单 return，无分支；异常路径不存在。\n\n## 合同检查\n\n- 本稿固定标题齐全、无重复；NONE 哨兵与内部 callee 情况一致。\n\n## 合同来源\n\n- 第 1 稿（v3 seed）：由调用点与定义直接推出。\n\n## 未闭合项\n\n- 无（第 1 稿；v3 seed）。\n",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/nl-analysis/fn-ext_b50--api.md"
+    },
+    "unaccounted_ms": 166.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "write",
+    "call": "call_smoke_17",
+    "result_at": "2026-10-20T06:38:02.531Z",
+    "duration_ms": 1,
+    "wall_ms": 9769.0,
+    "input": {
+      "content": "# ext_b50::inc — 第 1 稿\n\n## 身份与调用关系\n\n- FunctionID=ext_b50::inc；callers=['ext_b50::api']；callees=[]（callgraph）。\n\n## Caller 输入\n\n- 已知 caller 传参域见各自稿。\n\n## 可观察行为\n\n- 返回值=纯算术（无副作用、无状态）。\n\n## 候选合同\n\n- PRE：参数域内任意。POST：按定义式返回。第 1 稿（v3 seed）。\n\n## 逐语句 SP\n\n- 无调用语句；直接返回表达式。\n\n## Callee Expectations\n\nCALLEE-EXPECTATIONS: NONE\n\n\n## 控制流闭合\n\n- 单 return，无分支；异常路径不存在。\n\n## 合同检查\n\n- 本稿固定标题齐全、无重复；NONE 哨兵与内部 callee 情况一致。\n\n## 合同来源\n\n- 第 1 稿（v3 seed）：由调用点与定义直接推出。\n\n## 未闭合项\n\n- 无（第 1 稿；v3 seed）。\n",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/nl-analysis/fn-ext_b50--inc.md"
+    },
+    "unaccounted_ms": 9768.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "write",
+    "call": "call_smoke_18",
+    "result_at": "2026-10-20T06:38:12.540Z",
+    "duration_ms": 3,
+    "wall_ms": 9860.0,
+    "input": {
+      "content": "{\"members\": [{\"target\": \"ext_b50::api\", \"summary\": \"v3 Main 合法稿件验收\", \"requests\": [{\"target\": \"ext_b50::inc\", \"target-type\": \"callee\", \"content\": \"v3 简单回验请求\", \"evidence\": \"ext_b50.c:2\"}], \"edge_proposals\": [], \"entry_domain_facts\": []}, {\"target\": \"ext_b50::inc\", \"summary\": \"v3 Main 合法稿件验收\", \"requests\": [{\"target\": \"ext_b50::api\", \"target-type\": \"callee\", \"content\": \"v3 简单回验请求\", \"evidence\": \"ext_b50.c:2\"}], \"edge_proposals\": [], \"entry_domain_facts\": []}]}",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/analysis-state/main-submission.json"
+    },
+    "unaccounted_ms": 9857.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "bash",
+    "call": "call_smoke_19",
+    "result_at": "2026-10-20T06:38:13.293Z",
+    "duration_ms": 459,
+    "wall_ms": 618.0,
+    "input": {
+      "command": "python3 /Users/ssyram/workspace/work-fv/c-code-verify/.local/ccv-smoke-snapshot-v1/scripts/checks/formal/analysis_state.py submit-main 01a15806-565b-7180-b71b-bb906c4ecc93 main ext_b50::api ext_b50::inc"
+    },
+    "unaccounted_ms": 159.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "bash",
+    "call": "call_smoke_20",
+    "result_at": "2026-10-20T06:38:23.153Z",
+    "duration_ms": 304,
+    "wall_ms": 9720.0,
+    "input": {
+      "command": "python3 /Users/ssyram/workspace/work-fv/c-code-verify/.local/ccv-smoke-snapshot-v1/scripts/checks/formal/analysis_state.py validate-draft ext_b50::api"
+    },
+    "unaccounted_ms": 9416.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "bash",
+    "call": "call_smoke_21",
+    "result_at": "2026-10-20T06:38:33.039Z",
+    "duration_ms": 213,
+    "wall_ms": 9723.0,
+    "input": {
+      "command": "python3 /Users/ssyram/workspace/work-fv/c-code-verify/.local/ccv-smoke-snapshot-v1/scripts/checks/formal/analysis_state.py remove-request ext_b50::api"
+    },
+    "unaccounted_ms": 9510.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "bash",
+    "call": "call_smoke_22",
+    "result_at": "2026-10-20T06:38:43.054Z",
+    "duration_ms": 231,
+    "wall_ms": 9893.0,
+    "input": {
+      "command": "python3 /Users/ssyram/workspace/work-fv/c-code-verify/.local/ccv-smoke-snapshot-v1/scripts/checks/formal/analysis_state.py get-next --reserve '[[\"sp_ext_b50__api\", \"sp_ext_b50__inc\"]]' 01a15806-565b-7180-b71b-bb906c4ecc93 main"
+    },
+    "unaccounted_ms": 9662.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "agent",
+    "call": "call_smoke_23",
+    "result_at": "2026-10-20T06:38:43.453Z",
+    "duration_ms": 133,
+    "wall_ms": 260.0,
+    "input": {
+      "cwd": "/Users/ssyram/ccv-verify/ccv-pi-143605",
+      "description": "v3 同向双任务 worker",
+      "prompt": "你是已派发的通用分析 worker（CCV-SMOKE-WORKER），不要选择任务、不要分析项目全貌。\n1. 先调用 fsm_get_state 查看你被绑定进入的 FSM 与当前状态。\n2. 用 fsm_get_var_committed 读取 task_id（你的任务身份）。\n3. 运行 python3 <框架脚本>/analysis_state.py get-task-context <task_id>\n   获取本批目标、源码位置、相关已交稿、认领请求留言与输出位置（cwd＝主工作区绝对路径，\n   intent/output 等相对路径一律以该值解析）。若它报任务不在预约态（残留派遣已被回收），\n   直接 exit_fsm 空手退出。\n4. 首次必读当前 intent；已交邻稿用 git show <commit>:<path> 读登记版本。\n5. 严格按所在 FSM 当前状态 instructions 完成语义工作，交稿后 exit_fsm。\n",
+      "subagent_type": "general"
+    },
+    "unaccounted_ms": 127.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "bash",
+    "call": "call_smoke_24",
+    "result_at": "2026-10-20T06:39:16.797Z",
+    "duration_ms": 23918,
+    "wall_ms": 33121.0,
+    "input": {
+      "command": "for i in $(seq 1 120); do test -f /Users/ssyram/ccv-verify/ccv-pi-143605/proof/analysis-state/tasks/0c488c93a50a84dfd4f6cf7b/draft/ready.txt && echo v3-worker-ready && exit 0; sleep 0.5; done; exit 1"
+    },
+    "unaccounted_ms": 9203.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "bash",
+    "call": "call_smoke_25",
+    "result_at": "2026-10-20T06:39:17.329Z",
+    "duration_ms": 244,
+    "wall_ms": 368.0,
+    "input": {
+      "command": "python3 /Users/ssyram/workspace/work-fv/c-code-verify/.local/ccv-smoke-snapshot-v1/scripts/checks/formal/analysis_state.py get-next --reserve '[[\"sp_ext_b50__api\", \"sp_ext_b50__inc\"]]' 01a15806-565b-7180-b71b-bb906c4ecc93 main"
+    },
+    "unaccounted_ms": 124.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "write",
+    "call": "call_smoke_26",
+    "result_at": "2026-10-20T06:39:17.564Z",
+    "duration_ms": 5,
+    "wall_ms": 123.0,
+    "input": {
+      "content": "# ext_b50::api — 第 2 稿\n\n## 身份与调用关系\n\n- FunctionID=ext_b50::api；callers=[]；callees=['ext_b50::inc']（callgraph）。\n\n## Caller 输入\n\n- 已知 caller 传参域见各自稿。（无 caller）\n\n## 可观察行为\n\n- 返回值=纯算术（无副作用、无状态）。\n\n## 候选合同\n\n- PRE：参数域内任意。POST：按定义式返回。第 2 稿（v3 Main concurrent write）。\n\n## 逐语句 SP\n\n- 调用 `ext_b50::inc`（ext_b50.c）：需求见 Callee Expectations。\n\n\n## Callee Expectations\n\n- `ext_b50::inc` @ ext_b50.c: 调用点：需求=返回供给待被调方回验（v3 Main concurrent write）。\n\n\n## 控制流闭合\n\n- 单 return，无分支；异常路径不存在。\n\n## 合同检查\n\n- 本稿固定标题齐全、无重复；NONE 哨兵与内部 callee 情况一致。\n\n## 合同来源\n\n- 第 2 稿（v3 Main concurrent write）：由调用点与定义直接推出。\n\n## 未闭合项\n\n- 无（第 2 稿；v3 Main concurrent write）。\n",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/nl-analysis/fn-ext_b50--api.md"
+    },
+    "unaccounted_ms": 118.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "bash",
+    "call": "call_smoke_27",
+    "result_at": "2026-10-20T06:39:27.280Z",
+    "duration_ms": 192,
+    "wall_ms": 9604.0,
+    "input": {
+      "command": "python3 /Users/ssyram/workspace/work-fv/c-code-verify/.local/ccv-smoke-snapshot-v1/scripts/checks/formal/analysis_state.py submit-main 01a15806-565b-7180-b71b-bb906c4ecc93 main ext_b50::api ext_b50::inc"
+    },
+    "unaccounted_ms": 9412.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "write",
+    "call": "call_smoke_28",
+    "result_at": "2026-10-20T06:39:27.579Z",
+    "duration_ms": 3,
+    "wall_ms": 130.0,
+    "input": {
+      "content": "continue\n",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/analysis-state/v3-main-released"
+    },
+    "unaccounted_ms": 127.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "bash",
+    "call": "call_smoke_29",
+    "result_at": "2026-10-20T06:40:22.085Z",
+    "duration_ms": 44993,
+    "wall_ms": 54384.0,
+    "input": {
+      "command": "for i in $(seq 1 45); do out=$(FSM_DATA_DIR='/Users/ssyram/workspace/work-fv/c-code-verify/.local/fsm-pi-v3-20261020-143605/d' '/Users/ssyram/workspace/work-fv/c-code-verify/.local/fsm-runtime-caller-callee-closure-v1/oi/bin/mcp-server-fsm' store stack '01a15806-565b-7180-b71b-bb906c4ecc93' 'ses_b1ef6c3cba986fa9' 2>&1 || true); names=$(echo \"$out\" | grep -o '\"name\": *\"[^\"]*\"'); if [ -z \"$names\" ] || echo \"$names\" | tail -1 | grep -q _default; then echo child-exited; exit 0; fi; sleep 2; done; echo wait-timeout; exit 1"
+    },
+    "unaccounted_ms": 9391.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "write",
+    "call": "call_smoke_30",
+    "result_at": "2026-10-20T06:40:22.269Z",
+    "duration_ms": 1,
+    "wall_ms": 91.0,
+    "input": {
+      "content": "{\"members\": [{\"target\": \"ext_b50::api\", \"summary\": \"v3 Main 合法稿件验收\", \"requests\": [], \"edge_proposals\": [], \"entry_domain_facts\": []}, {\"target\": \"ext_b50::inc\", \"summary\": \"v3 Main 合法稿件验收\", \"requests\": [], \"edge_proposals\": [], \"entry_domain_facts\": []}]}",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/analysis-state/main-submission.json"
+    },
+    "unaccounted_ms": 90.0
+  },
+  {
+    "sid": "01a15806-565b-7180-b71b-bb906c4ecc93",
+    "role": "main",
+    "name": "bash",
+    "call": "call_smoke_31",
+    "result_at": "2026-10-20T06:40:22.752Z",
+    "duration_ms": 289,
+    "wall_ms": 381.0,
+    "input": {
+      "command": "python3 /Users/ssyram/workspace/work-fv/c-code-verify/.local/ccv-smoke-snapshot-v1/scripts/checks/formal/analysis_state.py submit-main 01a15806-565b-7180-b71b-bb906c4ecc93 main ext_b50::api ext_b50::inc"
+    },
+    "unaccounted_ms": 92.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "fsm_fsm_get_state",
+    "call": "call_smoke_0",
+    "result_at": "2026-10-20T06:38:45.469Z",
+    "duration_ms": 434,
+    "wall_ms": 438.0,
+    "input": {},
+    "unaccounted_ms": 4.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "fsm_fsm_get_var_committed",
+    "call": "call_smoke_1",
+    "result_at": "2026-10-20T06:38:46.047Z",
+    "duration_ms": 459,
+    "wall_ms": 460.0,
+    "input": {
+      "key": "task_id"
+    },
+    "unaccounted_ms": 1.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "bash",
+    "call": "call_smoke_2",
+    "result_at": "2026-10-20T06:38:46.537Z",
+    "duration_ms": 264,
+    "wall_ms": 395.0,
+    "input": {
+      "command": "python3 /Users/ssyram/workspace/work-fv/c-code-verify/.local/ccv-smoke-snapshot-v1/scripts/checks/formal/analysis_state.py get-task-context 0c488c93a50a84dfd4f6cf7b"
+    },
+    "unaccounted_ms": 131.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "read",
+    "call": "call_smoke_3",
+    "result_at": "2026-10-20T06:38:46.768Z",
+    "duration_ms": 2,
+    "wall_ms": 118.0,
+    "input": {
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/nl-analysis/intent.md"
+    },
+    "unaccounted_ms": 116.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "bash",
+    "call": "call_smoke_4",
+    "result_at": "2026-10-20T06:39:06.296Z",
+    "duration_ms": 26,
+    "wall_ms": 19431.0,
+    "input": {
+      "command": "git -C /Users/ssyram/ccv-verify/ccv-pi-143605 show 79fc4f2ddc6f9a8bb7b4ba8f1b01e6813cab8d2b:proof/nl-analysis/fn-ext_b50--api.md"
+    }
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "bash",
+    "call": "call_smoke_5",
+    "result_at": "2026-10-20T06:39:06.297Z",
+    "duration_ms": 25,
+    "wall_ms": 19432.0,
+    "input": {
+      "command": "git -C /Users/ssyram/ccv-verify/ccv-pi-143605 show 79fc4f2ddc6f9a8bb7b4ba8f1b01e6813cab8d2b:proof/nl-analysis/fn-ext_b50--inc.md"
+    }
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "write",
+    "call": "call_smoke_6",
+    "result_at": "2026-10-20T06:39:06.511Z",
+    "duration_ms": 1,
+    "wall_ms": 109.0,
+    "input": {
+      "content": "# collection\n\n| CALLER | proof/nl-analysis/fn-ext_b50--api.md | 批内 api 稿已登记 |\n\nCALLER: NONE（api 为公开入口）\n",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/analysis-state/tasks/0c488c93a50a84dfd4f6cf7b/collection.md"
+    },
+    "unaccounted_ms": 108.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "fsm_fsm_submit_self_check",
+    "call": "call_smoke_7",
+    "result_at": "2026-10-20T06:39:06.904Z",
+    "duration_ms": 302,
+    "wall_ms": 305.0,
+    "input": {
+      "checks": [],
+      "target": "B_ANALYZE"
+    },
+    "unaccounted_ms": 3.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "fsm_fsm_try_transition",
+    "call": "call_smoke_8",
+    "result_at": "2026-10-20T06:39:07.468Z",
+    "duration_ms": 446,
+    "wall_ms": 447.0,
+    "input": {
+      "evidence": "smoke collect",
+      "target": "B_ANALYZE"
+    },
+    "unaccounted_ms": 1.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "write",
+    "call": "call_smoke_9",
+    "result_at": "2026-10-20T06:39:16.521Z",
+    "duration_ms": 1,
+    "wall_ms": 8966.0,
+    "input": {
+      "content": "B_ANALYZE ready\n",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/analysis-state/tasks/0c488c93a50a84dfd4f6cf7b/draft/ready.txt"
+    },
+    "unaccounted_ms": 8965.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "bash",
+    "call": "call_smoke_10",
+    "result_at": "2026-10-20T06:39:28.027Z",
+    "duration_ms": 11258,
+    "wall_ms": 11393.0,
+    "input": {
+      "command": "for i in $(seq 1 120); do test -f /Users/ssyram/ccv-verify/ccv-pi-143605/proof/analysis-state/v3-main-released && echo main-released && exit 0; sleep 0.5; done; exit 1"
+    },
+    "unaccounted_ms": 135.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "bash",
+    "call": "call_smoke_11",
+    "result_at": "2026-10-20T06:39:28.318Z",
+    "duration_ms": 47,
+    "wall_ms": 171.0,
+    "input": {
+      "command": "python3 -c 'print((2**32-1)*2)'"
+    },
+    "unaccounted_ms": 124.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "write",
+    "call": "call_smoke_12",
+    "result_at": "2026-10-20T06:39:28.578Z",
+    "duration_ms": 1,
+    "wall_ms": 136.0,
+    "input": {
+      "content": "# ext_b50::api — 第 3 稿\n\n## 身份与调用关系\n\n- FunctionID=ext_b50::api；callers=[]；callees=['ext_b50::inc']（callgraph）。\n\n## Caller 输入\n\n- 已知 caller 传参域见各自稿。（无 caller）\n\n## 可观察行为\n\n- 返回值=纯算术（无副作用、无状态）。\n\n## 候选合同\n\n- PRE：参数域内任意。POST：按定义式返回。第 3 稿（v3 worker topological draft）。\n\n## 逐语句 SP\n\n- 调用 `ext_b50::inc`（ext_b50.c）：需求见 Callee Expectations。\n\n\n## Callee Expectations\n\n- `ext_b50::inc` @ ext_b50.c: 调用点：需求=返回供给待被调方回验（v3 worker topological draft）。\n\n\n## 控制流闭合\n\n- 单 return，无分支；异常路径不存在。\n\n## 合同检查\n\n- 本稿固定标题齐全、无重复；NONE 哨兵与内部 callee 情况一致。\n\n## 合同来源\n\n- 第 3 稿（v3 worker topological draft）：由调用点与定义直接推出。\n\n## 未闭合项\n\n- 无（第 3 稿；v3 worker topological draft）。\n",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/nl-analysis/fn-ext_b50--api.md"
+    },
+    "unaccounted_ms": 135.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "write",
+    "call": "call_smoke_13",
+    "result_at": "2026-10-20T06:39:38.592Z",
+    "duration_ms": 1,
+    "wall_ms": 9887.0,
+    "input": {
+      "content": "# ext_b50::inc — 第 3 稿\n\n## 身份与调用关系\n\n- FunctionID=ext_b50::inc；callers=['ext_b50::api']；callees=[]（callgraph）。\n\n## Caller 输入\n\n- 已知 caller 传参域见各自稿。\n\n## 可观察行为\n\n- 返回值=纯算术（无副作用、无状态）。\n\n## 候选合同\n\n- PRE：参数域内任意。POST：按定义式返回。第 3 稿（v3 worker topological draft）。\n\n## 逐语句 SP\n\n- 无调用语句；直接返回表达式。\n\n## Callee Expectations\n\nCALLEE-EXPECTATIONS: NONE\n\n\n## 控制流闭合\n\n- 单 return，无分支；异常路径不存在。\n\n## 合同检查\n\n- 本稿固定标题齐全、无重复；NONE 哨兵与内部 callee 情况一致。\n\n## 合同来源\n\n- 第 3 稿（v3 worker topological draft）：由调用点与定义直接推出。\n\n## 未闭合项\n\n- 无（第 3 稿；v3 worker topological draft）。\n",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/nl-analysis/fn-ext_b50--inc.md"
+    },
+    "unaccounted_ms": 9886.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "write",
+    "call": "call_smoke_14",
+    "result_at": "2026-10-20T06:39:48.579Z",
+    "duration_ms": 2,
+    "wall_ms": 9864.0,
+    "input": {
+      "content": "{\"members\": [{\"target\": \"ext_b50::api\", \"summary\": \"v3 同向批\", \"requests\": [{\"target\": \"ext_b50::inc\", \"target-type\": \"callee\", \"content\": \"v3 后续简单 request\", \"evidence\": \"ext_b50.c:2\"}], \"edge_proposals\": [], \"entry_domain_facts\": []}, {\"target\": \"ext_b50::inc\", \"summary\": \"v3 同向批\", \"requests\": [], \"edge_proposals\": [], \"entry_domain_facts\": []}]}",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/analysis-state/tasks/0c488c93a50a84dfd4f6cf7b/submission.json"
+    },
+    "unaccounted_ms": 9862.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "write",
+    "call": "call_smoke_15",
+    "result_at": "2026-10-20T06:39:58.592Z",
+    "duration_ms": 2,
+    "wall_ms": 9880.0,
+    "input": {
+      "content": "# ext_b50::inc — 第 3 稿\n\n## 身份与调用关系\n\n- FunctionID=ext_b50::inc；callers=['ext_b50::api']；callees=[]（callgraph）。\n\n## Caller 输入\n\n- 已知 caller 传参域见各自稿。\n\n## 可观察行为\n\n- 返回值=纯算术（无副作用、无状态）。\n\n## 候选合同\n\n- PRE：参数域内任意。POST：按定义式返回。第 3 稿（v3 worker topological draft）。\n\n## 逐语句 SP\n\n- 无调用语句；直接返回表达式。\n\n## Callee Expectations\n\n- 无内部调用。\n\n\n## 控制流闭合\n\n- 单 return，无分支；异常路径不存在。\n\n## 合同检查\n\n- 本稿固定标题齐全、无重复；NONE 哨兵与内部 callee 情况一致。\n\n## 合同来源\n\n- 第 3 稿（v3 worker topological draft）：由调用点与定义直接推出。\n\n## 未闭合项\n\n- 无（第 3 稿；v3 worker topological draft）。\n",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/nl-analysis/fn-ext_b50--inc.md"
+    },
+    "unaccounted_ms": 9878.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "fsm_fsm_submit_self_check",
+    "call": "call_smoke_16",
+    "result_at": "2026-10-20T06:39:59.092Z",
+    "duration_ms": 358,
+    "wall_ms": 360.0,
+    "input": {
+      "checks": [],
+      "target": "B_DONE"
+    },
+    "unaccounted_ms": 2.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "fsm_fsm_try_transition",
+    "call": "call_smoke_17",
+    "result_at": "2026-10-20T06:39:59.723Z",
+    "duration_ms": 524,
+    "wall_ms": 525.0,
+    "input": {
+      "evidence": "v3 B67",
+      "target": "B_DONE"
+    },
+    "unaccounted_ms": 1.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "write",
+    "call": "call_smoke_18",
+    "result_at": "2026-10-20T06:40:08.575Z",
+    "duration_ms": 1,
+    "wall_ms": 8720.0,
+    "input": {
+      "content": "# ext_b50::inc — 第 3 稿\n\n## 身份与调用关系\n\n- FunctionID=ext_b50::inc；callers=['ext_b50::api']；callees=[]（callgraph）。\n\n## Caller 输入\n\n- 已知 caller 传参域见各自稿。\n\n## 可观察行为\n\n- 返回值=纯算术（无副作用、无状态）。\n\n## 候选合同\n\n- PRE：参数域内任意。POST：按定义式返回。第 3 稿（v3 worker topological draft）。\n\n## 逐语句 SP\n\n- 无调用语句；直接返回表达式。\n\n## Callee Expectations\n\n说明 CALLEE-EXPECTATIONS: NONE 结束\n\n\n## 控制流闭合\n\n- 单 return，无分支；异常路径不存在。\n\n## 合同检查\n\n- 本稿固定标题齐全、无重复；NONE 哨兵与内部 callee 情况一致。\n\n## 合同来源\n\n- 第 3 稿（v3 worker topological draft）：由调用点与定义直接推出。\n\n## 未闭合项\n\n- 无（第 3 稿；v3 worker topological draft）。\n",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/nl-analysis/fn-ext_b50--inc.md"
+    },
+    "unaccounted_ms": 8719.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "fsm_fsm_submit_self_check",
+    "call": "call_smoke_19",
+    "result_at": "2026-10-20T06:40:08.883Z",
+    "duration_ms": 239,
+    "wall_ms": 239.0,
+    "input": {
+      "checks": [],
+      "target": "B_DONE"
+    },
+    "unaccounted_ms": 0.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "fsm_fsm_try_transition",
+    "call": "call_smoke_20",
+    "result_at": "2026-10-20T06:40:09.288Z",
+    "duration_ms": 338,
+    "wall_ms": 338.0,
+    "input": {
+      "evidence": "v3 B68",
+      "target": "B_DONE"
+    },
+    "unaccounted_ms": 0.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "write",
+    "call": "call_smoke_21",
+    "result_at": "2026-10-20T06:40:18.576Z",
+    "duration_ms": 0,
+    "wall_ms": 9194.0,
+    "input": {
+      "content": "# ext_b50::inc — 第 3 稿\n\n## 身份与调用关系\n\n- FunctionID=ext_b50::inc；callers=['ext_b50::api']；callees=[]（callgraph）。\n\n## Caller 输入\n\n- 已知 caller 传参域见各自稿。\n\n## 可观察行为\n\n- 返回值=纯算术（无副作用、无状态）。\n\n## 候选合同\n\n- PRE：参数域内任意。POST：按定义式返回。第 3 稿（v3 worker topological draft）。\n\n## 逐语句 SP\n\n- 无调用语句；直接返回表达式。\n\n## Callee Expectations\n\nCALLEE-EXPECTATIONS: none\n\n\n## 控制流闭合\n\n- 单 return，无分支；异常路径不存在。\n\n## 合同检查\n\n- 本稿固定标题齐全、无重复；NONE 哨兵与内部 callee 情况一致。\n\n## 合同来源\n\n- 第 3 稿（v3 worker topological draft）：由调用点与定义直接推出。\n\n## 未闭合项\n\n- 无（第 3 稿；v3 worker topological draft）。\n",
+      "filePath": "/Users/ssyram/ccv-verify/ccv-pi-143605/proof/nl-analysis/fn-ext_b50--inc.md"
+    },
+    "unaccounted_ms": 9194.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "fsm_fsm_submit_self_check",
+    "call": "call_smoke_22",
+    "result_at": "2026-10-20T06:40:18.907Z",
+    "duration_ms": 266,
+    "wall_ms": 266.0,
+    "input": {
+      "checks": [],
+      "target": "B_DONE"
+    },
+    "unaccounted_ms": 0.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "fsm_fsm_try_transition",
+    "call": "call_smoke_23",
+    "result_at": "2026-10-20T06:40:19.585Z",
+    "duration_ms": 586,
+    "wall_ms": 586.0,
+    "input": {
+      "evidence": "v3 B69",
+      "target": "B_DONE"
+    },
+    "unaccounted_ms": 0.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "fsm_fsm_submit_self_check",
+    "call": "call_smoke_24",
+    "result_at": "2026-10-20T06:40:19.923Z",
+    "duration_ms": 250,
+    "wall_ms": 251.0,
+    "input": {
+      "checks": [],
+      "target": "_fsm_exit"
+    },
+    "unaccounted_ms": 1.0
+  },
+  {
+    "sid": "01a15808-a4c3-77f9-a04b-694ffe4ee201",
+    "role": "child",
+    "name": "fsm_fsm_try_transition",
+    "call": "call_smoke_25",
+    "result_at": "2026-10-20T06:40:20.274Z",
+    "duration_ms": 270,
+    "wall_ms": 270.0,
+    "input": {
+      "evidence": "smoke worker 退出",
+      "target": "_fsm_exit"
+    },
+    "unaccounted_ms": 0.0
+  }
+]

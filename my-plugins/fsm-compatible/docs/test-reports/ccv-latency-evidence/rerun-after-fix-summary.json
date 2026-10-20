@@ -1,0 +1,845 @@
+{
+  "run": "pi-v3-20261020-182523",
+  "status": {
+    "phase": "endpoint",
+    "t": "V3",
+    "updated": "2026-10-20T10:27:41Z",
+    "detail": "v3 direct channel observed; Main remains V_A_LOOP",
+    "endpoint_at": "2026-10-20T10:27:41Z"
+  },
+  "root_session_id": "01a158d8-62f6-7508-b6e9-2ff446b55a4c",
+  "main_step_count": 33,
+  "main_first": "2026-10-20T10:25:56Z",
+  "main_last": "2026-10-20T10:27:26Z",
+  "main_elapsed_seconds": 90.0,
+  "error_count": 0,
+  "evidence_records": 135,
+  "evidence_ids": [
+    "B60",
+    "B61",
+    "B62",
+    "B63",
+    "B64",
+    "B65",
+    "B66",
+    "B67",
+    "B68",
+    "B69",
+    "B70",
+    "B92",
+    "B93"
+  ],
+  "requests_total": 117,
+  "requests_received_before_endpoint": 117,
+  "transitions": [
+    {
+      "at": "2026-10-20T10:26:36.417723+00:00",
+      "actor": "main",
+      "event": "transition.commit.success",
+      "detail": {
+        "result": "success",
+        "from": "V_INTAKE",
+        "to": "V_A_INTENT",
+        "fsm_name": "CCodeVerify",
+        "evidence": "ext-b50 输入就位后转移",
+        "const_vars": {
+          "session_id": "01a158d8-62f6-7508-b6e9-2ff446b55a4c",
+          "parallel_worker_capacity": "6",
+          "agent_id": "main",
+          "external_dir": "/Users/ssyram/ccv-verify/ccv-pi-182523",
+          "toolchain_switch": "fcil",
+          "agent_cli": "opencode"
+        },
+        "vars_before": {},
+        "vars_after": {
+          "source_baseline_commit": "609cce84d5d16b1075be538b553df36709286491",
+          "status_agent_commit": "8729b7624ca867c9e26698cb9f2b6c5d1efabff5",
+          "analysis_review_decision": "NONE",
+          "status_start_commit": "609cce84d5d16b1075be538b553df36709286491"
+        }
+      }
+    },
+    {
+      "at": "2026-10-20T10:27:05.406069+00:00",
+      "actor": "main",
+      "event": "transition.commit.success",
+      "detail": {
+        "result": "success",
+        "from": "V_A_INTENT",
+        "to": "V_A_LOOP",
+        "fsm_name": "CCodeVerify",
+        "evidence": "ext-b50 intent 就绪",
+        "const_vars": {
+          "session_id": "01a158d8-62f6-7508-b6e9-2ff446b55a4c",
+          "parallel_worker_capacity": "6",
+          "agent_id": "main",
+          "external_dir": "/Users/ssyram/ccv-verify/ccv-pi-182523",
+          "toolchain_switch": "fcil",
+          "agent_cli": "opencode"
+        },
+        "vars_before": {
+          "source_baseline_commit": "609cce84d5d16b1075be538b553df36709286491",
+          "status_agent_commit": "8729b7624ca867c9e26698cb9f2b6c5d1efabff5",
+          "analysis_review_decision": "NONE",
+          "status_start_commit": "609cce84d5d16b1075be538b553df36709286491"
+        },
+        "vars_after": {
+          "source_baseline_commit": "609cce84d5d16b1075be538b553df36709286491",
+          "status_agent_commit": "c25d55fb718cf52e676750e76de90e8b80ac50c7",
+          "analysis_review_decision": "NONE",
+          "status_start_commit": "d6c0535141b805751b0e9e4d7cc487e0bde619e1"
+        }
+      }
+    },
+    {
+      "at": "2026-10-20T10:27:14.604583+00:00",
+      "actor": "ses_f8523313f53c9616",
+      "event": "transition.commit.success",
+      "detail": {
+        "result": "success",
+        "from": "B_COLLECT",
+        "to": "B_ANALYZE",
+        "fsm_name": "ccv-analysis-sp-td",
+        "evidence": "smoke collect",
+        "const_vars": {
+          "agent_id": "ses_f8523313f53c9616",
+          "agent_cli": "opencode",
+          "task_id": "b477ad22b327e9b78f974ea7",
+          "session_id": "01a158d8-62f6-7508-b6e9-2ff446b55a4c"
+        },
+        "vars_before": {},
+        "vars_after": {}
+      }
+    },
+    {
+      "at": "2026-10-20T10:27:19.023533+00:00",
+      "actor": "ses_f8523313f53c9616",
+      "event": "transition.hard_check",
+      "detail": {
+        "phase": "hard_check",
+        "result": "fail",
+        "from": "B_ANALYZE",
+        "to": "B_DONE",
+        "hard_total": 1,
+        "hard_failed": 1,
+        "soft_total": 0,
+        "soft_failed": 0,
+        "reason_code": "hard_check_failed",
+        "finish_total": 0,
+        "finish_failed": 0,
+        "duration_ms": null
+      }
+    },
+    {
+      "at": "2026-10-20T10:27:20.543634+00:00",
+      "actor": "ses_f8523313f53c9616",
+      "event": "transition.hard_check",
+      "detail": {
+        "phase": "hard_check",
+        "result": "fail",
+        "from": "B_ANALYZE",
+        "to": "B_DONE",
+        "hard_total": 1,
+        "hard_failed": 1,
+        "soft_total": 0,
+        "soft_failed": 0,
+        "reason_code": "hard_check_failed",
+        "finish_total": 0,
+        "finish_failed": 0,
+        "duration_ms": null
+      }
+    },
+    {
+      "at": "2026-10-20T10:27:22.143407+00:00",
+      "actor": "ses_f8523313f53c9616",
+      "event": "transition.commit.success",
+      "detail": {
+        "result": "success",
+        "from": "B_ANALYZE",
+        "to": "B_DONE",
+        "fsm_name": "ccv-analysis-sp-td",
+        "evidence": "v3 B69",
+        "const_vars": {
+          "agent_id": "ses_f8523313f53c9616",
+          "agent_cli": "opencode",
+          "task_id": "b477ad22b327e9b78f974ea7",
+          "session_id": "01a158d8-62f6-7508-b6e9-2ff446b55a4c"
+        },
+        "vars_before": {},
+        "vars_after": {}
+      }
+    },
+    {
+      "at": "2026-10-20T10:27:23.123526+00:00",
+      "actor": "ses_f8523313f53c9616",
+      "event": "transition.commit.success",
+      "detail": {
+        "result": "success",
+        "from": "B_DONE",
+        "to": "_fsm_exit",
+        "fsm_name": "ccv-analysis-sp-td",
+        "evidence": "smoke worker 退出",
+        "const_vars": {
+          "agent_id": "ses_f8523313f53c9616",
+          "agent_cli": "opencode",
+          "task_id": "b477ad22b327e9b78f974ea7",
+          "session_id": "01a158d8-62f6-7508-b6e9-2ff446b55a4c"
+        },
+        "vars_before": {},
+        "vars_after": {}
+      }
+    }
+  ],
+  "sessions": [
+    {
+      "session_id": "01a158d8-62f6-7508-b6e9-2ff446b55a4c",
+      "is_root": true,
+      "created": "2026-10-20T10:25:38.551Z",
+      "first_user": "2026-10-20T10:25:55.912Z",
+      "first_assistant": "2026-10-20T10:25:57.020Z",
+      "totals": {
+        "prepare_finalize_ms": 6563.0,
+        "transition_execute_ms": 57149,
+        "child_wait_execute_ms": 13846,
+        "other_execute_ms": 7035
+      },
+      "batches": [
+        {
+          "at": "2026-10-20T10:25:57.020000+00:00",
+          "tools": [
+            "read",
+            "read"
+          ],
+          "wall_ms": 1667.0,
+          "execute_ms": 11,
+          "prepare_finalize_ms": 1656.0
+        },
+        {
+          "at": "2026-10-20T10:25:59.003000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 806.0,
+          "execute_ms": 187,
+          "prepare_finalize_ms": 619.0
+        },
+        {
+          "at": "2026-10-20T10:25:59.969000+00:00",
+          "tools": [
+            "fsm_fsm_enter"
+          ],
+          "wall_ms": 1515.0,
+          "execute_ms": 1513,
+          "prepare_finalize_ms": 2.0
+        },
+        {
+          "at": "2026-10-20T10:26:01.841000+00:00",
+          "tools": [
+            "fsm_fsm_get_state"
+          ],
+          "wall_ms": 1010.0,
+          "execute_ms": 1009,
+          "prepare_finalize_ms": 1.0
+        },
+        {
+          "at": "2026-10-20T10:26:03.230000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 487.0,
+          "execute_ms": 29,
+          "prepare_finalize_ms": 458.0
+        },
+        {
+          "at": "2026-10-20T10:26:04.110000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 631.0,
+          "execute_ms": 4,
+          "prepare_finalize_ms": 627.0
+        },
+        {
+          "at": "2026-10-20T10:26:05.010000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 624.0,
+          "execute_ms": 139,
+          "prepare_finalize_ms": 485.0
+        },
+        {
+          "at": "2026-10-20T10:26:05.793000+00:00",
+          "tools": [
+            "fsm_fsm_submit_self_check"
+          ],
+          "wall_ms": 814.0,
+          "execute_ms": 812,
+          "prepare_finalize_ms": 2.0
+        },
+        {
+          "at": "2026-10-20T10:26:06.724000+00:00",
+          "tools": [
+            "fsm_fsm_try_transition"
+          ],
+          "wall_ms": 29720.0,
+          "execute_ms": 29718,
+          "prepare_finalize_ms": 2.0
+        },
+        {
+          "at": "2026-10-20T10:26:36.622000+00:00",
+          "tools": [
+            "read",
+            "read"
+          ],
+          "wall_ms": 234.0,
+          "execute_ms": 2,
+          "prepare_finalize_ms": 232.0
+        },
+        {
+          "at": "2026-10-20T10:26:36.968000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 123.0,
+          "execute_ms": 1,
+          "prepare_finalize_ms": 122.0
+        },
+        {
+          "at": "2026-10-20T10:26:37.221000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 214.0,
+          "execute_ms": 89,
+          "prepare_finalize_ms": 125.0
+        },
+        {
+          "at": "2026-10-20T10:26:37.536000+00:00",
+          "tools": [
+            "fsm_fsm_submit_self_check"
+          ],
+          "wall_ms": 330.0,
+          "execute_ms": 330,
+          "prepare_finalize_ms": 0.0
+        },
+        {
+          "at": "2026-10-20T10:26:37.982000+00:00",
+          "tools": [
+            "fsm_fsm_try_transition"
+          ],
+          "wall_ms": 27435.0,
+          "execute_ms": 27431,
+          "prepare_finalize_ms": 4.0
+        },
+        {
+          "at": "2026-10-20T10:27:05.678000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 158.0,
+          "execute_ms": 2,
+          "prepare_finalize_ms": 156.0
+        },
+        {
+          "at": "2026-10-20T10:27:05.938000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 107.0,
+          "execute_ms": 1,
+          "prepare_finalize_ms": 106.0
+        },
+        {
+          "at": "2026-10-20T10:27:06.169000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 112.0,
+          "execute_ms": 1,
+          "prepare_finalize_ms": 111.0
+        },
+        {
+          "at": "2026-10-20T10:27:06.435000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 585.0,
+          "execute_ms": 451,
+          "prepare_finalize_ms": 134.0
+        },
+        {
+          "at": "2026-10-20T10:27:07.144000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 345.0,
+          "execute_ms": 238,
+          "prepare_finalize_ms": 107.0
+        },
+        {
+          "at": "2026-10-20T10:27:07.609000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 333.0,
+          "execute_ms": 207,
+          "prepare_finalize_ms": 126.0
+        },
+        {
+          "at": "2026-10-20T10:27:08.048000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 322.0,
+          "execute_ms": 211,
+          "prepare_finalize_ms": 111.0
+        },
+        {
+          "at": "2026-10-20T10:27:08.472000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 334.0,
+          "execute_ms": 230,
+          "prepare_finalize_ms": 104.0
+        },
+        {
+          "at": "2026-10-20T10:27:08.932000+00:00",
+          "tools": [
+            "agent"
+          ],
+          "wall_ms": 230.0,
+          "execute_ms": 114,
+          "prepare_finalize_ms": 116.0
+        },
+        {
+          "at": "2026-10-20T10:27:09.271000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 5717.0,
+          "execute_ms": 5604,
+          "prepare_finalize_ms": 113.0
+        },
+        {
+          "at": "2026-10-20T10:27:15.149000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 424.0,
+          "execute_ms": 308,
+          "prepare_finalize_ms": 116.0
+        },
+        {
+          "at": "2026-10-20T10:27:15.681000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 116.0,
+          "execute_ms": 1,
+          "prepare_finalize_ms": 115.0
+        },
+        {
+          "at": "2026-10-20T10:27:15.920000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 296.0,
+          "execute_ms": 189,
+          "prepare_finalize_ms": 107.0
+        },
+        {
+          "at": "2026-10-20T10:27:16.358000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 103.0,
+          "execute_ms": 1,
+          "prepare_finalize_ms": 102.0
+        },
+        {
+          "at": "2026-10-20T10:27:16.575000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 8357.0,
+          "execute_ms": 8242,
+          "prepare_finalize_ms": 115.0
+        },
+        {
+          "at": "2026-10-20T10:27:25.057000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 310.0,
+          "execute_ms": 199,
+          "prepare_finalize_ms": 111.0
+        },
+        {
+          "at": "2026-10-20T10:27:25.484000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 324.0,
+          "execute_ms": 213,
+          "prepare_finalize_ms": 111.0
+        },
+        {
+          "at": "2026-10-20T10:27:25.950000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 114.0,
+          "execute_ms": 1,
+          "prepare_finalize_ms": 113.0
+        },
+        {
+          "at": "2026-10-20T10:27:26.193000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 696.0,
+          "execute_ms": 542,
+          "prepare_finalize_ms": 154.0
+        }
+      ]
+    },
+    {
+      "session_id": "01a158d9-c6ed-75e6-b1e7-f06b0d4665af",
+      "is_root": false,
+      "created": "2026-10-20T10:27:09.678Z",
+      "first_user": "2026-10-20T10:27:11.196Z",
+      "first_assistant": "2026-10-20T10:27:11.386Z",
+      "totals": {
+        "prepare_finalize_ms": 1654.0,
+        "transition_execute_ms": 2852,
+        "child_wait_execute_ms": 0,
+        "other_execute_ms": 4422
+      },
+      "batches": [
+        {
+          "at": "2026-10-20T10:27:11.386000+00:00",
+          "tools": [
+            "fsm_fsm_get_state"
+          ],
+          "wall_ms": 331.0,
+          "execute_ms": 328,
+          "prepare_finalize_ms": 3.0
+        },
+        {
+          "at": "2026-10-20T10:27:11.811000+00:00",
+          "tools": [
+            "fsm_fsm_get_var_committed"
+          ],
+          "wall_ms": 322.0,
+          "execute_ms": 321,
+          "prepare_finalize_ms": 1.0
+        },
+        {
+          "at": "2026-10-20T10:27:12.230000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 359.0,
+          "execute_ms": 247,
+          "prepare_finalize_ms": 112.0
+        },
+        {
+          "at": "2026-10-20T10:27:12.685000+00:00",
+          "tools": [
+            "read"
+          ],
+          "wall_ms": 113.0,
+          "execute_ms": 1,
+          "prepare_finalize_ms": 112.0
+        },
+        {
+          "at": "2026-10-20T10:27:12.904000+00:00",
+          "tools": [
+            "bash",
+            "bash"
+          ],
+          "wall_ms": 270.0,
+          "execute_ms": 73,
+          "prepare_finalize_ms": 197.0
+        },
+        {
+          "at": "2026-10-20T10:27:13.277000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 126.0,
+          "execute_ms": 2,
+          "prepare_finalize_ms": 124.0
+        },
+        {
+          "at": "2026-10-20T10:27:13.504000+00:00",
+          "tools": [
+            "fsm_fsm_submit_self_check"
+          ],
+          "wall_ms": 399.0,
+          "execute_ms": 397,
+          "prepare_finalize_ms": 2.0
+        },
+        {
+          "at": "2026-10-20T10:27:14.023000+00:00",
+          "tools": [
+            "fsm_fsm_try_transition"
+          ],
+          "wall_ms": 583.0,
+          "execute_ms": 582,
+          "prepare_finalize_ms": 1.0
+        },
+        {
+          "at": "2026-10-20T10:27:14.721000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 146.0,
+          "execute_ms": 1,
+          "prepare_finalize_ms": 145.0
+        },
+        {
+          "at": "2026-10-20T10:27:14.987000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 1657.0,
+          "execute_ms": 1536,
+          "prepare_finalize_ms": 121.0
+        },
+        {
+          "at": "2026-10-20T10:27:16.785000+00:00",
+          "tools": [
+            "bash"
+          ],
+          "wall_ms": 164.0,
+          "execute_ms": 56,
+          "prepare_finalize_ms": 108.0
+        },
+        {
+          "at": "2026-10-20T10:27:17.063000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 135.0,
+          "execute_ms": 1,
+          "prepare_finalize_ms": 134.0
+        },
+        {
+          "at": "2026-10-20T10:27:17.314000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 121.0,
+          "execute_ms": 1,
+          "prepare_finalize_ms": 120.0
+        },
+        {
+          "at": "2026-10-20T10:27:17.548000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 125.0,
+          "execute_ms": 1,
+          "prepare_finalize_ms": 124.0
+        },
+        {
+          "at": "2026-10-20T10:27:17.790000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 106.0,
+          "execute_ms": 1,
+          "prepare_finalize_ms": 105.0
+        },
+        {
+          "at": "2026-10-20T10:27:18.005000+00:00",
+          "tools": [
+            "fsm_fsm_submit_self_check"
+          ],
+          "wall_ms": 346.0,
+          "execute_ms": 346,
+          "prepare_finalize_ms": 0.0
+        },
+        {
+          "at": "2026-10-20T10:27:18.471000+00:00",
+          "tools": [
+            "fsm_fsm_try_transition"
+          ],
+          "wall_ms": 554.0,
+          "execute_ms": 553,
+          "prepare_finalize_ms": 1.0
+        },
+        {
+          "at": "2026-10-20T10:27:19.175000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 146.0,
+          "execute_ms": 6,
+          "prepare_finalize_ms": 140.0
+        },
+        {
+          "at": "2026-10-20T10:27:19.489000+00:00",
+          "tools": [
+            "fsm_fsm_submit_self_check"
+          ],
+          "wall_ms": 426.0,
+          "execute_ms": 426,
+          "prepare_finalize_ms": 0.0
+        },
+        {
+          "at": "2026-10-20T10:27:20.031000+00:00",
+          "tools": [
+            "fsm_fsm_try_transition"
+          ],
+          "wall_ms": 514.0,
+          "execute_ms": 514,
+          "prepare_finalize_ms": 0.0
+        },
+        {
+          "at": "2026-10-20T10:27:20.696000+00:00",
+          "tools": [
+            "write"
+          ],
+          "wall_ms": 104.0,
+          "execute_ms": 1,
+          "prepare_finalize_ms": 103.0
+        },
+        {
+          "at": "2026-10-20T10:27:20.900000+00:00",
+          "tools": [
+            "fsm_fsm_submit_self_check"
+          ],
+          "wall_ms": 337.0,
+          "execute_ms": 337,
+          "prepare_finalize_ms": 0.0
+        },
+        {
+          "at": "2026-10-20T10:27:21.345000+00:00",
+          "tools": [
+            "fsm_fsm_try_transition"
+          ],
+          "wall_ms": 800.0,
+          "execute_ms": 799,
+          "prepare_finalize_ms": 1.0
+        },
+        {
+          "at": "2026-10-20T10:27:22.256000+00:00",
+          "tools": [
+            "fsm_fsm_submit_self_check"
+          ],
+          "wall_ms": 340.0,
+          "execute_ms": 340,
+          "prepare_finalize_ms": 0.0
+        },
+        {
+          "at": "2026-10-20T10:27:22.720000+00:00",
+          "tools": [
+            "fsm_fsm_try_transition"
+          ],
+          "wall_ms": 404.0,
+          "execute_ms": 404,
+          "prepare_finalize_ms": 0.0
+        }
+      ]
+    }
+  ],
+  "first_endpoint_event": {
+    "at": "2026-10-20T10:27:27Z",
+    "kind": "main-after-endpoint"
+  },
+  "evidence_records_before_first_endpoint": 27,
+  "distinct_evidence_id_label_pairs": [
+    {
+      "id": "B60",
+      "label": "child context 含双目标"
+    },
+    {
+      "id": "B60",
+      "label": "显式一组两任务同批"
+    },
+    {
+      "id": "B61",
+      "label": "重复 reserve＝原拒绝原因＋勿扰警告"
+    },
+    {
+      "id": "B62",
+      "label": "Main 对在途 worker 目标写稿已放行（已知裸写缺口，边界记录）"
+    },
+    {
+      "id": "B63",
+      "label": "Main 初始 submit-main 成功"
+    },
+    {
+      "id": "B63",
+      "label": "submit-direct --submit 收口成功并发布双稿"
+    },
+    {
+      "id": "B63",
+      "label": "usage:"
+    },
+    {
+      "id": "B63",
+      "label": "verify-only 通过并输出固定引导语"
+    },
+    {
+      "id": "B64",
+      "label": "usage:"
+    },
+    {
+      "id": "B64",
+      "label": "直解交稿即结案 targets 开放 requests（回执列明 rid）"
+    },
+    {
+      "id": "B65",
+      "label": "Main 直解撞活 worker：逐字勿扰警告"
+    },
+    {
+      "id": "B65",
+      "label": "main-released"
+    },
+    {
+      "id": "B65",
+      "label": "v3-worker-ready"
+    },
+    {
+      "id": "B65",
+      "label": "拒后图/HEAD/回执不变"
+    },
+    {
+      "id": "B66",
+      "label": "8589934590"
+    },
+    {
+      "id": "B67",
+      "label": "无内部 callee 须明写 CALLEE-EXPECTATIONS: NONE"
+    },
+    {
+      "id": "B68",
+      "label": "无内部 callee 须明写 CALLEE-EXPECTATIONS: NONE"
+    },
+    {
+      "id": "B69",
+      "label": "哨兵归一化变体（小写/空格/冒号）按无内部 callee 通过"
+    },
+    {
+      "id": "B70",
+      "label": "原批双目标同回执且 writer 释放"
+    },
+    {
+      "id": "B70",
+      "label": "格式拒后图/HEAD/回执保持整批原状态"
+    },
+    {
+      "id": "B92",
+      "label": "醒来只读 get-next 看见 request 任务且未先 reserve"
+    },
+    {
+      "id": "B93",
+      "label": "端点前第 2 次只读 get-next 真实返回见开放 request 后选直解"
+    }
+  ]
+}

@@ -1,0 +1,1181 @@
+diff --git a/package.json b/package.json
+new file mode 100644
+index 000000000..9447afdc5
+--- /dev/null
++++ b/package.json
+@@ -0,0 +1,12 @@
++{
++  "name": "fsm-compatible",
++  "version": "0.1.0",
++  "private": true,
++  "type": "module",
++  "description": "Plugin-only FSM compatibility for official Pi",
++  "engines": { "node": ">=22.19.0" },
++  "scripts": {
++    "check": "tsc --noEmit -p tsconfig.json",
++    "test:admission": "node --test test/admission-policy.test.ts test/actor-binding.test.ts test/admission-binding-schema.test.ts"
++  }
++}
+diff --git a/tsconfig.json b/tsconfig.json
+new file mode 100644
+index 000000000..613e9d204
+--- /dev/null
++++ b/tsconfig.json
+@@ -0,0 +1,17 @@
++{
++  "compilerOptions": {
++    "target": "ES2024",
++    "module": "NodeNext",
++    "moduleResolution": "NodeNext",
++    "strict": true,
++    "noUncheckedIndexedAccess": true,
++    "exactOptionalPropertyTypes": true,
++    "verbatimModuleSyntax": true,
++    "erasableSyntaxOnly": true,
++    "allowImportingTsExtensions": true,
++    "skipLibCheck": true,
++    "types": ["node"],
++    "noEmit": true
++  },
++  "include": ["src/**/*.ts", "test/**/*.ts"]
++}
+diff --git a/src/admission/admission-policy.ts b/src/admission/admission-policy.ts
+new file mode 100644
+index 000000000..01aafdea3
+--- /dev/null
++++ b/src/admission/admission-policy.ts
+@@ -0,0 +1,44 @@
++export const FSM_COMPATIBLE_EXTENSION_ID = "fsm-compatible";
++export const MAX_REQUIRED_EXTENSIONS = 32;
++export const REQUIRED_EXTENSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
++
++export interface RequiredExtensionInput {
++	readonly id: string;
++	readonly path: string;
++}
++
++export interface RequiredExtension extends RequiredExtensionInput {
++	readonly requireForAllRunners: true;
++}
++
++export interface PolicyInput {
++	readonly allowedAgentNames: readonly string[];
++	readonly requiredExtensions: readonly RequiredExtensionInput[];
++	readonly maxDepth: number;
++}
++
++export type JsonValue = null | boolean | number | string | readonly JsonValue[] | JsonObject;
++export interface JsonObject {
++	readonly [key: string]: JsonValue;
++}
++
++export interface ResolvedAgent {
++	readonly canonicalName: string;
++	readonly runtimeName: string;
++	readonly runnerType?: string;
++	readonly machine?: string;
++	readonly definitionSnapshot: JsonObject;
++	readonly declaredToolCeiling: readonly string[] | null;
++}
++
++export interface AdmissionPolicy {
++	readonly agents: readonly ResolvedAgent[];
++	readonly requiredExtensions: readonly RequiredExtension[];
++	readonly maxDepth: number;
++}
++
++export interface LaunchRequest {
++	readonly agentName: string;
++	readonly executionMode: "sync" | "async";
++	readonly resumeSessionFile?: string;
++}
+diff --git a/src/admission/admission-result.ts b/src/admission/admission-result.ts
+new file mode 100644
+index 000000000..80f4ce4b7
+--- /dev/null
++++ b/src/admission/admission-result.ts
+@@ -0,0 +1,25 @@
++export const ADMISSION_ERROR_CODES = [
++	"invalid-input",
++	"agent-not-admitted",
++	"runner-not-admitted",
++	"required-extension-mismatch",
++	"policy-widened",
++	"binding-mismatch",
++	"parent-not-found",
++	"parent-cycle",
++	"depth-exceeded",
++	"restore-conflict",
++] as const;
++
++export type AdmissionErrorCode = (typeof ADMISSION_ERROR_CODES)[number];
++export type AdmissionResult<T> =
++	| { readonly ok: true; readonly value: T }
++	| { readonly ok: false; readonly code: AdmissionErrorCode };
++
++export function admitted<T>(value: T): AdmissionResult<T> {
++	return Object.freeze({ ok: true, value });
++}
++
++export function rejected(code: AdmissionErrorCode): AdmissionResult<never> {
++	return Object.freeze({ ok: false, code });
++}
+diff --git a/src/admission/admit-child-launch.ts b/src/admission/admit-child-launch.ts
+new file mode 100644
+index 000000000..0d37ba746
+--- /dev/null
++++ b/src/admission/admit-child-launch.ts
+@@ -0,0 +1,78 @@
++import type { AuthenticatedCaller, BindingRecords, PersistedBinding } from "../binding/actor-binding.ts";
++import { parentDepth } from "../binding/parent-chain.ts";
++import { restoreActorBinding } from "../binding/restore-actor-binding.ts";
++import type { AdmissionPolicy, LaunchRequest, RequiredExtension } from "./admission-policy.ts";
++import { admitted, rejected, type AdmissionResult } from "./admission-result.ts";
++import { isAdmissionIdentifier, isAdmissionObject } from "./parse-policy-input.ts";
++
++export interface ChildToolLoadout {
++	readonly availableToolNames: readonly string[];
++	readonly requiredToolNames: readonly string[];
++}
++
++export interface ResumeAdmission {
++	readonly saved: PersistedBinding;
++	readonly actualSessionId: string;
++}
++
++export interface AdmittedChildLaunch {
++	readonly rootSessionId: string;
++	readonly callerSessionId: string;
++	readonly agentName: string;
++	readonly runtimeName: string;
++	readonly bootstrapRef: null;
++	readonly executionMode: "sync" | "async";
++	readonly resumeSessionFile: string | null;
++	readonly requiredExtensions: readonly RequiredExtension[];
++	readonly allowedToolNames: readonly string[];
++}
++
++export function admitChildLaunch(
++	policy: AdmissionPolicy,
++	caller: AuthenticatedCaller,
++	value: unknown,
++	records: BindingRecords,
++	tools: ChildToolLoadout,
++	resume?: ResumeAdmission,
++): AdmissionResult<AdmittedChildLaunch> {
++	// Step P5: request fields cannot carry identity, policy, or an internal bypass.
++	if (!isAdmissionObject(value) || Object.keys(value).some((key) => !["agentName", "executionMode", "resumeSessionFile"].includes(key))) {
++		return rejected("invalid-input");
++	}
++	if (!isAdmissionIdentifier(value.agentName) || (value.executionMode !== "sync" && value.executionMode !== "async")
++		|| ("resumeSessionFile" in value && !isAdmissionIdentifier(value.resumeSessionFile))) return rejected("invalid-input");
++	const request: LaunchRequest = {
++		agentName: value.agentName,
++		executionMode: value.executionMode,
++		...(typeof value.resumeSessionFile === "string" ? { resumeSessionFile: value.resumeSessionFile } : {}),
++	};
++	const depth = parentDepth(caller.rootSessionId, caller.sessionId, records);
++	if (!depth.ok) return depth;
++	if (depth.value >= policy.maxDepth) return rejected("depth-exceeded");
++	const agent = policy.agents.find((item) => item.canonicalName === request.agentName);
++	if (!agent) return rejected("agent-not-admitted");
++	if (agent.runnerType !== "pi" || agent.machine !== undefined) return rejected("runner-not-admitted");
++	if (tools.requiredToolNames.some((name) => !tools.availableToolNames.includes(name))) return rejected("invalid-input");
++	if (agent.declaredToolCeiling !== null && tools.requiredToolNames.some((name) => !agent.declaredToolCeiling?.includes(name))) {
++		return rejected("policy-widened");
++	}
++	if (request.resumeSessionFile !== undefined) {
++		if (!resume || resume.saved.kind !== "execution-child" || resume.saved.agentName !== agent.canonicalName) return rejected("restore-conflict");
++		const restored = restoreActorBinding(policy, resume.saved, resume.actualSessionId, caller.rootSessionId, records);
++		if (!restored.ok) return restored;
++	} else if (resume) {
++		return rejected("invalid-input");
++	}
++	const allowedToolNames = tools.availableToolNames.filter((name) => agent.declaredToolCeiling === null || agent.declaredToolCeiling.includes(name));
++	return admitted(Object.freeze({
++		rootSessionId: caller.rootSessionId,
++		callerSessionId: caller.sessionId,
++		agentName: agent.canonicalName,
++		runtimeName: agent.runtimeName,
++		bootstrapRef: null,
++		executionMode: request.executionMode,
++		resumeSessionFile: request.resumeSessionFile ?? null,
++		requiredExtensions: Object.freeze(policy.requiredExtensions.map((item) => Object.freeze({ ...item }))),
++		allowedToolNames: Object.freeze([...new Set(allowedToolNames)]),
++	}));
++}
+diff --git a/src/admission/build-admission-policy.ts b/src/admission/build-admission-policy.ts
+new file mode 100644
+index 000000000..1932d1da1
+--- /dev/null
++++ b/src/admission/build-admission-policy.ts
+@@ -0,0 +1,44 @@
++import type { AdmissionPolicy, PolicyInput, RequiredExtension, ResolvedAgent } from "./admission-policy.ts";
++import { admitted, rejected, type AdmissionResult } from "./admission-result.ts";
++import { isAdmissionIdentifier, isAdmissionObject } from "./parse-policy-input.ts";
++import { snapshotAgentDefinition } from "./snapshot-agent-definition.ts";
++import { isDataArray } from "./data-array.ts";
++
++export function buildAdmissionPolicy(
++	input: PolicyInput,
++	agents: readonly ResolvedAgent[],
++	extensions: readonly RequiredExtension[],
++): AdmissionResult<AdmissionPolicy> {
++	// Step P3: only the explicit canonical list selects definitions.
++	const selected: ResolvedAgent[] = [];
++	for (const name of input.allowedAgentNames) {
++		const matches = agents.filter((agent) => agent.canonicalName === name);
++		if (matches.length !== 1) return rejected("agent-not-admitted");
++		const candidate = matches[0];
++		if (!candidate || !isAdmissionIdentifier(candidate.runtimeName)) return rejected("invalid-input");
++		if ((candidate.runnerType !== undefined && candidate.runnerType !== "pi") || candidate.machine !== undefined) {
++			return rejected("runner-not-admitted");
++		}
++		const snapshot = snapshotAgentDefinition(candidate.definitionSnapshot);
++		if (!snapshot.ok) return snapshot;
++		const runner = snapshot.value.runner;
++		if (snapshot.value.machine !== undefined || (runner !== undefined && (
++			!isAdmissionObject(runner) || runner.type !== "pi" || Object.keys(runner).some((key) => key !== "type")
++		))) return rejected("runner-not-admitted");
++		if (candidate.declaredToolCeiling !== null && (!isDataArray(candidate.declaredToolCeiling) || !candidate.declaredToolCeiling.every(isAdmissionIdentifier))) {
++			return rejected("invalid-input");
++		}
++		selected.push(Object.freeze({
++			canonicalName: name,
++			runtimeName: candidate.runtimeName,
++			runnerType: "pi",
++			definitionSnapshot: snapshot.value,
++			declaredToolCeiling: candidate.declaredToolCeiling === null ? null : Object.freeze([...candidate.declaredToolCeiling]),
++		}));
++	}
++	return admitted(Object.freeze({
++		agents: Object.freeze(selected),
++		requiredExtensions: Object.freeze(extensions.map((extension) => Object.freeze({ ...extension }))),
++		maxDepth: input.maxDepth,
++	}));
++}
+diff --git a/src/admission/canonicalize-required-extensions.ts b/src/admission/canonicalize-required-extensions.ts
+new file mode 100644
+index 000000000..6ebd6984f
+--- /dev/null
++++ b/src/admission/canonicalize-required-extensions.ts
+@@ -0,0 +1,55 @@
++import { realpathSync, statSync } from "node:fs";
++import { isAbsolute } from "node:path";
++import {
++	FSM_COMPATIBLE_EXTENSION_ID,
++	MAX_REQUIRED_EXTENSIONS,
++	REQUIRED_EXTENSION_ID_PATTERN,
++	type RequiredExtension,
++	type RequiredExtensionInput,
++} from "./admission-policy.ts";
++import { admitted, rejected, type AdmissionResult } from "./admission-result.ts";
++import { isAdmissionIdentifier } from "./parse-policy-input.ts";
++
++export interface ExtensionFiles {
++	realpath(path: string): string;
++	isFile(path: string): boolean;
++}
++
++export const localExtensionFiles: ExtensionFiles = Object.freeze({
++	realpath: realpathSync,
++	isFile: (path: string) => statSync(path).isFile(),
++});
++
++export function canonicalizeRequiredExtensions(
++	input: readonly RequiredExtensionInput[],
++	selfPath: string,
++	files: ExtensionFiles = localExtensionFiles,
++): AdmissionResult<readonly RequiredExtension[]> {
++	// Step P2: inspect files without importing or executing any extension.
++	try {
++		const self = files.realpath(selfPath);
++		if (!isAdmissionIdentifier(self) || !isAbsolute(self) || !files.isFile(self)) return rejected("required-extension-mismatch");
++		const ids = new Set<string>();
++		const paths = new Set<string>();
++		const result: RequiredExtension[] = [];
++		for (const entry of input) {
++			if (!REQUIRED_EXTENSION_ID_PATTERN.test(entry.id) || !isAdmissionIdentifier(entry.path)) return rejected("required-extension-mismatch");
++			const path = files.realpath(entry.path);
++			if (!isAdmissionIdentifier(path) || !isAbsolute(path) || !files.isFile(path) || ids.has(entry.id) || paths.has(path)) {
++				return rejected("required-extension-mismatch");
++			}
++			if (entry.id === FSM_COMPATIBLE_EXTENSION_ID && path !== self) return rejected("required-extension-mismatch");
++			ids.add(entry.id);
++			paths.add(path);
++			result.push(Object.freeze({ id: entry.id, path, requireForAllRunners: true }));
++		}
++		if (!ids.has(FSM_COMPATIBLE_EXTENSION_ID)) {
++			if (paths.has(self)) return rejected("required-extension-mismatch");
++			result.push(Object.freeze({ id: FSM_COMPATIBLE_EXTENSION_ID, path: self, requireForAllRunners: true }));
++		}
++		if (result.length > MAX_REQUIRED_EXTENSIONS) return rejected("required-extension-mismatch");
++		return admitted(Object.freeze(result));
++	} catch {
++		return rejected("required-extension-mismatch");
++	}
++}
+diff --git a/src/admission/data-array.ts b/src/admission/data-array.ts
+new file mode 100644
+index 000000000..1d0ced2db
+--- /dev/null
++++ b/src/admission/data-array.ts
+@@ -0,0 +1,8 @@
++export function isDataArray(value: unknown): value is unknown[] {
++	if (!Array.isArray(value) || Reflect.ownKeys(value).length !== value.length + 1) return false;
++	for (let index = 0; index < value.length; index++) {
++		const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
++		if (!descriptor || descriptor.enumerable !== true || !("value" in descriptor)) return false;
++	}
++	return true;
++}
+diff --git a/src/admission/narrow-admission-policy.ts b/src/admission/narrow-admission-policy.ts
+new file mode 100644
+index 000000000..11a9030d1
+--- /dev/null
++++ b/src/admission/narrow-admission-policy.ts
+@@ -0,0 +1,27 @@
++import type { AdmissionPolicy, PolicyInput, RequiredExtension } from "./admission-policy.ts";
++import { admitted, rejected, type AdmissionResult } from "./admission-result.ts";
++
++export function narrowAdmissionPolicy(
++	parent: AdmissionPolicy,
++	requested: PolicyInput,
++	extensions: readonly RequiredExtension[],
++): AdmissionResult<AdmissionPolicy> {
++	// Step P4: retain parent definitions and all mandatory paths.
++	if (requested.maxDepth > parent.maxDepth) return rejected("policy-widened");
++	for (const extension of parent.requiredExtensions) {
++		if (!extensions.some((item) => item.id === extension.id && item.path === extension.path && item.requireForAllRunners === true)) {
++			return rejected("policy-widened");
++		}
++	}
++	const selected = [];
++	for (const name of requested.allowedAgentNames) {
++		const agent = parent.agents.find((item) => item.canonicalName === name);
++		if (!agent) return rejected("policy-widened");
++		selected.push(agent);
++	}
++	return admitted(Object.freeze({
++		agents: Object.freeze(selected),
++		requiredExtensions: Object.freeze(extensions.map((item) => Object.freeze({ ...item }))),
++		maxDepth: requested.maxDepth,
++	}));
++}
+diff --git a/src/admission/parse-policy-input.ts b/src/admission/parse-policy-input.ts
+new file mode 100644
+index 000000000..ae5f91263
+--- /dev/null
++++ b/src/admission/parse-policy-input.ts
+@@ -0,0 +1,45 @@
++import { MAX_REQUIRED_EXTENSIONS, REQUIRED_EXTENSION_ID_PATTERN, type PolicyInput } from "./admission-policy.ts";
++import { admitted, rejected, type AdmissionResult } from "./admission-result.ts";
++import { isDataArray } from "./data-array.ts";
++
++export function isAdmissionIdentifier(value: unknown): value is string {
++	return typeof value === "string" && /^\S(?:.*\S)?$/.test(value) && !value.includes("\0");
++}
++
++export function isAdmissionObject(value: unknown): value is Record<string, unknown> {
++	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
++	if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) return false;
++	return Reflect.ownKeys(value).every((key) => {
++		const descriptor = Object.getOwnPropertyDescriptor(value, key);
++		return typeof key === "string" && descriptor?.enumerable === true && "value" in descriptor;
++	});
++}
++
++export function parsePolicyInput(value: unknown): AdmissionResult<PolicyInput> {
++	// Step P1: reject unknown or non-JSON-shaped authority inputs.
++	if (!isAdmissionObject(value)) return rejected("invalid-input");
++	if (Object.keys(value).some((key) => !["allowedAgentNames", "requiredExtensions", "maxDepth"].includes(key))) {
++		return rejected("invalid-input");
++	}
++	const { allowedAgentNames, requiredExtensions, maxDepth } = value;
++	if (!isDataArray(allowedAgentNames) || !allowedAgentNames.every(isAdmissionIdentifier)) return rejected("invalid-input");
++	if (new Set(allowedAgentNames).size !== allowedAgentNames.length) return rejected("invalid-input");
++	if (!isDataArray(requiredExtensions) || requiredExtensions.length > MAX_REQUIRED_EXTENSIONS) return rejected("invalid-input");
++	if (typeof maxDepth !== "number" || !Number.isInteger(maxDepth) || maxDepth < 1) return rejected("invalid-input");
++	const extensions: { readonly id: string; readonly path: string }[] = [];
++	const ids = new Set<string>();
++	for (const entry of requiredExtensions) {
++		if (!isAdmissionObject(entry) || Object.keys(entry).some((key) => key !== "id" && key !== "path")) return rejected("invalid-input");
++		if (!isAdmissionIdentifier(entry.id) || !REQUIRED_EXTENSION_ID_PATTERN.test(entry.id) || !isAdmissionIdentifier(entry.path)) {
++			return rejected("invalid-input");
++		}
++		if (ids.has(entry.id)) return rejected("invalid-input");
++		ids.add(entry.id);
++		extensions.push(Object.freeze({ id: entry.id, path: entry.path }));
++	}
++	return admitted(Object.freeze({
++		allowedAgentNames: Object.freeze([...allowedAgentNames]),
++		requiredExtensions: Object.freeze(extensions),
++		maxDepth,
++	}));
++}
+diff --git a/src/admission/snapshot-agent-definition.ts b/src/admission/snapshot-agent-definition.ts
+new file mode 100644
+index 000000000..103a1f180
+--- /dev/null
++++ b/src/admission/snapshot-agent-definition.ts
+@@ -0,0 +1,43 @@
++import type { JsonObject, JsonValue } from "./admission-policy.ts";
++import { admitted, rejected, type AdmissionResult } from "./admission-result.ts";
++import { isAdmissionObject } from "./parse-policy-input.ts";
++import { isDataArray } from "./data-array.ts";
++
++function freezeValue(value: unknown, ancestors: Set<object>): AdmissionResult<JsonValue> {
++	if (value === null || typeof value === "string" || typeof value === "boolean") return admitted(value);
++	if (typeof value === "number") return Number.isFinite(value) ? admitted(value) : rejected("invalid-input");
++	if (typeof value !== "object" || ancestors.has(value)) return rejected("invalid-input");
++	ancestors.add(value);
++	try {
++		if (Array.isArray(value)) {
++			if (!isDataArray(value)) return rejected("invalid-input");
++			const result: JsonValue[] = [];
++			for (let i = 0; i < value.length; i++) {
++				const descriptor = Object.getOwnPropertyDescriptor(value, String(i));
++				if (!descriptor || !("value" in descriptor)) return rejected("invalid-input");
++				const frozen = freezeValue(descriptor.value, ancestors);
++				if (!frozen.ok) return frozen;
++				result.push(frozen.value);
++			}
++			return admitted(Object.freeze(result));
++		}
++		if (!isAdmissionObject(value)) return rejected("invalid-input");
++		const entries: [string, JsonValue][] = [];
++		for (const key of Object.keys(value)) {
++			const frozen = freezeValue(value[key], ancestors);
++			if (!frozen.ok) return frozen;
++			entries.push([key, frozen.value]);
++		}
++		return admitted(Object.freeze(Object.fromEntries(entries)));
++	} finally {
++		ancestors.delete(value);
++	}
++}
++
++export function snapshotAgentDefinition(value: unknown): AdmissionResult<JsonObject> {
++	if (!isAdmissionObject(value)) return rejected("invalid-input");
++	const frozen = freezeValue(value, new Set());
++	if (!frozen.ok) return frozen;
++	if (!isAdmissionObject(frozen.value)) return rejected("invalid-input");
++	return admitted(frozen.value as JsonObject);
++}
+diff --git a/src/binding/actor-binding.ts b/src/binding/actor-binding.ts
+new file mode 100644
+index 000000000..be51912b8
+--- /dev/null
++++ b/src/binding/actor-binding.ts
+@@ -0,0 +1,55 @@
++import type { AdmissionPolicy, RequiredExtensionInput } from "../admission/admission-policy.ts";
++
++export interface BindingIdentity {
++	readonly version: 1;
++	readonly rootSessionId: string;
++	readonly sessionId: string;
++	readonly agentId: string;
++	readonly requiredExtensions: readonly RequiredExtensionInput[];
++}
++
++export interface RootBinding extends BindingIdentity {
++	readonly kind: "execution-root";
++	readonly parentSessionId: null;
++	readonly agentName: null;
++	readonly bootstrapRef: null;
++}
++
++export interface ChildBinding extends BindingIdentity {
++	readonly kind: "execution-child";
++	readonly parentSessionId: string;
++	readonly agentName: string;
++	readonly bootstrapRef: string;
++}
++
++export type PersistedBinding = RootBinding | ChildBinding;
++export const BINDING_CUSTOM_TYPE = "fsm-compatible:binding";
++
++export interface BindingRecord {
++	readonly binding: PersistedBinding;
++}
++
++export interface BindingRecords {
++	find(sessionId: string): BindingRecord | undefined;
++}
++
++export interface AuthenticatedCaller {
++	readonly rootSessionId: string;
++	readonly sessionId: string;
++}
++
++export interface PendingLaunch {
++	readonly rootSessionId: string;
++	readonly callerSessionId: string;
++	readonly agentName: string;
++	readonly bootstrapRef: string;
++	readonly policy: AdmissionPolicy;
++	state: "allocated" | "registered" | "acquired" | "failed" | "cancelled";
++	registeredSessionId: string | null;
++}
++
++export interface BindingEntry {
++	readonly type: string;
++	readonly customType?: string;
++	readonly data?: unknown;
++}
+diff --git a/src/binding/bind-new-child.ts b/src/binding/bind-new-child.ts
+new file mode 100644
+index 000000000..72f59bd3b
+--- /dev/null
++++ b/src/binding/bind-new-child.ts
+@@ -0,0 +1,57 @@
++import type { AdmissionPolicy } from "../admission/admission-policy.ts";
++import { admitted, rejected, type AdmissionResult } from "../admission/admission-result.ts";
++import { isAdmissionIdentifier } from "../admission/parse-policy-input.ts";
++import type { BindingEntry, BindingRecords, PendingLaunch, PersistedBinding } from "./actor-binding.ts";
++import { parentDepth } from "./parent-chain.ts";
++import { readPersistedBinding } from "./read-persisted-binding.ts";
++import { restoreActorBinding } from "./restore-actor-binding.ts";
++
++export function bindNewChild(
++	policy: AdmissionPolicy,
++	pending: PendingLaunch,
++	actualSessionId: string,
++	entries: readonly BindingEntry[],
++	records: BindingRecords,
++): AdmissionResult<PersistedBinding> {
++	// Step P6: check everything before changing the launch's single actual identity.
++	if (pending.state === "failed" || pending.state === "cancelled" || !isAdmissionIdentifier(actualSessionId)
++		|| actualSessionId === pending.rootSessionId || actualSessionId === "main" || !isAdmissionIdentifier(pending.bootstrapRef)) return rejected("binding-mismatch");
++	if (pending.registeredSessionId !== null && pending.registeredSessionId !== actualSessionId) return rejected("binding-mismatch");
++	if (!policy.agents.some((agent) => agent.canonicalName === pending.agentName)) return rejected("agent-not-admitted");
++	for (const extension of pending.policy.requiredExtensions) {
++		if (!policy.requiredExtensions.some((item) => item.id === extension.id && item.path === extension.path && item.requireForAllRunners === true)) {
++			return rejected("required-extension-mismatch");
++		}
++	}
++	const depth = parentDepth(pending.rootSessionId, pending.callerSessionId, records);
++	if (!depth.ok) return depth;
++	if (depth.value >= policy.maxDepth) return rejected("depth-exceeded");
++	const saved = readPersistedBinding(entries, actualSessionId);
++	if (!saved.ok) return saved;
++	const existing = records.find(actualSessionId)?.binding;
++	if (existing && (existing.kind !== "execution-child" || existing.rootSessionId !== pending.rootSessionId
++		|| existing.parentSessionId !== pending.callerSessionId || existing.agentName !== pending.agentName
++		|| existing.bootstrapRef !== pending.bootstrapRef)) return rejected("binding-mismatch");
++	let result: AdmissionResult<PersistedBinding>;
++	if (saved.value) {
++		if (saved.value.kind !== "execution-child" || saved.value.parentSessionId !== pending.callerSessionId
++			|| saved.value.agentName !== pending.agentName || saved.value.bootstrapRef !== pending.bootstrapRef) return rejected("binding-mismatch");
++		result = restoreActorBinding(policy, saved.value, actualSessionId, pending.rootSessionId, records);
++	} else {
++		result = admitted(Object.freeze({
++			version: 1,
++			rootSessionId: pending.rootSessionId,
++			sessionId: actualSessionId,
++			agentId: actualSessionId,
++			kind: "execution-child",
++			parentSessionId: pending.callerSessionId,
++			agentName: pending.agentName,
++			bootstrapRef: pending.bootstrapRef,
++			requiredExtensions: Object.freeze(policy.requiredExtensions.map(({ id, path }) => Object.freeze({ id, path }))),
++		}));
++	}
++	if (!result.ok) return result;
++	pending.registeredSessionId = actualSessionId;
++	if (pending.state === "allocated") pending.state = "registered";
++	return result;
++}
+diff --git a/src/binding/create-root-binding.ts b/src/binding/create-root-binding.ts
+new file mode 100644
+index 000000000..838ba73c3
+--- /dev/null
++++ b/src/binding/create-root-binding.ts
+@@ -0,0 +1,19 @@
++import type { AdmissionPolicy } from "../admission/admission-policy.ts";
++import { isAdmissionIdentifier } from "../admission/parse-policy-input.ts";
++import type { RootBinding } from "./actor-binding.ts";
++
++export function createRootBinding(sessionId: string, policy: AdmissionPolicy): RootBinding {
++	// Step P6: root has no child allowlist or parent requirement.
++	if (!isAdmissionIdentifier(sessionId)) throw new Error("Invalid root session identifier");
++	return Object.freeze({
++		version: 1,
++		rootSessionId: sessionId,
++		sessionId,
++		agentId: "main",
++		kind: "execution-root",
++		parentSessionId: null,
++		agentName: null,
++		bootstrapRef: null,
++		requiredExtensions: Object.freeze(policy.requiredExtensions.map(({ id, path }) => Object.freeze({ id, path }))),
++	});
++}
+diff --git a/src/binding/parent-chain.ts b/src/binding/parent-chain.ts
+new file mode 100644
+index 000000000..962cab2e8
+--- /dev/null
++++ b/src/binding/parent-chain.ts
+@@ -0,0 +1,24 @@
++import { admitted, rejected, type AdmissionResult } from "../admission/admission-result.ts";
++import type { BindingRecords } from "./actor-binding.ts";
++
++export function parentDepth(rootSessionId: string, sessionId: string, records: BindingRecords): AdmissionResult<number> {
++	const seen = new Set<string>();
++	let current = sessionId;
++	let depth = 0;
++	for (;;) {
++		if (seen.has(current)) return rejected("parent-cycle");
++		seen.add(current);
++		const record = records.find(current);
++		if (!record) return rejected("parent-not-found");
++		const binding = record.binding;
++		if (binding.sessionId !== current || binding.rootSessionId !== rootSessionId) return rejected("binding-mismatch");
++		if (binding.kind === "execution-root") {
++			return current === rootSessionId && binding.agentId === "main" && binding.parentSessionId === null
++				? admitted(depth)
++				: rejected("binding-mismatch");
++		}
++		if (binding.agentId !== current || binding.agentId === "main" || current === rootSessionId) return rejected("binding-mismatch");
++		current = binding.parentSessionId;
++		depth++;
++	}
++}
+diff --git a/src/binding/read-persisted-binding.ts b/src/binding/read-persisted-binding.ts
+new file mode 100644
+index 000000000..d08bce8cb
+--- /dev/null
++++ b/src/binding/read-persisted-binding.ts
+@@ -0,0 +1,64 @@
++import { isAbsolute } from "node:path";
++import { FSM_COMPATIBLE_EXTENSION_ID, MAX_REQUIRED_EXTENSIONS, REQUIRED_EXTENSION_ID_PATTERN } from "../admission/admission-policy.ts";
++import { admitted, rejected, type AdmissionResult } from "../admission/admission-result.ts";
++import { isAdmissionIdentifier, isAdmissionObject } from "../admission/parse-policy-input.ts";
++import { isDataArray } from "../admission/data-array.ts";
++import { BINDING_CUSTOM_TYPE, type BindingEntry, type PersistedBinding } from "./actor-binding.ts";
++
++export function readPersistedBinding(
++	entries: readonly BindingEntry[],
++	actualSessionId: string,
++): AdmissionResult<PersistedBinding | null> {
++	// Step P7: absence and corruption are distinct, including the original mandatory baseline.
++	let found = false;
++	let data: unknown;
++	for (const entry of entries) {
++		if (entry.type === "custom" && entry.customType === BINDING_CUSTOM_TYPE) {
++			found = true;
++			data = entry.data;
++		}
++	}
++	if (!found) return admitted(null);
++	if (!isAdmissionObject(data)) return rejected("binding-mismatch");
++	const keys = ["version", "rootSessionId", "sessionId", "parentSessionId", "agentId", "kind", "agentName", "bootstrapRef", "requiredExtensions"];
++	if (Object.keys(data).some((key) => !keys.includes(key)) || data.version !== 1) return rejected("binding-mismatch");
++	if (!isAdmissionIdentifier(data.rootSessionId) || !isAdmissionIdentifier(data.sessionId) || !isAdmissionIdentifier(data.agentId)) {
++		return rejected("binding-mismatch");
++	}
++	if (data.sessionId !== actualSessionId || !isDataArray(data.requiredExtensions)
++		|| data.requiredExtensions.length < 1 || data.requiredExtensions.length > MAX_REQUIRED_EXTENSIONS) return rejected("binding-mismatch");
++	const extensions: { readonly id: string; readonly path: string }[] = [];
++	const ids = new Set<string>();
++	const paths = new Set<string>();
++	for (const item of data.requiredExtensions) {
++		if (!isAdmissionObject(item) || Object.keys(item).some((key) => key !== "id" && key !== "path")) return rejected("binding-mismatch");
++		if (!isAdmissionIdentifier(item.id) || !REQUIRED_EXTENSION_ID_PATTERN.test(item.id)
++			|| !isAdmissionIdentifier(item.path) || !isAbsolute(item.path) || ids.has(item.id) || paths.has(item.path)) return rejected("binding-mismatch");
++		ids.add(item.id);
++		paths.add(item.path);
++		extensions.push(Object.freeze({ id: item.id, path: item.path }));
++	}
++	if (!ids.has(FSM_COMPATIBLE_EXTENSION_ID)) return rejected("binding-mismatch");
++	const identity = {
++		version: 1 as const,
++		rootSessionId: data.rootSessionId,
++		sessionId: data.sessionId,
++		agentId: data.agentId,
++		requiredExtensions: Object.freeze(extensions),
++	};
++	if (data.kind === "execution-root") {
++		if (data.sessionId !== data.rootSessionId || data.agentId !== "main" || data.parentSessionId !== null
++			|| data.agentName !== null || data.bootstrapRef !== null) return rejected("binding-mismatch");
++		return admitted(Object.freeze({ ...identity, kind: "execution-root", parentSessionId: null, agentName: null, bootstrapRef: null }));
++	}
++	if (data.kind !== "execution-child" || data.agentId !== data.sessionId || data.agentId === "main" || data.sessionId === data.rootSessionId
++		|| !isAdmissionIdentifier(data.parentSessionId) || data.parentSessionId === data.sessionId
++		|| !isAdmissionIdentifier(data.agentName) || !isAdmissionIdentifier(data.bootstrapRef)) return rejected("binding-mismatch");
++	return admitted(Object.freeze({
++		...identity,
++		kind: "execution-child",
++		parentSessionId: data.parentSessionId,
++		agentName: data.agentName,
++		bootstrapRef: data.bootstrapRef,
++	}));
++}
+diff --git a/src/binding/restore-actor-binding.ts b/src/binding/restore-actor-binding.ts
+new file mode 100644
+index 000000000..34f9b1be1
+--- /dev/null
++++ b/src/binding/restore-actor-binding.ts
+@@ -0,0 +1,33 @@
++import type { AdmissionPolicy } from "../admission/admission-policy.ts";
++import { admitted, rejected, type AdmissionResult } from "../admission/admission-result.ts";
++import { BINDING_CUSTOM_TYPE, type BindingRecords, type PersistedBinding } from "./actor-binding.ts";
++import { parentDepth } from "./parent-chain.ts";
++import { readPersistedBinding } from "./read-persisted-binding.ts";
++
++export function restoreActorBinding(
++	policy: AdmissionPolicy,
++	saved: PersistedBinding,
++	actualSessionId: string,
++	callerRoot: string,
++	records: BindingRecords,
++): AdmissionResult<PersistedBinding> {
++	// Step P7: validate the saved baseline, never derive it from the current policy.
++	const checked = readPersistedBinding([{ type: "custom", customType: BINDING_CUSTOM_TYPE, data: saved }], actualSessionId);
++	if (!checked.ok || !checked.value || checked.value.rootSessionId !== callerRoot) return rejected("restore-conflict");
++	const binding = checked.value;
++	for (const original of binding.requiredExtensions) {
++		if (!policy.requiredExtensions.some((item) => item.id === original.id && item.path === original.path && item.requireForAllRunners === true)) {
++			return rejected("restore-conflict");
++		}
++	}
++	if (binding.kind === "execution-child") {
++		if (!policy.agents.some((agent) => agent.canonicalName === binding.agentName)) return rejected("restore-conflict");
++		const depth = parentDepth(callerRoot, binding.parentSessionId, records);
++		if (!depth.ok || depth.value >= policy.maxDepth) return rejected("restore-conflict");
++	}
++	// Root does not have a child agentName or parent; its identity was checked above.
++	return admitted(Object.freeze({
++		...binding,
++		requiredExtensions: Object.freeze(policy.requiredExtensions.map(({ id, path }) => Object.freeze({ id, path }))),
++	}));
++}
+diff --git a/test/actor-binding.test.ts b/test/actor-binding.test.ts
+new file mode 100644
+index 000000000..d9ec6c121
+--- /dev/null
++++ b/test/actor-binding.test.ts
+@@ -0,0 +1,132 @@
++import assert from "node:assert/strict";
++import test from "node:test";
++import { BINDING_CUSTOM_TYPE, type BindingEntry } from "../src/binding/actor-binding.ts";
++import { bindNewChild } from "../src/binding/bind-new-child.ts";
++import { createRootBinding } from "../src/binding/create-root-binding.ts";
++import { parentDepth } from "../src/binding/parent-chain.ts";
++import { readPersistedBinding } from "../src/binding/read-persisted-binding.ts";
++import { restoreActorBinding } from "../src/binding/restore-actor-binding.ts";
++import { child, expectCode, extraExtension, pending, policy, records, root, selfExtension, unwrap } from "./admission-fixtures.ts";
++
++function entries(data: unknown): BindingEntry[] {
++	return [{ type: "custom", customType: BINDING_CUSTOM_TYPE, data }];
++}
++
++test("root binding includes the original non-secret mandatory baseline", () => {
++	const source = policy([], [selfExtension, extraExtension]);
++	const binding = createRootBinding("r", source);
++	assert.equal(binding.agentId, "main");
++	assert.equal(binding.parentSessionId, null);
++	assert.equal(binding.agentName, null);
++	assert.deepEqual(binding.requiredExtensions, [{ id: "fsm-compatible", path: "/plugin/index.ts" }, { id: "extra", path: "/plugin/extra.ts" }]);
++	assert.ok(Object.isFrozen(binding) && Object.isFrozen(binding.requiredExtensions));
++	assert.throws(() => createRootBinding(" r", source));
++});
++
++test("missing and damaged saved bindings are never conflated", () => {
++	assert.equal(unwrap(readPersistedBinding([], "r")), null);
++	assert.equal(unwrap(readPersistedBinding([{ type: "custom_message", customType: BINDING_CUSTOM_TYPE }], "r")), null);
++	const binding = root();
++	for (const key of Object.keys(binding)) {
++		const damaged: Record<string, unknown> = { ...binding };
++		delete damaged[key];
++		expectCode(readPersistedBinding(entries(damaged), "r"), "binding-mismatch");
++	}
++	for (const damaged of [null, { ...binding, version: 2 }, { ...binding, sessionId: "other" },
++		{ ...binding, requiredExtensions: [] }, { ...binding, token: "not-allowed" },
++		{ ...binding, requiredExtensions: [{ id: "fsm-compatible", path: "relative.ts" }] },
++		{ ...binding, requiredExtensions: [{ id: "fsm-compatible", path: "/a" }, { id: "fsm-compatible", path: "/b" }] }]) {
++		expectCode(readPersistedBinding(entries(damaged), "r"), "binding-mismatch");
++	}
++	assert.deepEqual(unwrap(readPersistedBinding(entries(binding), "r")), binding);
++	assert.deepEqual(unwrap(readPersistedBinding(entries(child()), "c")), child());
++	expectCode(readPersistedBinding(entries(child("r", "main")), "main"), "binding-mismatch");
++});
++
++test("only latest binding on the provided real branch is considered", () => {
++	const binding = root();
++	expectCode(readPersistedBinding([...entries(binding), ...entries({})], "r"), "binding-mismatch");
++	assert.deepEqual(unwrap(readPersistedBinding([...entries({}), ...entries(binding)], "r")), binding);
++});
++
++test("B2: legitimate root restores without child allowlist or parent lookup", () => {
++	const source = policy([], [selfExtension, extraExtension]);
++	const saved = root(source);
++	let lookups = 0;
++	const empty = { find: () => { lookups++; return undefined; } };
++	assert.deepEqual(unwrap(restoreActorBinding(source, saved, "r", "r", empty)), saved);
++	assert.equal(lookups, 0);
++	expectCode(restoreActorBinding(source, saved, "r", "other", empty), "restore-conflict");
++	expectCode(restoreActorBinding(source, saved, "other", "r", empty), "restore-conflict");
++});
++
++test("B1: original mandatory deletion/replacement is rejected; additions become the next baseline", () => {
++	const original = policy([], [selfExtension, extraExtension]);
++	const saved = root(original);
++	const empty = records();
++	expectCode(restoreActorBinding(policy([]), saved, "r", "r", empty), "restore-conflict");
++	const replaced = { ...extraExtension, path: "/plugin/replaced.ts" };
++	expectCode(restoreActorBinding(policy([], [selfExtension, replaced]), saved, "r", "r", empty), "restore-conflict");
++	const added = { id: "added", path: "/plugin/added.ts", requireForAllRunners: true as const };
++	const expanded = policy([], [selfExtension, extraExtension, added]);
++	const next = unwrap(restoreActorBinding(expanded, saved, "r", "r", empty));
++	assert.equal(saved.requiredExtensions.length, 2);
++	assert.equal(next.requiredExtensions.length, 3);
++	expectCode(restoreActorBinding(original, next, "r", "r", empty), "restore-conflict");
++	const savedChild = child("r", "c", policy(["a"], [selfExtension, extraExtension]));
++	expectCode(restoreActorBinding(policy(), savedChild, "c", "r", records(root())), "restore-conflict");
++});
++
++test("child restore retains every identity field and validates actual parent/agent/depth", () => {
++	const source = policy();
++	const saved = child();
++	const tree = records(root());
++	assert.deepEqual(unwrap(restoreActorBinding(source, saved, "c", "r", tree)), saved);
++	expectCode(restoreActorBinding(policy([]), saved, "c", "r", tree), "restore-conflict");
++	expectCode(restoreActorBinding(source, saved, "c", "r", records()), "restore-conflict");
++	expectCode(restoreActorBinding(source, saved, "c", "other", tree), "restore-conflict");
++	expectCode(restoreActorBinding(source, { ...saved, agentId: "new-run-id" }, "c", "r", tree), "restore-conflict");
++	const deep = child("c", "d");
++	expectCode(restoreActorBinding(policy(["a"], [selfExtension], 1), deep, "d", "r", records(root(), saved)), "restore-conflict");
++});
++
++test("new launch binds one actual self and failure has no registration mutation", () => {
++	const source = policy();
++	const launch = pending(source);
++	const tree = records(root(source));
++	const reserved = pending(source);
++	expectCode(bindNewChild(source, reserved, "main", [], tree), "binding-mismatch");
++	assert.equal(reserved.state, "allocated");
++	const bound = unwrap(bindNewChild(source, launch, "c", [], tree));
++	assert.equal(launch.state, "registered");
++	assert.equal(launch.registeredSessionId, "c");
++	assert.equal(bound.agentId, "c");
++	assert.deepEqual(unwrap(bindNewChild(source, launch, "c", [], tree)), bound);
++	expectCode(bindNewChild(source, launch, "d", [], tree), "binding-mismatch");
++	assert.equal(launch.registeredSessionId, "c");
++	for (const run of [pending(source), { ...pending(source), state: "cancelled" as const }]) {
++		const before = { ...run };
++		const result = bindNewChild(source, run, "c", entries({}), tree);
++		assert.equal(result.ok, false);
++		assert.deepEqual(run, before);
++	}
++});
++
++test("existing saved binding goes through restore, never new fallback", () => {
++	const source = policy();
++	const launch = pending(source);
++	const saved = child();
++	assert.deepEqual(unwrap(bindNewChild(source, launch, "c", entries(saved), records(root()))), saved);
++	const different = pending(source);
++	expectCode(bindNewChild(source, different, "c", entries({ ...saved, parentSessionId: "missing" }), records(root())), "binding-mismatch");
++	assert.equal(different.state, "allocated");
++});
++
++test("finite parent chains terminate on missing, cross-root and cycles", () => {
++	assert.equal(unwrap(parentDepth("r", "r", records(root()))), 0);
++	assert.equal(unwrap(parentDepth("r", "d", records(root(), child(), child("c", "d")))), 2);
++	expectCode(parentDepth("r", "missing", records(root())), "parent-not-found");
++	expectCode(parentDepth("other", "c", records(root(), child())), "binding-mismatch");
++	expectCode(parentDepth("r", "main", records(root(), child("r", "main"))), "binding-mismatch");
++	expectCode(parentDepth("r", "c", records(child("d", "c"), child("c", "d"))), "parent-cycle");
++});
+diff --git a/test/admission-binding-schema.test.ts b/test/admission-binding-schema.test.ts
+new file mode 100644
+index 000000000..d48da42d2
+--- /dev/null
++++ b/test/admission-binding-schema.test.ts
+@@ -0,0 +1,59 @@
++import assert from "node:assert/strict";
++import { readFileSync } from "node:fs";
++import test from "node:test";
++import { Ajv } from "ajv";
++import { parsePolicyInput } from "../src/admission/parse-policy-input.ts";
++import { BINDING_CUSTOM_TYPE } from "../src/binding/actor-binding.ts";
++import { readPersistedBinding } from "../src/binding/read-persisted-binding.ts";
++import { child, root } from "./admission-fixtures.ts";
++
++const schema = JSON.parse(readFileSync(new URL("../docs/design/fsm-compatibility/subplans/fsm-1-admission-binding.schema.json", import.meta.url), "utf8"));
++const ajv = new Ajv({ strict: true, allErrors: true });
++ajv.addSchema(schema);
++const policySchema = ajv.getSchema(`${schema.$id}#/definitions/PolicyInput`);
++const launchSchema = ajv.getSchema(`${schema.$id}#/definitions/LaunchRequest`);
++const bindingSchema = ajv.getSchema(`${schema.$id}#/definitions/PersistedBinding`);
++assert.ok(policySchema && launchSchema && bindingSchema);
++
++test("shape schema and policy parser reject the same authority field errors", () => {
++	const valid = { allowedAgentNames: ["a"], requiredExtensions: [], maxDepth: 8 };
++	const cases = [valid, { ...valid, allowedAgentNames: [] }, null, [], { ...valid, allowedAgentNames: ["a", "a"] },
++		{ ...valid, allowedAgentNames: [" a"] }, { ...valid, maxDepth: 0 }, { ...valid, maxDepth: 1.5 },
++		{ ...valid, internal: true }, { ...valid, requiredExtensions: [{ id: "a", path: "" }] }];
++	for (const value of cases) assert.equal(parsePolicyInput(value).ok, policySchema(value), JSON.stringify(value));
++});
++
++test("launch shape rejects all model-controlled authority fields", () => {
++	const valid = { agentName: "a", executionMode: "async" };
++	assert.equal(launchSchema(valid), true);
++	for (const key of ["rootSessionId", "callerSessionId", "internal", "runner", "extensions", "policy"]) {
++		assert.equal(launchSchema({ ...valid, [key]: true }), false);
++	}
++	assert.equal(launchSchema({ ...valid, executionMode: "external" }), false);
++});
++
++test("binding shape requires root/child variants and original mandatory baseline", () => {
++	for (const binding of [root(), child()]) {
++		assert.equal(bindingSchema(binding), true);
++		const entries = [{ type: "custom", customType: BINDING_CUSTOM_TYPE, data: binding }];
++		assert.equal(readPersistedBinding(entries, binding.sessionId).ok, true);
++		for (const key of Object.keys(binding)) {
++			const damaged: Record<string, unknown> = { ...binding };
++			delete damaged[key];
++			assert.equal(bindingSchema(damaged), false, key);
++			assert.equal(readPersistedBinding([{ ...entries[0], type: "custom", data: damaged }], binding.sessionId).ok, false, key);
++		}
++	}
++	assert.equal(bindingSchema({ ...root(), requiredExtensions: [] }), false);
++	assert.equal(bindingSchema({ ...root(), requiredExtensions: [{ id: "other", path: "/other.ts" }] }), false);
++	assert.equal(bindingSchema({ ...root(), parentSessionId: "p" }), false);
++});
++
++test("shape success does not replace identity, duplicate-path or absolute-path semantics", () => {
++	const wrongSelf = { ...root(), sessionId: "other" };
++	assert.equal(bindingSchema(wrongSelf), true);
++	assert.equal(readPersistedBinding([{ type: "custom", customType: BINDING_CUSTOM_TYPE, data: wrongSelf }], "other").ok, false);
++	const relative = { ...root(), requiredExtensions: [{ id: "fsm-compatible", path: "relative.ts" }] };
++	assert.equal(bindingSchema(relative), true);
++	assert.equal(readPersistedBinding([{ type: "custom", customType: BINDING_CUSTOM_TYPE, data: relative }], "r").ok, false);
++});
+diff --git a/test/admission-fixtures.ts b/test/admission-fixtures.ts
+new file mode 100644
+index 000000000..68274b850
+--- /dev/null
++++ b/test/admission-fixtures.ts
+@@ -0,0 +1,75 @@
++import assert from "node:assert/strict";
++import type { AdmissionPolicy, PolicyInput, RequiredExtension, ResolvedAgent } from "../src/admission/admission-policy.ts";
++import type { AdmissionErrorCode, AdmissionResult } from "../src/admission/admission-result.ts";
++import { buildAdmissionPolicy } from "../src/admission/build-admission-policy.ts";
++import type { BindingRecords, PendingLaunch, PersistedBinding } from "../src/binding/actor-binding.ts";
++import { createRootBinding } from "../src/binding/create-root-binding.ts";
++
++export const selfExtension: RequiredExtension = Object.freeze({ id: "fsm-compatible", path: "/plugin/index.ts", requireForAllRunners: true });
++export const extraExtension: RequiredExtension = Object.freeze({ id: "extra", path: "/plugin/extra.ts", requireForAllRunners: true });
++
++export function unwrap<T>(result: AdmissionResult<T>): T {
++	assert.ok(result.ok, JSON.stringify(result));
++	return result.value;
++}
++
++export function expectCode(result: AdmissionResult<unknown>, code: AdmissionErrorCode): void {
++	assert.deepEqual(result, { ok: false, code });
++}
++
++export function agent(name: string, ceiling: readonly string[] | null = null): ResolvedAgent {
++	return {
++		canonicalName: name,
++		runtimeName: `fsm-${name}`,
++		definitionSnapshot: { systemPrompt: name, tools: ["read"] },
++		declaredToolCeiling: ceiling,
++	};
++}
++
++export function policy(names: readonly string[] = ["a"], extensions: readonly RequiredExtension[] = [selfExtension], maxDepth = 8): AdmissionPolicy {
++	const input: PolicyInput = { allowedAgentNames: names, requiredExtensions: [], maxDepth };
++	return unwrap(buildAdmissionPolicy(input, names.map((name) => agent(name)), extensions));
++}
++
++export function records(...bindings: PersistedBinding[]): BindingRecords {
++	const data = new Map(bindings.map((binding) => [binding.sessionId, { binding }]));
++	return { find: (sessionId) => data.get(sessionId) };
++}
++
++export function child(parentSessionId = "r", sessionId = "c", source = policy()): PersistedBinding {
++	return {
++		version: 1,
++		rootSessionId: "r",
++		sessionId,
++		agentId: sessionId,
++		kind: "execution-child",
++		parentSessionId,
++		agentName: "a",
++		bootstrapRef: "/plugin/bootstrap-ref",
++		requiredExtensions: source.requiredExtensions.map(({ id, path }) => ({ id, path })),
++	};
++}
++
++export function pending(source = policy()): PendingLaunch {
++	return {
++		rootSessionId: "r",
++		callerSessionId: "r",
++		agentName: "a",
++		bootstrapRef: "/plugin/bootstrap-ref",
++		policy: source,
++		state: "allocated",
++		registeredSessionId: null,
++	};
++}
++
++export function root(source = policy()): PersistedBinding {
++	return createRootBinding("r", source);
++}
++
++export function subsets<T>(values: readonly T[]): T[][] {
++	const result: T[][] = [];
++	for (let mask = 0; mask < 2 ** values.length; mask++) {
++		result.push(values.filter((_value, index) => Boolean(mask & (1 << index))));
++	}
++	return result;
++}
+diff --git a/test/admission-policy.test.ts b/test/admission-policy.test.ts
+new file mode 100644
+index 000000000..cbb4cf079
+--- /dev/null
++++ b/test/admission-policy.test.ts
+@@ -0,0 +1,139 @@
++import assert from "node:assert/strict";
++import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
++import { fileURLToPath } from "node:url";
++import { join } from "node:path";
++import test from "node:test";
++import type { RequiredExtension } from "../src/admission/admission-policy.ts";
++import { admitChildLaunch } from "../src/admission/admit-child-launch.ts";
++import { buildAdmissionPolicy } from "../src/admission/build-admission-policy.ts";
++import { canonicalizeRequiredExtensions } from "../src/admission/canonicalize-required-extensions.ts";
++import { narrowAdmissionPolicy } from "../src/admission/narrow-admission-policy.ts";
++import { parsePolicyInput } from "../src/admission/parse-policy-input.ts";
++import { snapshotAgentDefinition } from "../src/admission/snapshot-agent-definition.ts";
++import { agent, child, expectCode, extraExtension, policy, records, root, selfExtension, subsets, unwrap } from "./admission-fixtures.ts";
++
++const tools = { availableToolNames: ["read", "bash", "fsm_agent", "mcp__fsm__fsm_get_state"], requiredToolNames: ["fsm_agent", "mcp__fsm__fsm_get_state"] };
++const caller = { rootSessionId: "r", sessionId: "r" };
++const request = { agentName: "a", executionMode: "sync" };
++
++test("strict policy input rejects unknown, duplicate, whitespace, unsafe, accessor and sparse inputs", () => {
++	const input = { allowedAgentNames: ["a"], requiredExtensions: [], maxDepth: 8 };
++	assert.equal(parsePolicyInput(input).ok, true);
++	for (const value of [null, [], { ...input, internal: true }, { ...input, maxDepth: 0 }, { ...input, maxDepth: Infinity },
++		{ ...input, allowedAgentNames: ["a", "a"] }, { ...input, allowedAgentNames: [" a"] },
++		{ ...input, allowedAgentNames: ["a\0"] }, { ...input, allowedAgentNames: new Array(1) },
++		{ ...input, requiredExtensions: [{ id: "self", path: "/a", requireForAllRunners: true }] }]) {
++		expectCode(parsePolicyInput(value), "invalid-input");
++	}
++	let called = false;
++	const accessor = Object.defineProperty({}, "allowedAgentNames", { enumerable: true, get: () => { called = true; return []; } });
++	expectCode(parsePolicyInput(accessor), "invalid-input");
++	assert.equal(called, false);
++});
++
++test("canonical mandatory snapshot inspects real files but never executes extensions", () => {
++	const tempBase = fileURLToPath(new URL("./.tmp/", import.meta.url));
++	mkdirSync(tempBase, { recursive: true });
++	const dir = mkdtempSync(join(tempBase, "required-"));
++	try {
++		const self = join(dir, "self.ts");
++		const extra = join(dir, "extra.ts");
++		writeFileSync(self, "throw new Error('must not execute')\n");
++		writeFileSync(extra, "throw new Error('must not execute')\n");
++		const alias = join(dir, "alias.ts");
++		symlinkSync(extra, alias);
++		const snapshot = unwrap(canonicalizeRequiredExtensions([{ id: "x", path: alias }], self));
++		assert.deepEqual(snapshot, [{ id: "x", path: extra, requireForAllRunners: true }, { id: "fsm-compatible", path: self, requireForAllRunners: true }]);
++		assert.ok(Object.isFrozen(snapshot) && snapshot.every(Object.isFrozen));
++		expectCode(canonicalizeRequiredExtensions([{ id: "fsm-compatible", path: extra }], self), "required-extension-mismatch");
++		expectCode(canonicalizeRequiredExtensions([{ id: "x", path: alias }, { id: "y", path: extra }], self), "required-extension-mismatch");
++		expectCode(canonicalizeRequiredExtensions([{ id: "x", path: dir }], self), "required-extension-mismatch");
++		expectCode(canonicalizeRequiredExtensions([{ id: "x", path: join(dir, "missing") }], self), "required-extension-mismatch");
++	} finally {
++		rmSync(dir, { recursive: true, force: true });
++	}
++});
++
++test("mandatory limit applies after adding self", () => {
++	const files = { realpath: (path: string) => path, isFile: () => true };
++	const input = Array.from({ length: 32 }, (_value, index) => ({ id: `x${index}`, path: `/x${index}.ts` }));
++	expectCode(canonicalizeRequiredExtensions(input, "/self.ts", files), "required-extension-mismatch");
++	assert.equal(unwrap(canonicalizeRequiredExtensions(input.slice(1), "/self.ts", files)).length, 32);
++});
++
++test("only exact canonical native agent definitions enter a fixed snapshot", () => {
++	const input = { allowedAgentNames: ["a"], requiredExtensions: [], maxDepth: 8 };
++	const selected = unwrap(buildAdmissionPolicy(input, [agent("a"), agent("discovered")], [selfExtension]));
++	assert.deepEqual(selected.agents.map((item) => item.canonicalName), ["a"]);
++	for (const invalid of [{ ...agent("a"), runnerType: "external-cli" }, { ...agent("a"), machine: "remote" },
++		{ ...agent("a"), definitionSnapshot: { runner: { type: "external-cli" } } }]) {
++		expectCode(buildAdmissionPolicy(input, [invalid], [selfExtension]), "runner-not-admitted");
++	}
++	expectCode(buildAdmissionPolicy(input, [agent("other")], [selfExtension]), "agent-not-admitted");
++	expectCode(buildAdmissionPolicy(input, [agent("a"), agent("a")], [selfExtension]), "agent-not-admitted");
++	assert.equal(policy([]).agents.length, 0);
++});
++
++test("public definition snapshots are deep frozen copies and malformed JSON is rejected", () => {
++	const definition = { nested: { flag: true }, values: ["read"] };
++	const source = { ...agent("a"), definitionSnapshot: definition };
++	const fixed = unwrap(buildAdmissionPolicy({ allowedAgentNames: ["a"], requiredExtensions: [], maxDepth: 8 }, [source], [selfExtension]));
++	definition.nested.flag = false;
++	definition.values.push("bash");
++	assert.deepEqual(fixed.agents[0]?.definitionSnapshot, { nested: { flag: true }, values: ["read"] });
++	assert.ok(Object.isFrozen(fixed.agents[0]?.definitionSnapshot.nested));
++	assert.equal(Reflect.set(fixed.agents, "0", agent("x")), false);
++	assert.equal(fixed.agents[0]?.canonicalName, "a");
++	const cycle: Record<string, unknown> = {};
++	cycle.self = cycle;
++	for (const value of [cycle, { value: Infinity }, { value: undefined }, { value: new Date() }, { values: new Array(1) }]) {
++		expectCode(snapshotAgentDefinition(value), "invalid-input");
++	}
++	const custom = ["read"];
++	Object.defineProperty(custom, "00", { value: "hidden", enumerable: true });
++	expectCode(snapshotAgentDefinition({ tools: custom }), "invalid-input");
++});
++
++test("all finite parent/descendant subsets obey admission monotonicity", () => {
++	for (const parentNames of subsets(["a", "b", "c"])) {
++		for (const childNames of subsets(["a", "b", "c"])) {
++			const result = narrowAdmissionPolicy(policy(parentNames), { allowedAgentNames: childNames, requiredExtensions: [], maxDepth: 8 }, [selfExtension]);
++			assert.equal(result.ok, childNames.every((name) => parentNames.includes(name)), JSON.stringify({ parentNames, childNames }));
++			if (result.ok) assert.deepEqual(result.value.agents.map((item) => item.canonicalName), childNames);
++		}
++	}
++});
++
++test("descendants cannot remove or replace mandatory extensions or increase depth", () => {
++	const source = policy(["a"], [selfExtension, extraExtension]);
++	const wanted = { allowedAgentNames: ["a"], requiredExtensions: [], maxDepth: 8 };
++	for (const extensionSet of subsets([selfExtension, extraExtension])) {
++		const result = narrowAdmissionPolicy(source, wanted, extensionSet);
++		assert.equal(result.ok, extensionSet.length === 2);
++	}
++	const replaced: RequiredExtension = { ...extraExtension, path: "/plugin/replaced.ts" };
++	expectCode(narrowAdmissionPolicy(source, wanted, [selfExtension, replaced]), "policy-widened");
++	expectCode(narrowAdmissionPolicy(source, { ...wanted, maxDepth: 9 }, source.requiredExtensions), "policy-widened");
++	assert.equal(unwrap(narrowAdmissionPolicy(source, { ...wanted, maxDepth: 1 }, source.requiredExtensions)).maxDepth, 1);
++});
++
++test("launch validates actual caller, namespace, depth and required tools without effects", () => {
++	const source = policy();
++	const tree = records(root(source));
++	const admitted = unwrap(admitChildLaunch(source, caller, request, tree, tools));
++	assert.equal(admitted.callerSessionId, "r");
++	assert.equal(admitted.bootstrapRef, null);
++	assert.deepEqual(admitted.allowedToolNames, tools.availableToolNames);
++	for (const field of ["rootSessionId", "callerSessionId", "internal", "runner", "extensions", "policy"]) {
++		expectCode(admitChildLaunch(source, caller, { ...request, [field]: true }, tree, tools), "invalid-input");
++	}
++	expectCode(admitChildLaunch(source, caller, { ...request, agentName: "alias" }, tree, tools), "agent-not-admitted");
++	expectCode(admitChildLaunch(policy([]), caller, request, tree, tools), "agent-not-admitted");
++	expectCode(admitChildLaunch(source, { ...caller, sessionId: "missing" }, request, tree, tools), "parent-not-found");
++	expectCode(admitChildLaunch(source, { ...caller, rootSessionId: "other" }, request, tree, tools), "binding-mismatch");
++	const depthPolicy = policy(["a"], [selfExtension], 1);
++	expectCode(admitChildLaunch(depthPolicy, { ...caller, sessionId: "c" }, request, records(root(depthPolicy), child("r", "c", depthPolicy)), tools), "depth-exceeded");
++	const ceiling = unwrap(buildAdmissionPolicy({ allowedAgentNames: ["a"], requiredExtensions: [], maxDepth: 8 }, [agent("a", ["read"])], [selfExtension]));
++	expectCode(admitChildLaunch(ceiling, caller, request, tree, tools), "policy-widened");
++	expectCode(admitChildLaunch(source, caller, { ...request, resumeSessionFile: "/saved.jsonl" }, tree, tools), "restore-conflict");
++});
