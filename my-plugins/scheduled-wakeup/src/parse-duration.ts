@@ -1,12 +1,14 @@
 const UNIT_MS: Readonly<Record<string, number>> = {
 	s: 1_000,
+	sec: 1_000,
 	m: 60_000,
+	min: 60_000,
 	h: 3_600_000,
 	d: 86_400_000,
 };
 
 export function parseDuration(value: string): number | undefined {
-	const match = /^(\d+)([smhd])$/i.exec(value.trim());
+	const match = /^(\d+)(min|sec|[smhd])$/i.exec(value.trim());
 	if (!match) return undefined;
 
 	const amountText = match[1];

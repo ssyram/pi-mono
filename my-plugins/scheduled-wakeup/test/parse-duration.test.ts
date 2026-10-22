@@ -12,11 +12,20 @@ describe("parseDuration", () => {
 		assert.equal(parseDuration("1d"), 24 * 60 * 60 * SECOND);
 	});
 
+	it("parses multi-letter unit aliases", () => {
+		assert.equal(parseDuration("90sec"), 90 * SECOND);
+		assert.equal(parseDuration("10min"), 10 * 60 * SECOND);
+		assert.equal(parseDuration("10MIN"), 10 * 60 * SECOND);
+		assert.equal(parseDuration("5Sec"), 5 * SECOND);
+	});
+
 	it("rejects invalid values", () => {
 		assert.equal(parseDuration("0s"), undefined);
 		assert.equal(parseDuration("1w"), undefined);
 		assert.equal(parseDuration("abc"), undefined);
 		assert.equal(parseDuration("1m later"), undefined);
 		assert.equal(parseDuration("999999999999999999d"), undefined);
+		assert.equal(parseDuration("10mins"), undefined);
+		assert.equal(parseDuration("10seconds"), undefined);
 	});
 });

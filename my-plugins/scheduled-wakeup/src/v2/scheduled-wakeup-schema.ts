@@ -47,7 +47,7 @@ export const ScheduledWakeupParams = Type.Object({
 	delay: Type.Optional(
 		Type.String({
 			description:
-				"One-shot delay, e.g. 10s, 5m. Exactly one of delay/at/interval for add.",
+				"One-shot delay, e.g. 10s, 10min. Exactly one of delay/at/interval for add.",
 		}),
 	),
 	at: Type.Optional(
@@ -57,7 +57,7 @@ export const ScheduledWakeupParams = Type.Object({
 		}),
 	),
 	interval: Type.Optional(
-		Type.String({ description: "Recurring interval, e.g. 10m, 2h." }),
+		Type.String({ description: "Recurring interval, e.g. 10min, 2h." }),
 	),
 	id: Type.Optional(
 		Type.String({

@@ -75,7 +75,7 @@ export function loopV2HelpText(): string {
 		"Defer durations extend max(now, next run); absolute times must be later than both.",
 		"--no-boulder may precede the schedule/prompt; it inhibits Boulder for the schedule's active lifetime.",
 		"/loop help                                    Show this help",
-		"Durations: 10s, 5m, 2h, 1d. Times: 12am tomorrow, 09:30 +08:00, 2026-08-05T00:00:00Z.",
+		"Durations: 10s, 10sec, 5m, 10min, 2h, 1d. Times: 12am tomorrow, 09:30 +08:00, 2026-08-05T00:00:00Z.",
 	].join("\n");
 }
 

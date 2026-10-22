@@ -1,14 +1,22 @@
 const UNITS = [
-	{ suffix: "d", ms: 86_400_000 },
-	{ suffix: "h", ms: 3_600_000 },
-	{ suffix: "m", ms: 60_000 },
-	{ suffix: "s", ms: 1_000 },
+	{ suffix: "y", seconds: 365 * 86_400 },
+	{ suffix: "M", seconds: 30 * 86_400 },
+	{ suffix: "d", seconds: 86_400 },
+	{ suffix: "h", seconds: 3_600 },
+	{ suffix: "m", seconds: 60 },
+	{ suffix: "s", seconds: 1 },
 ] as const;
 
 export function formatDuration(ms: number): string {
+	let rest = Math.ceil(ms / 1000);
+	if (rest <= 0) return "0s";
+	const parts: string[] = [];
 	for (const unit of UNITS) {
-		if (ms % unit.ms === 0) return `${ms / unit.ms}${unit.suffix}`;
+		const value = Math.floor(rest / unit.seconds);
+		if (value > 0) {
+			parts.push(`${value}${unit.suffix}`);
+			rest -= value * unit.seconds;
+		}
 	}
-
-	return `${Math.ceil(ms / 1_000)}s`;
+	return parts.join("");
 }

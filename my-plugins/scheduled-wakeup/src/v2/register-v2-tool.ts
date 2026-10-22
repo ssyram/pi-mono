@@ -134,13 +134,13 @@ function convertSchedule(
 	if (params.delay !== undefined) {
 		const delayMs = parseDuration(params.delay);
 		return delayMs === undefined
-			? `Error: invalid delay "${params.delay}". Use forms like 10s, 5m, 2h, 1d.`
+			? `Error: invalid delay "${params.delay}". Use forms like 10s, 5m, 2h, 1d (or 10sec, 10min).`
 			: { kind: "once", runAt: now + delayMs };
 	}
 	if (params.interval !== undefined) {
 		const intervalMs = parseDuration(params.interval);
 		return intervalMs === undefined
-			? `Error: invalid interval "${params.interval}". Use forms like 10s, 5m, 2h, 1d.`
+			? `Error: invalid interval "${params.interval}". Use forms like 10s, 5m, 2h, 1d (or 10sec, 10min).`
 			: { kind: "interval", intervalMs };
 	}
 	const runAt = parseAtTime(params.at as string, new Date(now));

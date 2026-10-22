@@ -55,7 +55,7 @@ export function loopWidgetLines(
 		} else {
 			const remaining =
 				Math.max(0, Math.ceil(((item.nextRunAt ?? now) - now) / 1000)) * 1000;
-			line = `Waiting ${remaining === 0 ? "0s" : formatDuration(remaining)} · ${item.id}`;
+			line = `Waiting ${formatDuration(remaining)} · ${item.id}`;
 		}
 		return truncateToWidth(line.replace(/\p{Cc}/gu, " "), width);
 	});
