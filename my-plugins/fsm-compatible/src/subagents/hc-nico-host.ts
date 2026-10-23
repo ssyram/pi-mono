@@ -76,7 +76,7 @@ export class HcNicoSessionHost {
 	 * aborted session starts its next run with prompt. Failures of the started
 	 * run are returned for observation, never silently dropped.
 	 */
-	private readonly pendingStarts = new Map<string, { text: string; timer: ReturnType<typeof setTimeout> }>();
+	private readonly pendingStarts = new Map<string, { texts: string[]; timer: ReturnType<typeof setTimeout> | undefined }>();
 
 	async deliver(record: HcSessionRecord, text: string): Promise<void> {
 		const child = record.handle;
@@ -86,31 +86,33 @@ export class HcNicoSessionHost {
 			return;
 		}
 		// HC parity: delivery enqueues synchronously but starts the run
-		// asynchronously (Effect fork + session reload), so sends arriving in
-		// the same window join the first run as separate user messages: the
-		// first debounces the start by the fork/reload order of magnitude,
-		// anything later sees busy above and steers in.
+		// asynchronously (Effect fork + session pipeline), and back-to-back
+		// sends join the first run as separate user messages. Trailing merge:
+		// every idle send resets the start timer, the batch flushes as prompt
+		// (first) + queued steers (rest), preserving one user message per send.
 		record.status = "busy";
-		const previous = this.pendingStarts.get(record.session_id);
-		if (previous) clearTimeout(previous.timer);
-		this.pendingStarts.set(record.session_id, {
-			text,
-			timer: setTimeout(() => {
-				this.pendingStarts.delete(record.session_id);
-				// A new run's completion is an async notification, never awaited
-				// here; failures surface through the session event stream.
-				void child.prompt(text).then(() => {
-					record.status = "idle";
-				}, (error) => {
-					record.status = "idle";
-					try {
-						record.lastOutcome = { kind: "failed", text: error instanceof Error ? error.message : String(error), summary: "" };
-					} catch {
-						/* record frozen paths stay on the event stream */
-					}
-				});
-			}, 200),
-		});
+		const pending = this.pendingStarts.get(record.session_id) ?? { texts: [] as string[], timer: undefined as ReturnType<typeof setTimeout> | undefined };
+		pending.texts.push(text);
+		if (pending.timer) clearTimeout(pending.timer);
+		pending.timer = setTimeout(() => {
+			this.pendingStarts.delete(record.session_id);
+			const [first, ...rest] = pending.texts;
+			if (!first) return;
+			for (const later of rest) void child.steer(later);
+			// A new run's completion is an async notification, never awaited
+			// here; failures surface through the session event stream.
+			void child.prompt(first).then(() => {
+				record.status = "idle";
+			}, (error) => {
+				record.status = "idle";
+				try {
+					record.lastOutcome = { kind: "failed", text: error instanceof Error ? error.message : String(error), summary: "" };
+				} catch {
+					/* record frozen paths stay on the event stream */
+				}
+			});
+		}, 5000);
+		this.pendingStarts.set(record.session_id, pending);
 	}
 
 	hasQueuedInput(record: HcSessionRecord): boolean {
