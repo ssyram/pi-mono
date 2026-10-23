@@ -17,6 +17,7 @@ export interface ExecutionRecord extends RecordFacts {
 	readonly parentSessionId: string | null;
 	readonly agentId: string;
 	readonly agentName: string | null;
+	readonly rootSessionId: string;
 }
 
 export interface JudgeRecord {

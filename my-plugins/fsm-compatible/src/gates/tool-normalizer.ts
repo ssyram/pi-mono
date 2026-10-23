@@ -36,6 +36,19 @@ function pick(source: Record<string, unknown>, key: string): Record<string, unkn
 	return source[key] === undefined ? {} : { [key]: source[key] };
 }
 
+/** HC hook canonical: the model's input with key renames only — every other
+ * field rides along (matching.md `read.filePath→Read.file_path` etc.). */
+function renamed(input: Record<string, unknown>, map: Record<string, string>): Record<string, unknown> {
+	const out: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(input)) {
+		if (value === undefined) continue;
+		const target = map[key] ?? key;
+		if (target in out) continue;
+		out[target] = value;
+	}
+	return out;
+}
+
 /** File path field: CC `file_path`, OC `filePath`, or Pi `path`. */
 function ccFile(input: Record<string, unknown>): Record<string, unknown> {
 	const fp = input.file_path ?? input.filePath ?? input.path;
@@ -62,10 +75,11 @@ export function normalizeToolCall(call: ToolCallLike): NormalizedToolCall {
 	const clone = <T>(value: T): T => structuredClone(value);
 	switch (NAME_TO_CC[name] ?? name) {
 		case "Write":
-			return { toolName: "Write", toolInput: { ...ccFile(input), ...pick(input, "content") } };
+			return { toolName: "Write", toolInput: renamed(input, { filePath: "file_path", path: "file_path" }) };
 		case "Edit": {
-			const pair = ccEditPair(input);
-			if (pair) return { toolName: "Edit", toolInput: { ...ccFile(input), ...pair } };
+			const ccEdit = renamed(input, { filePath: "file_path", path: "file_path",
+				oldText: "old_string", oldString: "old_string", newText: "new_string", newString: "new_string" });
+			if (ccEditPair(input)) return { toolName: "Edit", toolInput: ccEdit };
 			if (Array.isArray(input.edits)) {
 				const edits = input.edits.map((entry) => {
 					if (!isAdmissionObject(entry)) throw new RuntimeError("protocol-invalid");
@@ -73,29 +87,20 @@ export function normalizeToolCall(call: ToolCallLike): NormalizedToolCall {
 					if (!pair) throw new RuntimeError("protocol-invalid");
 					return pair;
 				});
-				return { toolName: "MultiEdit", toolInput: { ...ccFile(input), edits } };
+				return { toolName: "MultiEdit", toolInput: { ...renamed(input, { filePath: "file_path", path: "file_path", oldText: "", oldString: "", newText: "", newString: "" }), edits } };
 			}
-			return { toolName: "Edit", toolInput: ccFile(input) };
+			return { toolName: "Edit", toolInput: ccEdit };
 		}
 		case "Read":
-			return { toolName: "Read", toolInput: ccFile(input) };
+			return { toolName: "Read", toolInput: renamed(input, { filePath: "file_path", path: "file_path" }) };
 		case "Bash":
-			return { toolName: "Bash", toolInput: pick(input, "command") };
-		case "Grep": {
-			const glob = input.glob ?? input.include;
-			return {
-				toolName: "Grep",
-				toolInput: {
-					...pick(input, "pattern"),
-					...pick(input, "path"),
-					...(glob === undefined ? {} : { glob }),
-				},
-			};
-		}
+			return { toolName: "Bash", toolInput: renamed(input, {}) };
+		case "Grep":
+			return { toolName: "Grep", toolInput: renamed(input, { include: "glob" }) };
 		case "Glob":
-			return { toolName: "Glob", toolInput: { ...pick(input, "pattern"), ...pick(input, "path") } };
+			return { toolName: "Glob", toolInput: renamed(input, {}) };
 		case "LS":
-			return { toolName: "LS", toolInput: pick(input, "path") };
+			return { toolName: "LS", toolInput: renamed(input, {}) };
 		case "Agent":
 			return { toolName: "Agent", toolInput: clone(input) };
 		default:

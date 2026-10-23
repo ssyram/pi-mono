@@ -1,4 +1,5 @@
 import type { PersistedBinding } from "../binding/actor-binding.ts";
+import { protocolSessionId } from "../binding/create-root-binding.ts";
 import { RuntimeError } from "../runtime/runtime-error.ts";
 import { normalizeIsoTimestamp, requireEventMillis } from "./record-time.ts";
 import type { ExecutionRecord, JudgeRecord, RecordFacts } from "./session-record.ts";
@@ -9,6 +10,7 @@ function toExecutionRecord(binding: PersistedBinding, facts: RecordFacts): Execu
 		parentSessionId: binding.kind === "execution-child" ? binding.parentSessionId : null,
 		agentId: binding.agentId,
 		agentName: binding.kind === "execution-child" ? binding.agentName : null,
+		rootSessionId: binding.rootSessionId,
 		title: facts.title,
 		lifecycle: facts.lifecycle,
 		updatedAt: facts.updatedAt,
@@ -24,13 +26,14 @@ export class RecordStore {
 	private readonly executions = new Map<string, ExecutionRecord>();
 	private readonly judges = new Map<string, JudgeRecord>();
 	private readonly rootSessionId: string;
+	private readonly rootExecutionId: string;
 	private closed = false;
 
 	constructor(rootBinding: PersistedBinding) {
 		// Root-owned store, or a dispatched child's local store: the child runs in
 		// its own process and records only its own execution under the root session.
 		if (rootBinding.kind === "execution-root") {
-			if (rootBinding.agentId !== "main" || rootBinding.sessionId !== rootBinding.rootSessionId) {
+			if (rootBinding.agentId !== "main" || rootBinding.rootSessionId !== protocolSessionId(rootBinding.sessionId)) {
 				throw new RuntimeError("protocol-invalid");
 			}
 		} else if (rootBinding.kind === "execution-child") {
@@ -41,6 +44,7 @@ export class RecordStore {
 			throw new RuntimeError("protocol-invalid");
 		}
 		this.rootSessionId = rootBinding.rootSessionId;
+		this.rootExecutionId = rootBinding.sessionId;
 	}
 
 	// Step P1: actual binding/header/raw branch -> complete terminal snapshot -> lifecycle.
@@ -75,7 +79,11 @@ export class RecordStore {
 		record.updatedAt = requireEventMillis(updatedAt);
 	}
 
-	getExecution(sessionId: string): ExecutionRecord | undefined { return this.executions.get(sessionId); }
+	getExecution(sessionId: string): ExecutionRecord | undefined {
+		// The FSM addresses the root by its protocol sid while the record is keyed
+		// by the host session id; both names must resolve to the same facts.
+		return this.executions.get(sessionId) ?? (sessionId === this.rootSessionId ? this.executions.get(this.rootExecutionId) : undefined);
+	}
 
 	getJudge(sessionId: string): JudgeRecord | undefined { return this.judges.get(sessionId); }
 
@@ -87,7 +95,8 @@ export class RecordStore {
 
 	listJudges(): readonly JudgeRecord[] { return [...this.judges.values()]; }
 
-	get rootId(): string { return this.rootSessionId; }
+	get rootId(): string { return this.rootExecutionId; }
+	get rootProtocolId(): string { return this.rootSessionId; }
 
 	get closedStore(): boolean { return this.closed; }
 

@@ -45,7 +45,7 @@ test("permission gate maps allow/deny verbatim, fails closed, checks exactly onc
 	installPermissionGate(piAs(h2), deniedRequest, () => binding, 5000);
 	const deniedGate = h2.get("tool_call")!;
 	assert.deepEqual(await deniedGate({ toolName: "read", input: { path: "/a" } }, fakeCtx()),
-		{ block: true, reason: "state blocks read" });
+		{ block: true, reason: "FSM 门禁：工具 Read 不允许使用。原因：state blocks read" });
 	const broken = requester({ "POST /check-permission": new Error("down") }).request;
 	const { handlers: h3 } = fakePi();
 	installPermissionGate(piAs(h3), broken, () => binding, 5000);
@@ -71,20 +71,21 @@ function piAs(handlers: Map<string, Handler>): ExtensionAPI {
 
 test("stop gate blocks with a continuation draft and soft-gates transport failures", async () => {
 	const { pi, handlers } = fakePi();
-	const { request } = requester({ "POST /stop-check": ok({ is_terminal: false, reason: "review pending" }) });
-	installStopGate(pi, request, () => ({ sessionId: "r", agentId: "main" }), 5000);
+	const { request } = requester({ "POST /stop-check": ok({ is_terminal: false, reason: "review pending",
+		state: { fsm_name: "S", state_id: "work", is_exit_state: false }, no_progress_count: 0, recent_plans: [] }) });
+	installStopGate(pi, request, () => ({ sessionId: "r", agentId: "main" }), 5000, { analysisEnabled: false });
 	const gate = handlers.get("agent_before_settle")!;
 	const completed = { outcome: "completed", continue: false,
 		context: { contextMessages: [{ role: "assistant", content: [{ type: "text", text: "turn output" }] }] } };
 	assert.deepEqual(await gate(completed, fakeCtx()), { entries: [{ type: "custom_message",
-		customType: "fsm-compatible:stop", content: "review pending", display: true }], continue: true });
+		customType: "fsm-compatible:stop", content: "FSM Stop：S/work 不允许停止（无 allow_user_interaction）。", display: true }], continue: true });
 	const { request: allowed } = requester({ "POST /stop-check": { status: 200, body: { is_terminal: true } } });
 	const { handlers: h2 } = fakePi();
-	installStopGate(piAs(h2), allowed, () => ({ sessionId: "r", agentId: "main" }), 5000);
+	installStopGate(piAs(h2), allowed, () => ({ sessionId: "r", agentId: "main" }), 5000, { analysisEnabled: false });
 	assert.equal(await h2.get("agent_before_settle")!(completed, fakeCtx()), undefined);
-	const { request: down } = requester({ "POST /stop-check": new Error("down") });
+	const { request: down } = requester({ "POST /stop-check": new Error("stop-check transport failed") });
 	const { handlers: h3 } = fakePi();
-	installStopGate(piAs(h3), down, () => ({ sessionId: "r", agentId: "main" }), 5000);
+	installStopGate(piAs(h3), down, () => ({ sessionId: "r", agentId: "main" }), 5000, { analysisEnabled: false });
 	assert.equal(await h3.get("agent_before_settle")!(completed, fakeCtx()), undefined);
 	assert.equal(await handlers.get("agent_before_settle")!({ outcome: "aborted", continue: false, context: { contextMessages: [] } }, fakeCtx()), undefined);
 	assert.equal(await handlers.get("agent_before_settle")!({ outcome: "completed", continue: true, context: { contextMessages: [] } }, fakeCtx()), undefined);
@@ -104,7 +105,7 @@ test("repeated same-name permission checks use explicit root/child IDs without w
 			installPermissionGate(pi, request, () => ({ sessionId: "r", agentId }), 5000);
 			for (let index = 0; index < 3; index++) {
 				assert.deepEqual(await handlers.get("tool_call")!({ toolName: "write", input: { path: "/a", content: "x" } }, fakeCtx()),
-					allowed ? undefined : { block: true, reason: "state denies write" });
+					allowed ? undefined : { block: true, reason: "FSM 门禁：工具 Write 不允许使用。原因：state denies write" });
 			}
 			const checks = seen.filter((input) => input.path === "/check-permission");
 			assert.equal(checks.length, 3);
@@ -123,11 +124,13 @@ test("repeated stop checks preserve actor and verdict without writing identity s
 			const seen: DaemonRequest[] = [];
 			const request: DaemonRequester = async (input) => {
 				seen.push(input);
-				return { status: 200, body: { is_terminal: isTerminal, reason: "state verdict" } };
+				return { status: 200, body: { is_terminal: isTerminal, reason: "state verdict",
+					state: { fsm_name: "S", state_id: "work", is_exit_state: false }, no_progress_count: 0, recent_plans: [] } };
 			};
 			for (let index = 0; index < 3; index++) {
-				assert.deepEqual(await runStopCheck(request, { sessionId: "r", agentId }, [], Date.now() + 5000),
-					{ allowed: isTerminal, reason: "state verdict" });
+				const reply = await runStopCheck(request, { sessionId: "r", agentId }, [], Date.now() + 5000);
+				assert.equal(reply.isTerminal, isTerminal);
+				assert.equal(reply.fsmName, "S");
 			}
 			assert.equal(seen.length, 3);
 			for (const input of seen) {

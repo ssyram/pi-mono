@@ -7,10 +7,11 @@ import { createDaemonRequester, type DaemonReply, type DaemonRequester } from ".
 import { FsmBroker } from "../src/broker/fsm-broker.ts";
 import { registerAndConfirmSource } from "../src/broker/register-source.ts";
 import { RuntimeError } from "../src/runtime/runtime-error.ts";
-import { root } from "./admission-fixtures.ts";
+import { ROOT_SID, root } from "./admission-fixtures.ts";
+import { protocolSessionId } from "../src/binding/create-root-binding.ts";
 import { fakeDaemon, fakeTransport, protocolDirectory } from "./broker-fixtures.ts";
 
-const source = { rootSessionId: "r", pid: process.pid, cwd: "/work", serverUrl: "http://127.0.0.1:9001" };
+const source = { rootSessionId: ROOT_SID, pid: process.pid, cwd: "/work", serverUrl: "http://127.0.0.1:9001" };
 const host = { pid: process.pid, startId: "1234" };
 
 test("D2-1: register null alone does not authorize calls; every read-back field is matched", async () => {
@@ -78,8 +79,8 @@ test("broker orders source read-back before identity and actual tool call", asyn
 	const broker = new FsmBroker({ host, source, scope, request: daemon.request, transport, catalog });
 	const result = await broker.invoke(root(), "fsm_get_state", {}, { deadline: Date.now() + 2000 });
 	assert.deepEqual(result.structuredContent, { tool: "fsm_get_state" });
-	assert.deepEqual(daemon.seen.map((item) => item.path), ["/session/register", "/session/source?session=r", "/identity/acquire"]);
-	assert.deepEqual(daemon.seen[2]?.body, { session_id: "r", agent_id: "main", tool_name: "fsm_get_state", agent_cli: "opencode", opencode_server_url: source.serverUrl });
+	assert.deepEqual(daemon.seen.map((item) => item.path), ["/session/register", `/session/source?session=${ROOT_SID}`, "/identity/acquire"]);
+	assert.deepEqual(daemon.seen[2]?.body, { session_id: ROOT_SID, agent_id: "main", tool_name: "fsm_get_state", agent_cli: "opencode", opencode_server_url: source.serverUrl });
 	assert.deepEqual(await readdir(scope), []);
 });
 
@@ -97,10 +98,10 @@ test("two broker roots share canonical isolation rather than independent local m
 			active++; maximum = Math.max(maximum, active);
 			try { return await call(method, params, options); } finally { active--; }
 		};
-		brokers.push(new FsmBroker({ host, source: { ...source, rootSessionId: id }, scope, request: daemon.request, transport, catalog }));
+		brokers.push(new FsmBroker({ host, source: { ...source, rootSessionId: protocolSessionId(id) }, scope, request: daemon.request, transport, catalog }));
 	}
 	const a = root();
-	const b = { ...root(), rootSessionId: "r2", sessionId: "r2" };
+	const b = { ...root(), rootSessionId: protocolSessionId("r2"), sessionId: "r2" };
 	await Promise.all([brokers[0]!.invoke(a, "fsm_get_state", {}, { deadline: Date.now() + 3000 }),
 		brokers[1]!.invoke(b, "fsm_get_state", {}, { deadline: Date.now() + 3000 })]);
 	assert.equal(maximum, 1);
@@ -116,7 +117,7 @@ test("source read-back failure prevents identity or MCP mutation", async (t) => 
 	const { transport, catalog } = await fakeTransport(t);
 	const broker = new FsmBroker({ host, source, scope, request, transport, catalog });
 	await assert.rejects(broker.invoke(root(), "fsm_get_state", {}, { deadline: Date.now() + 1000 }), { code: "not-ready" });
-	assert.deepEqual(seen, ["/session/register", "/session/source?session=r"]);
+	assert.deepEqual(seen, ["/session/register", `/session/source?session=${ROOT_SID}`]);
 	assert.deepEqual(await readdir(scope), []);
 });
 
@@ -132,6 +133,6 @@ test("uncertain identity write cannot release its lease for a late server write"
 	await assert.rejects(broker.invoke(root(), "fsm_get_state", {}, { deadline: Date.now() + 1000 }), { code: "delivery-unknown" });
 	const retained = await readdir(scope);
 	assert.equal(retained.length, 1);
-	assert.ok((await readFile(join(scope, retained[0]!, "owner.json"), "utf8")).includes('"rootSessionId":"r"'));
+	assert.ok((await readFile(join(scope, retained[0]!, "owner.json"), "utf8")).includes(`"rootSessionId":"${ROOT_SID}"`));
 	await assert.rejects(broker.invoke(root(), "fsm_get_state", {}, { deadline: Date.now() + 1000 }), { code: "not-ready" });
 });

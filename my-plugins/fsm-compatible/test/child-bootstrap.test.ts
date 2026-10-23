@@ -4,6 +4,7 @@ import { rm } from "node:fs/promises";
 import { SessionManager, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { ChildSideBootstrap, installChildInputGate } from "../src/children/child-bootstrap.ts";
 import { RootLaunches } from "../src/children/root-launches.ts";
+import { ROOT_SID } from "./admission-fixtures.ts";
 import { ChildRuns } from "../src/children/child-runs.ts";
 import { DelegationBus, type EventSurface } from "../src/children/delegation-bus.ts";
 import { createOcHandlers } from "../src/protocol/oc-handlers.ts";
@@ -65,7 +66,7 @@ test("launch-ack flows over the bridge HTTP surface and resolves the FIFO handsh
 	t.after(() => rm(scope, { recursive: true, force: true }));
 	const bus = new DelegationBus(staticSurface());
 	const runs = new ChildRuns(8, () => {});
-	void new RootLaunches(bus, runs, scope, 4, "r", { url: "placeholder", password: "bridge-pw" }, 2000);
+	void new RootLaunches(bus, runs, scope, 4, ROOT_SID, { url: "placeholder", password: "bridge-pw" }, 2000);
 	const fake = {
 		emit: (event: string, payload: unknown) => {
 			if (event !== "prompt-template:subagent:request") return;
@@ -82,7 +83,7 @@ test("launch-ack flows over the bridge HTTP surface and resolves the FIFO handsh
 	store.publishExecution(root(), { title: "root", lifecycle: "idle", updatedAt: Date.now(),
 		header: null, branch: [], sessionFile: null, errorMessage: null });
 	const judges = new JudgeSessions(store, "/tmp", { model: {} as never, getApiKey: () => "k", streamFn: () => {} });
-	const httpLaunches = new RootLaunches(httpBus, httpRuns, scope, 4, "r", { url: "x", password: "bridge-pw" }, 2000);
+	const httpLaunches = new RootLaunches(httpBus, httpRuns, scope, 4, ROOT_SID, { url: "x", password: "bridge-pw" }, 2000);
 	const server = new OcServer(createOcHandlers(store, judges, {
 		launchAck: (ref, sid) => httpLaunches.onLaunchAck(ref, sid),
 	}));

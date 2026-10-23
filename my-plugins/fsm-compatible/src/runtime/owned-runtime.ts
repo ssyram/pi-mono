@@ -1,17 +1,16 @@
 import { randomBytes } from "node:crypto";
-import { rm } from "node:fs/promises";
+import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createRootBinding } from "../binding/create-root-binding.ts";
-import { createChildBinding } from "../binding/create-child-binding.ts";
-import type { PersistedBinding } from "../binding/actor-binding.ts";
-import { buildAdmissionPolicy } from "../admission/build-admission-policy.ts";
-import type { AdmissionPolicy, PolicyInput } from "../admission/admission-policy.ts";
-import { createDaemonRequester, requireDaemonOk } from "../broker/daemon-request.ts";
+import { BINDING_CUSTOM_TYPE } from "../binding/actor-binding.ts";
+import { readPersistedBinding } from "../binding/read-persisted-binding.ts";
+import type { PolicyInput } from "../admission/admission-policy.ts";
+import { nativeRuntimePolicy } from "../admission/native-runtime-policy.ts";
+import { appendFile } from "node:fs/promises";
+import { createDaemonRequester, requireDaemonOk, type DaemonRequester } from "../broker/daemon-request.ts";
 import { prepareBrokerChannel } from "../broker/broker-channel.ts";
 import { registerProjectedTools } from "../broker/fsm-tools.ts";
-import { registerAgentTool } from "../children/agent-tool.ts";
-import { parentExtensionArgs } from "../children/parent-extension-args.ts";
-import { parentModelArg } from "../children/parent-model-arg.ts";
+import { NativeFsmPool } from "../children/native-fsm-pool.ts";
 import { registerOcToolAliases } from "../gates/oc-tool-aliases.ts";
 import { hostModelSource } from "../judge/host-model-source.ts";
 import { JudgeSessions } from "../judge/judge-session.ts";
@@ -21,12 +20,17 @@ import { RecordStore } from "../records/record-store.ts";
 import { installPermissionGate } from "../gates/permission-gate.ts";
 import { installStopGate } from "../gates/stop-gate.ts";
 import { createWaitState, registerAskTool } from "../watch/ask-tool.ts";
+import { registerFleetUI } from "../tui/fleet-ui.ts";
+import { registerSubagentCommand } from "../children/subagent-command.ts";
 import { AdvisoryQueue } from "../watch/advisory-queue.ts";
 import { drainOnce } from "../watch/drain-advisories.ts";
 import { RootHealth } from "./root-health.ts";
 import { installNotReadyGate } from "./not-ready-gate.ts";
 import { RuntimeResources } from "./runtime-resources.ts";
 import type { FsmCompatibleConfig } from "./runtime-config.ts";
+import { openHcAgentRuntime, type HcRuntimeHandle } from "../subagents/hc-agent-runtime.ts";
+import { crossTreeRegistry } from "../subagents/hc-session-registry.ts";
+import { registerHcAgentTools } from "../subagents/hc-agent-tools.ts";
 
 export interface OwnedRuntimeHandle {
 	readonly bridgeUrl: string;
@@ -34,136 +38,141 @@ export interface OwnedRuntimeHandle {
 	close(deadline: number): Promise<void>;
 }
 
-/** Root assembly: every resource prepares before ready; failures unwind in reverse order. */
-export interface ChildIdentity {
-	readonly rootSessionId: string;
-	readonly agentId: string;
-	readonly agentName: string;
-}
-
 export async function openOwnedRuntime(pi: ExtensionAPI, ctx: ExtensionContext, config: FsmCompatibleConfig,
-	policyInput: PolicyInput, childIdentity?: ChildIdentity): Promise<OwnedRuntimeHandle> {
+	policyInput: PolicyInput): Promise<OwnedRuntimeHandle> {
 	const sessionId = ctx.sessionManager.getSessionId();
-	const built = buildAdmissionPolicy(policyInput, [], policyInput.requiredExtensions.map((extension) => ({
-		id: extension.id, path: extension.path, requireForAllRunners: true,
-	})));
-	if (!built.ok) throw new Error("admission policy invalid for root assembly");
-	const policy: AdmissionPolicy = built.value;
-	// Child mode (dispatched subagent): the binding addresses the child actor under
-	// the parent root session; gates and broker calls all key by (rootSessionId, agentId).
-	const binding: PersistedBinding = childIdentity
-		? createChildBinding(childIdentity.rootSessionId, childIdentity.agentId, childIdentity.agentName, policy)
-		: createRootBinding(sessionId, policy);
+	const policy = nativeRuntimePolicy(pi, ctx, policyInput);
+	const binding = createRootBinding(sessionId, policy);
+	const saved = readPersistedBinding(ctx.sessionManager.getEntries(), sessionId);
+	if (!saved.ok || (saved.value && (saved.value.rootSessionId !== binding.rootSessionId
+		|| saved.value.agentId !== binding.agentId))) throw new Error("binding restore conflict");
+	pi.appendEntry(BINDING_CUSTOM_TYPE, binding);
 	const store = new RecordStore(binding);
-	store.publishExecution(binding, { title: childIdentity ? childIdentity.agentName : "main", lifecycle: "running", updatedAt: Date.now(),
-		// Child mode: the host session header belongs to the child pi process, not
-		// the dispatch tag identity — omit it rather than fail the id equality.
-		header: childIdentity ? null : ctx.sessionManager.getHeader(),
-		branch: ctx.sessionManager.getBranch(),
-		sessionFile: ctx.sessionManager.getSessionFile() ?? null, errorMessage: null });
-
+	const publishRoot = () => store.publishExecution(binding, { title: binding.agentName ?? "main",
+		lifecycle: ctx.isIdle() ? "idle" : "running", updatedAt: Date.now(), header: ctx.sessionManager.getHeader(),
+		branch: ctx.sessionManager.getBranch(), sessionFile: ctx.sessionManager.getSessionFile() ?? null, errorMessage: null });
+	publishRoot();
 	const health = new RootHealth([{ id: "fsm-compatible", canonicalPath: "self" }]);
 	const resources = new RuntimeResources();
-	const gateOffs: Array<() => void> = [];
+	const offs: Array<() => void> = [];
 	let bound = false;
+	let hc: HcRuntimeHandle | undefined;
 	const bindingRef = () => bound ? { sessionId: binding.rootSessionId, agentId: binding.agentId } : undefined;
-
-	// Step P4: every acquisition below sits inside one unwind scope; any throw reverse-frees handlers, scope dir, bridge and channel.
 	try {
-	const offInput = installNotReadyGate(pi, health, () => "fsm-compatible runtime not ready");
-	gateOffs.push(offInput);
-	const waitState = createWaitState();
-	const request = config.daemonRequester ? config.daemonRequester(config.dataDir) : createDaemonRequester(config.dataDir);
-	{
-		// Acquire before tools are available, matching the OC SubagentStart hook.
-		// Reacquiring a preclaimed or restored actor is idempotent.
-		try {
-			await request({ method: "POST", path: "/actor/acquire", deadline: Date.now() + config.timeoutMs,
-				body: { session_id: binding.rootSessionId, agent_id: binding.agentId } });
-		} catch {
-			/* daemon unreachable: gates below fail closed anyway */
-		}
-	}
-
-	const judges = new JudgeSessions(store, config.cwd,
-		hostModelSource(ctx.model, ctx.modelRegistry) ?? config.modelSource, config.capacity);
-	// Native Agent tool (CC name, behavioral parity with haokun-code)
-	// OC tool aliases: accept OC parameter names (filePath/include etc) for mock scripts
-	registerOcToolAliases(pi, config.cwd);
-	const hostModel = parentModelArg() ?? (ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined);
-	const acquireChildActor = !childIdentity ? async (agentId: string) => {
-		requireDaemonOk(await request({ method: "POST", path: "/actor/acquire", deadline: Date.now() + config.timeoutMs,
-			body: { session_id: binding.rootSessionId, agent_id: agentId } }));
-	} : undefined;
-	const agentOff = registerAgentTool(pi, { model: hostModel ?? config.modelSource?.model?.id ?? "zai-000-g-l/glm-5.3", projectDir: config.cwd, timeoutMs: config.timeoutMs * 4, childArgs: parentExtensionArgs(),
-		...(acquireChildActor ? { acquireChildActor, rootSessionId: binding.rootSessionId } : {}) });
-	gateOffs.push(agentOff);
-	const advisories = new AdvisoryQueue(config.capacity);
-
-	const server = new OcServer(createOcHandlers(store, judges, { advisories }));
-	const bridgePassword = randomBytes(24).toString("hex");
-	server.setPassword(bridgePassword);
-	const bridgeUrl = await server.listen();
-	resources.own(() => server.close());
-	// Export the bridge coordinates into this process's env so shell children
-	// (wire7 analysis_state.py) inherit OPENCODE_SERVER_URL and reach it.
-	process.env.OPENCODE_SERVER_URL = bridgeUrl;
-	process.env.OPENCODE_SERVER_PASSWORD = bridgePassword;
-	{
-		// OPENCODE_SERVER_PASSWORD: the FSM client's soft-review judge reads this env
-		// (review.rs opencode_endpoint) to authenticate back into our OC bridge.
-		const channelEnv: NodeJS.ProcessEnv = { ...(config.env ?? process.env), OPENCODE_SERVER_PASSWORD: bridgePassword };
-		const channel = await prepareBrokerChannel({
-			rootSessionId: binding.rootSessionId, cwd: config.cwd, serverUrl: bridgeUrl, dataDir: config.dataDir,
-			clientCommand: config.clientCommand, clientArgs: config.clientArgs, env: channelEnv,
-			capacity: config.capacity,
-			...(config.scope ? { scope: config.scope } : {}),
-		}, Date.now() + config.timeoutMs, resources.signal, request);
-		resources.own(async (deadline) => { await channel.close(deadline); });
-		const offTools = registerProjectedTools(pi, { broker: channel.broker, catalog: channel.catalog,
-			timeoutMs: config.timeoutMs, ready: () => health.ready, binding: () => binding, hostSessionId: sessionId });
-		gateOffs.push(offTools);
-
-		gateOffs.push(installPermissionGate(pi, request, bindingRef, config.timeoutMs));
-		gateOffs.push(installStopGate(pi, request, bindingRef, config.timeoutMs, {
-			hasBusyChild: (sessionId) => {
-				return store.executionChildren(sessionId)
-					.some((child) => child.lifecycle === "running" || child.lifecycle === "settling");
+		offs.push(installNotReadyGate(pi, health, () => "fsm-compatible runtime not ready"));
+		const waitState = createWaitState();
+	const baseRequest = config.daemonRequester ? config.daemonRequester(config.dataDir) : createDaemonRequester(config.dataDir);
+	const dualLog = process.env.FSM_DUAL_DAEMON_LOG;
+	const request: DaemonRequester = dualLog ? async (input) => {
+		const reply = await baseRequest(input);
+		await appendFile(dualLog, JSON.stringify({ path: input.path, method: input.method, body: input.body, status: reply.status, replyBody: reply.body, t: Date.now() }) + "\n");
+		return reply;
+	} : baseRequest;
+		// HC parity (fsm-plugin announceSubagentStart): root sessions are never
+		// pre-registered — main is acquired by its first identity-acquire, which
+		// carries agent_cli so the actor is created with full context in one step
+		// and no premature _default stack is persisted before the first read-only
+		// fsm_get_state.
+		const judges = new JudgeSessions(store, config.cwd, hostModelSource(ctx.model, ctx.modelRegistry) ?? config.modelSource, config.capacity);
+		const advisories = new AdvisoryQueue(config.capacity);
+		const bridgePassword = randomBytes(24).toString("hex");
+		const crossTree = process.env.FSM_DATA_DIR ? crossTreeRegistry(join(process.env.FSM_DATA_DIR, "pi-sessions")) : undefined;
+		const handlers = createOcHandlers(store, judges, { advisories,
+			refresh: () => { publishRoot(); hc?.refresh(); },
+			abortExecution: async (id) => {
+				if (!hc) throw new Error("hc runtime not ready");
+				return hc.abort(id);
 			},
+			agentMessage: async (target, message) => {
+				if (!hc) throw new Error("hc runtime not ready");
+				return hc.services.deliverRendered(target, message);
+			} });
+		const server = new OcServer({ ...handlers });
+		server.setPassword(bridgePassword);
+		const bridgeUrl = await server.listen();
+		resources.own(() => server.close());
+		const env = { ...(config.env ?? process.env), OPENCODE_SERVER_URL: bridgeUrl, OPENCODE_SERVER_PASSWORD: bridgePassword };
+		registerOcToolAliases(pi, config.cwd, env);
+		const channelConfig = { rootSessionId: binding.rootSessionId, cwd: config.cwd, serverUrl: bridgeUrl,
+			dataDir: config.dataDir, clientCommand: config.clientCommand, clientArgs: config.clientArgs, env,
+			capacity: config.capacity, ...(config.scope ? { scope: config.scope } : {}) };
+		const channel = await prepareBrokerChannel(channelConfig, Date.now() + config.timeoutMs, resources.signal, request);
+		resources.own(async (deadline) => { await channel.close(deadline); });
+		const pool = new NativeFsmPool(channel, channelConfig, resources.signal, request, config.timeoutMs,
+			(agentId) => hc?.services.directory.find(agentId)?.workdir?.path ?? config.cwd);
+		resources.own((deadline) => pool.close(deadline));
+		hc = await openHcAgentRuntime({ pi, ctx, config, policy, binding, store,
+			broker: pool, catalog: pool.catalog, request, judges,
+			...(crossTree ? { crossTree, bridgeUrl, bridgePassword } : {}) });
+		await crossTree?.publish({ sid: binding.rootSessionId, bridgeUrl, bridgePassword });
+		if (process.env.FSM_DUAL_DEBUG) console.error("[hc-root-debug] runtime ready");
+		resources.own(() => hc!.close());
+		resources.own(async () => {
+			if (!crossTree || !hc) return;
+			await crossTree.remove(binding.rootSessionId);
+			for (const record of hc.services.directory.list()) await crossTree.remove(record.session_id);
+		});
+		offs.push(registerProjectedTools(pi, { broker: pool, catalog: pool.catalog, timeoutMs: config.timeoutMs,
+			ready: () => health.ready, binding: () => binding,
+			extensionPath: policy.requiredExtensions.find((item) => item.id === "fsm-compatible")!.path }));
+		offs.push(registerHcAgentTools(pi, { services: hc.services, depth: 0,
+			permitted: policy.agents.map((agent) => agent.canonicalName),
+			callerVariant: () => pi.getThinkingLevel() ?? "default" }));
+		offs.push(installPermissionGate(pi, request, bindingRef, config.timeoutMs));
+		offs.push(installStopGate(pi, request, bindingRef, config.timeoutMs, { hasBusyChild: (id) => hc!.busy(id),
+			judges, analysisEnabled: config.stopAnalysis ?? true }));
+		if (ctx.hasUI) offs.push(registerAskTool(pi, { request, binding: bindingRef, waitState, timeoutMs: config.timeoutMs }));
+		if (ctx.hasUI && (config.fleetWidgetPlacement ?? "belowEditor") !== "off") {
+			const model = ctx.model;
+			offs.push(registerFleetUI(pi, ctx, { placement: config.fleetWidgetPlacement === "aboveEditor" ? "aboveEditor" : "belowEditor",
+				fleet: () => hc!.fleet, rootSessionId: sessionId, rootSessionFile: () => ctx.sessionManager.getSessionFile() ?? undefined,
+				actors: async () => { const reply = await request({ method: "GET", path: "/actors", deadline: Date.now() + config.timeoutMs });
+					const body = reply.body as { actors?: { agent_id?: string; fsm_name?: string; state_id?: string; no_progress_count?: number }[] };
+					return (body.actors ?? []).map((actor) => ({ agentId: actor.agent_id ?? "", fsmName: actor.fsm_name ?? "_default",
+						stateId: actor.state_id ?? "?", noProgress: actor.no_progress_count ?? 0 })); },
+				contextWindowOf: (ref) => { const [provider, ...rest] = ref.split("/");
+					const found = provider && rest.length ? ctx.modelRegistry.find(provider, rest.join("/")) : undefined;
+					return found?.contextWindow ?? model?.contextWindow ?? null; } }));
+		}
+		offs.push(registerSubagentCommand(pi, ctx, {
+			dispatch: async (fsmName) => { await pool.invoke(binding, "fsm_dispatch_subagent", { fsm: fsmName },
+				{ deadline: Date.now() + config.timeoutMs * 10 }); },
+			launch: async (input, model, thinking) => {
+				const slash = model.indexOf("/");
+				return hc!.manualLaunch({ description: input.description, prompt: input.prompt,
+					subagent_type: input.subagent_type, ...(input.name ? { name: input.name } : {}),
+					model: { providerID: slash > 0 ? model.slice(0, slash) : model, modelID: slash > 0 ? model.slice(slash + 1) : "" },
+					variant: thinking });
+			},
+			intel: async () => { const reply = await request({ method: "GET", path: "/actors", deadline: Date.now() + config.timeoutMs });
+				const body = reply.body as { actors?: { session_id?: string; agent_id?: string; fsm_name?: string; state_id?: string; no_progress_count?: number }[] };
+				const actors = new Map((body.actors ?? []).map((actor) => [actor.agent_id ?? "", actor]));
+				return hc!.fleet.list().map((view) => { const actor = actors.get(view.sessionId);
+					return { sessionId: view.sessionId, name: view.name, parentSessionId: view.parentSessionId,
+						sessionFile: view.sessionFile, state: view.runActive ? "busy" : view.lifecycle,
+						model: view.model, thinking: view.thinking, outcome: view.outcome, runActive: view.runActive,
+						fsmName: actor?.fsm_name ?? "_default", fsmState: actor?.state_id ?? "?", noProgress: actor?.no_progress_count ?? 0 }; }); },
+			hostAgentName: () => policy.agents[0]?.canonicalName ?? "general",
+			defaultModel: () => { const current = ctx.model; return current ? `${current.provider}/${current.id}` : undefined; },
+			defaultThinking: () => pi.getThinkingLevel(),
 		}));
-		if (ctx.hasUI) gateOffs.push(registerAskTool(pi, { request, binding: bindingRef, waitState, timeoutMs: config.timeoutMs }));
-
-		gateOffs.push(pi.on("agent_settled", () => {
-			drainOnce(pi, advisories, {
-				isIdle: (target) => target === sessionId ? ctx.isIdle() : false,
-				consumed: (deliveryId, target) => (store.getExecution(target)?.branch ?? [])
-					.some((entry) => entry.type === "custom_message"
-						&& (entry.details as { deliveryId?: string } | undefined)?.deliveryId === deliveryId),
-			});
+		offs.push(pi.on("agent_settled", () => {
+			publishRoot();
+			drainOnce(pi, advisories, { isIdle: (target) => target === sessionId && ctx.isIdle(),
+				consumed: (deliveryId, target) => (store.getExecution(target)?.branch ?? []).some((entry) =>
+					entry.type === "custom_message" && (entry.details as { deliveryId?: string } | undefined)?.deliveryId === deliveryId) });
 		}));
 		resources.own(async () => { advisories.close(); });
-
-		const epoch = health.begin(sessionId);
-		health.markInitialized("fsm-compatible", true);
-		health.markPrepared(epoch, sessionId);
+		const epoch = health.begin(sessionId); health.markInitialized("fsm-compatible", true); health.markPrepared(epoch, sessionId);
 		if (!health.commit(epoch)) throw new Error("root ready commit failed");
 		bound = true;
-		return {
-			bridgeUrl,
-			ready: () => health.ready,
-			close: async (deadline: number) => {
-				bound = false;
-				health.close();
-				for (const off of gateOffs.splice(0).reverse()) off();
-				await resources.close(deadline);
-			},
-		};
-	}
+		return { bridgeUrl, ready: () => health.ready, close: async (deadline) => {
+			bound = false; health.close(); for (const off of offs.splice(0).reverse()) off();
+			try { await hc?.close(); } finally { await resources.close(deadline); }
+		} };
 	} catch (error) {
-		bound = false;
-		health.close();
-		for (const off of gateOffs.splice(0).reverse()) off();
-		await resources.close(Date.now() + 10000);
+		bound = false; health.close(); for (const off of offs.splice(0).reverse()) off();
+		try { await hc?.close(); } finally { await resources.close(Date.now() + 10000); }
 		throw error;
 	}
 }

@@ -20,6 +20,7 @@ export class McpTransport {
 	private buffer = "";
 	private nextId = 0;
 	private usable = true;
+	private failureReason = "closed";
 	private readonly capacity: number;
 
 	constructor(command: string, args: readonly string[], env: NodeJS.ProcessEnv, capacity = 64) {
@@ -29,11 +30,12 @@ export class McpTransport {
 		this.process.child.stdout.setEncoding("utf8");
 		this.process.child.stdout.on("data", (chunk: string) => this.consume(chunk));
 		this.process.child.stderr.resume();
-		this.process.child.stdin.on("error", () => this.fail());
-		void this.process.closed.then(() => this.fail());
+		this.process.child.stdin.on("error", () => this.fail("stdin-error"));
+		void this.process.closed.then((exit) => this.fail(`peer-exit-${exit.code ?? exit.signal ?? "unknown"}`));
 	}
 
-	private fail(): void {
+	private fail(reason = "closed"): void {
+		if (this.usable) this.failureReason = reason;
 		this.usable = false;
 		for (const entry of this.pending.values()) { entry.cleanup(); entry.reject(new RuntimeError("delivery-unknown")); }
 		this.pending.clear();
@@ -41,7 +43,7 @@ export class McpTransport {
 
 	private consume(chunk: string): void {
 		this.buffer += chunk;
-		if (Buffer.byteLength(this.buffer) > 2 * 1024 * 1024) { this.fail(); return; }
+		if (Buffer.byteLength(this.buffer) > 2 * 1024 * 1024) { this.fail("frame-limit"); return; }
 		for (;;) {
 			const newline = this.buffer.indexOf("\n");
 			if (newline < 0) return;
@@ -49,8 +51,8 @@ export class McpTransport {
 			this.buffer = this.buffer.slice(newline + 1);
 			if (!line) continue;
 			let value: unknown;
-			try { value = JSON.parse(line); } catch { this.fail(); return; }
-			if (!isAdmissionObject(value) || value.jsonrpc !== "2.0") { this.fail(); return; }
+			try { value = JSON.parse(line); } catch { this.fail("malformed-json"); return; }
+			if (!isAdmissionObject(value) || value.jsonrpc !== "2.0") { this.fail("invalid-envelope"); return; }
 			if (typeof value.method === "string") {
 				if (value.method === "notifications/progress" && isAdmissionObject(value.params)
 					&& typeof value.params.progressToken === "number") {
@@ -62,9 +64,9 @@ export class McpTransport {
 				}
 				continue;
 			}
-			if (typeof value.id !== "number") { this.fail(); return; }
+			if (typeof value.id !== "number") { this.fail("invalid-response-id"); return; }
 			const entry = this.pending.get(value.id);
-			if (!entry) { this.fail(); return; }
+			if (!entry) { this.fail("unmatched-response"); return; }
 			this.pending.delete(value.id);
 			entry.cleanup();
 			if ("error" in value) entry.reject(new RuntimeError("transport-failed"));
@@ -84,7 +86,7 @@ export class McpTransport {
 	}
 
 	call(method: string, params: unknown, options: RpcOptions): Promise<unknown> {
-		if (!this.usable) return Promise.reject(new RuntimeError("not-ready"));
+		if (!this.usable) return Promise.reject(new RuntimeError("not-ready", `MCP transport not ready: ${this.failureReason}`));
 		if (options.signal?.aborted) return Promise.reject(new RuntimeError("cancelled"));
 		if (Date.now() >= options.deadline) return Promise.reject(new RuntimeError("deadline-exceeded"));
 		if (this.pending.size >= this.capacity) return Promise.reject(new RuntimeError("queue-full"));
@@ -95,7 +97,7 @@ export class McpTransport {
 				if (!entry) return;
 				this.pending.delete(id);
 				entry.cleanup();
-				this.usable = false;
+				this.usable = false; this.failureReason = "request-cancelled-or-deadline";
 				reject(new RuntimeError("delivery-unknown"));
 			};
 			const timer = setTimeout(abort, Math.max(0, options.deadline - Date.now()));

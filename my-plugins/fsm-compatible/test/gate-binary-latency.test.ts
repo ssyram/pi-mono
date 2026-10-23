@@ -51,7 +51,7 @@ test("real daemon repeated permission/Stop checks do not wait for identity TTL",
 		assert.ok(permissionMs < 5000, `three permission checks took ${permissionMs}ms`);
 		const stopStart = performance.now();
 		for (let index = 0; index < 3; index++) {
-			assert.equal((await runStopCheck(request, { sessionId: "latency-regression", agentId }, [], Date.now() + 3000)).allowed, true);
+			assert.equal((await runStopCheck(request, { sessionId: "latency-regression", agentId }, [], Date.now() + 3000)).isTerminal, true);
 		}
 		const stopMs = performance.now() - stopStart;
 		assert.ok(stopMs < 5000, `three stop checks took ${stopMs}ms`);

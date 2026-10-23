@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import type { JudgeModelSource } from "../judge/judge-session.ts";
 import type { DaemonRequester } from "../broker/daemon-request.ts";
+import type { RequiredExtensionInput } from "../admission/admission-policy.ts";
 
 export interface FsmCompatibleConfig {
 	readonly dataDir: string;
@@ -12,6 +13,14 @@ export interface FsmCompatibleConfig {
 	readonly capacity: number;
 	readonly timeoutMs: number;
 	readonly modelSource: JudgeModelSource;
+	readonly allowedAgentNames?: readonly string[];
+	readonly maxDepth?: number;
+	/** HC subagent_depth: tool visibility + create depth limit; default 3. Independent of the FSM admission maxDepth. */
+	readonly subagentDepth?: number;
+	readonly requiredExtensions?: readonly RequiredExtensionInput[];
+	readonly fleetWidgetPlacement?: "aboveEditor" | "belowEditor" | "off";
+	readonly stopAnalysis?: boolean;
+	readonly stopJudgeModel?: string;
 	readonly env?: NodeJS.ProcessEnv;
 	readonly scope?: string;
 	readonly daemonRequester?: (dataDir: string) => DaemonRequester;
@@ -25,11 +34,13 @@ function isConfig(value: unknown): value is FsmCompatibleConfig {
 		|| typeof record.capacity !== "number" || !Number.isSafeInteger(record.capacity) || record.capacity < 1
 		|| typeof record.timeoutMs !== "number" || !Number.isSafeInteger(record.timeoutMs) || record.timeoutMs < 1000
 		|| !record.modelSource || typeof record.modelSource !== "object") return false;
-	return record.scope === undefined || typeof record.scope === "string";
+	return (record.scope === undefined || typeof record.scope === "string")
+		&& (record.subagentDepth === undefined || (typeof record.subagentDepth === "number" && Number.isSafeInteger(record.subagentDepth) && record.subagentDepth >= 1))
+		&& (record.fleetWidgetPlacement === undefined || ["aboveEditor", "belowEditor", "off"].includes(record.fleetWidgetPlacement as string));
 }
 
 export async function loadConfig(path?: string): Promise<FsmCompatibleConfig> {
-	const file = path ?? join(fileURLToPath(new URL("../../fsm-compatible.config.json", import.meta.url)));
+	const file = path ?? process.env.FSM_COMPATIBLE_CONFIG ?? join(fileURLToPath(new URL("../../fsm-compatible.config.json", import.meta.url)));
 	const raw = await readFile(file, "utf8");
 	const parsed = JSON.parse(raw) as FsmCompatibleConfig;
 	if (!isConfig(parsed)) throw new Error(`invalid fsm-compatible config at ${file}`);

@@ -3,7 +3,9 @@ import type { AdmissionPolicy, PolicyInput, RequiredExtension, ResolvedAgent } f
 import type { AdmissionErrorCode, AdmissionResult } from "../src/admission/admission-result.ts";
 import { buildAdmissionPolicy } from "../src/admission/build-admission-policy.ts";
 import type { BindingRecords, PendingLaunch, PersistedBinding } from "../src/binding/actor-binding.ts";
-import { createRootBinding } from "../src/binding/create-root-binding.ts";
+import { createRootBinding, protocolSessionId } from "../src/binding/create-root-binding.ts";
+
+export const ROOT_SID = protocolSessionId("r");
 
 export const selfExtension: RequiredExtension = Object.freeze({ id: "fsm-compatible", path: "/plugin/index.ts", requireForAllRunners: true });
 export const extraExtension: RequiredExtension = Object.freeze({ id: "extra", path: "/plugin/extra.ts", requireForAllRunners: true });
@@ -39,7 +41,7 @@ export function records(...bindings: PersistedBinding[]): BindingRecords {
 export function child(parentSessionId = "r", sessionId = "c", source = policy()): PersistedBinding {
 	return {
 		version: 1,
-		rootSessionId: "r",
+		rootSessionId: ROOT_SID,
 		sessionId,
 		agentId: sessionId,
 		kind: "execution-child",
@@ -52,7 +54,7 @@ export function child(parentSessionId = "r", sessionId = "c", source = policy())
 
 export function pending(source = policy()): PendingLaunch {
 	return {
-		rootSessionId: "r",
+		rootSessionId: ROOT_SID,
 		callerSessionId: "r",
 		agentName: "a",
 		bootstrapRef: "/plugin/bootstrap-ref",

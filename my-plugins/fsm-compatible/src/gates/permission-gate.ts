@@ -42,7 +42,9 @@ export function installPermissionGate(pi: ExtensionAPI, request: DaemonRequester
 			const suppress = gateShouldSuppress(verdict.allowed, normalized.toolName);
 			void moveGate(request, current, suppress, suppress ? "ask-start" : "main-tool-start", Date.now() + timeoutMs);
 			if (verdict.allowed) return undefined;
-			return { block: true, reason: verdict.reason ?? `FSM 门禁：工具 ${normalized.toolName} 不允许使用。` };
+			// Hook parity: the reference hook composes the daemon deny reason as
+			// `FSM 门禁：工具 <tool> 不允许使用。原因：<reason>` for the model.
+			return { block: true, reason: `FSM 门禁：工具 ${normalized.toolName} 不允许使用。原因：${verdict.reason ?? ""}` };
 		} catch {
 			return { block: true, reason: "FSM 门禁：check-permission 不可达，按 fail-close 拒绝。" };
 		}

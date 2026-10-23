@@ -26,24 +26,29 @@ function requireJudge(store: RecordStore, sessionId: string): void {
 export function createOcHandlers(store: RecordStore, judges: JudgeSessions, extras?: {
 	launchAck?: (bootstrapRef: string, childSessionId: string) => void;
 	advisories?: AdvisoryQueue;
+	refresh?: () => void;
+	abortExecution?: (id: string) => Promise<true>;
+	agentMessage?: (target: string, message: string) => Promise<boolean>;
 }): OcHandlers {
 	return {
-		roster: () => projectOcRoster(store),
-		statuses: () => Object.fromEntries(projectOcStatuses(store)),
+		roster: () => { extras?.refresh?.(); return projectOcRoster(store); },
+		statuses: () => { extras?.refresh?.(); return Object.fromEntries(projectOcStatuses(store)); },
 		session: (id) => {
+			extras?.refresh?.();
 			const roster = projectOcRoster(store).find((session) => session.id === id);
 			if (roster) return roster;
 			requireExecution(store, id);
 			throw new OcHttpError(404);
 		},
 		children: (id) => {
+			extras?.refresh?.();
 			if (store.getJudge(id) && !store.getExecution(id)) return [];
 			requireExecution(store, id);
 			return projectOcRoster(store)
 				.filter((session) => session.parentID === id)
 				.map((session) => ({ id: session.id }));
 		},
-		messages: (id) => projectOcMessages(requireExecution(store, id)),
+		messages: (id) => { extras?.refresh?.(); return projectOcMessages(requireExecution(store, id)); },
 		async createSession(body) {
 			if (typeof body !== "object" || body === null || Array.isArray(body)
 				|| (body as { title?: unknown }).title !== "fsm-gate"
@@ -72,6 +77,8 @@ export function createOcHandlers(store: RecordStore, judges: JudgeSessions, extr
 			}
 		},
 		async abort(id) {
+			extras?.refresh?.();
+			if (store.getExecution(id) && extras?.abortExecution) return extras.abortExecution(id);
 			requireJudge(store, id);
 			return judges.abort(id);
 		},
@@ -85,6 +92,14 @@ export function createOcHandlers(store: RecordStore, judges: JudgeSessions, extr
 				throw error;
 			}
 		},
+		...(extras?.agentMessage ? { agentMessage: async (body: unknown) => {
+			if (typeof body !== "object" || body === null || Array.isArray(body)
+				|| typeof (body as { target?: unknown }).target !== "string"
+				|| typeof (body as { message?: unknown }).message !== "string") throw new OcHttpError(400);
+			const delivered = await extras.agentMessage?.((body as { target: string }).target, (body as { message: string }).message);
+			if (!delivered) throw new OcHttpError(404);
+			return { ok: true };
+		} } : {}),
 		...(extras?.launchAck ? { launchAck: (body: unknown) => {
 			if (typeof body !== "object" || body === null || typeof (body as { bootstrapRef?: unknown }).bootstrapRef !== "string"
 				|| typeof (body as { sessionId?: unknown }).sessionId !== "string") throw new OcHttpError(400);

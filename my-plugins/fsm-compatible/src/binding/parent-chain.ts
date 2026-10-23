@@ -16,9 +16,12 @@ export function parentDepth(
 		const record = records.find(current);
 		if (!record) return rejected("parent-not-found");
 		const binding = record.binding;
-		if (binding.sessionId !== current || binding.rootSessionId !== rootSessionId) return rejected("binding-mismatch");
+		// The root is addressable both by its host session id and by the protocol
+		// sid the FSM knows it as; both must resolve to the same binding.
+		const rootByProtocol = binding.kind === "execution-root" && current === binding.rootSessionId;
+		if ((binding.sessionId !== current && !rootByProtocol) || binding.rootSessionId !== rootSessionId) return rejected("binding-mismatch");
 		if (binding.kind === "execution-root") {
-			return current === rootSessionId && binding.agentId === "main" && binding.parentSessionId === null
+			return binding.agentId === "main" && binding.parentSessionId === null
 				? admitted(depth)
 				: rejected("binding-mismatch");
 		}

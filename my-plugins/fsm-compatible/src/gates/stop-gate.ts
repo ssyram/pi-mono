@@ -2,7 +2,9 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { DaemonRequester } from "../broker/daemon-request.ts";
 import { isAdmissionObject } from "../admission/parse-policy-input.ts";
+import type { JudgeSessions } from "../judge/judge-session.ts";
 import type { GateBinding } from "./permission-gate.ts";
+import { collectStopEvidence, planStopRoute, reduceStop, resetStopGate, runStopAnalysis, type StopRouteFacts } from "./stop-analysis.ts";
 
 export interface StopDecision {
 	readonly allowed: boolean;
@@ -22,44 +24,112 @@ function lastAssistantText(messages: readonly AgentMessage[]): string | undefine
 	return undefined;
 }
 
-export async function runStopCheck(request: DaemonRequester, binding: GateBinding, contextMessages: readonly AgentMessage[], deadline: number): Promise<StopDecision> {
+interface StopCheckReply {
+	isTerminal: boolean;
+	stateMissing: boolean;
+	isExitState: boolean;
+	fsmName: string | null;
+	stateId: string | null;
+	noProgress: number;
+	recentPlans: string[];
+}
+
+export async function runStopCheck(request: DaemonRequester, binding: GateBinding, contextMessages: readonly AgentMessage[], deadline: number): Promise<StopCheckReply> {
 	const text = lastAssistantText(contextMessages);
 	const reply = await request({ method: "POST", path: "/stop-check", deadline, body: {
 		session_id: binding.sessionId, agent_id: binding.agentId,
 		...(text !== undefined ? { last_assistant_message: text } : {}),
 	} });
-	// /stop-check answers {is_terminal} — no `ok` envelope either.
 	if (reply.status < 200 || reply.status >= 300) throw new Error("stop-check transport failed");
 	const payload = reply.body;
 	if (!isAdmissionObject(payload) || typeof payload.is_terminal !== "boolean") throw new Error("stop-check protocol-invalid");
-	return { allowed: payload.is_terminal,
-		...(typeof payload.reason === "string" ? { reason: payload.reason } : {}) };
+	const state = isAdmissionObject(payload.state) ? payload.state : undefined;
+	return {
+		isTerminal: payload.is_terminal,
+		stateMissing: !state,
+		isExitState: Boolean(state?.is_exit_state),
+		fsmName: typeof state?.fsm_name === "string" ? state.fsm_name : null,
+		stateId: typeof state?.state_id === "string" ? state.state_id : null,
+		noProgress: typeof payload.no_progress_count === "number" ? payload.no_progress_count : 0,
+		recentPlans: Array.isArray(payload.recent_plans) ? payload.recent_plans.filter((plan): plan is string => typeof plan === "string") : [],
+	};
 }
 
 export interface StopGateDeps {
 	/** True when any child agent of this session is still running (OC has_busy_child parity). */
-	hasBusyChild(sessionId: string): boolean;
+	hasBusyChild?(sessionId: string): boolean | Promise<boolean>;
+	/** Judge sessions for the soft-stop Analyze route; absent disables analysis with a warning. */
+	judges?: JudgeSessions;
+	/** FSM_STOP_ANALYSIS parity: default on; opt-out. */
+	analysisEnabled?: boolean;
+	/** Analysis judge budget per attempt. */
+	analysisBudgetMs?: number;
 }
 
-/** soft-gate Stop: transport failure passes with a diagnostic; real blocks append a continuation entry.
- *  Busy children override a non-terminal block: the parent may yield to wait for workers. */
+/** Stop gate v2: hard law first, then the soft Analyze route (upstream hook parity, fail-closed). */
 export function installStopGate(pi: ExtensionAPI, request: DaemonRequester, binding: () => GateBinding | undefined,
 	timeoutMs: number, deps?: StopGateDeps): () => void {
 	const off = pi.on("agent_before_settle", async (event, ctx) => {
 		const current = binding();
 		if (!current) return undefined;
 		if (event.outcome !== "completed" || event.continue) return undefined;
-		try {
-			const decision = await runStopCheck(request, current, event.context.contextMessages, Date.now() + timeoutMs);
-			if (decision.allowed) return undefined;
-			// ocsup-6 parity: a parent with running children may stop to wait for them.
-			if (deps?.hasBusyChild(current.sessionId)) return undefined;
+		let check: StopCheckReply;
+		try { check = await runStopCheck(request, current, event.context.contextMessages, Date.now() + timeoutMs); }
+		catch (error) {
+			// Hook parity: only connection-level failures soft-pass; protocol errors block.
+			const message = error instanceof Error ? error.message : String(error);
+			const isTransport = /ECONNREFUSED|ENOTFOUND|ETIMEDOUT|connect|timeout|transport failed/i.test(message);
+			if (isTransport) {
+				ctx.ui.notify("FSM Stop gate unreachable; soft-gate pass-through", "warning");
+				return undefined;
+			}
 			return { entries: [{ type: "custom_message" as const, customType: "fsm-compatible:stop",
-				content: decision.reason ?? "FSM Stop: continue required", display: true }], continue: true };
-		} catch {
-			ctx.ui.notify("FSM Stop gate unavailable; soft-gate pass-through", "warning");
+				content: `FSM Stop：stop-check 协议错误，已保守阻止停止（${message}）。`, display: true }], continue: true };
+		}
+		if (check.isTerminal) return undefined;
+		const analysisEnabled = deps?.analysisEnabled ?? true;
+		const evidence = analysisEnabled
+			? await collectStopEvidence(request, current, Date.now() + timeoutMs).catch(() => ({ dir: null, liveWork: false }))
+			: { dir: null, liveWork: false };
+		const facts: StopRouteFacts = {
+			isTerminal: check.isTerminal, stateMissing: check.stateMissing, isExitState: check.isExitState,
+			fsmName: check.fsmName, stateId: check.stateId, noProgress: check.noProgress, recentPlans: check.recentPlans,
+			lastAssistantMessage: lastAssistantText(event.context.contextMessages) ?? null,
+			liveWork: evidence.liveWork || (deps?.hasBusyChild ? await Promise.resolve(deps.hasBusyChild(current.sessionId)).catch(() => false) === true : false),
+			analysisEnabled,
+		};
+		const plan = planStopRoute(facts);
+		if (plan.kind === "allow") return undefined;
+		if (plan.kind === "block-malformed") {
+			return { entries: [{ type: "custom_message" as const, customType: "fsm-compatible:stop",
+				content: "FSM Stop：状态数据缺失，已保守阻止停止。", display: true }], continue: true };
+		}
+		if (plan.kind === "deterministic") {
+			return { entries: [{ type: "custom_message" as const, customType: "fsm-compatible:stop",
+				content: plan.reason, display: true }], continue: true };
+		}
+		// Analyze: soft stop review. OC parity: a waiting parent with live async work may yield.
+		if (facts.liveWork) {
+			await resetStopGate(request, current, Date.now() + timeoutMs);
 			return undefined;
 		}
+		if (!deps?.judges) {
+			ctx.ui.notify("FSM Stop analysis unavailable (no judge model); deterministic fallback", "warning");
+			return { entries: [{ type: "custom_message" as const, customType: "fsm-compatible:stop",
+				content: "FSM Stop：软门评审不可用，按确定性规则阻止停止。", display: true }], continue: true };
+		}
+		const sid = deps.judges.create();
+		try {
+			const verdict = await runStopAnalysis(deps.judges, sid, facts, evidence.dir);
+			const decision = reduceStop(facts, verdict);
+			if (decision.allowed) {
+				if (decision.resetOnAllow) await resetStopGate(request, current, Date.now() + timeoutMs);
+				ctx.ui.notify(decision.reason, "info");
+				return undefined;
+			}
+			return { entries: [{ type: "custom_message" as const, customType: "fsm-compatible:stop",
+				content: decision.reason, display: true }], continue: true };
+		} finally { void sid; }
 	});
 	return off;
 }

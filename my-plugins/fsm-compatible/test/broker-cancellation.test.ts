@@ -7,11 +7,11 @@ import { FsmBroker } from "../src/broker/fsm-broker.ts";
 import { acquireCanonicalLease } from "../src/coordination/canonical-lease.ts";
 import type { DaemonRequester } from "../src/broker/daemon-request.ts";
 import { RuntimeError } from "../src/runtime/runtime-error.ts";
-import { root } from "./admission-fixtures.ts";
+import { ROOT_SID, root } from "./admission-fixtures.ts";
 import { fakeDaemon, fakeTransport, protocolDirectory } from "./broker-fixtures.ts";
 
 const host = { pid: process.pid, startId: "1234" };
-const source = { rootSessionId: "r", pid: process.pid, cwd: "/work", serverUrl: "http://127.0.0.1:9001" };
+const source = { rootSessionId: ROOT_SID, pid: process.pid, cwd: "/work", serverUrl: "http://127.0.0.1:9001" };
 
 test("bounded broker queue rejects overflow before writes; close cancels unstarted callers", async (t) => {
 	const scope = join(await protocolDirectory(t), "coord");

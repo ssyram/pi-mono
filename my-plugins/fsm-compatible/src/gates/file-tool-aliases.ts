@@ -1,13 +1,20 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createEditToolDefinition, createReadToolDefinition, createWriteToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
-import { dirname } from "node:path";
+import { resolve } from "node:path";
 
 /**
- * File tool aliases accepting CC (`file_path`, `old_string`), OC (`filePath`,
- * `oldString`), and Pi (`path`, `edits[].oldText`) parameter forms under CC,
- * OC, and Pi tool names. Direct fs — no SDK tool binding.
+ * File tool aliases for CC/OC names (Read/Write/Edit). Delegates to Pi's
+ * native tool implementations — file mutation queue, diff rendering,
+ * truncation, and image support all remain native. CC/OC parameter forms
+ * (file_path, old_string) are adapted to Pi's native shapes. Pi's own
+ * lowercase tool names (read/write/edit) are NOT re-registered here —
+ * the native registrations stay untouched.
+ *
+ * FSM permission checks translate names at the gate boundary
+ * (permission-gate.ts normalizeToolCall), not here.
  */
+
 const READ_PARAMS = Type.Object({
 	file_path: Type.Optional(Type.String()),
 	filePath: Type.Optional(Type.String()),
@@ -30,76 +37,70 @@ const EDIT_PARAMS = Type.Object({
 	oldString: Type.Optional(Type.String()),
 	newString: Type.Optional(Type.String()),
 	edits: Type.Optional(Type.Array(Type.Object({
-		old_string: Type.Optional(Type.String()),
-		new_string: Type.Optional(Type.String()),
-		oldString: Type.Optional(Type.String()),
-		newString: Type.Optional(Type.String()),
 		oldText: Type.Optional(Type.String()),
 		newText: Type.Optional(Type.String()),
-	}))),
+		old_string: Type.Optional(Type.String()),
+		new_string: Type.Optional(Type.String()),
+	})) ),
+	replace_all: Type.Optional(Type.Boolean()),
 });
 
-function resolvePath(input: Record<string, unknown>): string | undefined {
-	const fp = input.path ?? input.filePath ?? input.file_path;
-	return typeof fp === "string" ? fp : undefined;
+type AliasExecute = (id: string, params: unknown, signal?: AbortSignal, onProgress?: (update: unknown) => void) => Promise<unknown>;
+
+function pickPath(input: Record<string, unknown>): string | undefined {
+	const raw = (input.file_path ?? input.filePath ?? input.path) as string | undefined;
+	return raw;
 }
 
-type Execute = (id: string, params: unknown, signal?: AbortSignal) => Promise<{ content: Array<{ type: "text"; text: string }> }>;
-
-async function readExecute(_id: string, params: unknown): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-	const input = params as Record<string, unknown>;
-	const path = resolvePath(input);
-	if (!path) throw new Error("read requires file_path/filePath/path");
-	const content = await readFile(path, "utf8");
-	const offset = typeof input.offset === "number" ? input.offset : 1;
-	const limit = typeof input.limit === "number" ? input.limit : 2000;
-	const lines = content.split("\n");
-	return { content: [{ type: "text", text: lines.slice(offset - 1, offset - 1 + limit).join("\n") }] };
+function adaptRead(native: unknown, cwd: string): AliasExecute {
+	return async (id, params, signal, onProgress) => {
+		const input = params as Record<string, unknown>;
+		const path = pickPath(input);
+		return ((native as { execute: unknown }).execute as (id: string, args: unknown, signal?: AbortSignal, onProgress?: (u: unknown) => void) => Promise<unknown>)(id, { path: path ? resolve(cwd, path) : undefined, offset: input.offset, limit: input.limit }, signal, onProgress);
+	};
 }
 
-async function writeExecute(_id: string, params: unknown): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-	const input = params as Record<string, unknown>;
-	const path = resolvePath(input);
-	const content = input.content;
-	if (!path || typeof content !== "string") throw new Error("write requires file_path/filePath/path and content");
-	await mkdir(dirname(path), { recursive: true });
-	await writeFile(path, content, "utf8");
-	return { content: [{ type: "text", text: `wrote ${path}` }] };
+function adaptWrite(native: unknown, cwd: string): AliasExecute {
+	return async (id, params, signal, onProgress) => {
+		const input = params as Record<string, unknown>;
+		const path = pickPath(input);
+		return ((native as { execute: unknown }).execute as (id: string, args: unknown, signal?: AbortSignal, onProgress?: (u: unknown) => void) => Promise<unknown>)(id, { path: path ? resolve(cwd, path) : undefined, content: input.content }, signal, onProgress);
+	};
 }
 
-async function editExecute(_id: string, params: unknown): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-	const input = params as Record<string, unknown>;
-	const path = resolvePath(input);
-	if (!path) throw new Error("edit requires file_path/filePath/path");
-	const pairs: Array<[string, string]> = [];
-	const single = [input.old_string ?? input.oldString, input.new_string ?? input.newString];
-	if (typeof single[0] === "string" && typeof single[1] === "string") pairs.push([single[0], single[1]]);
-	for (const entry of Array.isArray(input.edits) ? input.edits : []) {
-		const e = entry as Record<string, unknown>;
-		const old = e.old_string ?? e.oldString ?? e.oldText;
-		const neu = e.new_string ?? e.newString ?? e.newText;
-		if (typeof old !== "string" || typeof neu !== "string") throw new Error("edit entry requires old/new pair");
-		pairs.push([old, neu]);
-	}
-	if (pairs.length === 0) throw new Error("edit requires old_string/new_string or edits[]");
-	let content = await readFile(path, "utf8");
-	for (const [oldStr, newStr] of pairs) {
-		if (!content.includes(oldStr)) throw new Error(`old_string not found in ${path}`);
-		content = content.replace(oldStr, newStr);
-	}
-	await writeFile(path, content, "utf8");
-	return { content: [{ type: "text", text: `edited ${path} (${pairs.length} edit${pairs.length > 1 ? "s" : ""})` }] };
+function adaptEdit(native: unknown, cwd: string): AliasExecute {
+	return async (id, params, signal, onProgress) => {
+		const input = params as Record<string, unknown>;
+		const path = pickPath(input);
+		const replaceAll = input.replace_all === true || input.replaceAll === true;
+		if (Array.isArray(input.edits)) {
+			const edits = input.edits.map((edit) => {
+				const item = edit as Record<string, unknown>;
+				return { oldText: (item.oldText ?? item.old_string) as string, newText: (item.newText ?? item.new_string) as string };
+			});
+			return ((native as { execute: unknown }).execute as (id: string, args: unknown, signal?: AbortSignal, onProgress?: (u: unknown) => void) => Promise<unknown>)(id, { path: path ? resolve(cwd, path) : undefined, edits, replaceAll }, signal, onProgress);
+		}
+		const oldText = (input.old_string ?? input.oldString) as string | undefined;
+		const newText = (input.new_string ?? input.newString) as string | undefined;
+		if (oldText === undefined || newText === undefined) throw new Error("Edit requires old_string/new_string or edits[]");
+		return ((native as { execute: unknown }).execute as (id: string, args: unknown, signal?: AbortSignal, onProgress?: (u: unknown) => void) => Promise<unknown>)(id, { path: path ? resolve(cwd, path) : undefined, edits: [{ oldText, newText }], replaceAll }, signal, onProgress);
+	};
 }
 
-function reg(pi: ExtensionAPI, name: string, description: string, parameters: object, execute: Execute): void {
-	pi.registerTool({ name, label: name, description, parameters, execute } as never);
-}
+export function registerFileToolAliases(pi: ExtensionAPI, cwd = process.cwd()): void {
+	const nativeRead = createReadToolDefinition(cwd);
+	const nativeWrite = createWriteToolDefinition(cwd);
+	const nativeEdit = createEditToolDefinition(cwd);
+	const read = adaptRead(nativeRead, cwd);
+	const write = adaptWrite(nativeWrite, cwd);
+	const edit = adaptEdit(nativeEdit, cwd);
 
-export function registerFileToolAliases(pi: ExtensionAPI): void {
-	reg(pi, "read", "Read file contents (accepts file_path/filePath/path)", READ_PARAMS, readExecute);
-	reg(pi, "Read", "Read file contents (CC name; accepts file_path/filePath/path)", READ_PARAMS, readExecute);
-	reg(pi, "write", "Write file contents (accepts file_path/filePath/path)", WRITE_PARAMS, writeExecute);
-	reg(pi, "Write", "Write file contents (CC name; accepts file_path/filePath/path)", WRITE_PARAMS, writeExecute);
-	reg(pi, "edit", "Edit file with old/new pairs or edits[]", EDIT_PARAMS, editExecute);
-	reg(pi, "Edit", "Edit file with old/new pairs or edits[] (CC name)", EDIT_PARAMS, editExecute);
+	const reg = (_pi: ExtensionAPI, name: string, description: string, parameters: object, execute: AliasExecute): void => {
+		pi.registerTool({ name, label: name, description, parameters, execute } as never);
+	};
+	// CC names only — Pi's native lowercase read/write/edit stay untouched.
+	reg(pi, "Read", "Read file contents (CC name; accepts file_path/filePath/path)", READ_PARAMS, read);
+	reg(pi, "Write", "Write file contents (CC name; accepts file_path/filePath/path)", WRITE_PARAMS, write);
+	reg(pi, "Edit", "Edit file with old/new pairs or edits[] (CC name)", EDIT_PARAMS, edit);
+	reg(pi, "MultiEdit", "Edit file with multiple old/new pairs (CC name)", EDIT_PARAMS, edit);
 }

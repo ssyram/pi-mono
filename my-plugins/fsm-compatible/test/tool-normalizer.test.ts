@@ -4,8 +4,9 @@ import { isFsmProjectedTool, normalizeToolCall } from "../src/gates/tool-normali
 
 test("normalizer maps Pi/OC tool names and params to CC canonical form", () => {
 	// read: Pi path / OC filePath / CC file_path all → Read + file_path
+	// HC hook canonical keeps every model field, renaming only the path key.
 	assert.deepEqual(normalizeToolCall({ toolName: "read", input: { path: "/a/b.txt", offset: 2 } }),
-		{ toolName: "Read", toolInput: { file_path: "/a/b.txt" } });
+		{ toolName: "Read", toolInput: { file_path: "/a/b.txt", offset: 2 } });
 	assert.deepEqual(normalizeToolCall({ toolName: "read", input: { filePath: "/a/b.txt" } }),
 		{ toolName: "Read", toolInput: { file_path: "/a/b.txt" } });
 	assert.deepEqual(normalizeToolCall({ toolName: "Read", input: { file_path: "/a/b.txt" } }),
@@ -18,7 +19,7 @@ test("normalizer maps Pi/OC tool names and params to CC canonical form", () => {
 		{ toolName: "Write", toolInput: { file_path: "/a.txt", content: "x" } });
 	// bash: command picked, CC name
 	assert.deepEqual(normalizeToolCall({ toolName: "bash", input: { command: "git status", timeout: 5000 } }),
-		{ toolName: "Bash", toolInput: { command: "git status" } });
+		{ toolName: "Bash", toolInput: { command: "git status", timeout: 5000 } });
 	assert.deepEqual(normalizeToolCall({ toolName: "shell", input: { command: "ls" } }),
 		{ toolName: "Bash", toolInput: { command: "ls" } });
 	// grep: glob/include → glob

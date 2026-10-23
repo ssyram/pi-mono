@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import type { RequiredExtension } from "../src/admission/admission-policy.ts";
 import { admitChildLaunch } from "../src/admission/admit-child-launch.ts";
+import { ROOT_SID } from "./admission-fixtures.ts";
 import { buildAdmissionPolicy } from "../src/admission/build-admission-policy.ts";
 import { canonicalizeRequiredExtensions } from "../src/admission/canonicalize-required-extensions.ts";
 import { narrowAdmissionPolicy } from "../src/admission/narrow-admission-policy.ts";
@@ -13,7 +14,7 @@ import { snapshotAgentDefinition } from "../src/admission/snapshot-agent-definit
 import { agent, child, expectCode, extraExtension, policy, records, root, selfExtension, subsets, unwrap } from "./admission-fixtures.ts";
 
 const tools = { availableToolNames: ["read", "bash", "fsm_agent", "mcp__fsm__fsm_get_state"], requiredToolNames: ["fsm_agent", "mcp__fsm__fsm_get_state"] };
-const caller = { rootSessionId: "r", sessionId: "r" };
+const caller = { rootSessionId: ROOT_SID, sessionId: "r" };
 const request = { agentName: "a", executionMode: "sync" };
 
 test("strict policy input rejects unknown, duplicate, whitespace, unsafe, accessor and sparse inputs", () => {

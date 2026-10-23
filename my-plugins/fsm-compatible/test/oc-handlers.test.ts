@@ -1,3 +1,4 @@
+import { protocolSessionId } from "../src/binding/create-root-binding.ts";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -12,7 +13,7 @@ import { AdvisoryQueue } from "../src/watch/advisory-queue.ts";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 
 function rootBinding(sessionId: string) {
-	return { version: 1 as const, rootSessionId: sessionId, sessionId, parentSessionId: null, agentId: "main",
+	return { version: 1 as const, rootSessionId: protocolSessionId(sessionId), sessionId, parentSessionId: null, agentId: "main",
 		kind: "execution-root" as const, agentName: null, bootstrapRef: null, requiredExtensions: [] };
 }
 
@@ -33,7 +34,7 @@ test("handlers serve the real store and judges over HTTP with target separation"
 	t.after(() => server.close());
 	const auth = { authorization: `Basic ${Buffer.from("opencode:pw").toString("base64")}` };
 	const roster = await (await fetch(`${base}/session`, { headers: auth })).json();
-	assert.equal(roster[0].id, "root-h");
+	assert.equal(roster[0].id, protocolSessionId("root-h"));
 	const created = await (await fetch(`${base}/session`, { method: "POST", headers: auth, body: JSON.stringify({ title: "fsm-gate" }) })).json();
 	assert.ok(created.id);
 	const posted = await fetch(`${base}/session/${created.id}/message`, { method: "POST", headers: auth,

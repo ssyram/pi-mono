@@ -1,4 +1,5 @@
 import { isAbsolute } from "node:path";
+import { protocolSessionId } from "./create-root-binding.ts";
 import { FSM_COMPATIBLE_EXTENSION_ID, MAX_REQUIRED_EXTENSIONS, REQUIRED_EXTENSION_ID_PATTERN } from "../admission/admission-policy.ts";
 import { admitted, rejected, type AdmissionResult } from "../admission/admission-result.ts";
 import { isAdmissionIdentifier, isAdmissionObject } from "../admission/parse-policy-input.ts";
@@ -47,7 +48,7 @@ export function readPersistedBinding(
 		requiredExtensions: Object.freeze(extensions),
 	};
 	if (data.kind === "execution-root") {
-		if (data.sessionId !== data.rootSessionId || data.agentId !== "main" || data.parentSessionId !== null
+		if (data.rootSessionId !== protocolSessionId(data.sessionId) || data.agentId !== "main" || data.parentSessionId !== null
 			|| data.agentName !== null || data.bootstrapRef !== null) return rejected("binding-mismatch");
 		return admitted(Object.freeze({ ...identity, kind: "execution-root", parentSessionId: null, agentName: null, bootstrapRef: null }));
 	}

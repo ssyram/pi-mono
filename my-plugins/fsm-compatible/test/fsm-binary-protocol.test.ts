@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { readdir } from "node:fs/promises";
 import { FsmBroker } from "../src/broker/fsm-broker.ts";
 import { readHostIdentity } from "../src/runtime/host-identity.ts";
-import { root } from "./admission-fixtures.ts";
+import { ROOT_SID, root } from "./admission-fixtures.ts";
 import test from "node:test";
 import { createDaemonRequester, type DaemonReply } from "../src/broker/daemon-request.ts";
 import { isAdmissionObject } from "../src/admission/parse-policy-input.ts";
@@ -51,7 +51,7 @@ test("actual FSM daemon/Client handshake and full catalog work in an isolated da
 	assert.ok(tools.size >= 3);
 	assert.deepEqual(await client.call("ping", {}, { deadline }), {});
 	const host = await readHostIdentity(deadline);
-	const broker = new FsmBroker({ host, source: { rootSessionId: "r", pid: process.pid, cwd: process.cwd(),
+	const broker = new FsmBroker({ host, source: { rootSessionId: ROOT_SID, pid: process.pid, cwd: process.cwd(),
 		serverUrl: "http://127.0.0.1:9001" }, request, transport: client, catalog: tools, scope: join(dataDir, "coord") });
 	await broker.acquireActor(root(), { deadline });
 	const state = await broker.invoke(root(), "fsm_get_state", {}, { deadline });

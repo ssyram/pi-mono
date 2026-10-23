@@ -6,7 +6,7 @@ import { createRootBinding } from "../src/binding/create-root-binding.ts";
 import { parentDepth } from "../src/binding/parent-chain.ts";
 import { readPersistedBinding } from "../src/binding/read-persisted-binding.ts";
 import { restoreActorBinding } from "../src/binding/restore-actor-binding.ts";
-import { child, expectCode, extraExtension, pending, policy, records, root, selfExtension, unwrap } from "./admission-fixtures.ts";
+import { ROOT_SID, child, expectCode, extraExtension, pending, policy, records, root, selfExtension, unwrap } from "./admission-fixtures.ts";
 
 function entries(data: unknown): BindingEntry[] {
 	return [{ type: "custom", customType: BINDING_CUSTOM_TYPE, data }];
@@ -54,40 +54,40 @@ test("B2: legitimate root restores without child allowlist or parent lookup", ()
 	const saved = root(source);
 	let lookups = 0;
 	const empty = { find: () => { lookups++; return undefined; } };
-	assert.deepEqual(unwrap(restoreActorBinding(source, saved, "r", "r", empty)), saved);
+	assert.deepEqual(unwrap(restoreActorBinding(source, saved, "r", ROOT_SID, empty)), saved);
 	assert.equal(lookups, 0);
 	expectCode(restoreActorBinding(source, saved, "r", "other", empty), "restore-conflict");
-	expectCode(restoreActorBinding(source, saved, "other", "r", empty), "restore-conflict");
+	expectCode(restoreActorBinding(source, saved, "other", ROOT_SID, empty), "restore-conflict");
 });
 
 test("B1: original mandatory deletion/replacement is rejected; additions become the next baseline", () => {
 	const original = policy([], [selfExtension, extraExtension]);
 	const saved = root(original);
 	const empty = records();
-	expectCode(restoreActorBinding(policy([]), saved, "r", "r", empty), "restore-conflict");
+	expectCode(restoreActorBinding(policy([]), saved, "r", ROOT_SID, empty), "restore-conflict");
 	const replaced = { ...extraExtension, path: "/plugin/replaced.ts" };
-	expectCode(restoreActorBinding(policy([], [selfExtension, replaced]), saved, "r", "r", empty), "restore-conflict");
+	expectCode(restoreActorBinding(policy([], [selfExtension, replaced]), saved, "r", ROOT_SID, empty), "restore-conflict");
 	const added = { id: "added", path: "/plugin/added.ts", requireForAllRunners: true as const };
 	const expanded = policy([], [selfExtension, extraExtension, added]);
-	const next = unwrap(restoreActorBinding(expanded, saved, "r", "r", empty));
+	const next = unwrap(restoreActorBinding(expanded, saved, "r", ROOT_SID, empty));
 	assert.equal(saved.requiredExtensions.length, 2);
 	assert.equal(next.requiredExtensions.length, 3);
-	expectCode(restoreActorBinding(original, next, "r", "r", empty), "restore-conflict");
+	expectCode(restoreActorBinding(original, next, "r", ROOT_SID, empty), "restore-conflict");
 	const savedChild = child("r", "c", policy(["a"], [selfExtension, extraExtension]));
-	expectCode(restoreActorBinding(policy(), savedChild, "c", "r", records(root())), "restore-conflict");
+	expectCode(restoreActorBinding(policy(), savedChild, "c", ROOT_SID, records(root())), "restore-conflict");
 });
 
 test("child restore retains every identity field and validates actual parent/agent/depth", () => {
 	const source = policy();
 	const saved = child();
 	const tree = records(root());
-	assert.deepEqual(unwrap(restoreActorBinding(source, saved, "c", "r", tree)), saved);
-	expectCode(restoreActorBinding(policy([]), saved, "c", "r", tree), "restore-conflict");
-	expectCode(restoreActorBinding(source, saved, "c", "r", records()), "restore-conflict");
+	assert.deepEqual(unwrap(restoreActorBinding(source, saved, "c", ROOT_SID, tree)), saved);
+	expectCode(restoreActorBinding(policy([]), saved, "c", ROOT_SID, tree), "restore-conflict");
+	expectCode(restoreActorBinding(source, saved, "c", ROOT_SID, records()), "restore-conflict");
 	expectCode(restoreActorBinding(source, saved, "c", "other", tree), "restore-conflict");
-	expectCode(restoreActorBinding(source, { ...saved, agentId: "new-run-id" }, "c", "r", tree), "restore-conflict");
+	expectCode(restoreActorBinding(source, { ...saved, agentId: "new-run-id" }, "c", ROOT_SID, tree), "restore-conflict");
 	const deep = child("c", "d");
-	expectCode(restoreActorBinding(policy(["a"], [selfExtension], 1), deep, "d", "r", records(root(), saved)), "restore-conflict");
+	expectCode(restoreActorBinding(policy(["a"], [selfExtension], 1), deep, "d", ROOT_SID, records(root(), saved)), "restore-conflict");
 });
 
 test("C1: restoring into an existing descendant rejects the newly introduced parent cycle", () => {
@@ -98,8 +98,8 @@ test("C1: restoring into an existing descendant rejects the newly introduced par
 	const tree = records(root(source), current, descendant);
 	const saved = { ...current, parentSessionId: "d" };
 	const before = structuredClone(saved);
-	assert.equal(unwrap(parentDepth("r", "d", tree)), 2);
-	expectCode(restoreActorBinding(source, saved, "c", "r", tree), "restore-conflict");
+	assert.equal(unwrap(parentDepth(ROOT_SID, "d", tree)), 2);
+	expectCode(restoreActorBinding(source, saved, "c", ROOT_SID, tree), "restore-conflict");
 	assert.deepEqual(saved, before);
 	assert.equal(tree.find("c")?.binding.parentSessionId, "r");
 });
@@ -137,10 +137,10 @@ test("existing saved binding goes through restore, never new fallback", () => {
 });
 
 test("finite parent chains terminate on missing, cross-root and cycles", () => {
-	assert.equal(unwrap(parentDepth("r", "r", records(root()))), 0);
-	assert.equal(unwrap(parentDepth("r", "d", records(root(), child(), child("c", "d")))), 2);
-	expectCode(parentDepth("r", "missing", records(root())), "parent-not-found");
+	assert.equal(unwrap(parentDepth(ROOT_SID, "r", records(root()))), 0);
+	assert.equal(unwrap(parentDepth(ROOT_SID, "d", records(root(), child(), child("c", "d")))), 2);
+	expectCode(parentDepth(ROOT_SID, "missing", records(root())), "parent-not-found");
 	expectCode(parentDepth("other", "c", records(root(), child())), "binding-mismatch");
 	expectCode(parentDepth("r", "main", records(root(), child("r", "main"))), "binding-mismatch");
-	expectCode(parentDepth("r", "c", records(child("d", "c"), child("c", "d"))), "parent-cycle");
+	expectCode(parentDepth(ROOT_SID, "c", records(child("d", "c"), child("c", "d"))), "parent-cycle");
 });

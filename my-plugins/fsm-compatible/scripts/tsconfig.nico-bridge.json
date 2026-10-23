@@ -1,0 +1,19 @@
+{
+	"compilerOptions": {
+		"target": "ES2023",
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"lib": ["ES2023"],
+		"types": ["node"],
+		"strict": true,
+		"noUncheckedIndexedAccess": true,
+		"skipLibCheck": true,
+		"allowImportingTsExtensions": true,
+		"rewriteRelativeImportExtensions": true,
+		"declaration": true,
+		"noEmit": false,
+		"outDir": "../.build/nico",
+		"rootDir": "../vendor/pi-subagents/src"
+	},
+	"files": ["../vendor/pi-subagents/src/runs/shared/child-session.ts"]
+}

@@ -5,7 +5,7 @@ import type { ExtensionAPI, ExtensionToolContext, ToolDefinition } from "@earend
 import { FsmBroker } from "../src/broker/fsm-broker.ts";
 import { registerProjectedTools } from "../src/broker/fsm-tools.ts";
 import { projectMcpToolResult } from "../src/broker/mcp-tool-result.ts";
-import { root } from "./admission-fixtures.ts";
+import { ROOT_SID, root } from "./admission-fixtures.ts";
 import { fakeDaemon, fakeTransport, protocolDirectory } from "./broker-fixtures.ts";
 
 function toolPi(existing: string[] = []) {
@@ -22,7 +22,7 @@ async function toolOwner(t: { after(callback: () => Promise<void> | void): void 
 	const daemon = fakeDaemon();
 	const { transport, catalog } = await fakeTransport(t, mode);
 	const broker = new FsmBroker({ host: { pid: process.pid, startId: "100" }, source: {
-		rootSessionId: "r", pid: process.pid, cwd: "/work", serverUrl: "http://127.0.0.1:9001",
+		rootSessionId: ROOT_SID, pid: process.pid, cwd: "/work", serverUrl: "http://127.0.0.1:9001",
 	}, scope, request: daemon.request, transport, catalog });
 	return { broker, catalog, timeoutMs: 1000, ready: () => true, binding: () => root() };
 }

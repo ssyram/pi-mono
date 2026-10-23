@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { createHash, timingSafeEqual } from "node:crypto";
 import { RuntimeError } from "../runtime/runtime-error.ts";
 import { OcHttpError, parseOcRoute, statusForError } from "./oc-route.ts";
+import { serveNativeFsmStream } from "./native-fsm-stream.ts";
 
 export interface OcHandlers {
 	roster(): unknown;
@@ -14,6 +15,9 @@ export interface OcHandlers {
 	abort(id: string): Promise<true>;
 	promptAsync(id: string, body: unknown): Promise<void>;
 	launchAck?(body: unknown): unknown;
+	agentMessage?(body: unknown): Promise<unknown>;
+	nativeChild?(body: unknown, signal?: AbortSignal): Promise<unknown>;
+	nativeFsm?(body: unknown, signal: AbortSignal, onProgress: (value: unknown) => void): Promise<unknown>;
 }
 
 const BODY_LIMIT = 1024 * 1024;
@@ -69,6 +73,7 @@ export class OcServer {
 
 	private async handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
 		const finish = (status: number, body?: unknown) => {
+			if (response.destroyed) return;
 			if (status === 204) { response.writeHead(204).end(); return; }
 			response.writeHead(status, { "content-type": "application/json" });
 			response.end(body === undefined ? "" : JSON.stringify(body));
@@ -76,6 +81,24 @@ export class OcServer {
 		try {
 			if (!this.authorized(request.headers.authorization)) { finish(401, { error: "unauthorized" }); return; }
 			const url = new URL(request.url ?? "/", "http://127.0.0.1");
+			if (url.pathname === "/fsm-compatible/native-fsm" && request.method === "POST") {
+				if (!this.handlers.nativeFsm) { finish(404); return; }
+				const body = await this.readBody(request);
+				return serveNativeFsmStream(response, (signal, progress) => this.handlers.nativeFsm!(body, signal, progress));
+			}
+			if (url.pathname === "/fsm-compatible/native-child" && request.method === "POST") {
+				if (!this.handlers.nativeChild) { finish(404); return; }
+				const controller = new AbortController();
+				const cancel = () => { if (!response.writableFinished) controller.abort(); };
+				response.once("close", cancel);
+				try { return finish(200, await this.handlers.nativeChild(await this.readBody(request), controller.signal)); }
+				catch (error) { finish(statusForError(error), { error: error instanceof Error ? error.message : "native request failed" }); return; }
+				finally { response.off("close", cancel); }
+			}
+			if (url.pathname === "/fsm-compatible/agent-message" && request.method === "POST") {
+				if (!this.handlers.agentMessage) { finish(404); return; }
+				return finish(200, await this.handlers.agentMessage(await this.readBody(request)));
+			}
 			if (url.pathname === "/fsm-compatible/launch-ack" && request.method === "POST") {
 				if (!this.handlers.launchAck) { finish(404); return; }
 				return finish(200, this.handlers.launchAck(await this.readBody(request)));

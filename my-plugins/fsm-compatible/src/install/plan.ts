@@ -30,7 +30,7 @@ export async function planInstallation(options?: { fsmServerPath?: string; fsmCl
 		: { id: "plugin-package", description: "plugin package.json present", status: "blocked", blocker: packageJson });
 	const sdkPackage = join(pluginRoot, "node_modules", "@earendil-works", "pi-coding-agent", "package.json");
 	steps.push((await exists(sdkPackage))
-		? { id: "pi-sdk", description: "official Pi SDK 1.0.3 installed under plugin (npm install --ignore-scripts; overrides pin the @earendil-works set to 1.0.3)", status: "ready" }
+		? { id: "pi-sdk", description: "SDK/type dependencies 1.0.3 installed; persistent native runtime requires official Pi 1.3.0", status: "ready" }
 		: { id: "pi-sdk", description: "official Pi SDK 1.0.3 installed under plugin", status: "blocked",
 			blocker: `run npm install --ignore-scripts in ${pluginRoot}` });
 	const helperSource = join(pluginRoot, "src", "runtime", "host-identity-macos.c");
@@ -41,21 +41,21 @@ export async function planInstallation(options?: { fsmServerPath?: string; fsmCl
 			blocker: `need ${helperSource} and /usr/bin/cc (Xcode CLT)` });
 	const configTemplate = join(pluginRoot, "fsm-compatible.config.json");
 	steps.push({ id: "config", description: "create fsm-compatible.config.json next to package.json "
-		+ "(dataDir, clientCommand/clientArgs pointing at the wire-2 FSM client, cwd, capacity, timeoutMs, modelSource)",
+		+ "(dataDir, compatible clientCommand/clientArgs, cwd, allowedAgentNames, requiredExtensions, maxDepth, capacity, timeoutMs, modelSource)",
 		status: (await exists(configTemplate)) ? "ready" : "blocked", ...(await exists(configTemplate) ? {} : { blocker: configTemplate }) });
 	const server = options?.fsmServerPath ?? process.env.FSM_COMPATIBLE_TEST_SERVER ?? "";
 	const client = options?.fsmClientPath ?? process.env.FSM_COMPATIBLE_TEST_CLIENT ?? "";
-	steps.push({ id: "managed-bootstrap", description: "current entry registers the single built-in factory; "
-		+ "companion-factory manifest generation (top-level static imports) is a post-core install enhancement", status: "ready" });
+	steps.push({ id: "managed-bootstrap", description: "native child bundle statically loads mandatory extensions with FSM last; "
+		+ "frozen admission policy and actual RPC readiness are required before launch acknowledgment", status: "ready" });
 	steps.push((server && client)
-		? { id: "fsm-binaries", description: "FSM server/client paths supplied; verify wire 2 via capabilities before use", status: "ready" }
+		? { id: "fsm-binaries", description: "FSM server/client paths supplied; verify minimum wire 2/schema 2 and required capabilities before use", status: "ready" }
 		: { id: "fsm-binaries", description: "FSM server/client paths not supplied", status: "blocked",
-			blocker: "set fsmServerPath/fsmClientPath (installed ~/bin binary reports 0.10.0 without wire_contract_version; use the 0.11.0/wire2 build)" });
+			blocker: "set compatible fsmServerPath/fsmClientPath; paths alone do not prove runtime capabilities" });
 	return {
 		steps: Object.freeze(steps),
 		piConfigSuggestions: [
 			`add "${pluginRoot.replace(/\/package\.json$/, "")}/src/index.ts" to the project .pi extension list (manual step; this plan never edits ~/.pi)`,
-			"ensure pi-subagents is present for structured delegation (child gates require it)",
+			"native Agent coordination is included; pi-subagents is not required",
 			"ensure the FSM daemon is running and FSM_DATA_DIR matches fsm-compatible.config.json dataDir",
 		],
 		fsmBinaryCheck: { envVars: Object.freeze(["FSM_COMPATIBLE_TEST_SERVER", "FSM_COMPATIBLE_TEST_CLIENT"]),

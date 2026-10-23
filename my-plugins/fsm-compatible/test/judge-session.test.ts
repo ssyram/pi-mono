@@ -1,3 +1,4 @@
+import { protocolSessionId } from "../src/binding/create-root-binding.ts";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -10,7 +11,7 @@ import { JudgeSessions } from "../src/judge/judge-session.ts";
 import { RecordStore } from "../src/records/record-store.ts";
 
 function rootBinding(sessionId: string) {
-	return { version: 1 as const, rootSessionId: sessionId, sessionId, parentSessionId: null, agentId: "main",
+	return { version: 1 as const, rootSessionId: protocolSessionId(sessionId), sessionId, parentSessionId: null, agentId: "main",
 		kind: "execution-root" as const, agentName: null, bootstrapRef: null, requiredExtensions: [] };
 }
 

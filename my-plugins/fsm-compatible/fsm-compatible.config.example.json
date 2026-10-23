@@ -2,6 +2,10 @@
   "dataDir": "/absolute/path/to/fsm-data",
   "clientCommand": "/absolute/path/to/mcp-server-fsm-client",
   "clientArgs": [],
+  "allowedAgentNames": ["general"],
+  "maxDepth": 8,
+  "requiredExtensions": [],
+  "fleetWidgetPlacement": "belowEditor",
   "capacity": 4,
   "timeoutMs": 30000,
   "modelSource": {}

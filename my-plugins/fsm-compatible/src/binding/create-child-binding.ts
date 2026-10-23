@@ -7,7 +7,7 @@ import type { ChildBinding } from "./actor-binding.ts";
  * shares the parent root session (the dispatch queue is keyed by it); the
  * dispatch session tag doubles as the child's agent id and own session key.
  */
-export function createChildBinding(rootSessionId: string, agentId: string, agentName: string, policy: AdmissionPolicy): ChildBinding {
+export function createChildBinding(rootSessionId: string, agentId: string, agentName: string, policy: AdmissionPolicy, parentSessionId = rootSessionId): ChildBinding {
 	if (!isAdmissionIdentifier(rootSessionId) || !isAdmissionIdentifier(agentId) || !isAdmissionIdentifier(agentName)) {
 		throw new Error("invalid child binding identifiers");
 	}
@@ -17,7 +17,7 @@ export function createChildBinding(rootSessionId: string, agentId: string, agent
 		sessionId: agentId,
 		agentId,
 		kind: "execution-child",
-		parentSessionId: rootSessionId,
+		parentSessionId,
 		agentName,
 		bootstrapRef: `env:${agentId}`,
 		requiredExtensions: Object.freeze(policy.requiredExtensions.map(({ id, path }) => Object.freeze({ id, path }))),

@@ -3,7 +3,7 @@ prefix: FSM
 notes:
   description:
     meta: []
-    body: 用户为 owner；本栈承接官方 Pi 的 FSM Server 完整适配插件 fsm-compatible，不是实现 FSM Server。唯一开发范围为 my-plugins/，不看 steering-flow；GUI 延后。目的和前提位于 docs/principles.md，当前源码依据与具体候选方案位于 docs/research/fsm-compatible-research.md。按 qpdi/workflow 先确认设计再逐模块实现；源码调研、方案文件及本栈都不是运行成功或用户采用的证明。
+    body: 用户为owner；本栈记录my-plugins内FSM兼容插件及独立HC实验包两条责任，不实现或修改FSM/HC/Pi官方源码，不参考旧steering-flow。当前SubAgent规范以固定HC实际四工具/通信/FSM行为为准，源码索引docs/research/hc-subagent-contract-20261023.md，现行设计docs/design/subagent/；Nico仅复用独立固定子模块，不注册默认extension。独立被测HC实验在../hc-fsm-reference/。历史已结束交付与已替代tmux/viewer方案保留其当时证据，不支配当前合同；设计、AI报告、记录匹配均不自动证明完整兼容或用户验收。无当前工作commit/push或追加审查授权。
 frames:
   1:
     parent: null
@@ -12,14 +12,16 @@ frames:
     - 交付仅在 my-plugins/ 内开发、运行官方 Pi 的 fsm-compatible：原理上达到当前 haokun-code OC-level 的 FSM 完全兼容并实际运行。先完整 FSM 核心（含固定可派遣 subagent 集合、强制 fsm-compatible 等必载扩展及递归准入），再完成 mandatory 常用插件命令翻译；常用工具支持如 AskUserQuestion 为 optional，排最后，GUI 延后。按 qpdi/workflow 分阶段设计与逐模块实施，文档或源码分析不等于插件交付。
     origin: []
     status:
-      kind: active
+      kind: done
+      closure:
+        summary: 本轮fsm-compatible交付完成并按owner要求收口：实现、mandatory命令/映射、自带Agent及门禁修复已交付，126项测试/strict tsc与真实宿主运行有记录；给定CCV v3完整33步90秒通过，2dadc524c已推送。原transcript6084先披露v3非全部15态及57.1秒未细分，6085中owner批准发布，现又要求按recalibration全pop。结算只覆盖该已接受交付，不宣称全部OC行为全域等价；完整15态、Agent全部语义未全覆盖、57秒未细分与B62已知行为保留在验证边界中，不自动追加未委托的工作。后续WS/学习记录未再次提交。
     plan:
     - text: 源码补查已完成：docs/research/runtime-source-conclusions.md 追清 Pi prompt→before-settle→continue→settled 与 SA drain 顺序、原 session ID/绑定恢复、公开 judge finishTurn、Evidence raw entries 和 Watcher 队列语义。当前接口支持仅插件实现 OC-level FSM 功能合同；这不表示插件已经运行成功。
       children: []
       progress:
         kind: item_done
       fork: []
-    - text: 全部六单元（fsm-1/2/3/4/5/6）设计确认→实施→独立对照PASS闭环；P1-P9核心+P10 mandatory命令翻译全部交付。122项本地测试+tsc全绿+真实FSM wire2通道测试+官方Pi宿主加载smoke+两轮mock LLM真实E2E（门禁生命周期完整验证）。
+    - text: 完成本轮插件实现交付：历史fsm-1至fsm-6六单元完成设计与实施对照；后续自带异步Agent、CC映射和门禁identity修复以各自实际测试为准，不将历史审查自动套用到新代码。最新126项本地测试、strict tsc、真实daemon重复permission/Stop回归及入口导入通过；官方Pi真宿主、FSM基本生命周期及wire7 CCV v3场景均有运行依据。
       children: []
       progress:
         kind: item_done
@@ -61,15 +63,18 @@ frames:
       - 首次真实E2E（mock-llm-server+真实FSM 0.11.0/wire2 daemon+官方Pi宿主，零真实token）：发现并修复两个真实缺陷（/check-permission响应{allowed}与/stop-check响应{is_terminal}被误用ok信封校验致门禁全不可达），修复后核心门禁链路全部真实验证通过——enter_fsm真实进入S_probe、允许探针真实执行、禁止探针被FSM状态黑名单拦截（blacklisted in state S_probe）、Stop门禁因非终态真实强制续跑、首轮fail-close方向安全。报告docs/test-reports/fsm-e2e-gate-probe.md；全部本地套件+tsc复跑绿。边界：mock脚本续跑循环非门禁缺陷；judge/child派发链路待后续场景。
       - E2E第二轮完整生命周期验证：skill含迁移、mock七步（enter→允许/禁止探针→marker→self-check→transition→汇总）。核心结果全部真实通过——enter进入S_probe、允许探针执行、禁止探针被黑名单拦截（blacklisted in state S_probe）、marker写入、FSM工具（submit_self_check/try_transition）经插件投影真实调达daemon获真实响应（409系self-check参数格式细节非插件缺陷）、Stop门禁非终态正确强制续跑。插件在真实FSM daemon+官方Pi+mock LLM下的核心门禁生命周期完整验证。报告docs/test-reports/fsm-e2e-gate-probe.md。
       - E2E第三轮完整干净生命周期（零token）：enter_fsm→允许探针执行→禁止探针被FSM黑名单拦截→self_check(S_exit)→transition(S_exit)成功→self_check(_fsm_exit)→exit_fsm回到_default(is_exit_state=true)→Stop门禁放行→干净结束无循环。这是插件在真实FSM 0.11.0/wire2 daemon+官方Pi 1.0.3+mock LLM下的完整端到端验证：进入FSM→门禁拦截→状态迁移→退出FSM→干净停止，全部通过。全部三轮E2E报告docs/test-reports/fsm-e2e-gate-probe.md。
-      - CCV wire7全流程mock验证（零真实token）：harness_pi_v3.py按OC同款env路线（source runtime env.sh→workspace env.sh→export覆盖、bash -c包装、PI_CODING_AGENT_DIR保住Pi配置）启动真wire7 daemon+真CCodeVerify skill+mock LLM驱动官方Pi。结果：endpoint终点态、0 scenario-failed/crashed、85项v3-evidence全过（OC v3仅23项，Pi版完整走完worker全生命周期）。实证覆盖：主链V_INTAKE→V_A_INTENT→V_A_LOOP两次transition.commit.success（5 hard gate含真跑clightgen的intake_finalize、state_integrity git审计）；子FSM ccv-analysis-sp-td完整B_COLLECT→B_DONE生命周期（analysis_child.py真实hard gate、稿件变体负/正例全按现行裁决2合同判定）；subagent dispatch全链（reserve→Agent调用→parent预claim（TTL 10s）→child异步spawn→child模式运行时→B_DONE收口）；soft judge走host mock模型获verdict_pass。为此修复的架构缺口：Agent工具OC异步语义、child spawn补-ne+剥PI_*继承、parent侧预claim、child模式运行时（createChildBinding共享根session身份）、RecordStore/fsm-tools守卫放宽child身份、bridge鉴权OC对等化+OPENCODE_SERVER_URL注入env供wire7 analysis脚本回连。剧本侧v3_worker_actions_pi副本（B69改正例符合现行gate裁决2、删B70重复步）。
+      - 更正此前CCV记录：实际完成的是给定wire7 CCV v3场景，不是CCV全部15态或V_DELIVER。最终同版本重跑33步/90秒、0 scenario-failed/crashed；main进入V_A_LOOP，child走B_COLLECT→B_ANALYZE，预期两次格式拒绝后通过B_DONE并退出。首endpoint前27条证据记录对应22个唯一(B ID,label)组合和13个B ID；原85比23的重复计数比较撤回。dispatch队列TTL实际1800秒，旧10秒说法错误；10秒等待来自普通permission/Stop错误写入pending identity，已去掉，MCP身份桥保留。最初自改剧本副本后来已删除并同步上游新版，不能仍记为当前剧本。真实child使用本插件自带异步Agent，不再依赖pi-subagents；bridge允许无凭据loopback、拒绝错误凭据，是明确行为变化。依据docs/test-reports/ccv-latency-investigation.md第8–9节及rerun-after-fix-summary.json；该场景支持已测集成，不证明所有child/OC行为全域等价。
       - 用户要求核实GPT工具优化：安装版官方Pi1.3.0及当前源码的工具闭集均为read/bash/powershell/edit/write/grep/find/ls，没有apply_patch或按GPT模型禁用edit/write的自动分支。haokun-code registry.ts:336-339确实为非oss/非gpt-4的gpt-*启用ApplyPatch并撤掉Edit/Write。当前Pi路径已由normalizer write→Write、edit→Edit/MultiEdit及file_path转换覆盖；本轮不因OC能力虚构Pi工具或新增未发生的patch实现。若以后实际加载patch扩展，必须解析多文件新增/修改/删除/重命名操作逐路径鉴权，不能只换名。
-      side_effects: []
+      - 本轮实际交付与发布：126项本地测试及插件strict tsc通过；真实daemon main/child连续permission/Stop不再等10秒；入口纯re-export且必载扩展指向真实入口、预绑定失败禁止spawn；CCV v3同33步从292秒降到90秒。源码提交2dadc524c已实际push origin/main。证据：docs/test-reports/pre-commit-checks.md、ccv-latency-investigation.md第8–9节以及原始会话6084–6085、提交/推送实际回执。
+      side_effects:
+      - 已按owner授权发布fsm-compatible提交2dadc524c至origin/main；该push同时带上此前已存在的f3d83b47b。后续WS/学习记录尚未再次commit，不伪称所有文档已发布。
       principles: []
       remarks:
         后期兼容适配: 最新用户裁决取代此前表述：常用命令翻译 mandatory，常用工具支持 optional。AskUserQuestion 是可选常用工具例子，不再作为核心强制实现项。FSM gate/judge/wire 必需的基础映射仍在核心。
-        实现环境: 插件依赖固定到实际官方Pi1.0.3，npm install --ignore-scripts仅本插件；仓库另一份Pi1.2.0类型没有on注销，不能据其删功能。~/bin FSM server实际0.10.0缺wire_contract_version，默认binary smoke正确失败；已有use-fsm/target/release server/client实际0.11.0wire2/schema2并通过隔离source/actor/MCP调用测试，不升级用户bin或外部源码。根writecheck未执行；此前只读Biome缺@biomejs/wasm-nodejs，后续rootchecks未跑。
-        当前协作: 插件提交检查完成：126项本地测试+插件tsc+真实daemon时延回归+入口导入通过。README/示例配置已同步，入口纯re-export且SELF_PATH指向真实入口，子actor预绑定失败停止spawn。首次正常commit因无关旧快照依赖检查被hook拒绝；owner随后明确授权无关则--no-verify、有关则修。本次按该授权执行commit/push，213个暂存文件全部限于本插件目录；根检查未通过的事实保留，不纳入其它会话未提交文件。当前main含既存未推f3d83b47b，push main会一并发布；最终结果以Git回执为准。57秒转移耗时与B62裸写仍是已知边界。
-        当前边界: 仅my-plugins开发；官方Pi/FSM/SA、用户bin/global配置和其它会话变更不动。fsm3设计确认现由owner授权的tmp-Haokun/glm-5.3-flash reviewer执行（run f13dcdae-0ca9-467d-a73f-d34b000203aa），输出绑定docs/audits/design/design-review.md，收回后保存到fsm3目录；不再触碰Codex额度。D3限定范围与只读边界不变；无READY结论不编码。recovery快照/失败记录保留作历史依据。
+        实现环境: 历史基线为SDK/类型依赖1.0.3、wire2/schema2；后期真实宿主1.3.0与CCV wire7。早期旧FSM二进制和Biome缺包记录仅属当时状态，不能当作当前环境。最新根Biome曾通过；旧快照pinned-deps阻塞已由独立清理消除并复测通过，但完整根check未重新全过。项目/测试临时加载，不新增全局插件注册。
+        当前协作: 已按原始transcript和owner当前收工要求pop Done；代码2dadc524c已发布，本轮实现交付结束，不自动追加验证或审查。验证范围和已知行为保留在收口依据/当前边界及Closure，不将其宣称为全部OC行为全域证明。独立清理已补录FSM-02并同样pop Done；当前无活动root、TOP或待执行工作。后续WS和学习记录变更尚未再次commit。
+        当前边界: 完成本轮交付不等于证明所有OC行为全域等价。完整CCV 15态/V_DELIVER与自带Agent所有控制/递归语义未全覆盖；transition剩余57.149秒未细分；B62为已披露场景行为。本轮没有把这些转为新增验收门槛或修复承诺；若今后需要，须另行委托。没有活动reviewer，不沿用早期进行中的审查描述。
+        收口依据: 已回查原始session JSONL（2026-10-14T02-40-08-505Z_01a13848-0d39-768d-b873-2e9fec93465d.jsonl）：6084行先披露v3完成而非全部15态及57.1秒未细分，6085行owner明确说“可以，你看看有没有其他问题？commit & push 吧”；实际已发布。本轮owner再要求按recalibration更新WS并全pop。按这两个有界裁决收口本轮交付，不倒推其接受了未测试的全部OC行为。
     log:
     - action: push
       at: 2026-10-14T02:59:24.751964000Z
@@ -293,7 +298,375 @@ frames:
     - action: update
       at: 2026-10-20T11:07:54.824080000Z
       detail: 记录owner明确的条件性no-verify授权，与已完成插件检查及未通过根检查分开，不再等待重复授权；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-20T11:23:43.690241000Z
+      detail: 按用户要求区分Git检查失败、AI准备与等待、输出摘要、实际push，记录原始时间线和检查范围根因，不把工具总时长当进程时间；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-21T01:49:51.459153000Z
+      detail: 回填用户授权的实际迁移、原阻塞检查通过与归档/运行/发布的明确边界；不扩大到正式插件及会话状态；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-21T02:50:57.592991000Z
+      detail: 以用户最新的保留必要性目的整合官方能力边界、真实上游维护日期及干净克隆可重获性，避免把无官方替代误推为必须保留；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-21T02:53:25.643562000Z
+      detail: 记录用户明确删除授权后的实际删除与实验材料保留，取代此前尚未删除的当前状态说明；变更字段：content.remarks.当前协作
+    - action: update
+      at: 2026-10-21T03:16:25.094812000Z
+      detail: 按原transcript及已撤回结论修正历史误报，收口前不保留重复证据计数、10秒dispatch TTL和完整15态等错误说法；变更字段：content.results[25]
+    - action: update
+      at: 2026-10-21T03:16:25.114584000Z
+      detail: 依据完整原transcript恢复已接受的本轮交付范围，消除虚构的继续工作门槛并保留真实未测边界；不以计划全done或发布自述代替运行依据；变更字段：content.remarks.实现环境、content.remarks.当前协作、content.remarks.当前边界、content.remarks.收口依据、content.results、content.side_effects、plan[1].text
+    - action: pause
+      at: 2026-10-21T03:16:36.118847000Z
+      detail: 去向：新根帧 FSM-02
+    - action: pop
+      at: 2026-10-21T03:18:15.937146000Z
+      detail: 结合原始owner发布裁决与本轮明确收工方向，结束已完成且已交付的本轮目标；不把适用边界误写成新的剩余义务或证明全部兼容性的结论
+    - action: update
+      at: 2026-10-21T03:19:23.381423000Z
+      detail: 同步实际已完成的pop状态，替换准备收口措辞；不改写Closure中已固定的验收范围；变更字段：content.remarks.当前协作
+  2:
+    parent: null
+    title: 清理本地实验材料与普通commit阻塞
+    goal:
+    - 解释本次commit/push阻塞，按owner要求将整棵.local和两个impression实验台移到../local-pi-dev-stuff，普通删除五份无修改的第三方参考克隆，保留实验与运行状态，并确认原pinned-deps阻塞已解除。
+    origin:
+    - 独立于FSM功能交付的真实追加委托，原session JSONL 6229行要求查Git阻塞、6330行要求外移、6523行批准普通移除、6542行确认三处均放外面。本工作已执行完成；此前错误混写在FSM-01当前协作，现按owner要求补录真实独立root，日志时间为补录时刻，不伪造历史PUSH。
+    status:
+      kind: done
+      closure:
+        summary: 独立清理完成：已解释Git阻塞，三处实验目录外移，五份干净参考克隆按授权普通删除，实验成果与运行状态保留，原pinned-deps阻塞已复测消除。原transcript6229/6330/6523/6542行及实际操作回执为依据；这是当前补录结算，不伪称过去已建root。不包含完整根check、远程备份或实验台独立运行适配。
+    plan: []
+    content:
+      results:
+      - 阻塞原因已查明并向owner解释：pre-commit无条件执行根check，Biome先扫描1868文件约38–40秒，随后pinned-deps从.递归，忽略Gitignore和暂存范围，误扫两个旧SDK快照并失败；正常commit约42秒后明确拒绝，不是Git死锁。成功push约4.7秒；长Git输出还触发impression同步摘要，不能将工具总时长等同Git进程耗时。
+      - 全部迁移及删除已实际完成：../local-pi-dev-stuff保留.local、impression-demo、impression-v2共约809MB；主仓库原位置均不存在且无回指链接。.local中的4个内嵌Git仓库仍保留；gotty/ttyd/wetty/xterm.js/pi-interactive-shell五份干净公开克隆已按owner授权普通删除。主仓库正式插件和.pi/.pi-subagents等运行状态未动。原pinned-deps检查搬迁后0.127秒通过，后续再次复测通过。
+      - 保留必要性解释完成：官方latest 1.3.0提供分类/过滤/compaction和用户交互示例，但并未完整替代逐条工具摘要或agent PTY；这些功能差异不表示必须留公开源码克隆。维护依据截至2026-10-21：GoTTY实质停更，其余公开项目有近期更新；owner据此明确授权普通移除，实验成果保留。
+      side_effects:
+      - 已在用户明确授权的仓库外路径../local-pi-dev-stuff建main分支Git仓库并移动资料，补充忽略规则及README；无初始commit、无remote/push。按授权普通删除五份克隆；未改变安装配置，也未卸载其它位置的包。
+      principles: []
+      remarks:
+        完成范围: 清理目标已全部达成；完整根check、资料远程备份及实验台独立运行适配不属于本帧承诺。这些是成果适用边界，不是尚欠的清理义务，故不写入仅适用于未达回合的residual。
+        补录与收口: 已在2026-10-21按owner要求补录独立清理root并pop Done；不是此前已存在的root，原执行依据保留在transcript，补录时间不倒签。清理目标已全部达成，没有新清理待办。
+    log:
+    - action: push
+      at: 2026-10-21T03:16:36.118847000Z
+      detail: 按原transcript修正工作归属；补录已完成清理工作线以独立结算，而非新增清理待办或改写FSM目标
+    - action: update
+      at: 2026-10-21T03:16:36.118847000Z
+      detail: 按原transcript修正工作归属；补录已完成清理工作线以独立结算，而非新增清理待办或改写FSM目标
+    - action: update
+      at: 2026-10-21T03:17:14.802078000Z
+      detail: 将原始委托、真实操作与检查回执归入独立清理root；保留归档、独立运行和发布之间的边界；变更字段：content.remarks.补录与收口、content.results、content.side_effects
+    - action: update
+      at: 2026-10-21T03:18:15.904134000Z
+      detail: 按工具手册I9区分完成目标的适用边界与尚未履行义务，修正pop参数语义，不改动原清理目标；变更字段：content.remarks.完成范围
+    - action: pop
+      at: 2026-10-21T03:18:15.921585000Z
+      detail: owner要求收工；清理原目标全部达成，范围之外的可选未来事项不是本帧剩余义务
+    - action: update
+      at: 2026-10-21T03:19:23.398020000Z
+      detail: 同步实际独立root已结算事实，保留补录与历史实际执行的区别；变更字段：content.remarks.补录与收口
+  3:
+    parent: null
+    title: 加强真实子agent约束与OC一致性测试并修复
+    goal:
+    - 按owner测与修授权，先补真实Pi/FSM/mock子agent必载扩展、名单、递归及生命周期；修复失败，再做固定OC/Pi对照、保留v3并新增合法交付场景，最终源码版本复跑并如实标明剩余范围。无真实付费模型，不改官方源或OC原剧本。
+    origin:
+    - owner在分层保证与加强测试方案后明确要求“测 & 修”；这是新一轮实现委托，不复活已收工FSM-01或清理FSM-02。
+    status:
+      kind: done
+      closure:
+        summary: 完成本轮测与修：真实native准入/必载/递归及持久生命周期、共享root source冲突等已修；最终同源码7852534b5dbad16a40cc12bab58a43239f83441677dacd5429acc6c15167ffd0通过126普通+21真实native+1 OC/Pi对照+2 CCV场景，另1真实daemon时延回归，共151项且无skip，插件strict tsc通过。原v3保持V_A_LOOP端点；独立诚实失败分支真实frontend拒绝、报告hard gate负例修正后V_DELIVER→退出且无cert。根check在官方Azure/model类型处失败，未修改官方源；不宣称全部15态、V_VERIFIED证书链、B62安全或所有OC行为。证据与可重复命令已交付，raw trace私有；本轮未commit/push。
+    plan:
+    - text: 真实Pi/FSM/mock子agent入口测试与修复：冻结名单、必载扩展、递归、持久会话、停止/恢复、父会话恢复和跨root隔离。
+      children: []
+      progress:
+        kind: item_done
+      fork: []
+    - text: 同一FSM、初始文件和动作的OC/Pi真实对照；只适配宿主工具格式，不改变期望。
+      children: []
+      progress:
+        kind: item_done
+      fork: []
+    - text: 保持原v3不变，增加合法进入V_DELIVER并退出的独立场景，明确verified/failed分支。
+      children: []
+      progress:
+        kind: item_done
+      fork: []
+    - text: 最终源码快照复跑、类型和必要根检查；保存版本/hash/脱敏结果，更新保证范围。
+      children: []
+      progress:
+        kind: item_done
+      fork: []
+    content:
+      results:
+      - 真实入口基线已复现非法subagent_type被原native Agent接受。已接入每root冻结policy与持久RPC协调器，强制静态组合必载扩展、等待ready、规范root/child实际session ID；增加agent_list/send/stop、真实agent_settled回报和会话快照恢复。修复真实测试暴露的父重启丢child、启动取消等待deadline、/new重注册自有FSM工具误冲突、重试成功仍报failed等问题。普通Bash改用宿主支持取消的实现，并将bridge env按会话注入，不再写进程全局。
+      - 实际证据：初批10项真实入口中9项通过，blacklist因测试skill缺description修复后单独通过；父重启/启动取消/new/retry等新增用例分别复现并修复。17项整组保留trace首次因macOS socket路径过长在基础设施阶段全失败，已改短运行data-dir、关停后归档；第二次整组15通过2失败，两者为测试mock没有退出fixture FSM导致Stop正确续跑，未放宽Stop，补self-check/exit后两项定向通过。定向运行会出现空测试文件被Node计pass，不能拿其计数当场景数。
+      - P0实际完整执行20/20通过、0跳过，官方Pi1.3.0+真实FSM wire7+mock-with-pi。本次源码sha256=1a0afca44956c83425c34f069d23952dd98eff0a8641e2fc166973f9c3367cea，私有原始记录.runtime/native-tests/2026-10-21T06-48-46-767Z-87330，含manifest/results和每案例请求、session、FSM数据。覆盖名单/两加载方式/必载缺失与factory及session_start失败/递归上限/真实child黑名单/FSM dispatch空队列/实际shell取消/启动及递归启动取消/同child和父重启恢复/new根隔离/自动重试最终结果/handled不冒充started/model与low思考级别继承/实时桥消息及私有控制鉴权。
+      - 'OC共同场景已至少两次跑完；Pi原末段失败经原始session定位为FSM source read-back mismatch: agent_pid。真实原因：同root的多个Pi进程都登记source，server在多个存活PID中选择winner，父会话不再读回自己。已改子FSM调用走root鉴权流式代理，root进程维护每actor MCP通道、同物理host canonical lease和各自actor绑定；child不再登记source。Pi-only相同完整通信/回报/退出场景已真实回归通过，见.runtime/pi-transport-20261021-2。'
+      - P2固定OC/Pi真实对照已通过：原始记录.runtime/native-tests/2026-10-21T09-05-49-995Z-80482，源码sha256 a827f674cd17720b45295455a3860659af118d1fcc5bca79a1fd097da0ffbf83。独立data-dir/workspace，同FSM定义、服务/客户端及业务动作，主/子检查账本与四个文件副作用完全相同，禁写及未派发child均未执行，两个actor最终都回_default。只有启动结果文本/JSON及OC内部Stop评估会话做宿主适配，后者沿原smoke脚本化wait_async，不改变FSM裁决；不宣称真实judge语义验证。
+      - 独立真实交付场景已通过：.runtime/ccv-delivery-20261021-6。使用clean framework clone、官方workspace installer、真实fcil/CompCert与Clight helper、独立HOME/config/data-dir/workspace。不可替换的无效.i经success边实际frontend非零拒绝，failure边真实生成并锁定evidence进入V_FAILED；故意空原因报告被failed_report_check拒绝，保持机器字段不变后补解释、commit/self-check，合法V_DELIVER→exit_fsm回_default。无cert，明确不是V_VERIFIED成功证明。soft review及watcher为脚本化fixture verdict，hard gates、工具及Git实际执行。
+      - 原v3在修复后实际重跑通过：.runtime/ccv-v3-replay-20261021-1，67.043秒、0 skip，冻结原版scenario_ext_v3动作及断言，仅adapter提供隔离环境；端点仍V_A_LOOP。根npm run check实际执行：Biome1684文件无修改，pinned/runtime deps、TS imports、entry graphs、install-lock通过；官方packages/ai Azure/model类型错误导致根tsc失败，未修改官方源码。插件strict tsc通过，当前进入同一源码全组回归。
+      - 最终同源码hash7852534b5dbad16a40cc12bab58a43239f83441677dacd5429acc6c15167ffd0：插件strict tsc、普通126/126、真实native21/21、OC/Pi共同场景1/1、CCV原v3及独立failed delivery2/2全部退出0且无skip；另真实daemon identity-TTL回归1/1通过，共151测试。私有证据.runtime/final-20261021-2，公开脱敏结论docs/test-reports/native-child-parity-delivery.md。OC两次模型前启动超时均关闭并保留，第三次完整通过；不能宣称首启成功。原v3最终用例50.895秒，failed delivery20.955秒。
+      side_effects: []
+      principles: []
+      remarks:
+        当前协作: 本轮测与修已完成；README、配置模板、安装计划、可重复runner及学习原则已同步。根check仅官方packages/ai现有Azure/model类型失败，不修改官方源；browser smoke未到达。保留B62、完整15态/V_VERIFIED成功证书链、真实模型判断、所有OC语义等未覆盖范围；不是本轮新增未履行义务。改动未commit/push，无新真实provider调用或独立审查。
+    log:
+    - action: push
+      at: 2026-10-21T04:02:35.508551000Z
+      detail: 依据明确新授权建立独立工作根；当前实现入口缺少强制准入/必载与持久生命周期，先用真实入口测试驱动修复
+    - action: update
+      at: 2026-10-21T04:02:35.508551000Z
+      detail: 依据明确新授权建立独立工作根；当前实现入口缺少强制准入/必载与持久生命周期，先用真实入口测试驱动修复
+    - action: update
+      at: 2026-10-21T06:20:29.118046000Z
+      detail: 在长时测试修复中保存真实红绿证据及未完成阶段，防止基础设施失败或定向空文件计数被冒充功能通过；不改原判据或OC剧本；变更字段：content.remarks.当前协作、content.results、plan
+    - action: update
+      at: 2026-10-21T06:52:14.842689000Z
+      detail: 根据同一源码树全组真实20项回执结算首阶段，保留原始私有证据并进入下一已授权阶段；不把结果泛化成所有OC行为等价；变更字段：content.remarks.当前协作、content.results、plan[0].progress.kind、plan[1].progress.kind
+    - action: update
+      at: 2026-10-21T08:55:37.331615000Z
+      detail: 记录实际发现的跨Pi source冲突及已验证修复；保留OC初始化阻塞，转向仍可独立推进的已授权Pi交付测试，不降判据；变更字段：content.remarks.当前协作、content.results
+    - action: update
+      at: 2026-10-21T09:07:39.313153000Z
+      detail: 凭真实同条件OC/Pi完整回执结算第二阶段，披露仅启动期基础设施重试与未验证边界，进入已授权的独立交付场景；变更字段：content.remarks.当前协作、content.results、plan[1].progress.kind、plan[2].progress.kind
+    - action: update
+      at: 2026-10-21T09:56:07.067396000Z
+      detail: 记录独立合法交付路径的实际红绿结果和verified/failed范围；不把合法失败报告冒充形式化验证成功或全部15态覆盖；变更字段：content.remarks.当前协作、content.results
+    - action: update
+      at: 2026-10-21T10:21:27.935779000Z
+      detail: 记录原版v3实际通过及根检查真实边界，推进最后全组回归，不将失败的根tsc冒称全绿；变更字段：content.remarks.当前协作、content.results、plan[2].progress.kind、plan[3].progress.kind
+    - action: update
+      at: 2026-10-21T10:34:01.430285000Z
+      detail: 用同一最终源码完整实际回执结算测试修复；记录根官方源失败和覆盖边界，不宣称全域OC等价或根check全绿；变更字段：content.remarks.当前协作、content.results、plan[3].progress.kind
+    - action: pop
+      at: 2026-10-21T10:34:13.648576000Z
+      detail: 授权的测试修复阶段已实际完成并交付依据；结束FSM-03，不重开已结束根，也不把覆盖适用边界变成新委托
+  4:
+    parent: null
+    title: fsm-7 v2：tmux 子会话架构 + 软停门（OC 全 parity）
+    goal:
+    - 按 subplans/fsm-7-subagent-tmux.md 定稿实现：child=detached tmux 交互式 pi；inbox/metadata 文件契约；挂起/收养生命周期；stop-gate v2 Analyze 软门（evidence+judge+reduce，fail-closed，默认开）；selector/命令族更新；删 viewer/RPC管道；mock 增加 stop reviewer 协议（同模型请求按 system 标记分辨来源）；native 测试改写。
+    origin: []
+    status:
+      kind: expired
+      closure:
+        summary: owner后续明确选择Nico并要求HC一比一接口/协议，旧tmux独立回合停止作为实现方向；保留已做实现和历史测试，不冒充新架构已交付。
+        residuals:
+        - result: 原始软停门、FSM/MCP与UI经验供新实现引用；CCA6持续失败放大已定位到dead broker复用，首个300秒timeout原因仍未知。后续HC/Nico实现和独立HC实验包另建新root承接，不复活已关闭历史交付。
+          evidence: ''
+    plan:
+    - text: Step 0+subplan v2 定稿（tmux架构+软停门+mock协议）
+      children: []
+      progress:
+        kind: ready
+      fork: []
+    - text: child 侧：inbox 轮询+metadata+sendUserMessage+ask 抑制
+      children: []
+      progress:
+        kind: ready
+      fork: []
+    - text: coordinator tmux 化：spawn/stop/liveness/suspend/收养/结果读取
+      children: []
+      progress:
+        kind: ready
+      fork: []
+    - text: stop-gate v2 Analyze 软门全路由
+      children: []
+      progress:
+        kind: ready
+      fork: []
+    - text: selector/命令族+删 viewer/RPC管道
+      children: []
+      progress:
+        kind: ready
+      fork: []
+    - text: native 测试改写+全量回归+tmux 实测
+      children: []
+      progress:
+        kind: ready
+      fork: []
+    content:
+      results:
+      - '方案实质内容已收敛并固化于 subplans/fsm-7-fleet-widget.md：互斥特征判据、7行滚轮不变式、belowEditor 硬推荐、右列三指标数据源（session.jsonl usage 实测）、viewer=overlay+组件自定行数+tui.children/render实测贴沿（1.4.0源码核实）、tmux否决对比、事件流（NativeChildProcess.onEvent message_update/text_delta）实时渲染、输入路由表（命令先行不可拦/skill字面透传）、Esc空编辑器分层、多input处理器短路序。调查依据：pi-subagents fleet-status/fleet-transcript 实现、官方 tui.md/extensions.md、tui.ts/interactive-mode.ts/agent-session.ts 源码、GH issues #1441/#1963/#2705/#9855。'
+      - 实现与tmux实测完成（本轮未commit）：(1) fleet全套—fleet-tree/stats/row-format/measure/viewer/ui六模块，7行滚轮不变式/右列指标/贴沿实测(mouseLayout缓存)/viewer用官方AssistantMessage+UserMessage组件渲染(nonCapturing overlay保持编辑器焦点)/输入重定向(input事件handled→agent_send，Main零污染实证)/Esc分层/PgUp-PgDn滚动。(2) /subagent send命令—manual()root特权入口修复(原走handle缺token恒403)+extraArgs穿透+FSM准入完整(manual同样authorize；_default态403带提示为正确行为)。(3) fixture修复—enter_fsm无fsm_前缀例外、Bash timeout毫秒、CASE:hold 10轮后exit、CHILD流场景收尾exit防stop-gate死循环、CHILD:stream:NxS慢流。tmux实证闭环：/subagent发射→↓selector(name/ctx%/tokens)→Enter viewer(Main风格)→打字可见且Enter直达child(child文件命中/main零命中)→Esc×2分层；child respawn续跑亦实证。修elapsed(mock epoch-ms时间戳)。15+4单测+tsc绿。残留：鼠标滚轮需全屏模式(regular鼠标归终端)；真实布局下mouseLayout测量长期稳定性。
+      - 重调研完成（owner授权按workflow重开）：docs/research/fsm-7-subagent-tmux-research.md。核心事实：Mario本人维护badlogic/pi-subagent=tmux子会话骨架（出生即detached tmux跑交互式pi，-x120 -y40）；回报契约=metadata.json状态+文件inbox(250ms轮询)+pi.sendUserMessage(deliverAs steer|followUp)投递+session.jsonl活动分支读结果，零终端抓取、不用tmux send-keys；挂起语义=干净退出kill+标suspended/崩溃则has-session收养，取代PID活性探测。主界面切换三线全否（#830/#7058/#1790）。TUI风险清单：最大真实风险=child阻塞对话框，须改AskUserQuestion注册条件（bootstrap存在时不注册）。映射：采纳tmux骨架+inbox+挂起语义，保留FSM准入/dispatch/bundle/门禁/selector，删viewer/measure/输入重定向/RPC管道/send-keys；child→parent事件留HTTP、parent→child走文件inbox。sendUserMessage/deliverAs已在1.3.0核实。21项native测试child驱动需改写。
+      - fsm-7 v2 tmux重设计实现完成（未commit）：(1) tmux子会话——child=detached交互pi（tmux new-session -d -x120 -y40 -c cwd + env注入 + -a信任 + -ne -e bundle --session）；spawn→inbox初始prompt→ready握手(HTTP)；child侧inbox轮询器(250ms)+metadata状态写入+agent事件HTTP上报；parent侧suspend(干净退出)/收养(has-session)/reconcileDead(惰性对账)。(2) stop-gate v2软门——planStopRoute四路由(allow/malformed/deterministic/analyze)+Analyze(evidence collect+live-work∪busyChildren+recent_plans→judge结构化verdict→reduceStop fail-closed→allow时stop-reset)；config stopAnalysis默认开opt-out。(3) 删除——fleet-viewer/fleet-measure/输入重定向/NativeChildProcess(RPC管道)/previous-PID liveness/agent-tool.ts/parent-model-arg.ts。(4) /subagent命令族——send+find[--all]+tmux-attach+send-to-main。(5) mock协议——FSM-STOP-ANALYSIS system标记分辨stop-reviewer judge请求，CONTROL:stopverdict=wait|human|observe|invalid编程verdict。(6) 测试改写——prompt不设runActive(input handler handled场景)；crash用retry等待tmux死亡+reconcile；parity接受queued disposition；session_start失败tmux模式accept gated child。最终：tsc 0错+本地全套件绿+native 21/21+latency 1/1。真实bug修复：context传递(registerChildRuntime在session_start dispatch内注册不被回调→直接传ctx)；poller立即启动不等session_start；-a信任flag。
+      - 修复Sol调研发现的9个实现缺陷（全部tsc+本地全套件+native 21/21绿）：(1)软门Judge工具策略——tools:{}改为{*:false,StructuredOutput:true,read/grep/glob:true}，软门Analyze路径打通；(2)活tmux收养——start()见活session不再裸return，建sessions entry+patch metadata；(3)metadata outcome/summary——agent_start清stale值，child-inbox同步；(4)reconcileDead——去掉completed跳过；(5)Evidence dir传入judge prompt+read/grep/glob可用；(6)Wait/live-work放行也reset counter（hook parity）；(7)Stop外层catch收窄——仅transport软放行，协议错误fail-close；(8)inbox原子发布tmp+rename；(9)child cwd透传到NativeFsmPool(cwdFor回调)。测试适配gates.test transport fake。
+      side_effects: []
+      principles: []
+      remarks:
+        当前协作: owner 定稿"干吧"；软停门为硬性 parity 项；完成后回讨论 subagent 设计。v1 的 viewer/输入重定向裁决作废，7行滚轮/belowEditor/右列指标/命令族继承。
+    log:
+    - action: push
+      at: 2026-10-22T05:27:03.621352000Z
+      detail: owner 询问方案是否按 /workflow & /qpdi 定稿；实质决策已逐项裁决并固化，按流程形式化建帧
+    - action: update
+      at: 2026-10-22T05:27:16.940482000Z
+      detail: 建帧时固化已收敛决策与调查依据，区分已定内容与未走完的流程门；变更字段：content.remarks.当前协作、content.results
+    - action: update
+      at: 2026-10-22T08:17:21.925761000Z
+      detail: 按owner授权完成实现+tmux实测，记录红绿证据与残留边界；变更字段：content.results
+    - action: update
+      at: 2026-10-22T08:48:02.537654000Z
+      detail: 完成subagent架构重调研并落报告，待owner确认后出修订subplan；变更字段：content.results
+    - action: update
+      at: 2026-10-22T10:14:03.353634000Z
+      detail: owner 定稿 v2 重设计并授权实施；记录 scope 变更与 mock stop reviewer 协议要求；变更字段：content.remarks.当前协作、goal[0]、plan、title
+    - action: update
+      at: 2026-10-22T11:11:52.688864000Z
+      detail: fsm-7 v2全量实现+测试通过；tmux骨架+软停门+inbox+生命周期+mock协议全部落地；变更字段：content.results
+    - action: update
+      at: 2026-10-22T12:14:13.103677000Z
+      detail: 修复Sol发现的9个v2缺陷，全部回归通过；待跑综合测试剧本；变更字段：content.results
+    - action: pop
+      at: 2026-10-23T07:37:38.073021000Z
+      detail: 承接owner明确的整体替换、旧机制清退和HC原生合同裁决，取消旧tmux方案而非倒写其已完成
+  5:
+    parent: null
+    title: HC一比一SubAgent合同适配：Nico执行内核与Pi同脚本对照
+    goal:
+    - 在my-plugins/fsm-compatible内使用不修改源码的Nico子模块、不注册默认extension，完整复刻HC四工具schema/文本/通信/持续会话/Stop和FSM身份权限效果，支持headless；独立简单unit与HC原样剧本/Pi同脚本及最终message/FSM协议检查有运行依据才结算。无新hash门禁、无未经授权审查、无当前工作commit/push。
+    origin:
+    - owner反复要求以haokun-code实际工具协议1:1复刻，并明确Sol high调研→GLM实现、另Sol并行简单单测；主线程负责设计与协调。
+    status:
+      kind: active
+    plan:
+    - text: 以HC源码为规范，完成固定Nico内部API调研及architecture/detailed-design/test-contract，不采用旧自拟fsm-8协议。
+      children: []
+      progress:
+        kind: item_done
+      fork: []
+    - text: GLM实现交付并经主线程复验：src/subagents 24模块、runtime整根换HC接线（无bootstrap/nativeChild/nativeFsm HTTP路由）、旧tmux/proxy生产路径退出、失效broker缓存修复；assembly 5/5、三个冒烟脚本、全量166/166、check 0均真实退出码。
+      children: []
+      progress:
+        kind: item_done
+      fork: []
+    - text: 四文件20例已按node:test接入插件test/并入聚合test:hc；fleet-ui两处tmux旧断言由主线程改为真实transcript行为并加清理兜底；一次exactOptionalPropertyTypes调用点修正，断言语义未变。
+      children: []
+      progress:
+        kind: item_done
+      fork: []
+    - text: reference对偶大幅推进（root 0-13全过golden、alpha 0-6过、beta已启动、共22 receipts）：本轮修复真实缺陷=①normalizer改为HC全字段改名映射（Bash带description等）；②permission-gate拒绝文案对齐hook组合模板"FSM 门禁：工具X不允许使用。原因：…"；③子会话hook推迟到session_start（加载期action方法非法导致FSM工具全丢）；④子gate身份改为(rootSID,childSID)对齐daemon actor模型；⑤deliver不再await整个run（agent Started调度即返，root续轮时序恢复，gamma不再错领WorkerBeta帧）；⑥workdir显式cwd用resolve绝对路径不重复拼接。适配器修复=hook stdout组合reason、error part无title/metadata、Bash part shell元数据、agent part creation元数据、flush并发锁+幂等+稳定读、facade按SID服务。当前卡点=alpha/007 mismatch（FAILURE已锁存，run=/tmp/fsm-dual/mvkwii173o1保留22 receipts证据）。
+      children: []
+      progress:
+        kind: in_progress
+      fork: []
+    content:
+      results:
+      - Nico独立子模块vendor/pi-subagents为34e1651d97a29388aa62e97a3571b216f24b015f、0.81.0、MIT；third-party原副本未动。源码调研run428b4144完成：完整executor每轮dispose/async stopped禁恢复，与HC不等价，因此主线程设计复用createDefaultChildSessionFactory，Fleet仅真实只读投影。
+      - 独立Sol恢复run21087b7c：Vitest4文件20/20通过、无skip、139ms，严格noEmit退出0；主线程已读取vitest.21087b7c.log和noemit.21087b7c.log实际记录。测试位于my-plugins/.runtime/fsm-compatible-unit-tests-20261023，未接入原test目录且本次未修改断言。覆盖纯文本/邻域/stop规划/模型深度，不证明真实abort/resume或FSM兼容。
+      - assembly诊断（/tmp/fsm-assembly-run1.log）：首用例45ms失败于旧合同断言tools.has("Agent")——新HC合同为小写agent四工具；且t.after清理在断言后注册，失败路径泄漏bridge/MCP子进程（fake-mcp.mjs存活）使node runner挂满600s；其余4用例通过。旧测试属已授权清退的旧架构，按新合同重写不是放宽期望。
+      - 主线程验收（2026-10-23）：npm run check=0；node --test assembly 5/5；fsm-hc-lifecycle-smoke/fsm-real-factory-probe/fsm-hc-driver 均 exit 0（SMOKE_OK、REAL_CHILD_OK+REAL_FACTORY_DISPOSED、DRIVER_OK）；npm run test 聚合166/166含20例hc合同单测。fleet-ui stale断言修复属owner已授权旧tmux清退，非放宽。
+      - v3参考包源证事实（对Pi对偶阶段有直接影响）：①固定HC Stop parts-only续行=同SID同模型但profile general→build（fsm-plugin.js:767-770+prompt.ts:765-779）——Pi stop-gate对齐时按此行为，不复刻更强profile保持；②HC真实Bash取消契约=tool completed+metadata.exit=null+shell_metadata"User aborted the command"+assistant MessageAbortedError，dual比较取消场景按此判；③跨树SID send已入v3 native-agents用例，Pi侧按新基准需裁决：声明出界或实现跨树路由。
+      - '#121确认：../mock-with-pi HEAD=9a5a32be920ddeb2700e6b5b9d21d8dc7ebd5590（与参考包pin一致）；hc-fsm-reference包内release mock SHA256=b05a1acd…与交付报告一致；HC/FSM产物同源。Pi侧工具原样投递以raw HTTP观察为准（HC侧native-QwYZdO已证同法），不用内部投影自证。'
+      - '#122首轮实跑（/tmp/fsm-dual/mvksau5dlxg→mvksxmy824ml）：SUN_LEN用/tmp/fsm-dual短目录解决；全链路mock→use-plot→Pi→插件→daemon打通；差异合同D1-D6生效中，SID修复属未归类缺口按合同改实现。'
+      - 对偶观察适配链落地：插件FSM_DUAL_DAEMON_LOG缝（owned-runtime env门控）记录全部daemon请求；flush-observations.mjs合成HC观察文件；SUN_LEN/PLOT_BINDINGS/PLOT_HC_PORT/facade/shim-exec五坑已解。root四步receipts全过，首个pending=真实差异排查点。
+      - owner五项裁决落地（2026-10-23）：①@file=D4测试约束（FSM无此功能）维持；②错误渲染D3维持；③跨树send已实现——hc-session-registry（FSM_DATA_DIR共享注册表+owner转发端点/fsm-compatible/agent-message+Basic auth），sendHcAgent本树miss走注册表，miss仍AgentNotFound；⑤header已修——孩子发布协议SID真实header（真实created/cwd），roster/statuses root对外id=协议SID，getExecution按协议SID命中root；④extraArgs按owner裁决关闭不管。新增test/hc-session-registry.test.ts 4例；全量170/170+check 0。
+      - 本轮5项真实实现修复全部带全量170/170+check 0回归；对偶已深入beta阶段，证明SID协议化/门禁文案/子会话FSM投影/异步Started/workdir语义均已按golden对齐。
+      side_effects: []
+      principles: []
+      remarks:
+        当前协作: owner授权HC行为1:1；设计三文件已定稿放行。GLM run467309f3进行中：src/subagents已17模块（含7个固定纯函数），assembly旧断言+失败路径泄漏已定位，GLM按--test-timeout+文件日志定向修复，3次steer已送达。Sol四文件20例20/20通过、noEmit退出0、未接入原test/。正常Stop按HC异步续行，不宣称StopAllow前上报屏障；无新增审查/commit授权。
+        当前边界: GLM如实披露的宿主缺口待owner裁决：①HC resolvePromptParts的@file附件展开在Pi prompt(string)窄接口下未做（原文透传不裁不假）；②AssistantMessage无HC error.name/data分离与reasoning_tokens，失败文本按可用字段不虚构；③跨runtime任意SID仅root advisory，无法定向他树child；④/subagent extraArgs同进程子会话无CLI旗标可传；⑤子会话以header:null/branch:[]发布，roster created回退updatedAt。同脚本HC/Pi对偶与协议trace比对仍未做（待FSM-06缺口）。
+    log:
+    - action: push
+      at: 2026-10-23T07:37:38.086344000Z
+      detail: 新HC合同和选定Nico路线取代旧tmux架构，保存当前必要责任而不重开已结束交付
+    - action: update
+      at: 2026-10-23T07:37:38.086344000Z
+      detail: 新HC合同和选定Nico路线取代旧tmux架构，保存当前必要责任而不重开已结束交付
+    - action: update
+      at: 2026-10-23T07:38:34.069210000Z
+      detail: 据源码调查、定稿设计、两次真实网络失败/续跑及测试checkpoint更新当前责任，未把编写交付当测试通过；变更字段：content.remarks.当前协作、content.results、plan
+    - action: pause
+      at: 2026-10-23T07:38:34.080659000Z
+      detail: 去向：新根帧 FSM-06
+    - action: resume
+      at: 2026-10-23T07:38:56.158699000Z
+      detail: HC实验作者后台继续补case；主线程焦点回到已授权Pi实现及独立简单unit，后台运行不抢owner焦点
+    - action: update
+      at: 2026-10-23T08:10:10.219480000Z
+      detail: 凭实际运行日志结算简单单测这一局部结果，解除过时导出等待并保留运行时和同脚本责任；变更字段：content.results、plan[1].text、plan[2].progress.reason、plan[2].text
+    - action: update
+      at: 2026-10-23T08:19:49.289791000Z
+      detail: 凭assembly完整日志与运行状态结算实现进度，区分旧测试缺陷与新合同实现责任；变更字段：content.remarks.当前协作、content.results
+    - action: update
+      at: 2026-10-23T08:55:20.230259000Z
+      detail: 凭主线程复跑的真实退出码结算实现与测试接入两项，披露缺口交owner裁决，不宣称全协议兼容；变更字段：content.remarks.当前边界、content.results、plan[1].progress.kind、plan[1].text、plan[2].progress.kind、plan[2].progress.reason、plan[2].text
+    - action: update
+      at: 2026-10-23T09:27:09.759671000Z
+      detail: 承接FSM-06结算转来的集成事实，供同脚本对偶阶段直接引用；变更字段：content.results
+    - action: update
+      at: 2026-10-23T09:31:33.233541000Z
+      detail: 结算对偶前置确认并登记差异合同v1，跨树裁决单独留owner；变更字段：content.results、plan[3].progress.kind、plan[3].progress.reason、plan[3].text
+    - action: update
+      at: 2026-10-23T10:04:14.110181000Z
+      detail: 结算对偶首增量：runner打通+首个核心修复+全量回归，登记下一适配器责任；变更字段：content.results、plan[3].text
+    - action: update
+      at: 2026-10-23T10:15:57.606384000Z
+      detail: 结算对偶适配链里程碑与step3精确遗留，保留全部run证据供下轮继续；变更字段：content.results、plan[3].text
+    - action: update
+      at: 2026-10-23T10:27:47.504565000Z
+      detail: 按owner逐项裁决结算：两项实现一项关闭两项维持，全量回归恢复绿；变更字段：content.results、plan[3].text
+    - action: update
+      at: 2026-10-23T11:47:54.683544000Z
+      detail: 结算对偶中段大批量修复与推进位置，保留alpha/007证据供续跑；变更字段：content.results、plan[3].text
+  6:
+    parent: null
+    title: 独立HC FSM实验包：use-plot与真实collect/replay基准
+    goal:
+    - 以固定use-fsm dev和HC为被测对象，交付与Pi/Nico实现无关的声明PLOT、通用use-plot、综合/互补YAML、真实回执/golden/log/覆盖矩阵；每个交付case先HC collect再全新HC replay，首错锁存停机且最终计算结果一致，所有未覆盖项如实保留。
+    origin:
+    - owner明确授权独立实验包与固定dev全feature/既有测试调查，要求真实HC两轮通过后交付，后续用于搭建实验环境；不是Pi实现者自行出题。
+    status:
+      kind: done
+      closure:
+        summary: 独立HC实验包交付并双轨验证：v2三组（reference/idle-resume/soft-review）+v3三组（semantic-stop真实Stop judge 4 Block/同SID续行/计数阈值与重置、native-agents跨树SID+拒绝边界+真实busy两节点级联取消同SID恢复、semantic-wait confirmed busy后代semantic Allow）各完成collect与全新replay两轮，最终计算message真实一致；主线程独立复跑verify_run_pairs.py与v3 summarize均退出0，v2的31项hash不变。ambiguous name/人工确认/竞态等按coverage如实保留X，不称全FSM覆盖。
+    plan:
+    - text: 独立use-plot/PLOT/YAML/真实golden和覆盖矩阵交付；v2三组HC collect/fresh replay记录通过原verify_run_pairs检查。
+      children: []
+      progress:
+        kind: item_done
+      fork: []
+    - text: 补自身覆盖清单S09真实Stop语义judge及S05另树寻址/忙树取消后同SID恢复，新增case必须真实HC两轮且保留原v2可重放性。
+      children: []
+      progress:
+        kind: in_progress
+      fork: []
+    content:
+      results:
+      - hc-fsm-reference v2：reference 68回执、idle-resume 23动作、soft-review 12回执，各有独立collect/replay，三组最终计算message均为42；主线程实际运行python3 scripts/verify_run_pairs.py退出0。动态匹配规则在docs/matching.md，不能称raw时间/ID逐字相同，更不是Pi对偶通过。
+      side_effects: []
+      principles: []
+      remarks:
+        当前协作: builder已从原会话续run fc5b5915补S09真实Stop语义judge与S05忙树取消/跨树同SID恢复，进行中。owner指示时限不够即拉长：在飞deadline不可原地修改；完成或超时即按原会话resume并显式加长timeoutMs（已验证无损续跑），不打断在跑工作。v2三组基准保持可重放。
+        当前边界: 记录/evidence支持这三组已测子集；soft-review仅迁移审核，所有当前HC cases显式FSM_STOP_ANALYSIS=0。真实Stop语义/anti-spiral、忙树取消、另树SID等未覆盖；Rust另有11项SUN_LEN失败，未修改参考产品。不能称FSM full已测。原作者已从07bc3abd原会话续run fc5b5915补S09/S05；不追加审查或重跑全套源码普查。
+    log:
+    - action: push
+      at: 2026-10-23T07:38:34.080659000Z
+      detail: 独立被测产品、试验目的及交付物应有自己的root，保留与Pi实现并行且不相互改期望的责任边界
+    - action: update
+      at: 2026-10-23T07:38:34.080659000Z
+      detail: 独立被测产品、试验目的及交付物应有自己的root，保留与Pi实现并行且不相互改期望的责任边界
+    - action: update
+      at: 2026-10-23T07:38:56.147719000Z
+      detail: 按已运行记录检查和coverage明确承接原任务未闭合的Stop/通信行为，保存可用成果但不误关完整实验目标；变更字段：content.remarks.当前边界、content.results、plan
+    - action: pause
+      at: 2026-10-23T07:38:56.158699000Z
+      detail: 去向：resume FSM-05
+    - action: update
+      at: 2026-10-23T08:19:31.475324000Z
+      detail: 记录owner的时限拉长指示与实际执行机制，保存续跑条件；变更字段：content.remarks.当前协作
+    - action: pop
+      at: 2026-10-23T09:27:09.773231000Z
+      detail: 六组case全部两轮通过且失败证据保留，包内目标达成；集成事实已转FSM-05
 log:
 - action: update
   at: 2026-10-14T03:10:04.035578000Z
   detail: 建立复工导览，使继任者从用户目的、插件责任与实际材料继续，而不是从旧目录名猜目标。
+- action: update
+  at: 2026-10-23T07:38:56.169588000Z
+  detail: 更新已失效的全局导览，令复工从当前HC一比一目的和两条实际责任继续，不把旧tmux/frozen准入当现规范

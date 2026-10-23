@@ -12,7 +12,8 @@ try {
   const payload = JSON.parse(input);
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('bad-input');
   const allowed = new Map([
-    ['/health', 'GET'], ['/capabilities', 'GET'], ['/session/source', 'GET'],
+    ['/health', 'GET'], ['/capabilities', 'GET'], ['/session/source', 'GET'], ['/actors', 'GET'],
+    ['/evidence/collect', 'POST'], ['/evidence/live-work', 'POST'], ['/stop-reset', 'POST'],
     ['/session/register', 'POST'], ['/identity/acquire', 'POST'], ['/actor/acquire', 'POST'], ['/evidence/source-auth', 'POST'],
     ['/check-permission', 'POST'], ['/stop-check', 'POST'], ['/gate/suppress', 'POST'], ['/gate/release', 'POST'],
   ]);

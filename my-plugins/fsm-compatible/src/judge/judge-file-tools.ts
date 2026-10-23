@@ -52,7 +52,11 @@ export function createJudgeFileTools(cwd: string, allowExternal: boolean) {
 					entries: window.entries, offset: window.offset, totalEntries: window.totalEntries, truncated: window.truncated,
 					preview: window.preview } };
 			}
-			return runSdk(read as unknown as SdkTool, { path: target, offset: offset || 1, limit }, signal);
+			// HC Read renders file lines numbered ("N: line"); the reviewer's
+			// FSM-visible receipt must match that format, not the SDK's bare text.
+			const plain = await runSdk(read as unknown as SdkTool, { path: target, offset: offset || 1, limit }, signal);
+			const numbered = plain.content.split("\n").map((line, index) => `${(offset || 1) + index}: ${line}`);
+			return { ...plain, content: numbered.join("\n") };
 		},
 		async grep(input: unknown, signal?: Signal): Promise<JudgeToolResult> {
 			if (!isAdmissionObject(input)) throw new RuntimeError("protocol-invalid");

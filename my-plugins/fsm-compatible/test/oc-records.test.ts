@@ -1,3 +1,4 @@
+import { protocolSessionId } from "../src/binding/create-root-binding.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AssistantMessage, ToolResultMessage, UserMessage, Usage } from "@earendil-works/pi-ai";
@@ -12,7 +13,7 @@ const usage: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTo
 	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 
 function rootBinding(sessionId: string): PersistedBinding {
-	return { version: 1, rootSessionId: sessionId, sessionId, parentSessionId: null, agentId: "main",
+	return { version: 1, rootSessionId: protocolSessionId(sessionId), sessionId, parentSessionId: null, agentId: "main",
 		kind: "execution-root", agentName: null, bootstrapRef: null, requiredExtensions: [] };
 }
 

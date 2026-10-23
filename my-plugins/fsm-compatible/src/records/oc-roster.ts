@@ -12,10 +12,12 @@ export interface OcSession {
 export type OcStatusType = "busy" | "retry" | "idle";
 export interface OcStatus { readonly type: OcStatusType }
 
-function sessionOf(record: ExecutionRecord): OcSession {
+function sessionOf(record: ExecutionRecord, rootHostId: string, rootProtocolId: string): OcSession {
 	// Step P1: created comes from the real persisted header when it exists.
 	const created = record.header ? normalizeIsoTimestamp(record.header.timestamp) : record.updatedAt;
-	return { id: record.sessionId, parentID: record.parentSessionId, title: record.title,
+	const id = record.sessionId === rootHostId ? rootProtocolId : record.sessionId;
+	const parentID = record.parentSessionId === rootHostId ? rootProtocolId : record.parentSessionId;
+	return { id, parentID, title: record.title,
 		time: { created, updated: record.updatedAt } };
 }
 
@@ -35,7 +37,7 @@ export function projectOcRoster(store: RecordStore): readonly OcSession[] {
 		if (!current || seen.has(current)) throw new RuntimeError("protocol-invalid");
 		seen.add(current);
 		const record = store.getExecution(current);
-		if (record) sessions.push(sessionOf(record));
+		if (record) sessions.push(sessionOf(record, store.rootId, store.rootProtocolId));
 		const children = store.executionChildren(current)
 			.map((child) => child.sessionId)
 			.sort((left, right) => (left < right ? -1 : 1));
@@ -51,7 +53,8 @@ export function projectOcRoster(store: RecordStore): readonly OcSession[] {
 export function projectOcStatuses(store: RecordStore): ReadonlyMap<string, OcStatus> {
 	const statuses = new Map<string, OcStatus>();
 	for (const record of store.listExecutions()) {
-		statuses.set(record.sessionId, { type: lifecycleStatus(record.lifecycle) });
+		const id = record.sessionId === store.rootId ? store.rootProtocolId : record.sessionId;
+		statuses.set(id, { type: lifecycleStatus(record.lifecycle) });
 	}
 	for (const judge of store.listJudges()) {
 		if (judge.lifecycle === "unavailable") throw new RuntimeError("not-ready");

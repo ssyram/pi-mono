@@ -23,9 +23,11 @@ export async function registerAndConfirmSource(
 	if (attempted.body !== null) throw new RuntimeError("protocol-invalid");
 	const reply = await request({ method: "GET", path: `/session/source?session=${encodeURIComponent(owner.rootSessionId)}`,
 		deadline, ...(signal ? { signal } : {}) });
-	if (reply.status !== 200) throw new RuntimeError("not-ready");
+	if (reply.status !== 200) throw new RuntimeError("not-ready", "FSM source read-back unavailable");
 	const source = reply.body;
-	if (!isAdmissionObject(source) || source.session_id !== owner.rootSessionId || source.agent_pid !== owner.pid
-		|| source.kind !== "opencode" || source.cwd !== owner.cwd || source.opencode_server_url !== owner.serverUrl
-		|| source.transcript_path !== null) throw new RuntimeError("not-ready");
+	if (!isAdmissionObject(source)) throw new RuntimeError("not-ready", "FSM source read-back malformed");
+	const expected = { session_id: owner.rootSessionId, agent_pid: owner.pid, kind: "opencode", cwd: owner.cwd,
+		opencode_server_url: owner.serverUrl, transcript_path: null };
+	const mismatched = Object.entries(expected).filter(([key, value]) => source[key] !== value).map(([key]) => key);
+	if (mismatched.length) throw new RuntimeError("not-ready", `FSM source read-back mismatch: ${mismatched.join(",")}`);
 }

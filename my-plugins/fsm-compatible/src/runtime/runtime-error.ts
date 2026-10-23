@@ -6,8 +6,8 @@ export type RuntimeErrorCode = (typeof RUNTIME_ERROR_CODES)[number];
 
 export class RuntimeError extends Error {
 	readonly code: RuntimeErrorCode;
-	constructor(code: RuntimeErrorCode) {
-		super(code);
+	constructor(code: RuntimeErrorCode, message: string = code) {
+		super(message);
 		this.name = "RuntimeError";
 		this.code = code;
 	}

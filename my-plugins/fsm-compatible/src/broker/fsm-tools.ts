@@ -1,18 +1,23 @@
 import type { ExtensionAPI, ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import type { PersistedBinding } from "../binding/actor-binding.ts";
 import { RuntimeError } from "../runtime/runtime-error.ts";
-import type { FsmBroker } from "./fsm-broker.ts";
+import type { RpcOptions } from "./mcp-transport.ts";
 import type { FsmTool } from "./fsm-catalog.ts";
 import { projectMcpToolResult } from "./mcp-tool-result.ts";
 
+export interface FsmInvoker {
+	invoke(binding: PersistedBinding, name: string, input: unknown, call: RpcOptions): Promise<Record<string, unknown>>;
+}
+
 export interface ProjectedToolOwner {
-	readonly broker: FsmBroker;
+	readonly broker: FsmInvoker;
 	readonly catalog: ReadonlyMap<string, FsmTool>;
 	readonly timeoutMs: number;
 	/** The host session that owns this runtime; defaults to the calling context's
 	 * session. A dispatched child's binding.sessionId is its dispatch tag, so the
 	 * child passes its own host session id explicitly. */
-	readonly hostSessionId?: string;
+	readonly hostSessionId?: string | undefined;
+	readonly extensionPath?: string;
 	ready(): boolean;
 	binding(ctx: ExtensionToolContext): PersistedBinding;
 }
@@ -20,7 +25,12 @@ export interface ProjectedToolOwner {
 export function registerProjectedTools(pi: ExtensionAPI, owner: ProjectedToolOwner): () => void {
 	const existing = pi.getAllTools();
 	for (const name of owner.catalog.keys()) {
-		if (existing.some((tool) => tool.name === name || tool.name.endsWith(`__${name}`))) throw new RuntimeError("not-ready");
+		if (existing.some((tool) => {
+			if (tool.name === name) return true;
+			const projected = tool.name === `mcp__fsm__${name}` || tool.name === `fsm_${name}`;
+			if (projected && owner.extensionPath && tool.sourceInfo?.path === owner.extensionPath) return false;
+			return projected || tool.name.endsWith(`__${name}`);
+		})) throw new RuntimeError("not-ready");
 	}
 	let active = true;
 	// Step P3: published tools can only call the broker with their actual session binding.
@@ -31,7 +41,7 @@ export function registerProjectedTools(pi: ExtensionAPI, owner: ProjectedToolOwn
 		pi.registerTool({ name: ocName, label: tool.name, description: `[OC alias] ${tool.description}`,
 			parameters: structuredClone(tool.inputSchema),
 			async execute(id, params, signal, onUpdate, ctx) {
-				if (!active || !owner.ready()) throw new RuntimeError("not-ready");
+				if (!active || !owner.ready()) throw new RuntimeError("not-ready", "FSM projected runtime not ready");
 				// Route through the same invoke path as the canonical name
 				const binding = owner.binding(ctx);
 				if ((owner.hostSessionId ?? binding.sessionId) !== ctx.sessionManager.getSessionId()) throw new RuntimeError("owner-unavailable");
@@ -49,7 +59,7 @@ export function registerProjectedTools(pi: ExtensionAPI, owner: ProjectedToolOwn
 		pi.registerTool({ name: piName, label: tool.name, description: tool.description,
 			parameters: structuredClone(tool.inputSchema),
 			async execute(_id, params, signal, onUpdate, ctx) {
-				if (!active || !owner.ready()) throw new RuntimeError("not-ready");
+				if (!active || !owner.ready()) throw new RuntimeError("not-ready", "FSM projected runtime not ready");
 				const binding = owner.binding(ctx);
 				if ((owner.hostSessionId ?? binding.sessionId) !== ctx.sessionManager.getSessionId()) throw new RuntimeError("owner-unavailable");
 				// FSM tools run the full gate suite server-side (clightgen, git audits,

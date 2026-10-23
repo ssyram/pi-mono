@@ -21,22 +21,17 @@ const extension: ExtensionFactory = async (pi) => {
 				handle = undefined;
 			}
 			const config = await loadConfig();
-			// Dispatched-subagent child mode: the parent Agent tool pre-claimed the
-			// dispatch under (parent root session, dispatch tag) and passes both via env.
-			const parentSid = process.env.FSM_PARENT_SESSION_ID;
-			const agentTag = process.env.FSM_AGENT_ID;
-			const childIdentity = parentSid && agentTag
-				? { rootSessionId: parentSid, agentId: agentTag, agentName: process.env.PI_AGENT_SUBAGENT_TYPE ?? agentTag }
-				: undefined;
+			const required = config.requiredExtensions ?? [];
 			const parsed = parsePolicyInput({
-				allowedAgentNames: [],
-				requiredExtensions: [{ id: "fsm-compatible", path: SELF_PATH }],
-				maxDepth: 8,
+				allowedAgentNames: config.allowedAgentNames ?? ["general"],
+				requiredExtensions: required.some((item) => item.id === "fsm-compatible") ? required
+					: [...required, { id: "fsm-compatible", path: SELF_PATH }],
+				maxDepth: config.maxDepth ?? 8,
 			});
 			if (!parsed.ok) throw new Error("builtin policy invalid");
 			const extensions = canonicalizeRequiredExtensions(parsed.value.requiredExtensions, SELF_PATH);
 			if (!extensions.ok) throw new Error("mandatory extensions invalid");
-			handle = await openOwnedRuntime(pi, ctx, config, { ...parsed.value, requiredExtensions: extensions.value.map((extension) => ({ id: extension.id, path: extension.path })) }, childIdentity);
+			handle = await openOwnedRuntime(pi, ctx, config, { ...parsed.value, requiredExtensions: extensions.value.map((extension) => ({ id: extension.id, path: extension.path })) });
 		} catch (error) {
 			handle = undefined;
 			const diagnostic = `fsm-compatible runtime not ready: ${error instanceof Error ? error.message : "unknown"}`;

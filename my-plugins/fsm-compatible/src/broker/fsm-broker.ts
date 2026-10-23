@@ -21,6 +21,7 @@ export interface FsmBrokerOptions {
 export class FsmBroker {
 	private readonly options: FsmBrokerOptions;
 	private usable = true;
+	private failureReason = "closed";
 	private pending = 0;
 	private readonly controller = new AbortController();
 	private readonly capacity: number;
@@ -34,7 +35,7 @@ export class FsmBroker {
 	}
 
 	async invoke(binding: PersistedBinding, name: string, input: unknown, call: RpcOptions): Promise<Record<string, unknown>> {
-		if (!this.usable) throw new RuntimeError("not-ready");
+		if (!this.usable) throw new RuntimeError("not-ready", `FSM broker not ready: ${this.failureReason}`);
 		if (this.pending >= this.capacity) throw new RuntimeError("queue-full");
 		this.pending++;
 		const signal = call.signal ? AbortSignal.any([call.signal, this.controller.signal]) : this.controller.signal;
@@ -68,6 +69,7 @@ export class FsmBroker {
 			if (!isAdmissionObject(result) || !Array.isArray(result.content)) throw new RuntimeError("protocol-invalid");
 			return result;
 		} catch (error) {
+			if (error instanceof RuntimeError) this.failureReason = error.message;
 			if (!sent && error instanceof RuntimeError && error.code === "delivery-unknown") {
 				this.usable = false;
 				safeToRelease = false;

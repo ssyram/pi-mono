@@ -5,7 +5,7 @@ import test from "node:test";
 import { prepareBrokerChannel } from "../src/broker/broker-channel.ts";
 import { requireDaemonCapabilities } from "../src/broker/daemon-capabilities.ts";
 import type { DaemonRequester } from "../src/broker/daemon-request.ts";
-import { root } from "./admission-fixtures.ts";
+import { ROOT_SID, root } from "./admission-fixtures.ts";
 import { fakeDaemon, protocolDirectory } from "./broker-fixtures.ts";
 
 const capabilityBody = { server_version: "0.11.0", skill_schema_version: 2, wire_contract_version: 2,
@@ -13,7 +13,7 @@ const capabilityBody = { server_version: "0.11.0", skill_schema_version: 2, wire
 
 async function configFor(t: { after(callback: () => Promise<void> | void): void }) {
 	const directory = await protocolDirectory(t);
-	return { rootSessionId: "r", cwd: "/work", serverUrl: "http://127.0.0.1:9001", dataDir: directory,
+	return { rootSessionId: ROOT_SID, cwd: "/work", serverUrl: "http://127.0.0.1:9001", dataDir: directory,
 		clientCommand: process.execPath, clientArgs: [fileURLToPath(new URL("./fixtures/fake-mcp.mjs", import.meta.url))],
 		env: { ...process.env }, capacity: 2, scope: join(directory, "coord") };
 }
@@ -51,7 +51,7 @@ test("incompatible daemon or missing source exits before starting Client", async
 		return input.method === "POST" ? { status: 200, body: null } : { status: 404, body: {} };
 	};
 	await assert.rejects(prepareBrokerChannel(config, Date.now() + 10000, undefined, request), { code: "not-ready" });
-	assert.deepEqual(seen, ["/capabilities", "/session/register", "/session/source?session=r"]);
+	assert.deepEqual(seen, ["/capabilities", "/session/register", `/session/source?session=${ROOT_SID}`]);
 });
 
 test("cancelled preparation has no daemon requests or child launch", async (t) => {

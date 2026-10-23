@@ -12,7 +12,7 @@ export interface FsmTool {
 	readonly validate: ValidateFunction;
 }
 
-export async function discoverFsmTools(transport: McpTransport, options: RpcOptions): Promise<ReadonlyMap<string, FsmTool>> {
+export async function discoverFsmTools(transport: Pick<McpTransport, "call">, options: RpcOptions): Promise<ReadonlyMap<string, FsmTool>> {
 	const tools = new Map<string, FsmTool>();
 	const cursors = new Set<string>();
 	let cursor: string | undefined;
