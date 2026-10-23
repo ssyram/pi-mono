@@ -549,7 +549,7 @@ frames:
       progress:
         kind: item_done
       fork: []
-    - text: reference对偶大幅推进（root 0-13全过golden、alpha 0-6过、beta已启动、共22 receipts）：本轮修复真实缺陷=①normalizer改为HC全字段改名映射（Bash带description等）；②permission-gate拒绝文案对齐hook组合模板"FSM 门禁：工具X不允许使用。原因：…"；③子会话hook推迟到session_start（加载期action方法非法导致FSM工具全丢）；④子gate身份改为(rootSID,childSID)对齐daemon actor模型；⑤deliver不再await整个run（agent Started调度即返，root续轮时序恢复，gamma不再错领WorkerBeta帧）；⑥workdir显式cwd用resolve绝对路径不重复拼接。适配器修复=hook stdout组合reason、error part无title/metadata、Bash part shell元数据、agent part creation元数据、flush并发锁+幂等+稳定读、facade按SID服务。当前卡点=alpha/007 mismatch（FAILURE已锁存，run=/tmp/fsm-dual/mvkwii173o1保留22 receipts证据）。
+    - text: '对偶里程碑（2026-10-23晚）：idle-resume 全剧本 PASS（root/worker done、23/23回执逐对象一致、final=Idle-resume result: 42，首个完整对偶通过）。reference 推进 41/68 回执（root0-13、beta 13/13 done、gamma 5/5），已知卡点 alpha/009 inbox：beta/gamma send 间隔随 runner shim 每请求开销放大（828ms→5.5s 实测），固定窗口（已至5s trailing合并）无法覆盖，定性 harness 时序放大而非生产差异，下一责任=shim 增量 flush/锁优化。Sol互补剧本0/4过但产出G1（root预注册actor→提前persist，已修：owned-runtime删提前acquire）与G2（judge read无HC行号，已修）两生产缺口；D8 wrapper（hc_agent断言/hc_result.agent/agent_list self行三投影点+boundary日志）已启用全剧本。'
       children: []
       progress:
         kind: in_progress
@@ -566,6 +566,7 @@ frames:
       - 对偶观察适配链落地：插件FSM_DUAL_DAEMON_LOG缝（owned-runtime env门控）记录全部daemon请求；flush-observations.mjs合成HC观察文件；SUN_LEN/PLOT_BINDINGS/PLOT_HC_PORT/facade/shim-exec五坑已解。root四步receipts全过，首个pending=真实差异排查点。
       - owner五项裁决落地（2026-10-23）：①@file=D4测试约束（FSM无此功能）维持；②错误渲染D3维持；③跨树send已实现——hc-session-registry（FSM_DATA_DIR共享注册表+owner转发端点/fsm-compatible/agent-message+Basic auth），sendHcAgent本树miss走注册表，miss仍AgentNotFound；⑤header已修——孩子发布协议SID真实header（真实created/cwd），roster/statuses root对外id=协议SID，getExecution按协议SID命中root；④extraArgs按owner裁决关闭不管。新增test/hc-session-registry.test.ts 4例；全量170/170+check 0。
       - 本轮5项真实实现修复全部带全量170/170+check 0回归；对偶已深入beta阶段，证明SID协议化/门禁文案/子会话FSM投影/异步Started/workdir语义均已按golden对齐。
+      - '本段新增生产修复：G1 root不预注册（对齐announceSubagentStart root-skip）；G2 judge read N: line渲染；agent_list self status=running（busy投影事实）；root agent_type=build（HC defaultInfo推导）；send→root走root投递（EISDIR根因=误对root record开child host）。三笔commit：9d7517bae实验包/7607d87fe插件主体/03263f23b+93a254da0对偶修复，均170/170+check 0，未push。'
       side_effects: []
       principles: []
       remarks:
@@ -614,6 +615,9 @@ frames:
     - action: update
       at: 2026-10-23T11:47:54.683544000Z
       detail: 结算对偶中段大批量修复与推进位置，保留alpha/007证据供续跑；变更字段：content.results、plan[3].text
+    - action: update
+      at: 2026-10-23T13:56:26.439661000Z
+      detail: 结算idle-resume完整通过与reference卡点定性，登记shim优化为下一责任；变更字段：content.results、plan[3].text
   6:
     parent: null
     title: 独立HC FSM实验包：use-plot与真实collect/replay基准

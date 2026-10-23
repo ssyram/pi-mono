@@ -20,20 +20,6 @@ for (let i = 0; i < 200; i++) {
 	}
 }
 const rid = () => createHash("sha256").update(`${run}:${Math.random()}`).digest("hex").slice(0, 20);
-// Serialize concurrent flushes (one shim per model request can overlap).
-const { mkdir, rmdir } = await import("node:fs/promises");
-const lockDir = join(run, "flush.lock");
-for (let attempt = 0; ; attempt++) {
-	try {
-		await mkdir(lockDir);
-		break;
-	} catch {
-		if (attempt > 100) throw new Error("flush lock contention");
-		await new Promise((r) => setTimeout(r, 50));
-	}
-}
-const release = () => rmdir(lockDir).catch(() => {});
-process.on("exit", () => { try { require("node:fs").rmdirSync(lockDir); } catch { /* best effort */ } });
 const statePath = join(run, "adapter-state.json");
 const seen = JSON.parse(await readFile(statePath, "utf8").catch(() => "{}"));
 seen.files ??= {};
@@ -55,18 +41,6 @@ for (const session of sessions) {
 	}
 }
 
-// Idempotence under overlap: never re-emit a callID that already has a
-// before event on disk.
-const emitted = new Set();
-try {
-	for (const line of (await readFile(join(run, "hc-tools.jsonl"), "utf8")).split("\n")) {
-		if (!line) continue;
-		try {
-			const record = JSON.parse(line);
-			if (record.kind === "before") emitted.add(record.input?.callID);
-		} catch { /* partial trailing line */ }
-	}
-} catch { /* first flush */ }
 // Transcript writes race model requests: re-read until stable.
 const stableRead = async (file) => {
 	let previous = "";
@@ -79,18 +53,17 @@ const stableRead = async (file) => {
 		}
 		if (text === previous) return text;
 		previous = text;
-		await new Promise((r) => setTimeout(r, 60));
+		await new Promise((r) => setTimeout(r, 15));
 	}
 	return previous;
 };
 const facadePath = join(run, "facade-messages.json");
-const facade = JSON.parse(await readFile(facadePath, "utf8").catch(() => "{}"));
-
+// ---- lock-free scan ----
+const scanned = [];
 for (const source of sources) {
 	const text = await stableRead(source.file);
 	if (!text) continue;
 	const lines = text.split("\n").filter(Boolean);
-	const seenCalls = (seen.files[source.file] ??= []);
 	const calls = new Map();
 	for (const line of lines) {
 		let e;
@@ -105,6 +78,42 @@ for (const source of sources) {
 				providerID: e.message.provider, modelID: e.message.model });
 		}
 	}
+	scanned.push({ source, lines, calls });
+}
+// ---- write phase: serialized between overlapping request shims ----
+const { mkdir, rmdir } = await import("node:fs/promises");
+const lockDir = join(run, "flush.lock");
+for (let attempt = 0; ; attempt++) {
+	try {
+		await mkdir(lockDir);
+		break;
+	} catch {
+		if (attempt > 400) throw new Error("flush lock contention");
+		await new Promise((r) => setTimeout(r, 15));
+	}
+}
+const release = () => rmdir(lockDir).catch(() => {});
+Object.assign(seen, JSON.parse(await readFile(statePath, "utf8").catch(() => "{}")));
+seen.files ??= {}; seen.hooks ??= 0; seen.daemonLines ??= 0;
+// Re-read the facade under the lock too: a stale copy would drop messages
+// another shim appended between our scan and this write phase.
+const facade = JSON.parse(await readFile(facadePath, "utf8").catch(() => "{}"));
+// Idempotence under overlap: never re-emit a callID that already has a
+// before event on disk.
+const emitted = new Set();
+try {
+	for (const line of (await readFile(join(run, "hc-tools.jsonl"), "utf8")).split("\n")) {
+		if (!line) continue;
+		try {
+			const record = JSON.parse(line);
+			if (record.kind === "before") emitted.add(record.input?.callID);
+		} catch { /* partial trailing line */ }
+	}
+} catch { /* first flush */ }
+
+for (const { source, lines, calls } of scanned) {
+	const seenCalls = (seen.files[source.file] ??= []);
+
 	const facadeMessages = (facade[source.sid] ??= []);
 	const facadeIds = new Set(facadeMessages.map((m) => m.id));
 	for (const line of lines) {
