@@ -1,0 +1,15 @@
+name: IdleResume
+initial_state: Await
+exit_state: Done
+states:
+  Await:
+    description: A legal intermediate pause preserves this frame
+    instructions: Pause, then resume the same session with retained const data
+    allow_user_interaction: true
+    liveness_properties: [resume message consumed]
+    transitions:
+      - target: Done
+  Done:
+    description: Resume verified
+    instructions: Exit before final delivery
+    liveness_properties: [retained value verified]

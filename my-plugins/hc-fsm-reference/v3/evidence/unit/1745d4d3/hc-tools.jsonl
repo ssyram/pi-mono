@@ -1,0 +1,1 @@
+{"kind": "event", "input": {"type": "session.error", "properties": {"sessionID": "ses_w", "error": {"name": "MessageAbortedError", "data": {"message": "Aborted"}}}}}

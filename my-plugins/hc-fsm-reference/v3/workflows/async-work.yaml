@@ -1,0 +1,17 @@
+name: AsyncWork
+initial_state: Working
+exit_state: Done
+states:
+  Working:
+    description: A real asynchronous arithmetic tool remains busy until its parent releases it
+    instructions: Calculate the retained seed after release, commit and report the actual value
+    liveness_properties: [asynchronous result verified]
+    transitions:
+      - target: Done
+        guard:
+          hard:
+            - run: 'test "$(mcp-server-fsm var get pending result)" = 7'
+  Done:
+    description: The asynchronous value is committed
+    instructions: Read this full terminal view and explicitly exit
+    liveness_properties: [committed async value verified]

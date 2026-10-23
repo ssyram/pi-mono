@@ -1,0 +1,618 @@
+{
+  "golden": "/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/hc-fsm-reference/golden/soft-review-v2.json",
+  "workflows": [
+    "workflows/soft-review.yaml"
+  ],
+  "wait_seconds": 60,
+  "prompt": "Exercise real FSM parallel soft-review gates using only the local mocked reviewer model.",
+  "normalize_bindings": [
+    "run",
+    "work",
+    "package",
+    "session.root",
+    "session.reviewA",
+    "session.reviewB"
+  ],
+  "actors": {
+    "root": {
+      "marker": "PLOT_SOFT_ROOT_6d80",
+      "steps": [
+        {
+          "tool": "fsm_fsm_enter",
+          "arguments": {
+            "name": "SoftReview"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "SoftReview"
+            },
+            {
+              "path": "/json/const_vars/session_id",
+              "regex": "^(ses_[A-Za-z0-9]+)$",
+              "bind": "session.root"
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "printf %s \"$((6*7))\" | tee arithmetic.txt",
+            "description": "Compute actual review artifact"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "equals": "42"
+            },
+            {
+              "path": "/text",
+              "regex": "^(42)$",
+              "bind": "root.value"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_set_const_var",
+          "arguments": {
+            "key": "amount",
+            "value": "${root.value}"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/ok",
+              "equals": true
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "Complete",
+            "checks": [
+              {
+                "property": "arithmetic artifact prepared",
+                "satisfied": true,
+                "evidence": "Actual arithmetic and independent read receipts verified"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "Complete",
+            "evidence": "arithmetic.txt is 42"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            },
+            {
+              "path": "/json/review_feedback",
+              "equals": [
+                "Check A verified 42",
+                "Check B verified 42"
+              ]
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "review.pass",
+              "expect": [
+                {
+                  "path": "/content/decision",
+                  "equals": "pass"
+                },
+                {
+                  "path": "/content/detail",
+                  "equals": "Check A verified 42"
+                }
+              ]
+            },
+            {
+              "emit": "review.pass",
+              "expect": [
+                {
+                  "path": "/content/decision",
+                  "equals": "pass"
+                },
+                {
+                  "path": "/content/detail",
+                  "equals": "Check B verified 42"
+                }
+              ]
+            },
+            {
+              "emit": "transition.finish",
+              "duration_bound_ms": 30000,
+              "expect": [
+                {
+                  "path": "/content/result",
+                  "equals": "pass"
+                },
+                {
+                  "path": "/content/soft_total",
+                  "equals": 2
+                },
+                {
+                  "path": "/content/finish_failed",
+                  "equals": 0
+                }
+              ]
+            },
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "Complete"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_get_var_committed",
+          "arguments": {
+            "key": "soft_finished"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/value",
+              "equals": "yes"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "_fsm_exit",
+            "checks": [
+              {
+                "property": "review feedback consumed",
+                "satisfied": true,
+                "evidence": "Actual arithmetic and independent read receipts verified"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "_fsm_exit"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "_fsm_exit"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "result": "Soft-review result: ${root.value}",
+      "completion_expect": [
+        {
+          "path": "/bindings/root.value",
+          "equals": "42"
+        },
+        {
+          "path": "/result",
+          "equals": "Soft-review result: 42"
+        }
+      ]
+    },
+    "reviewA": {
+      "marker": "PLOT_SOFT_REVIEW_A_6d80",
+      "priority": 100,
+      "steps": [
+        {
+          "tool": "read",
+          "arguments": {
+            "filePath": "${work}/arithmetic.txt"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "regex": "(?m)^1: 42$"
+            }
+          ],
+          "wait_actors": [
+            "reviewB"
+          ]
+        },
+        {
+          "tool": "StructuredOutput",
+          "arguments": {
+            "checks": [
+              {
+                "criterion": "arithmetic.txt contains exactly 42",
+                "passed": true,
+                "reason": "Read the actual arithmetic artifact and observed 42"
+              }
+            ],
+            "overall_passed": true,
+            "blocking_issues": [],
+            "summary": "Check A verified ${root.value}"
+          },
+          "settle_via_event": true,
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "input",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": "StructuredOutput"
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/input",
+              "equals": {
+                "checks": [
+                  {
+                    "criterion": "arithmetic.txt contains exactly 42",
+                    "passed": true,
+                    "reason": "Read the actual arithmetic artifact and observed 42"
+                  }
+                ],
+                "overall_passed": true,
+                "blocking_issues": [],
+                "summary": "Check A verified ${root.value}"
+              }
+            },
+            {
+              "path": "/text",
+              "equals": "Structured output captured successfully."
+            },
+            {
+              "path": "/input/summary",
+              "regex": "^(Check A verified 42)$",
+              "bind": "reviewA.summary"
+            }
+          ]
+        }
+      ],
+      "result": "${reviewA.summary}"
+    },
+    "reviewB": {
+      "marker": "PLOT_SOFT_REVIEW_B_6d80",
+      "priority": 100,
+      "steps": [
+        {
+          "tool": "read",
+          "arguments": {
+            "filePath": "${work}/arithmetic.txt"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "regex": "(?m)^1: 42$"
+            }
+          ],
+          "wait_actors": [
+            "reviewA"
+          ]
+        },
+        {
+          "tool": "StructuredOutput",
+          "arguments": {
+            "checks": [
+              {
+                "criterion": "arithmetic.txt contains exactly 42",
+                "passed": true,
+                "reason": "Read the actual arithmetic artifact and observed 42"
+              }
+            ],
+            "overall_passed": true,
+            "blocking_issues": [],
+            "summary": "Check B verified ${root.value}"
+          },
+          "settle_via_event": true,
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "input",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": "StructuredOutput"
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/input",
+              "equals": {
+                "checks": [
+                  {
+                    "criterion": "arithmetic.txt contains exactly 42",
+                    "passed": true,
+                    "reason": "Read the actual arithmetic artifact and observed 42"
+                  }
+                ],
+                "overall_passed": true,
+                "blocking_issues": [],
+                "summary": "Check B verified ${root.value}"
+              }
+            },
+            {
+              "path": "/text",
+              "equals": "Structured output captured successfully."
+            },
+            {
+              "path": "/input/summary",
+              "regex": "^(Check B verified 42)$",
+              "bind": "reviewB.summary"
+            }
+          ]
+        }
+      ],
+      "result": "${reviewB.summary}"
+    }
+  },
+  "observations": {
+    "fsm_actors": [
+      "root"
+    ],
+    "completion_reports": [],
+    "minimum_model_concurrency": 2,
+    "tool_definitions": {
+      "count": 26,
+      "required": [
+        "fsm_fsm_try_transition"
+      ],
+      "actors": {
+        "reviewA": {
+          "count": 4,
+          "required": [
+            "StructuredOutput",
+            "read",
+            "glob",
+            "grep"
+          ]
+        },
+        "reviewB": {
+          "count": 4,
+          "required": [
+            "StructuredOutput",
+            "read",
+            "glob",
+            "grep"
+          ]
+        }
+      }
+    },
+    "final_actor": {
+      "fsm_name": "_default",
+      "state_id": "S_default",
+      "stack_depth": 1,
+      "is_terminal": true,
+      "no_progress_count": 0
+    },
+    "process_identity": {
+      "count": 1
+    },
+    "matching": {
+      "hc_quiescence": "exact empty JSON object from session/status; arrays and scalars are protocol errors",
+      "json_equality": "recursive type-exact JSON; bool, integer and float are distinct; object key order is irrelevant",
+      "tool_receipt": "exact declared step.capture projection; full raw payload preserved",
+      "identity_bindings": {
+        "session": "injective, full identifier token",
+        "part": "injective, full identifier token",
+        "message": "injective, full identifier token"
+      },
+      "text_bindings": "only names listed in normalize_bindings; numeric business values never normalized",
+      "hc_tool_time": {
+        "paths": [
+          "/state/time/start",
+          "/state/time/end"
+        ],
+        "rule": "integer wall milliseconds; start <= end"
+      },
+      "fsm_history_time": {
+        "path": "/*/history/*/timestamp",
+        "rule": "ISO8601; nondecreasing across each stored stack"
+      },
+      "gate_reason": "Allow omits reason_code; Deny equals the exact declared step.gate_reason",
+      "daemon_time": {
+        "path": "/timestamp",
+        "rule": "inside correlated HC tool span; 1ms timestamp rounding tolerance"
+      },
+      "duration": {
+        "path": "/content/duration_ms",
+        "rule": "integer; 0 <= value <= step.ledger.duration_bound_ms"
+      },
+      "process_identity": {
+        "agent_pid": "exact owned HC PID",
+        "start_time": "positive integer stable process identity",
+        "opencode_server_url": "exact owned loopback HC URL"
+      },
+      "ordering": "actor/step keyed; selected consumed messages identity keyed; no global concurrent event ordering",
+      "raw_logs": "retain all; compare complete explicitly correlated gate and transition ledger events",
+      "unknown_fields": "retain and exact-match within each declared captured object"
+    }
+  }
+}

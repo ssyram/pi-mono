@@ -1,0 +1,205 @@
+{
+  "failedRunsPreserved": [
+    {
+      "run": "runs/20261023T043351.473517Z-collect",
+      "plot": "probe.json",
+      "mode": "collect",
+      "firstError": "FSM failed startup",
+      "intentional": false,
+      "cleanup": "runs/20261023T043351.473517Z-collect/cleanup.json",
+      "tracebacks": [],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/20261023T043431.853292Z-collect",
+      "plot": "probe.json",
+      "mode": "collect",
+      "firstError": "FSM failed startup",
+      "intentional": false,
+      "cleanup": "runs/20261023T043431.853292Z-collect/cleanup.json",
+      "tracebacks": [],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/c0251d48c",
+      "plot": "fail-fast.json",
+      "mode": "collect",
+      "firstError": "expectation {'path': '/text', 'equals': '43'}: got '42'",
+      "intentional": true,
+      "cleanup": "runs/c0251d48c/cleanup.json",
+      "tracebacks": [
+        "runs/c0251d48c/failure-traceback-64989.txt",
+        "runs/c0251d48c/failure-traceback.txt"
+      ],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/c1c41f2bd",
+      "plot": "soft-review.json",
+      "mode": "collect",
+      "firstError": "'reviewer_feedback'",
+      "intentional": false,
+      "cleanup": "runs/c1c41f2bd/cleanup.json",
+      "tracebacks": [
+        "runs/c1c41f2bd/failure-traceback-12364.txt",
+        "runs/c1c41f2bd/failure-traceback.txt"
+      ],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/c2786110b",
+      "plot": "reference.json",
+      "mode": "collect",
+      "firstError": "expectation {'path': '/json/instructions', 'equals': 'Base 35; set increment, verify its pending view, then commit'}: got 'Base {{ vars.committed.base }}; set increment, verify its pending view, then commit'",
+      "intentional": false,
+      "cleanup": "runs/c2786110b/cleanup.json",
+      "tracebacks": [],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/c3963219e",
+      "plot": "fail-fast.json",
+      "mode": "collect",
+      "firstError": "expectation {'path': '/text', 'equals': '43'}: got '42'",
+      "intentional": true,
+      "cleanup": "runs/c3963219e/cleanup.json",
+      "tracebacks": [
+        "runs/c3963219e/failure-traceback-92501.txt",
+        "runs/c3963219e/failure-traceback.txt"
+      ],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/c41b02146",
+      "plot": "soft-review.json",
+      "mode": "collect",
+      "firstError": "'reason_code'",
+      "intentional": false,
+      "cleanup": "runs/c41b02146/cleanup.json",
+      "tracebacks": [
+        "runs/c41b02146/failure-traceback-40848.txt",
+        "runs/c41b02146/failure-traceback.txt"
+      ],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/c8797a584",
+      "plot": "idle-resume.json",
+      "mode": "collect",
+      "firstError": "Expecting value: line 1 column 1 (char 0)",
+      "intentional": false,
+      "cleanup": "runs/c8797a584/cleanup.json",
+      "tracebacks": [],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/c913b748a",
+      "plot": "idle-resume.json",
+      "mode": "collect",
+      "firstError": "'reason_code'",
+      "intentional": false,
+      "cleanup": "runs/c913b748a/cleanup.json",
+      "tracebacks": [
+        "runs/c913b748a/failure-traceback-39666.txt",
+        "runs/c913b748a/failure-traceback-39687.txt",
+        "runs/c913b748a/failure-traceback.txt"
+      ],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/c993b6f1d",
+      "plot": "probe.json",
+      "mode": "collect",
+      "firstError": "'type'",
+      "intentional": false,
+      "cleanup": "runs/c993b6f1d/cleanup.json",
+      "tracebacks": [],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/ca68e36a9",
+      "plot": "probe.json",
+      "mode": "collect",
+      "firstError": "FSM failed startup",
+      "intentional": false,
+      "cleanup": "runs/ca68e36a9/cleanup.json",
+      "tracebacks": [],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/cacf345fe",
+      "plot": "reference.json",
+      "mode": "collect",
+      "firstError": "expectation {'path': '/json/description', 'equals': 'Compute 35 plus mutable increment'}: got 'Compute {{ vars.committed.base }} plus mutable increment'",
+      "intentional": false,
+      "cleanup": "runs/cacf345fe/cleanup.json",
+      "tracebacks": [],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/ccbb40397",
+      "plot": "reference.json",
+      "mode": "collect",
+      "firstError": "Command '['/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/hc-fsm-reference/.runtime/fsm-src/target/release/mcp-server-fsm', 'store', 'stack', 'ses_e98e06b3affe7eAJMR4ZwZXzkR', 'ses_e98e05898ffe4Fqw2coAPhytfk']' returned non-zero exit status 1.",
+      "intentional": false,
+      "cleanup": "runs/ccbb40397/cleanup.json",
+      "tracebacks": [],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/cddaeebdb",
+      "plot": "reference.json",
+      "mode": "collect",
+      "firstError": "hook transport error for plot_root_003",
+      "intentional": false,
+      "cleanup": "runs/cddaeebdb/cleanup.json",
+      "tracebacks": [],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/ce6470b6b",
+      "plot": "reference.json",
+      "mode": "collect",
+      "firstError": "'reason_code'",
+      "intentional": false,
+      "cleanup": "runs/ce6470b6b/cleanup.json",
+      "tracebacks": [
+        "runs/ce6470b6b/failure-traceback-40185.txt",
+        "runs/ce6470b6b/failure-traceback-40196.txt",
+        "runs/ce6470b6b/failure-traceback.txt"
+      ],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/ce88a69c1",
+      "plot": "reference.json",
+      "mode": "collect",
+      "firstError": "Expecting value: line 1 column 1 (char 0)",
+      "intentional": false,
+      "cleanup": "runs/ce88a69c1/cleanup.json",
+      "tracebacks": [],
+      "goldenFrozen": false
+    },
+    {
+      "run": "runs/ce91db72a",
+      "plot": "fail-fast.json",
+      "mode": "collect",
+      "firstError": "expectation {'path': '/text', 'equals': '43'}: got '42'",
+      "intentional": true,
+      "cleanup": "runs/ce91db72a/cleanup.json",
+      "tracebacks": [
+        "runs/ce91db72a/failure-traceback-36461.txt",
+        "runs/ce91db72a/failure-traceback.txt"
+      ],
+      "goldenFrozen": false
+    }
+  ],
+  "bootstrapBuildFailure": ".runtime/fsm-build-first-failure.log",
+  "frameworkFirstTestFailure": ".runtime/framework-tests.log",
+  "jsonTypeFirstFailure": ".runtime/json-types-first-failure.log",
+  "upstreamAttempts": [
+    ".runtime/upstream-tests/2410317e",
+    ".runtime/upstream-tests/0af7e767",
+    ".runtime/upstream-tests/c527a9b8"
+  ]
+}

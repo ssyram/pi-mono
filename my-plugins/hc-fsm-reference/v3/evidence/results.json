@@ -1,0 +1,80 @@
+{
+  "pairs": [
+    {
+      "case": "semantic-stop",
+      "collect": "c461ff312",
+      "replay": "rf78a9392",
+      "golden": "golden/semantic-stop.json",
+      "goldenSha256": "dfe919e31db2e471ae2822c7b49989fb1872245117669565320b4d21b032469c",
+      "plotSha256": "eb6fb59ec1a72d66ee0a62ccf21561d74716a36c55b18430b7e16479ad01d21e",
+      "actionsMatched": 25,
+      "toolCallsMatched": 21,
+      "hookInvocationsMatched": 24,
+      "semanticStopPhases": 4,
+      "sameModelStopRequests": 4,
+      "normalFinalStops": 2,
+      "nativeCompletionReports": 5,
+      "expectedCancellationErrors": 0,
+      "actualResult": "Semantic Stop result: 42",
+      "freshSessionsAndPorts": true,
+      "goldenUnchanged": true
+    },
+    {
+      "case": "native-agents",
+      "collect": "c73ea9536",
+      "replay": "rbef4ccca",
+      "golden": "golden/native-agents.json",
+      "goldenSha256": "bdaf4bb4f50fe1c77e84f53ca0248c4393fe9d1a55c4b804ba3fd5e84fde25bd",
+      "plotSha256": "e6715532a922a6f3543e4b09dc4e08ea60f52bd1a52e62b0d48994e5bbcb00a6",
+      "actionsMatched": 50,
+      "toolCallsMatched": 49,
+      "hookInvocationsMatched": 56,
+      "semanticStopPhases": 0,
+      "sameModelStopRequests": 0,
+      "normalFinalStops": 4,
+      "nativeCompletionReports": 2,
+      "expectedCancellationErrors": 2,
+      "actualResult": "Subagent result: 42 + 6 = 48",
+      "freshSessionsAndPorts": true,
+      "goldenUnchanged": true
+    },
+    {
+      "case": "semantic-wait",
+      "collect": "cfa70cb92",
+      "replay": "r41ac8566",
+      "golden": "golden/semantic-wait.json",
+      "goldenSha256": "785c2d00c946d9c6066a4204118911e176f377aef822dab1b80424bab05f0936",
+      "plotSha256": "81d46b628683127bac146d85e6834d92ed66343ab52c9bfe6e69adf309b9fd9d",
+      "actionsMatched": 28,
+      "toolCallsMatched": 27,
+      "hookInvocationsMatched": 31,
+      "semanticStopPhases": 1,
+      "sameModelStopRequests": 1,
+      "normalFinalStops": 3,
+      "nativeCompletionReports": 1,
+      "expectedCancellationErrors": 0,
+      "actualResult": "Semantic wait result: 42 + 7 = 49",
+      "freshSessionsAndPorts": true,
+      "goldenUnchanged": true
+    }
+  ],
+  "failuresPreserved": [
+    {
+      "run": "c47e0d807",
+      "firstError": "expectation {'path': '/message', 'contains': '[Agent message from subject (general, ${session.subject})]'}: got '\"[Agent message from subject (build, ses_e9831c60effenXc3zf0bH3M3Ls)]\\\\nTo reply, use agent_send(target=\\\\\"ses_e9831c60effenXc3zf0bH3M3Ls\\\\\", message=\\\\\"<your reply>\\\\\").\\\\n\\\\nS09_VALUE=42\"'",
+      "noGolden": true
+    },
+    {
+      "run": "ccfadb090",
+      "firstError": "expectation {'path': '/text', 'equals': 'Tool execution aborted'}: got '(no output)\\n\\n<shell_metadata>\\nUser aborted the command\\n</shell_metadata>'",
+      "noGolden": true
+    },
+    {
+      "run": "ce291c503",
+      "firstError": "length expectation {'path': '', 'length': 1}: got 2",
+      "noGolden": true
+    }
+  ],
+  "rawFilesIndexed": 2846,
+  "secretExclusion": "auth.token and Authorization headers are not indexed or printed"
+}

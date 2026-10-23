@@ -1,0 +1,24 @@
+name: WorkerAlpha
+initial_state: Work
+exit_state: Done
+invariants: [Sibling messages have host-attached identities]
+states:
+  Work:
+    description: Alpha dispatched frame {{ vars.committed.ticket }}
+    instructions: Compute and verify nested and sibling messages
+    liveness_properties: [messages verified]
+    tool_permissions:
+      blacklist:
+        - name: Bash
+          input:
+            command: {type: string, value: 'printf blocked-alpha'}
+    transitions:
+      - target: Done
+        guard:
+          hard:
+            - run: 'test "$(mcp-server-fsm var get pending result)" = 21'
+  Done:
+    description: Alpha complete
+    instructions: Confirm result and exit
+    liveness_properties: [result delivered]
+    allow_user_interaction: true

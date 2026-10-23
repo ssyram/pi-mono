@@ -13,3 +13,6 @@
 [submodule "third-party-plugins/pi-web-access"]
 	path = third-party-plugins/pi-web-access
 	url = https://github.com/nicobailon/pi-web-access.git
+[submodule "fsm-compatible-nico"]
+	path = my-plugins/fsm-compatible/vendor/pi-subagents
+	url = https://github.com/nicobailon/pi-subagents.git

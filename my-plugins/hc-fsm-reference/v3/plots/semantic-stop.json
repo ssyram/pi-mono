@@ -1,0 +1,1193 @@
+{
+  "golden": "/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/hc-fsm-reference/v3/golden/semantic-stop.json",
+  "workflows": [
+    "workflows/semantic-stop.yaml"
+  ],
+  "prompt": "Verify actual semantic Stop judgments and same-SID continuations, then deliver actual arithmetic.",
+  "normalize_bindings": [
+    "run",
+    "work",
+    "package",
+    "session.root",
+    "session.subject",
+    "session.judge1",
+    "session.judge2",
+    "session.judge3",
+    "session.judge4"
+  ],
+  "actors": {
+    "root": {
+      "marker": "S09_CONTROL_MARKER",
+      "steps": [
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "_default"
+            },
+            {
+              "path": "/json/const_vars/session_id",
+              "equals": "${session.root}"
+            }
+          ],
+          "persisted_state": "absent"
+        },
+        {
+          "tool": "agent",
+          "arguments": {
+            "description": "semantic stop subject",
+            "prompt": "S09_SUBJECT_MARKER\nRun the declared semantic Stop progression.",
+            "subagent_type": "general",
+            "name": "subject",
+            "cwd": "${work}"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "contains": "Started general agent"
+            },
+            {
+              "path": "/text",
+              "regex": "session_id: (ses_[A-Za-z0-9]+)",
+              "bind": "session.subject"
+            }
+          ],
+          "persisted_state": "absent"
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "while ! test -f subject.sent; do sleep 0.05; done; sleep 1; printf subject-finished",
+            "description": "Wait for actual subject message and completion"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "equals": "subject-finished"
+            }
+          ],
+          "persisted_state": "absent"
+        },
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "_default"
+            }
+          ],
+          "persisted_state": "absent",
+          "inbox": [
+            {
+              "contains": "S09_VALUE=",
+              "expect": [
+                {
+                  "path": "/message",
+                  "contains": "[Agent message from subject (build, ${session.subject})]"
+                },
+                {
+                  "path": "/message",
+                  "regex": "S09_VALUE=(42)",
+                  "bind": "root.value"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "result": "Semantic Stop result: ${root.value}",
+      "completion_expect": [
+        {
+          "path": "/result",
+          "equals": "Semantic Stop result: 42"
+        }
+      ]
+    },
+    "subject": {
+      "marker": "S09_SUBJECT_MARKER",
+      "steps": [
+        {
+          "tool": "fsm_fsm_enter",
+          "arguments": {
+            "name": "SemanticStop"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "SemanticStop"
+            },
+            {
+              "path": "/json/const_vars/session_id",
+              "equals": "${session.root}"
+            },
+            {
+              "path": "/json/const_vars/agent_id",
+              "regex": "^(ses_[A-Za-z0-9]+)$",
+              "bind": "session.subject"
+            }
+          ],
+          "hc_agent": "general"
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "printf %s \"$((6*7))\"",
+            "description": "Compute actual amount before Stop attempts"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "equals": "42"
+            },
+            {
+              "path": "/text",
+              "regex": "^(42)$",
+              "bind": "subject.amount"
+            }
+          ],
+          "hc_agent": "general"
+        },
+        {
+          "tool": "fsm_fsm_set_var",
+          "arguments": {
+            "key": "amount",
+            "value": "${subject.amount}"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/ok",
+              "equals": true
+            }
+          ],
+          "hc_agent": "general"
+        },
+        {
+          "kind": "pause",
+          "text": "S09_PAUSE_A: work remains"
+        },
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "Work"
+            },
+            {
+              "path": "/json/vars_pending/amount",
+              "equals": "42"
+            }
+          ],
+          "stop_phase": "phase1",
+          "inbox": [
+            {
+              "contains": "S09_CONTINUE_A: continue the declared Work state on this same session.",
+              "expect": [
+                {
+                  "path": "/message",
+                  "contains": "S09_CONTINUE_A: continue the declared Work state on this same session."
+                }
+              ]
+            }
+          ],
+          "hc_agent": "build"
+        },
+        {
+          "kind": "pause",
+          "text": "S09_PAUSE_B: inspect before completion"
+        },
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "Work"
+            },
+            {
+              "path": "/json/vars_pending/amount",
+              "equals": "42"
+            }
+          ],
+          "stop_phase": "phase2",
+          "inbox": [
+            {
+              "contains": "S09_OBSERVE_B: immediately inspect the current full state on this same session.",
+              "expect": [
+                {
+                  "path": "/message",
+                  "contains": "S09_OBSERVE_B: immediately inspect the current full state on this same session."
+                }
+              ]
+            }
+          ],
+          "hc_agent": "build"
+        },
+        {
+          "kind": "pause",
+          "text": "S09_PAUSE_C: still no transition"
+        },
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "Work"
+            },
+            {
+              "path": "/json/vars_pending/amount",
+              "equals": "42"
+            }
+          ],
+          "stop_phase": "phase3",
+          "inbox": [
+            {
+              "contains": "S09_CONTINUE_C: three non-progress plans do not authorize stopping; complete the declared transition.",
+              "expect": [
+                {
+                  "path": "/message",
+                  "contains": "S09_CONTINUE_C: three non-progress plans do not authorize stopping; complete the declared transition."
+                }
+              ]
+            }
+          ],
+          "hc_agent": "build"
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "Done",
+            "checks": [
+              {
+                "property": "amount prepared",
+                "satisfied": true,
+                "evidence": "Actual arithmetic, Stop verdict and continuation observed"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ],
+          "hc_agent": "build"
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "Done"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "Done"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ],
+          "hc_agent": "build"
+        },
+        {
+          "kind": "pause",
+          "text": "S09_PAUSE_D: terminal frame not released"
+        },
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "Done"
+            },
+            {
+              "path": "/json/state_status/kind",
+              "equals": "terminal"
+            }
+          ],
+          "stop_phase": "phase4",
+          "inbox": [
+            {
+              "contains": "S09_EXIT_D: self-check the offered _fsm_exit target and release this exact terminal frame.",
+              "expect": [
+                {
+                  "path": "/message",
+                  "contains": "S09_EXIT_D: self-check the offered _fsm_exit target and release this exact terminal frame."
+                }
+              ]
+            }
+          ],
+          "hc_agent": "build"
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "_fsm_exit",
+            "checks": [
+              {
+                "property": "Stop exit instruction consumed",
+                "satisfied": true,
+                "evidence": "Actual arithmetic, Stop verdict and continuation observed"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ],
+          "hc_agent": "build"
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "_fsm_exit"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "_fsm_exit"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ],
+          "hc_agent": "build"
+        },
+        {
+          "tool": "agent_send",
+          "arguments": {
+            "target": "${session.root}",
+            "message": "S09_VALUE=${subject.amount}"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "contains": "Accepted for ${session.root}."
+            }
+          ],
+          "hc_agent": "build"
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "touch subject.sent; printf sent",
+            "description": "Publish declared send completion"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "equals": "sent"
+            }
+          ],
+          "hc_agent": "build"
+        }
+      ],
+      "result": "Stop subject result: ${subject.amount}"
+    },
+    "judge1": {
+      "marker": "STOP_JUDGE_1",
+      "stop_for": "S09_PAUSE_A: work remains",
+      "once": true,
+      "request_capture": [
+        "facts",
+        "evidence",
+        "model"
+      ],
+      "request_expect": [
+        {
+          "path": "/model",
+          "equals": "plot-model"
+        },
+        {
+          "path": "/evidence/last_assistant_message",
+          "equals": "S09_PAUSE_A: work remains"
+        },
+        {
+          "path": "/facts/legal_pause",
+          "equals": false
+        },
+        {
+          "path": "/facts/fsm_name",
+          "equals": "SemanticStop"
+        },
+        {
+          "path": "/facts/state_id",
+          "equals": "Work"
+        },
+        {
+          "path": "/facts/is_exit_state",
+          "equals": false
+        },
+        {
+          "path": "/facts/live_work",
+          "equals": "none"
+        },
+        {
+          "path": "/facts/recent_stop_plans_present",
+          "equals": false
+        },
+        {
+          "path": "/evidence/recent_stop_plans",
+          "equals": null
+        }
+      ],
+      "steps": [
+        {
+          "tool": "StructuredOutput",
+          "arguments": {
+            "action": "continue_work",
+            "reason": "S09_CONTINUE_A: continue the declared Work state on this same session."
+          },
+          "settle_via_event": true,
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "input",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": "StructuredOutput"
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/input",
+              "equals": {
+                "action": "continue_work",
+                "reason": "S09_CONTINUE_A: continue the declared Work state on this same session."
+              }
+            },
+            {
+              "path": "/text",
+              "equals": "Structured output captured successfully."
+            }
+          ]
+        }
+      ],
+      "result": "S09_CONTINUE_A: continue the declared Work state on this same session."
+    },
+    "judge2": {
+      "marker": "STOP_JUDGE_2",
+      "stop_for": "S09_PAUSE_B: inspect before completion",
+      "once": true,
+      "request_capture": [
+        "facts",
+        "evidence",
+        "model"
+      ],
+      "request_expect": [
+        {
+          "path": "/model",
+          "equals": "plot-model"
+        },
+        {
+          "path": "/evidence/last_assistant_message",
+          "equals": "S09_PAUSE_B: inspect before completion"
+        },
+        {
+          "path": "/facts/legal_pause",
+          "equals": false
+        },
+        {
+          "path": "/facts/fsm_name",
+          "equals": "SemanticStop"
+        },
+        {
+          "path": "/facts/state_id",
+          "equals": "Work"
+        },
+        {
+          "path": "/facts/is_exit_state",
+          "equals": false
+        },
+        {
+          "path": "/facts/live_work",
+          "equals": "none"
+        },
+        {
+          "path": "/facts/recent_stop_plans_present",
+          "equals": false
+        },
+        {
+          "path": "/evidence/recent_stop_plans",
+          "equals": null
+        }
+      ],
+      "steps": [
+        {
+          "tool": "StructuredOutput",
+          "arguments": {
+            "action": "arrange_observation",
+            "reason": "S09_OBSERVE_B: immediately inspect the current full state on this same session."
+          },
+          "settle_via_event": true,
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "input",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": "StructuredOutput"
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/input",
+              "equals": {
+                "action": "arrange_observation",
+                "reason": "S09_OBSERVE_B: immediately inspect the current full state on this same session."
+              }
+            },
+            {
+              "path": "/text",
+              "equals": "Structured output captured successfully."
+            }
+          ]
+        }
+      ],
+      "result": "S09_OBSERVE_B: immediately inspect the current full state on this same session."
+    },
+    "judge3": {
+      "marker": "STOP_JUDGE_3",
+      "stop_for": "S09_PAUSE_C: still no transition",
+      "once": true,
+      "request_capture": [
+        "facts",
+        "evidence",
+        "model"
+      ],
+      "request_expect": [
+        {
+          "path": "/model",
+          "equals": "plot-model"
+        },
+        {
+          "path": "/evidence/last_assistant_message",
+          "equals": "S09_PAUSE_C: still no transition"
+        },
+        {
+          "path": "/facts/legal_pause",
+          "equals": false
+        },
+        {
+          "path": "/facts/fsm_name",
+          "equals": "SemanticStop"
+        },
+        {
+          "path": "/facts/state_id",
+          "equals": "Work"
+        },
+        {
+          "path": "/facts/is_exit_state",
+          "equals": false
+        },
+        {
+          "path": "/facts/live_work",
+          "equals": "none"
+        },
+        {
+          "path": "/facts/recent_stop_plans_present",
+          "equals": true
+        },
+        {
+          "path": "/evidence/recent_stop_plans",
+          "equals": [
+            "S09_PAUSE_A: work remains",
+            "S09_PAUSE_B: inspect before completion",
+            "S09_PAUSE_C: still no transition"
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "tool": "StructuredOutput",
+          "arguments": {
+            "action": "continue_work",
+            "reason": "S09_CONTINUE_C: three non-progress plans do not authorize stopping; complete the declared transition."
+          },
+          "settle_via_event": true,
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "input",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": "StructuredOutput"
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/input",
+              "equals": {
+                "action": "continue_work",
+                "reason": "S09_CONTINUE_C: three non-progress plans do not authorize stopping; complete the declared transition."
+              }
+            },
+            {
+              "path": "/text",
+              "equals": "Structured output captured successfully."
+            }
+          ]
+        }
+      ],
+      "result": "S09_CONTINUE_C: three non-progress plans do not authorize stopping; complete the declared transition."
+    },
+    "judge4": {
+      "marker": "STOP_JUDGE_4",
+      "stop_for": "S09_PAUSE_D: terminal frame not released",
+      "once": true,
+      "request_capture": [
+        "facts",
+        "evidence",
+        "model"
+      ],
+      "request_expect": [
+        {
+          "path": "/model",
+          "equals": "plot-model"
+        },
+        {
+          "path": "/evidence/last_assistant_message",
+          "equals": "S09_PAUSE_D: terminal frame not released"
+        },
+        {
+          "path": "/facts/legal_pause",
+          "equals": false
+        },
+        {
+          "path": "/facts/fsm_name",
+          "equals": "SemanticStop"
+        },
+        {
+          "path": "/facts/state_id",
+          "equals": "Done"
+        },
+        {
+          "path": "/facts/is_exit_state",
+          "equals": true
+        },
+        {
+          "path": "/facts/live_work",
+          "equals": "none"
+        },
+        {
+          "path": "/facts/recent_stop_plans_present",
+          "equals": false
+        },
+        {
+          "path": "/evidence/recent_stop_plans",
+          "equals": null
+        }
+      ],
+      "steps": [
+        {
+          "tool": "StructuredOutput",
+          "arguments": {
+            "action": "exit_fsm",
+            "reason": "S09_EXIT_D: self-check the offered _fsm_exit target and release this exact terminal frame."
+          },
+          "settle_via_event": true,
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "input",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": "StructuredOutput"
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/input",
+              "equals": {
+                "action": "exit_fsm",
+                "reason": "S09_EXIT_D: self-check the offered _fsm_exit target and release this exact terminal frame."
+              }
+            },
+            {
+              "path": "/text",
+              "equals": "Structured output captured successfully."
+            }
+          ]
+        }
+      ],
+      "result": "S09_EXIT_D: self-check the offered _fsm_exit target and release this exact terminal frame."
+    }
+  },
+  "observations": {
+    "fsm_actors": [
+      "root",
+      "subject"
+    ],
+    "completion_reports": [
+      {
+        "name": "subject.pause1",
+        "sender": "subject",
+        "recipient": "root",
+        "summary": "Agent completed: semantic stop subject",
+        "result": "S09_PAUSE_A: work remains"
+      },
+      {
+        "name": "subject.pause2",
+        "sender": "subject",
+        "recipient": "root",
+        "summary": "Agent completed: semantic stop subject",
+        "result": "S09_PAUSE_B: inspect before completion"
+      },
+      {
+        "name": "subject.pause3",
+        "sender": "subject",
+        "recipient": "root",
+        "summary": "Agent completed: semantic stop subject",
+        "result": "S09_PAUSE_C: still no transition"
+      },
+      {
+        "name": "subject.pause4",
+        "sender": "subject",
+        "recipient": "root",
+        "summary": "Agent completed: semantic stop subject",
+        "result": "S09_PAUSE_D: terminal frame not released"
+      },
+      {
+        "name": "subject.final",
+        "sender": "subject",
+        "recipient": "root",
+        "summary": "Agent completed: semantic stop subject"
+      }
+    ],
+    "stop_phases": [
+      {
+        "name": "phase1",
+        "actor": "subject",
+        "message": "S09_PAUSE_A: work remains",
+        "judge": "judge1",
+        "action": "continue_work",
+        "reason": "S09_CONTINUE_A: continue the declared Work state on this same session.",
+        "decision": "block",
+        "count": 1
+      },
+      {
+        "name": "phase2",
+        "actor": "subject",
+        "message": "S09_PAUSE_B: inspect before completion",
+        "judge": "judge2",
+        "action": "arrange_observation",
+        "reason": "S09_OBSERVE_B: immediately inspect the current full state on this same session.",
+        "decision": "block",
+        "count": 2
+      },
+      {
+        "name": "phase3",
+        "actor": "subject",
+        "message": "S09_PAUSE_C: still no transition",
+        "judge": "judge3",
+        "action": "continue_work",
+        "reason": "S09_CONTINUE_C: three non-progress plans do not authorize stopping; complete the declared transition.",
+        "decision": "block",
+        "count": 3
+      },
+      {
+        "name": "phase4",
+        "actor": "subject",
+        "message": "S09_PAUSE_D: terminal frame not released",
+        "judge": "judge4",
+        "action": "exit_fsm",
+        "reason": "S09_EXIT_D: self-check the offered _fsm_exit target and release this exact terminal frame.",
+        "decision": "block",
+        "count": 1
+      }
+    ],
+    "tool_definitions": {
+      "count": 26,
+      "required": [
+        "agent",
+        "fsm_fsm_get_state"
+      ],
+      "actors": {
+        "judge1": {
+          "count": 4,
+          "required": [
+            "StructuredOutput",
+            "read",
+            "glob",
+            "grep"
+          ]
+        },
+        "judge2": {
+          "count": 4,
+          "required": [
+            "StructuredOutput",
+            "read",
+            "glob",
+            "grep"
+          ]
+        },
+        "judge3": {
+          "count": 4,
+          "required": [
+            "StructuredOutput",
+            "read",
+            "glob",
+            "grep"
+          ]
+        },
+        "judge4": {
+          "count": 4,
+          "required": [
+            "StructuredOutput",
+            "read",
+            "glob",
+            "grep"
+          ]
+        }
+      }
+    },
+    "final_actor": {
+      "fsm_name": "_default",
+      "state_id": "S_default",
+      "stack_depth": 1,
+      "is_terminal": true,
+      "no_progress_count": 0
+    },
+    "process_identity": {
+      "count": 1
+    },
+    "matching": {
+      "semantic_stop": "native Stop facts/evidence and same model; typed StructuredOutput then exact hook verdict then same-SID consumed continuation",
+      "actor_identity": "public root SID plus agent SID tuple; native parent links observed, never written by harness",
+      "busy_cancel": "HC busy + running durable tool + alive owned descendant PID before stop; same IDs/context, exact aborted error and dead PID after stop",
+      "native_stop_order": "raw native-report and hook timings preserved; no invented cross-lane happens-before order",
+      "registry_order": "complete records keyed by declared public root SID; no global registration-array ordering",
+      "cross_actor_errors": "cancellation errors keyed by actor/call identity; no invented cross-actor completion order",
+      "hc_quiescence": "exact empty JSON object from session/status; arrays and scalars are protocol errors",
+      "json_equality": "recursive type-exact JSON; bool, integer and float are distinct; object key order is irrelevant",
+      "tool_receipt": "exact declared step.capture projection; full raw payload preserved",
+      "identity_bindings": {
+        "session": "injective, full identifier token",
+        "part": "injective, full identifier token",
+        "message": "injective, full identifier token"
+      },
+      "text_bindings": "only names listed in normalize_bindings; numeric business values never normalized",
+      "hc_tool_time": {
+        "paths": [
+          "/state/time/start",
+          "/state/time/end"
+        ],
+        "rule": "integer wall milliseconds; start <= end"
+      },
+      "fsm_history_time": {
+        "path": "/*/history/*/timestamp",
+        "rule": "ISO8601; nondecreasing across each stored stack"
+      },
+      "gate_reason": "Allow omits reason_code; Deny equals the exact declared step.gate_reason",
+      "daemon_time": {
+        "path": "/timestamp",
+        "rule": "inside correlated HC tool span; 1ms timestamp rounding tolerance"
+      },
+      "duration": {
+        "path": "/content/duration_ms",
+        "rule": "integer; 0 <= value <= step.ledger.duration_bound_ms"
+      },
+      "process_identity": {
+        "agent_pid": "exact owned HC PID",
+        "start_time": "positive integer stable process identity",
+        "opencode_server_url": "exact owned loopback HC URL"
+      },
+      "ordering": "actor/step keyed; selected consumed messages identity keyed; no global concurrent event ordering",
+      "raw_logs": "retain all; compare complete explicitly correlated gate and transition ledger events",
+      "unknown_fields": "retain and exact-match within each declared captured object"
+    }
+  }
+}

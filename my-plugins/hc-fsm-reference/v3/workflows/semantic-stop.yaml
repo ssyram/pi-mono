@@ -1,0 +1,19 @@
+name: SemanticStop
+initial_state: Work
+exit_state: Done
+states:
+  Work:
+    description: The arithmetic is prepared but declared completion is pending
+    instructions: Observe real Stop continuations before committing the amount
+    liveness_properties: [amount prepared]
+    allow_user_interaction: false
+    transitions:
+      - target: Done
+        guard:
+          hard:
+            - run: 'test "$(mcp-server-fsm var get pending amount)" = 42'
+  Done:
+    description: Real terminal frame still requires explicit exit
+    instructions: Read the full terminal view, then self-check and perform _fsm_exit
+    liveness_properties: [Stop exit instruction consumed]
+    allow_user_interaction: false

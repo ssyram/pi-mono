@@ -1,0 +1,9 @@
+name: Nested
+initial_state: Done
+exit_state: Done
+states:
+  Done:
+    description: Nested terminal frame
+    instructions: Verify identity and arithmetic before implicit exit
+    liveness_properties: [nested result checked]
+    allow_dispatch_subagent: false

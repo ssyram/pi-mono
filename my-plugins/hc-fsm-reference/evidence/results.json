@@ -1,0 +1,73 @@
+{
+  "verifiedPairs": [
+    {
+      "plot": "plots/reference.json",
+      "collect": "runs/ca4c7e064",
+      "replay": "runs/ra2336cfb",
+      "golden": "golden/reference.json",
+      "goldenSha256": "1f593c3424c9c92f4551d676a882f6002294089eb7b66ad26a42d897adc2dd91",
+      "plotSha256": "42791c9e2232e62e4e1642a1e1dd7305ef6c5508cc76cfa3254d5ab99234696a",
+      "receiptMatches": 68,
+      "consumedInboxMatches": 3,
+      "toolDefinitionMatches": {
+        "root": 26,
+        "alpha": 26,
+        "beta": 26,
+        "gamma": 26
+      },
+      "hookInvocationsMatched": 75,
+      "normalStopsMatched": 4,
+      "completionReportsMatched": 3,
+      "result": "Computed result: 21 + 21 = 42",
+      "freshSessionIdentities": true,
+      "freshPorts": true,
+      "goldenUnchanged": true,
+      "allOwnedServicesReaped": true
+    },
+    {
+      "plot": "plots/idle-resume.json",
+      "collect": "runs/cf094f059",
+      "replay": "runs/r89fc1648",
+      "golden": "golden/idle-resume.json",
+      "goldenSha256": "2962ace2a1d0e578d6bbdb1a438a47e65b6da5a4eb27e811723821be9cfdb4c8",
+      "plotSha256": "35fb39e2c677a22c723aae084b8bf91232e2c78965cc09ee3ea6d65b8e55f33c",
+      "receiptMatches": 23,
+      "consumedInboxMatches": 2,
+      "toolDefinitionMatches": {
+        "root": 26,
+        "worker": 26
+      },
+      "hookInvocationsMatched": 26,
+      "normalStopsMatched": 2,
+      "completionReportsMatched": 2,
+      "result": "Idle-resume result: 42",
+      "freshSessionIdentities": true,
+      "freshPorts": true,
+      "goldenUnchanged": true,
+      "allOwnedServicesReaped": true
+    },
+    {
+      "plot": "plots/soft-review.json",
+      "collect": "runs/cca51fa13",
+      "replay": "runs/r6dd3bc30",
+      "golden": "golden/soft-review.json",
+      "goldenSha256": "d2a1535f4bdd2fbee6e694f8f8910582caefb290f1f3f52efc6648b500001ddf",
+      "plotSha256": "d0e83122224fc4052abf15071991b0b9b93c7612196ff34940ffc594ad8d0652",
+      "receiptMatches": 12,
+      "consumedInboxMatches": 0,
+      "toolDefinitionMatches": {
+        "root": 26,
+        "reviewA": 4,
+        "reviewB": 4
+      },
+      "hookInvocationsMatched": 9,
+      "normalStopsMatched": 1,
+      "completionReportsMatched": 0,
+      "result": "Soft-review result: 42",
+      "freshSessionIdentities": true,
+      "freshPorts": true,
+      "goldenUnchanged": true,
+      "allOwnedServicesReaped": true
+    }
+  ]
+}

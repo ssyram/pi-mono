@@ -1,0 +1,19 @@
+name: WorkerBeta
+initial_state: Work
+exit_state: Done
+states:
+  Work:
+    description: Beta dispatched frame {{ vars.committed.ticket }}
+    instructions: Consume sibling message before reporting arithmetic
+    liveness_properties: [messages verified]
+    allow_enter_fsm: false
+    allow_dispatch_subagent: false
+    transitions:
+      - target: Done
+        guard:
+          hard:
+            - run: 'test "$(mcp-server-fsm var get pending result)" = 21'
+  Done:
+    description: Beta complete
+    instructions: Exit after delivery
+    liveness_properties: [result delivered]

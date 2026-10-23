@@ -1,0 +1,19 @@
+name: BusyRetain
+initial_state: Running
+exit_state: Done
+states:
+  Running:
+    description: Retain immutable seed across a genuine cancelled running tool
+    instructions: After native agent_send resumes this same SID, verify retained seed and calculate the result
+    liveness_properties: [resume and result verified]
+    allow_user_interaction: false
+    transitions:
+      - target: Done
+        guard:
+          hard:
+            - run: 'test "$(mcp-server-fsm var get pending result)" = "$(mcp-server-fsm var get committed expected)"'
+  Done:
+    description: Resume result committed
+    instructions: Read the full terminal view, then explicitly exit before reporting
+    liveness_properties: [committed result verified]
+    allow_user_interaction: false

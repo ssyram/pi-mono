@@ -1,0 +1,2490 @@
+{
+  "golden": "/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/hc-fsm-reference/golden/reference-v2.json",
+  "workflows": [
+    "workflows/reference.yaml",
+    "workflows/worker-alpha.yaml",
+    "workflows/worker-beta.yaml",
+    "workflows/nested.yaml"
+  ],
+  "prompt": "Compute the sum of the two verified child message values. No external models or files.",
+  "normalize_bindings": [
+    "run",
+    "work",
+    "package",
+    "session.root",
+    "session.alpha",
+    "session.beta",
+    "session.gamma"
+  ],
+  "actors": {
+    "root": {
+      "marker": "PLOT_ACTOR_ROOT_6d80",
+      "steps": [
+        {
+          "tool": "fsm_fsm_enter",
+          "arguments": {
+            "name": "Reference",
+            "vars": {
+              "base": "35"
+            }
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "Reference"
+            },
+            {
+              "path": "/json/invariants/0",
+              "equals": "Arithmetic input 35 is immutable"
+            },
+            {
+              "path": "/json/const_vars/session_id",
+              "bind": "session.root",
+              "regex": "^(ses_[A-Za-z0-9]+)$"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "Missing"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "blocked"
+            },
+            {
+              "path": "/json/reason_code",
+              "equals": "transition_unavailable"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "Complete"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "blocked"
+            },
+            {
+              "path": "/json/reason_code",
+              "equals": "self_check_required"
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "printf forbidden",
+            "description": "Predeclared blacklist negative"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "blacklist"
+            }
+          ],
+          "gate": "deny",
+          "gate_reason": "blacklist_matched",
+          "hc_status": "error"
+        },
+        {
+          "tool": "agent",
+          "arguments": {
+            "description": "No queue negative",
+            "prompt": "Must not start",
+            "subagent_type": "general",
+            "cwd": "${work}"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "requires non-empty dispatch queue"
+            }
+          ],
+          "gate": "deny",
+          "gate_reason": "requires_dispatch_queue_empty",
+          "hc_status": "error"
+        },
+        {
+          "tool": "fsm_fsm_set_const_var",
+          "arguments": {
+            "key": "tag",
+            "value": "immutable"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/ok",
+              "equals": true
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_set_var",
+          "arguments": {
+            "key": "tag",
+            "value": "changed"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "variable 'tag' is const and cannot be reassigned"
+            }
+          ],
+          "hc_status": "error"
+        },
+        {
+          "tool": "fsm_fsm_get_var_committed",
+          "arguments": {
+            "key": "increment"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/value",
+              "equals": null
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_set_var",
+          "arguments": {
+            "key": "increment",
+            "value": "7"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/ok",
+              "equals": true
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_get_var_pending",
+          "arguments": {
+            "key": "increment"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/value",
+              "equals": "7"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_dispatch_subagent",
+          "arguments": {
+            "fsm": "WorkerAlpha",
+            "vars": {
+              "ticket": "first"
+            }
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/ok",
+              "equals": true
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_dispatch_subagent",
+          "arguments": {
+            "fsm": "WorkerBeta",
+            "vars": {
+              "ticket": "second"
+            }
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/ok",
+              "equals": true
+            }
+          ]
+        },
+        {
+          "tool": "agent",
+          "arguments": {
+            "description": "alpha reference arithmetic",
+            "prompt": "PLOT_ACTOR_ALPHA_6d80\nExecute the deterministic arithmetic reference.",
+            "subagent_type": "general",
+            "name": "alpha",
+            "cwd": "${work}"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "Started general agent"
+            },
+            {
+              "path": "/text",
+              "bind": "session.alpha",
+              "regex": "session_id: (ses_[A-Za-z0-9]+)"
+            }
+          ]
+        },
+        {
+          "tool": "agent",
+          "arguments": {
+            "description": "beta reference arithmetic",
+            "prompt": "PLOT_ACTOR_BETA_6d80\nExecute the deterministic arithmetic reference.",
+            "subagent_type": "general",
+            "name": "beta",
+            "cwd": "${work}"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "Started general agent"
+            },
+            {
+              "path": "/text",
+              "bind": "session.beta",
+              "regex": "session_id: (ses_[A-Za-z0-9]+)"
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "while ! test -f alpha.sent -a -f beta.sent; do sleep 0.05; done; printf messages-ready",
+            "description": "Deterministic plot action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "equals": "messages-ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "Reference"
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "Compute"
+            },
+            {
+              "path": "/json/stack_depth",
+              "equals": 2
+            }
+          ],
+          "inbox": [
+            {
+              "contains": "ALPHA_VALUE=",
+              "expect": [
+                {
+                  "path": "/message",
+                  "contains": "[Agent message from alpha (general, ${session.alpha})]"
+                },
+                {
+                  "path": "/message",
+                  "contains": "ALPHA_VALUE="
+                },
+                {
+                  "path": "/message",
+                  "bind": "root.alpha",
+                  "regex": "ALPHA_VALUE=(\\d+)"
+                }
+              ]
+            },
+            {
+              "contains": "BETA_VALUE=",
+              "expect": [
+                {
+                  "path": "/message",
+                  "contains": "[Agent message from beta (general, ${session.beta})]"
+                },
+                {
+                  "path": "/message",
+                  "contains": "BETA_VALUE="
+                },
+                {
+                  "path": "/message",
+                  "bind": "root.beta",
+                  "regex": "BETA_VALUE=(\\d+)"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "Complete",
+            "checks": [
+              {
+                "property": "increment prepared",
+                "satisfied": true,
+                "evidence": "Validated by preceding receipts and consumed messages"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "Complete",
+            "evidence": "Validated reference action sequence"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "transition.finish",
+              "duration_bound_ms": 30000,
+              "expect": [
+                {
+                  "path": "/content/result",
+                  "equals": "pass"
+                },
+                {
+                  "path": "/content/finish_failed",
+                  "equals": 0
+                },
+                {
+                  "path": "/content/finish_total",
+                  "equals": 1
+                }
+              ]
+            },
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "Complete"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "Reference"
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "Complete"
+            },
+            {
+              "path": "/json/stack_depth",
+              "equals": 2
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_get_var_committed",
+          "arguments": {
+            "key": "increment"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/value",
+              "equals": "7"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_get_var_committed",
+          "arguments": {
+            "key": "finished"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/value",
+              "equals": "yes"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_enter",
+          "arguments": {
+            "name": "Nested"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "allow_enter_fsm is false in current state"
+            }
+          ],
+          "hc_status": "error"
+        },
+        {
+          "tool": "fsm_fsm_dispatch_subagent",
+          "arguments": {
+            "fsm": "Nested"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "allow_dispatch_subagent=false"
+            }
+          ],
+          "hc_status": "error"
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "_fsm_exit",
+            "checks": [
+              {
+                "property": "committed result verified",
+                "satisfied": true,
+                "evidence": "Validated by preceding receipts and consumed messages"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "_fsm_exit",
+            "evidence": "Validated reference action sequence"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "_fsm_exit"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "while ! test -f alpha.finished -a -f beta.finished -a -f gamma.finished; do sleep 0.05; done; sleep 1; printf all-finished",
+            "description": "Deterministic plot action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "equals": "all-finished"
+            }
+          ]
+        },
+        {
+          "tool": "agent_list",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "\talpha\tgeneral\tchild\tidle\t"
+            },
+            {
+              "path": "/text",
+              "contains": "\tbeta\tgeneral\tchild\tidle\t"
+            }
+          ]
+        },
+        {
+          "tool": "agent_stop",
+          "arguments": {
+            "target": "alpha"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "Stopped 2 Agent(s):"
+            }
+          ],
+          "state_expect": [
+            {
+              "path": "",
+              "length": 1
+            },
+            {
+              "path": "/0/name",
+              "equals": "_default"
+            }
+          ]
+        }
+      ],
+      "result": "Computed result: ${root.alpha} + ${root.beta} = ${result}",
+      "calculations": [
+        {
+          "operation": "sum",
+          "inputs": [
+            "root.alpha",
+            "root.beta"
+          ],
+          "bind": "result"
+        }
+      ],
+      "completion_expect": [
+        {
+          "path": "/bindings/root.alpha",
+          "equals": "21"
+        },
+        {
+          "path": "/bindings/root.beta",
+          "equals": "21"
+        },
+        {
+          "path": "/result",
+          "equals": "Computed result: 21 + 21 = 42"
+        }
+      ]
+    },
+    "alpha": {
+      "marker": "PLOT_ACTOR_ALPHA_6d80",
+      "steps": [
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "WorkerAlpha"
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "Work"
+            },
+            {
+              "path": "/json/stack_depth",
+              "equals": 2
+            },
+            {
+              "path": "/json/const_vars/agent_id",
+              "bind": "session.alpha",
+              "regex": "^(ses_[A-Za-z0-9]+)$"
+            },
+            {
+              "path": "/json/const_vars/ticket",
+              "equals": "first"
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "printf %s \"$((15+6))\"",
+            "description": "Deterministic plot action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "equals": "21"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_enter",
+          "arguments": {
+            "name": "Nested"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/stack_depth",
+              "equals": 3
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "_fsm_exit",
+            "checks": [
+              {
+                "property": "nested result checked",
+                "satisfied": true,
+                "evidence": "Validated by preceding receipts and consumed messages"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "_fsm_exit",
+            "evidence": "Validated reference action sequence"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "_fsm_exit"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "WorkerAlpha"
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "Work"
+            },
+            {
+              "path": "/json/stack_depth",
+              "equals": 2
+            },
+            {
+              "path": "/json/const_vars/agent_id",
+              "bind": "session.alpha",
+              "regex": "^(ses_[A-Za-z0-9]+)$"
+            },
+            {
+              "path": "/json/const_vars/ticket",
+              "equals": "first"
+            }
+          ]
+        },
+        {
+          "tool": "agent",
+          "arguments": {
+            "description": "gamma reference arithmetic",
+            "prompt": "PLOT_ACTOR_GAMMA_6d80\nExecute the deterministic arithmetic reference.",
+            "subagent_type": "general",
+            "name": "gamma",
+            "cwd": "${work}"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "Started general agent"
+            },
+            {
+              "path": "/text",
+              "bind": "session.gamma",
+              "regex": "session_id: (ses_[A-Za-z0-9]+)"
+            }
+          ]
+        },
+        {
+          "tool": "agent_send",
+          "arguments": {
+            "target": "${session.beta}",
+            "message": "SIBLING_VALUE=21"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "Accepted for "
+            }
+          ],
+          "wait_bindings": [
+            "session.beta"
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "touch alpha.sibling.sent; while ! test -f beta.ack -a -f gamma.sent; do sleep 0.05; done; printf peer-messages-ready",
+            "description": "Deterministic plot action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "equals": "peer-messages-ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "WorkerAlpha"
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "Work"
+            },
+            {
+              "path": "/json/stack_depth",
+              "equals": 2
+            },
+            {
+              "path": "/json/const_vars/agent_id",
+              "bind": "session.alpha",
+              "regex": "^(ses_[A-Za-z0-9]+)$"
+            },
+            {
+              "path": "/json/const_vars/ticket",
+              "equals": "first"
+            }
+          ],
+          "inbox": [
+            {
+              "contains": "BETA_ACK=21",
+              "expect": [
+                {
+                  "path": "/message",
+                  "contains": "[Agent message from beta (general, ${session.beta})]"
+                },
+                {
+                  "path": "/message",
+                  "contains": "BETA_ACK=21"
+                }
+              ]
+            },
+            {
+              "contains": "GAMMA_VALUE=",
+              "expect": [
+                {
+                  "path": "/message",
+                  "contains": "[Agent message from gamma (general, ${session.gamma})]"
+                },
+                {
+                  "path": "/message",
+                  "contains": "GAMMA_VALUE="
+                },
+                {
+                  "path": "/message",
+                  "bind": "alpha.gamma",
+                  "regex": "GAMMA_VALUE=(\\d+)"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "agent_stop",
+          "arguments": {
+            "target": "${session.beta}"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "direct child"
+            }
+          ]
+        },
+        {
+          "tool": "agent_send",
+          "arguments": {
+            "target": "${session.root}",
+            "message": "ALPHA_VALUE=${alpha.gamma}"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "Accepted for "
+            }
+          ],
+          "wait_bindings": [
+            "session.root"
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "touch alpha.sent; printf sent",
+            "description": "Deterministic plot action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "equals": "sent"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_set_var",
+          "arguments": {
+            "key": "result",
+            "value": "21"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/ok",
+              "equals": true
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "Done",
+            "checks": [
+              {
+                "property": "messages verified",
+                "satisfied": true,
+                "evidence": "Validated by preceding receipts and consumed messages"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "Done",
+            "evidence": "Validated reference action sequence"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "Done"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "_fsm_exit",
+            "checks": [
+              {
+                "property": "result delivered",
+                "satisfied": true,
+                "evidence": "Validated by preceding receipts and consumed messages"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "_fsm_exit",
+            "evidence": "Validated reference action sequence"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "_fsm_exit"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "touch alpha.finished; printf finished",
+            "description": "Deterministic plot action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "equals": "finished"
+            }
+          ],
+          "state_expect": [
+            {
+              "path": "",
+              "length": 1
+            },
+            {
+              "path": "/0/name",
+              "equals": "_default"
+            }
+          ]
+        }
+      ],
+      "result": "alpha reference arithmetic complete"
+    },
+    "beta": {
+      "marker": "PLOT_ACTOR_BETA_6d80",
+      "steps": [
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "WorkerBeta"
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "Work"
+            },
+            {
+              "path": "/json/stack_depth",
+              "equals": 2
+            },
+            {
+              "path": "/json/const_vars/agent_id",
+              "bind": "session.beta",
+              "regex": "^(ses_[A-Za-z0-9]+)$"
+            },
+            {
+              "path": "/json/const_vars/ticket",
+              "equals": "second"
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "while ! test -f alpha.sibling.sent; do sleep 0.05; done; printf %s \"$((14+7))\"",
+            "description": "Deterministic plot action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "equals": "21"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "WorkerBeta"
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "Work"
+            },
+            {
+              "path": "/json/stack_depth",
+              "equals": 2
+            },
+            {
+              "path": "/json/const_vars/agent_id",
+              "bind": "session.beta",
+              "regex": "^(ses_[A-Za-z0-9]+)$"
+            },
+            {
+              "path": "/json/const_vars/ticket",
+              "equals": "second"
+            }
+          ],
+          "inbox": [
+            {
+              "contains": "SIBLING_VALUE=",
+              "expect": [
+                {
+                  "path": "/message",
+                  "contains": "[Agent message from alpha (general, ${session.alpha})]"
+                },
+                {
+                  "path": "/message",
+                  "contains": "SIBLING_VALUE="
+                },
+                {
+                  "path": "/message",
+                  "bind": "beta.alpha",
+                  "regex": "SIBLING_VALUE=(\\d+)"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "agent_send",
+          "arguments": {
+            "target": "${session.alpha}",
+            "message": "BETA_ACK=${beta.alpha}"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "Accepted for "
+            }
+          ],
+          "wait_bindings": [
+            "session.alpha"
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "touch beta.ack; printf ack",
+            "description": "Deterministic plot action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "equals": "ack"
+            }
+          ]
+        },
+        {
+          "tool": "agent_send",
+          "arguments": {
+            "target": "${session.root}",
+            "message": "BETA_VALUE=${beta.alpha}"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "Accepted for "
+            }
+          ],
+          "wait_bindings": [
+            "session.root"
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "touch beta.sent; printf sent",
+            "description": "Deterministic plot action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "equals": "sent"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_set_var",
+          "arguments": {
+            "key": "result",
+            "value": "21"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/ok",
+              "equals": true
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "Done",
+            "checks": [
+              {
+                "property": "messages verified",
+                "satisfied": true,
+                "evidence": "Validated by preceding receipts and consumed messages"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "Done",
+            "evidence": "Validated reference action sequence"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "Done"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "_fsm_exit",
+            "checks": [
+              {
+                "property": "result delivered",
+                "satisfied": true,
+                "evidence": "Validated by preceding receipts and consumed messages"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "_fsm_exit",
+            "evidence": "Validated reference action sequence"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "_fsm_exit"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "touch beta.finished; printf finished",
+            "description": "Deterministic plot action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "equals": "finished"
+            }
+          ],
+          "state_expect": [
+            {
+              "path": "",
+              "length": 1
+            },
+            {
+              "path": "/0/name",
+              "equals": "_default"
+            }
+          ]
+        }
+      ],
+      "result": "beta reference arithmetic complete"
+    },
+    "gamma": {
+      "marker": "PLOT_ACTOR_GAMMA_6d80",
+      "steps": [
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "_default"
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "S_default"
+            },
+            {
+              "path": "/json/stack_depth",
+              "equals": 1
+            },
+            {
+              "path": "/json/const_vars/agent_id",
+              "bind": "session.gamma",
+              "regex": "^(ses_[A-Za-z0-9]+)$"
+            }
+          ],
+          "persisted_state": "absent",
+          "actor_expect": [
+            {
+              "path": "/fsm_name",
+              "equals": "_default"
+            },
+            {
+              "path": "/state_id",
+              "equals": "S_default"
+            },
+            {
+              "path": "/stack_depth",
+              "equals": 1
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_enter",
+          "arguments": {
+            "name": "Nested"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/stack_depth",
+              "equals": 2
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "printf %s \"$((3*7))\"",
+            "description": "Deterministic plot action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "equals": "21"
+            }
+          ]
+        },
+        {
+          "tool": "agent_send",
+          "arguments": {
+            "target": "${session.alpha}",
+            "message": "GAMMA_VALUE=21"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "contains": "Accepted for "
+            }
+          ],
+          "wait_bindings": [
+            "session.alpha"
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "touch gamma.sent; printf sent",
+            "description": "Deterministic plot action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "equals": "sent"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "_fsm_exit",
+            "checks": [
+              {
+                "property": "nested result checked",
+                "satisfied": true,
+                "evidence": "Validated by preceding receipts and consumed messages"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "_fsm_exit",
+            "evidence": "Validated reference action sequence"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "_fsm_exit"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "touch gamma.finished; printf finished",
+            "description": "Deterministic plot action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/text",
+              "equals": "finished"
+            }
+          ],
+          "state_expect": [
+            {
+              "path": "",
+              "length": 1
+            },
+            {
+              "path": "/0/name",
+              "equals": "_default"
+            }
+          ]
+        }
+      ],
+      "result": "gamma reference arithmetic complete"
+    }
+  },
+  "observations": {
+    "fsm_actors": [
+      "root",
+      "alpha",
+      "beta",
+      "gamma"
+    ],
+    "tool_definitions": {
+      "count": 26,
+      "required": [
+        "agent",
+        "agent_send",
+        "agent_list",
+        "agent_stop",
+        "fsm_fsm_enter",
+        "fsm_fsm_try_transition",
+        "fsm_fsm_get_state"
+      ]
+    },
+    "completion_reports": [
+      {
+        "sender": "alpha",
+        "recipient": "root",
+        "summary": "Agent completed: alpha reference arithmetic"
+      },
+      {
+        "sender": "beta",
+        "recipient": "root",
+        "summary": "Agent completed: beta reference arithmetic"
+      },
+      {
+        "sender": "gamma",
+        "recipient": "alpha",
+        "summary": "Agent completed: gamma reference arithmetic"
+      }
+    ],
+    "cancellation_reports": [
+      {
+        "recipient": "root",
+        "expect": [
+          {
+            "path": "/text",
+            "contains": "[Agent message from alpha (general, ${session.alpha})]"
+          },
+          {
+            "path": "/text",
+            "contains": "Its 1 descendant Agent(s) were stopped as well."
+          }
+        ]
+      }
+    ],
+    "final_actor": {
+      "fsm_name": "_default",
+      "state_id": "S_default",
+      "stack_depth": 1,
+      "is_terminal": true,
+      "no_progress_count": 0
+    },
+    "process_identity": {
+      "count": 1
+    },
+    "matching": {
+      "hc_quiescence": "exact empty JSON object from session/status; arrays and scalars are protocol errors",
+      "json_equality": "recursive type-exact JSON; bool, integer and float are distinct; object key order is irrelevant",
+      "tool_receipt": "exact declared step.capture projection; full raw payload preserved",
+      "identity_bindings": {
+        "session": "injective, full identifier token",
+        "part": "injective, full identifier token",
+        "message": "injective, full identifier token"
+      },
+      "text_bindings": "only names listed in normalize_bindings; numeric business values never normalized",
+      "hc_tool_time": {
+        "paths": [
+          "/state/time/start",
+          "/state/time/end"
+        ],
+        "rule": "integer wall milliseconds; start <= end"
+      },
+      "fsm_history_time": {
+        "path": "/*/history/*/timestamp",
+        "rule": "ISO8601; nondecreasing across each stored stack"
+      },
+      "gate_reason": "Allow omits reason_code; Deny equals the exact declared step.gate_reason",
+      "daemon_time": {
+        "path": "/timestamp",
+        "rule": "inside correlated HC tool span; 1ms timestamp rounding tolerance"
+      },
+      "duration": {
+        "path": "/content/duration_ms",
+        "rule": "integer; 0 <= value <= step.ledger.duration_bound_ms"
+      },
+      "process_identity": {
+        "agent_pid": "exact owned HC PID",
+        "start_time": "positive integer stable process identity",
+        "opencode_server_url": "exact owned loopback HC URL"
+      },
+      "ordering": "actor/step keyed; selected consumed messages identity keyed; no global concurrent event ordering",
+      "raw_logs": "retain all; compare complete explicitly correlated gate and transition ledger events",
+      "unknown_fields": "retain and exact-match within each declared captured object"
+    }
+  }
+}

@@ -1,0 +1,1121 @@
+{
+  "golden": "/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/hc-fsm-reference/v3/golden/semantic-wait.json",
+  "roots": [
+    "root",
+    "peer"
+  ],
+  "wait_seconds": 90,
+  "workflows": [
+    "workflows/semantic-stop.yaml",
+    "workflows/async-work.yaml"
+  ],
+  "prompt": "Witness real semantic Allow while an actual descendant is busy, then resume the same root and compute.",
+  "normalize_bindings": [
+    "run",
+    "work",
+    "package",
+    "session.root",
+    "session.peer",
+    "session.async",
+    "session.judge"
+  ],
+  "actors": {
+    "root": {
+      "marker": "S09_WAIT_CONTROL_MARKER",
+      "steps": [
+        {
+          "tool": "fsm_fsm_enter",
+          "arguments": {
+            "name": "SemanticStop"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "SemanticStop"
+            },
+            {
+              "path": "/json/const_vars/session_id",
+              "equals": "${session.root}"
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "printf %s \"$((6*7))\"",
+            "description": "Semantic wait protocol action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "equals": "42"
+            },
+            {
+              "path": "/text",
+              "bind": "root.amount",
+              "regex": "^(42)$"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_set_var",
+          "arguments": {
+            "key": "amount",
+            "value": "42"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/ok",
+              "equals": true
+            }
+          ]
+        },
+        {
+          "tool": "agent",
+          "arguments": {
+            "description": "semantic wait async",
+            "prompt": "S09_ASYNC_MARKER\nRun the declared asynchronous arithmetic.",
+            "name": "async",
+            "subagent_type": "general",
+            "cwd": "${work}"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "contains": "Started general agent"
+            },
+            {
+              "path": "/text",
+              "bind": "session.async",
+              "regex": "session_id: (ses_[A-Za-z0-9]+)"
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "while ! test -f async.busy; do sleep 0.05; done; printf descendant-started",
+            "description": "Semantic wait protocol action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "equals": "descendant-started"
+            }
+          ]
+        },
+        {
+          "kind": "pause",
+          "text": "S09_WAIT_FOR_DESCENDANT",
+          "api_observe": {
+            "busy": [
+              {
+                "actor": "async",
+                "call": "plot_async_002",
+                "pid_file": "${work}/async.busy.pid"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "Work"
+            },
+            {
+              "path": "/json/vars_pending/amount",
+              "equals": "42"
+            }
+          ],
+          "actor_expect": [
+            {
+              "path": "/no_progress_count",
+              "equals": 0
+            }
+          ],
+          "stop_phase": "wait",
+          "inbox": [
+            {
+              "contains": "RESUME_AFTER_SEMANTIC_WAIT",
+              "expect": [
+                {
+                  "path": "/message",
+                  "contains": "[Agent message from build (${session.peer})]"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "touch release.async; while ! test -f async.sent; do sleep 0.05; done; sleep 1; printf async-finished",
+            "description": "Semantic wait protocol action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "equals": "async-finished"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "Work"
+            }
+          ],
+          "inbox": [
+            {
+              "contains": "ASYNC_VALUE=",
+              "expect": [
+                {
+                  "path": "/message",
+                  "contains": "[Agent message from async (general, ${session.async})]"
+                },
+                {
+                  "path": "/message",
+                  "bind": "root.async",
+                  "regex": "ASYNC_VALUE=(7)"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "Done",
+            "checks": [
+              {
+                "property": "amount prepared",
+                "satisfied": true,
+                "evidence": "Observed actual result and retained frame"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "Done"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "Done"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "Done"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "_fsm_exit",
+            "checks": [
+              {
+                "property": "Stop exit instruction consumed",
+                "satisfied": true,
+                "evidence": "Observed actual result and retained frame"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "_fsm_exit"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "_fsm_exit"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "calculations": [
+        {
+          "operation": "sum",
+          "inputs": [
+            "root.amount",
+            "root.async"
+          ],
+          "bind": "result"
+        }
+      ],
+      "result": "Semantic wait result: ${root.amount} + ${root.async} = ${result}",
+      "completion_expect": [
+        {
+          "path": "/result",
+          "equals": "Semantic wait result: 42 + 7 = 49"
+        }
+      ]
+    },
+    "peer": {
+      "marker": "S09_WAIT_PEER_MARKER",
+      "root": "peer",
+      "title": "Semantic wait controller",
+      "steps": [
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "_default"
+            },
+            {
+              "path": "/json/const_vars/session_id",
+              "equals": "${session.peer}"
+            }
+          ],
+          "persisted_state": "absent"
+        },
+        {
+          "tool": "agent_send",
+          "arguments": {
+            "target": "${session.root}",
+            "message": "RESUME_AFTER_SEMANTIC_WAIT"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "contains": "Accepted for ${session.root}."
+            }
+          ],
+          "persisted_state": "absent",
+          "wait_stop_phase": "wait",
+          "api_observe": {
+            "idle": [
+              "root"
+            ],
+            "identities": {
+              "root": {
+                "parent": null,
+                "agent": "build"
+              }
+            }
+          }
+        }
+      ],
+      "result": "Semantic wait controller sent resume"
+    },
+    "async": {
+      "marker": "S09_ASYNC_MARKER",
+      "steps": [
+        {
+          "tool": "fsm_fsm_enter",
+          "arguments": {
+            "name": "AsyncWork",
+            "vars": {
+              "seed": "7"
+            }
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/fsm_name",
+              "equals": "AsyncWork"
+            },
+            {
+              "path": "/json/const_vars/agent_id",
+              "bind": "session.async",
+              "regex": "^(ses_[A-Za-z0-9]+)$"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_get_var_committed",
+          "arguments": {
+            "key": "seed"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/value",
+              "equals": "7"
+            },
+            {
+              "path": "/json/value",
+              "bind": "async.seed",
+              "regex": "^(7)$"
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "printf %s \"$$\" > async.busy.pid; touch async.busy; while ! test -f release.async; do sleep 0.05; done; printf %s \"$((${async.seed}*1))\"",
+            "description": "Semantic wait protocol action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "equals": "7"
+            },
+            {
+              "path": "/text",
+              "bind": "async.result",
+              "regex": "^(7)$"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_set_var",
+          "arguments": {
+            "key": "result",
+            "value": "7"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/ok",
+              "equals": true
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "Done",
+            "checks": [
+              {
+                "property": "asynchronous result verified",
+                "satisfied": true,
+                "evidence": "Observed actual result and retained frame"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "Done"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "Done"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/state_id",
+              "equals": "Done"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_submit_self_check",
+          "arguments": {
+            "target": "_fsm_exit",
+            "checks": [
+              {
+                "property": "committed async value verified",
+                "satisfied": true,
+                "evidence": "Observed actual result and retained frame"
+              }
+            ]
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "ready"
+            }
+          ]
+        },
+        {
+          "tool": "fsm_fsm_try_transition",
+          "arguments": {
+            "target": "_fsm_exit"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/json/status",
+              "equals": "accept"
+            }
+          ],
+          "ledger": [
+            {
+              "emit": "transition.commit.success",
+              "expect": [
+                {
+                  "path": "/content/to",
+                  "equals": "_fsm_exit"
+                },
+                {
+                  "path": "/content/result",
+                  "equals": "success"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "tool": "agent_send",
+          "arguments": {
+            "target": "${session.root}",
+            "message": "ASYNC_VALUE=${async.result}"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "contains": "Accepted for ${session.root}."
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "touch async.sent; printf sent",
+            "description": "Semantic wait protocol action"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": ""
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/text",
+              "equals": "sent"
+            }
+          ]
+        }
+      ],
+      "result": "Async arithmetic result: ${async.result}"
+    },
+    "judge": {
+      "marker": "WAIT_JUDGE_MARKER",
+      "stop_for": "S09_WAIT_FOR_DESCENDANT",
+      "once": true,
+      "request_capture": [
+        "facts",
+        "evidence",
+        "model"
+      ],
+      "request_expect": [
+        {
+          "path": "/model",
+          "equals": "plot-model"
+        },
+        {
+          "path": "/facts/legal_pause",
+          "equals": false
+        },
+        {
+          "path": "/facts/state_id",
+          "equals": "Work"
+        },
+        {
+          "path": "/facts/is_exit_state",
+          "equals": false
+        },
+        {
+          "path": "/facts/recent_stop_plans_present",
+          "equals": false
+        },
+        {
+          "path": "/evidence/recent_stop_plans",
+          "equals": null
+        },
+        {
+          "path": "/evidence/last_assistant_message",
+          "equals": "S09_WAIT_FOR_DESCENDANT"
+        },
+        {
+          "path": "/facts/live_work/confirmed/subjects",
+          "length": 1
+        },
+        {
+          "path": "/facts/live_work/confirmed/subjects/0/kind",
+          "equals": "opencode_session"
+        },
+        {
+          "path": "/facts/live_work/confirmed/subjects/0/pid_or_agent_id",
+          "equals": "${session.async}"
+        },
+        {
+          "path": "/facts/live_work/confirmed/subjects/0/description",
+          "contains": "semantic wait async"
+        }
+      ],
+      "steps": [
+        {
+          "tool": "StructuredOutput",
+          "arguments": {
+            "action": "wait_for_async_work",
+            "reason": "S09_WAIT_ALLOW: the declared busy descendant is executing; retain the frame and wait for its result."
+          },
+          "settle_via_event": true,
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "input",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/toolName",
+              "equals": "StructuredOutput"
+            },
+            {
+              "path": "/isError",
+              "equals": false
+            },
+            {
+              "path": "/input",
+              "equals": {
+                "action": "wait_for_async_work",
+                "reason": "S09_WAIT_ALLOW: the declared busy descendant is executing; retain the frame and wait for its result."
+              }
+            },
+            {
+              "path": "/text",
+              "equals": "Structured output captured successfully."
+            }
+          ]
+        }
+      ],
+      "result": "S09_WAIT_ALLOW: the declared busy descendant is executing; retain the frame and wait for its result."
+    }
+  },
+  "observations": {
+    "fsm_actors": [
+      "root",
+      "peer",
+      "async"
+    ],
+    "completion_reports": [
+      {
+        "sender": "async",
+        "recipient": "root",
+        "summary": "Agent completed: semantic wait async"
+      }
+    ],
+    "stop_phases": [
+      {
+        "name": "wait",
+        "actor": "root",
+        "message": "S09_WAIT_FOR_DESCENDANT",
+        "judge": "judge",
+        "action": "wait_for_async_work",
+        "reason": "S09_WAIT_ALLOW: the declared busy descendant is executing; retain the frame and wait for its result.",
+        "decision": "allow"
+      }
+    ],
+    "tool_definitions": {
+      "count": 26,
+      "required": [
+        "agent",
+        "fsm_fsm_get_state"
+      ],
+      "actors": {
+        "judge": {
+          "count": 4,
+          "required": [
+            "StructuredOutput",
+            "read",
+            "glob",
+            "grep"
+          ]
+        }
+      }
+    },
+    "final_actor": {
+      "fsm_name": "_default",
+      "state_id": "S_default",
+      "stack_depth": 1,
+      "is_terminal": true,
+      "no_progress_count": 0
+    },
+    "process_identity": {
+      "count": 2
+    },
+    "matching": {
+      "semantic_stop": "native Stop facts/evidence and same model; typed StructuredOutput then exact hook verdict then same-SID consumed continuation",
+      "actor_identity": "public root SID plus agent SID tuple; native parent links observed, never written by harness",
+      "busy_cancel": "HC busy + running durable tool + alive owned descendant PID before stop; same IDs/context, exact aborted error and dead PID after stop",
+      "native_stop_order": "raw native-report and hook timings preserved; no invented cross-lane happens-before order",
+      "registry_order": "complete records keyed by declared public root SID; no global registration-array ordering",
+      "cross_actor_errors": "cancellation errors keyed by actor/call identity; no invented cross-actor completion order",
+      "hc_quiescence": "exact empty JSON object from session/status; arrays and scalars are protocol errors",
+      "json_equality": "recursive type-exact JSON; bool, integer and float are distinct; object key order is irrelevant",
+      "tool_receipt": "exact declared step.capture projection; full raw payload preserved",
+      "identity_bindings": {
+        "session": "injective, full identifier token",
+        "part": "injective, full identifier token",
+        "message": "injective, full identifier token"
+      },
+      "text_bindings": "only names listed in normalize_bindings; numeric business values never normalized",
+      "hc_tool_time": {
+        "paths": [
+          "/state/time/start",
+          "/state/time/end"
+        ],
+        "rule": "integer wall milliseconds; start <= end"
+      },
+      "fsm_history_time": {
+        "path": "/*/history/*/timestamp",
+        "rule": "ISO8601; nondecreasing across each stored stack"
+      },
+      "gate_reason": "Allow omits reason_code; Deny equals the exact declared step.gate_reason",
+      "daemon_time": {
+        "path": "/timestamp",
+        "rule": "inside correlated HC tool span; 1ms timestamp rounding tolerance"
+      },
+      "duration": {
+        "path": "/content/duration_ms",
+        "rule": "integer; 0 <= value <= step.ledger.duration_bound_ms"
+      },
+      "process_identity": {
+        "agent_pid": "exact owned HC PID",
+        "start_time": "positive integer stable process identity",
+        "opencode_server_url": "exact owned loopback HC URL"
+      },
+      "ordering": "actor/step keyed; selected consumed messages identity keyed; no global concurrent event ordering",
+      "raw_logs": "retain all; compare complete explicitly correlated gate and transition ledger events",
+      "unknown_fields": "retain and exact-match within each declared captured object"
+    }
+  }
+}

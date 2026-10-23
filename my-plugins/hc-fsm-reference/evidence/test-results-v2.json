@@ -1,0 +1,50 @@
+{
+  "framework": {
+    "passed": 27,
+    "failed": 0,
+    "log": ".runtime/framework-tests-v2-final.log",
+    "realHcMismatch": "runs/c0251d48c",
+    "expectedFaultExit": 1,
+    "followingWriteNeverExecuted": true,
+    "jsonTypeRegressionFirstFailure": ".runtime/json-types-first-failure.log",
+    "jsonTypeAndUnchangedActionChecksPassed": 7
+  },
+  "pinnedFsmRust": {
+    "passedExecutions": 1748,
+    "failedExecutions": 11,
+    "ignoredExecutions": 0,
+    "failedTests": [
+      "only_a_fatal_version_mismatch_may_write_to_stderr_and_then_it_exits",
+      "a_daemon_that_accepts_but_never_answers_does_not_hang_startup",
+      "cmd_restart_replaces_running_daemon",
+      "restart_produces_durable_daemon_alive_after_grace",
+      "restart_repeated_n_times_each_yields_durable_daemon",
+      "cmd_stop_kills_running_daemon",
+      "server_starts_when_skills_dir_has_malformed_yaml",
+      "server_starts_when_a_skill_file_is_unreadable",
+      "cmd_status_returns_0_when_daemon_healthy",
+      "run_log_db_created_with_init_markers",
+      "server_starts_when_skills_dir_is_unreadable"
+    ],
+    "log": ".runtime/upstream-tests/c527a9b8/fsm-upstream.log",
+    "result": "failed",
+    "classification": "macOS AF_UNIX SUN_LEN exceeded by package-owned temporary paths",
+    "daemonFailureProof": ".t/mfs-bs75065-3/.mcp_server_fsm/logs/server.log",
+    "notes": "Counts are executions across lib/bin/integration targets, not unique tests or full feature proofs; no source/test patches."
+  },
+  "pinnedFsmPluginBun": {
+    "passed": 101,
+    "failed": 0,
+    "log": ".runtime/plugin-tests/3b7cd716/output.log",
+    "bun": "1.4.2"
+  },
+  "notExecuted": [
+    "installer pytest suites",
+    "TUI renderer/snapshot suites",
+    "real-provider full-e2e legs",
+    "peer-contract experiments",
+    "eval/SWE-bench tasks",
+    "standalone SQLCipher spike",
+    "Python demo harnesses"
+  ]
+}

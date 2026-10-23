@@ -1,0 +1,16 @@
+POLICY = {
+    'hc_quiescence': 'exact empty JSON object from session/status; arrays and scalars are protocol errors',
+    'json_equality': 'recursive type-exact JSON; bool, integer and float are distinct; object key order is irrelevant',
+    'tool_receipt': 'exact declared step.capture projection; full raw payload preserved',
+    'identity_bindings': {'session': 'injective, full identifier token', 'part': 'injective, full identifier token', 'message': 'injective, full identifier token'},
+    'text_bindings': 'only names listed in normalize_bindings; numeric business values never normalized',
+    'hc_tool_time': {'paths': ['/state/time/start', '/state/time/end'], 'rule': 'integer wall milliseconds; start <= end'},
+    'fsm_history_time': {'path': '/*/history/*/timestamp', 'rule': 'ISO8601; nondecreasing across each stored stack'},
+    'gate_reason': 'Allow omits reason_code; Deny equals the exact declared step.gate_reason',
+    'daemon_time': {'path': '/timestamp', 'rule': 'inside correlated HC tool span; 1ms timestamp rounding tolerance'},
+    'duration': {'path': '/content/duration_ms', 'rule': 'integer; 0 <= value <= step.ledger.duration_bound_ms'},
+    'process_identity': {'agent_pid': 'exact owned HC PID', 'start_time': 'positive integer stable process identity', 'opencode_server_url': 'exact owned loopback HC URL'},
+    'ordering': 'actor/step keyed; selected consumed messages identity keyed; no global concurrent event ordering',
+    'raw_logs': 'retain all; compare complete explicitly correlated gate and transition ledger events',
+    'unknown_fields': 'retain and exact-match within each declared captured object',
+}

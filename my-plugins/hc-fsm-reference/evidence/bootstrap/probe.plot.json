@@ -1,0 +1,22 @@
+{
+  "golden": "/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/hc-fsm-reference/golden/probe.json",
+  "workflows": ["workflows/reference.yaml"],
+  "prompt": "Run the fixed deterministic reference actions.",
+  "actors": {
+    "root": {
+      "marker": "PLOT_ACTOR_ROOT_6d80",
+      "result": "Computed result: ${increment}",
+      "steps": [
+        {"tool":"fsm_fsm_enter","arguments":{"name":"Reference","vars":{"base":"35"}},"capture":["toolCallId","toolName","content","isError"],"expect":[{"path":"/isError","equals":false},{"path":"/text","contains":"Compute"}]},
+        {"tool":"fsm_fsm_get_state","arguments":{},"capture":["toolCallId","toolName","content","isError"],"expect":[{"path":"/isError","equals":false},{"path":"/text","contains":"Compute"}]},
+        {"tool":"fsm_fsm_set_var","arguments":{"key":"increment","value":"7"},"capture":["toolCallId","toolName","content","isError"],"expect":[{"path":"/isError","equals":false}]},
+        {"tool":"fsm_fsm_get_var_pending","arguments":{"key":"increment"},"json":true,"capture":["toolCallId","toolName","content","isError"],"expect":[{"path":"/isError","equals":false},{"path":"/json/value","equals":"7","regex":"(7)","bind":"increment"}]},
+        {"tool":"fsm_fsm_submit_self_check","arguments":{"target":"Complete","checks":[{"property":"increment prepared","satisfied":true,"evidence":"pending increment equals seven"}]},"capture":["toolCallId","toolName","content","isError"],"expect":[{"path":"/isError","equals":false},{"path":"/text","contains":"ready"}]},
+        {"tool":"fsm_fsm_try_transition","arguments":{"target":"Complete","evidence":"Verified pending increment"},"capture":["toolCallId","toolName","content","isError"],"expect":[{"path":"/isError","equals":false},{"path":"/text","contains":"accept"}]},
+        {"tool":"fsm_fsm_get_var_committed","arguments":{"key":"increment"},"json":true,"capture":["toolCallId","toolName","content","isError"],"expect":[{"path":"/isError","equals":false},{"path":"/json/value","equals":"7"}]},
+        {"tool":"fsm_fsm_submit_self_check","arguments":{"target":"_fsm_exit","checks":[{"property":"committed result verified","satisfied":true,"evidence":"committed increment equals seven"}]},"capture":["toolCallId","toolName","content","isError"],"expect":[{"path":"/isError","equals":false},{"path":"/text","contains":"ready"}]},
+        {"tool":"fsm_fsm_try_transition","arguments":{"target":"_fsm_exit"},"capture":["toolCallId","toolName","content","isError"],"expect":[{"path":"/isError","equals":false},{"path":"/text","contains":"accept"}]}
+      ]
+    }
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "plotHash": "ffb6b768538fa4259acc77bd9aa0adae5811326d404222d8597db4e8cfb689f3",
+  "behaviorHashes": {
+    "src/hc_observer.js": "86fee5bd6e3309db4078e76de808a9e5e3111cc298e29b28bf7d00ea0f9e97bf",
+    "src/hook_observer.py": "f7e1ae657c9151967840e9842837cf343c0be00be4d89d2f506e185972377a10",
+    "src/hook_observer.sh": "341334bc6ad23f7a84f5427156c6afb38c4788afa535278cd3b5fb85f19b28be",
+    "src/model_proxy.py": "3e65e8996cd43b16c83d258fb3537809ca3ce13a573fecedfadb3bcc5c5a3601",
+    "src/plot_contract.py": "a23d59c9df93ad7b5733860c4efbea2fb215cd5fc308f989a2ba08176d1308d2",
+    "src/plot_engine.py": "fec0210cab4470e53c5d045d1696a59b912aee583a77292d9c43907e6560a787",
+    "src/run_environment.py": "94b7235c633908d10df08ba45216beabc75b154c181b66317c46600027f3d411",
+    "src/run_experiment.py": "88e914c90ca5f83edb0aca10f8eea4c5da71ddbe960244a07f45f9c9a7b8b81e",
+    "src/run_processes.py": "ba899222e4854678ec12811543c12e46499b6238b3463b8f022a7a457e8ce228"
+  },
+  "receipts": {
+    "root/000": {
+      "toolCallId": "plot_root_000",
+      "toolName": "",
+      "content": [
+        {
+          "text": "{\n  \"available_transitions\": [\n    \"Complete\"\n  ],\n  \"const_vars\": {\n    \"agent_cli\": \"opencode\",\n    \"agent_id\": \"main\",\n    \"base\": \"35\",\n    \"session_id\": \"ses_e98f39bf9ffe69b1zbXUYkPaTY\"\n  },\n  \"description\": \"Compute {{ base }} plus mutable increment\",\n  \"fsm_description\": \"Deterministic arithmetic and permission reference\",\n  \"fsm_name\": \"Reference\",\n  \"instructions\": \"Set increment, verify its pending view, then commit\",\n  \"invariants\": [\n    \"Arithmetic input is immutable\",\n    \"No unapproved shell command runs\"\n  ],\n  \"liveness_properties\": [\n    \"increment prepared\"\n  ],\n  \"stack_depth\": 2,\n  \"state_id\": \"Compute\",\n  \"state_status\": {\n    \"kind\": \"active\"\n  },\n  \"tool_permissions\": \"whitelist (a tool must match at least one to be allowed):\\n  - name: .*\\n\\nblacklist (any match denies — overrides whitelist):\\n  - name: Bash\\n    where command: printf forbidden\\n\",\n  \"vars_committed\": {\n    \"agent_cli\": \"opencode\",\n    \"agent_id\": \"main\",\n    \"base\": \"35\",\n    \"session_id\": \"ses_e98f39bf9ffe69b1zbXUYkPaTY\"\n  },\n  \"vars_pending\": {\n    \"agent_cli\": \"opencode\",\n    \"agent_id\": \"main\",\n    \"base\": \"35\",\n    \"session_id\": \"ses_e98f39bf9ffe69b1zbXUYkPaTY\"\n  }\n}"
+        }
+      ],
+      "isError": false,
+      "text": "{\n  \"available_transitions\": [\n    \"Complete\"\n  ],\n  \"const_vars\": {\n    \"agent_cli\": \"opencode\",\n    \"agent_id\": \"main\",\n    \"base\": \"35\",\n    \"session_id\": \"ses_e98f39bf9ffe69b1zbXUYkPaTY\"\n  },\n  \"description\": \"Compute {{ base }} plus mutable increment\",\n  \"fsm_description\": \"Deterministic arithmetic and permission reference\",\n  \"fsm_name\": \"Reference\",\n  \"instructions\": \"Set increment, verify its pending view, then commit\",\n  \"invariants\": [\n    \"Arithmetic input is immutable\",\n    \"No unapproved shell command runs\"\n  ],\n  \"liveness_properties\": [\n    \"increment prepared\"\n  ],\n  \"stack_depth\": 2,\n  \"state_id\": \"Compute\",\n  \"state_status\": {\n    \"kind\": \"active\"\n  },\n  \"tool_permissions\": \"whitelist (a tool must match at least one to be allowed):\\n  - name: .*\\n\\nblacklist (any match denies — overrides whitelist):\\n  - name: Bash\\n    where command: printf forbidden\\n\",\n  \"vars_committed\": {\n    \"agent_cli\": \"opencode\",\n    \"agent_id\": \"main\",\n    \"base\": \"35\",\n    \"session_id\": \"ses_e98f39bf9ffe69b1zbXUYkPaTY\"\n  },\n  \"vars_pending\": {\n    \"agent_cli\": \"opencode\",\n    \"agent_id\": \"main\",\n    \"base\": \"35\",\n    \"session_id\": \"ses_e98f39bf9ffe69b1zbXUYkPaTY\"\n  }\n}"
+    },
+    "root/001": {
+      "toolCallId": "plot_root_001",
+      "toolName": "",
+      "content": [
+        {
+          "text": "{\n  \"available_transitions\": [\n    \"Complete\"\n  ],\n  \"const_vars\": {\n    \"agent_cli\": \"opencode\",\n    \"agent_id\": \"main\",\n    \"base\": \"35\",\n    \"session_id\": \"ses_e98f39bf9ffe69b1zbXUYkPaTY\"\n  },\n  \"description\": \"Compute {{ base }} plus mutable increment\",\n  \"fsm_description\": \"Deterministic arithmetic and permission reference\",\n  \"fsm_name\": \"Reference\",\n  \"instructions\": \"Set increment, verify its pending view, then commit\",\n  \"invariants\": [\n    \"Arithmetic input is immutable\",\n    \"No unapproved shell command runs\"\n  ],\n  \"liveness_properties\": [\n    \"increment prepared\"\n  ],\n  \"stack_depth\": 2,\n  \"state_id\": \"Compute\",\n  \"state_status\": {\n    \"kind\": \"active\"\n  },\n  \"tool_permissions\": \"whitelist (a tool must match at least one to be allowed):\\n  - name: .*\\n\\nblacklist (any match denies — overrides whitelist):\\n  - name: Bash\\n    where command: printf forbidden\\n\",\n  \"vars_committed\": {\n    \"agent_cli\": \"opencode\",\n    \"agent_id\": \"main\",\n    \"base\": \"35\",\n    \"session_id\": \"ses_e98f39bf9ffe69b1zbXUYkPaTY\"\n  },\n  \"vars_pending\": {\n    \"agent_cli\": \"opencode\",\n    \"agent_id\": \"main\",\n    \"base\": \"35\",\n    \"session_id\": \"ses_e98f39bf9ffe69b1zbXUYkPaTY\"\n  }\n}"
+        }
+      ],
+      "isError": false,
+      "text": "{\n  \"available_transitions\": [\n    \"Complete\"\n  ],\n  \"const_vars\": {\n    \"agent_cli\": \"opencode\",\n    \"agent_id\": \"main\",\n    \"base\": \"35\",\n    \"session_id\": \"ses_e98f39bf9ffe69b1zbXUYkPaTY\"\n  },\n  \"description\": \"Compute {{ base }} plus mutable increment\",\n  \"fsm_description\": \"Deterministic arithmetic and permission reference\",\n  \"fsm_name\": \"Reference\",\n  \"instructions\": \"Set increment, verify its pending view, then commit\",\n  \"invariants\": [\n    \"Arithmetic input is immutable\",\n    \"No unapproved shell command runs\"\n  ],\n  \"liveness_properties\": [\n    \"increment prepared\"\n  ],\n  \"stack_depth\": 2,\n  \"state_id\": \"Compute\",\n  \"state_status\": {\n    \"kind\": \"active\"\n  },\n  \"tool_permissions\": \"whitelist (a tool must match at least one to be allowed):\\n  - name: .*\\n\\nblacklist (any match denies — overrides whitelist):\\n  - name: Bash\\n    where command: printf forbidden\\n\",\n  \"vars_committed\": {\n    \"agent_cli\": \"opencode\",\n    \"agent_id\": \"main\",\n    \"base\": \"35\",\n    \"session_id\": \"ses_e98f39bf9ffe69b1zbXUYkPaTY\"\n  },\n  \"vars_pending\": {\n    \"agent_cli\": \"opencode\",\n    \"agent_id\": \"main\",\n    \"base\": \"35\",\n    \"session_id\": \"ses_e98f39bf9ffe69b1zbXUYkPaTY\"\n  }\n}"
+    },
+    "root/002": {
+      "toolCallId": "plot_root_002",
+      "toolName": "",
+      "content": [
+        {
+          "text": "{\n  \"ok\": true\n}"
+        }
+      ],
+      "isError": false,
+      "text": "{\n  \"ok\": true\n}"
+    },
+    "root/003": {
+      "toolCallId": "plot_root_003",
+      "toolName": "",
+      "content": [
+        {
+          "text": "{\n  \"key\": \"increment\",\n  \"value\": \"${increment}\"\n}"
+        }
+      ],
+      "isError": false,
+      "text": "{\n  \"key\": \"increment\",\n  \"value\": \"${increment}\"\n}",
+      "json": {
+        "key": "increment",
+        "value": "${increment}"
+      }
+    },
+    "root/004": {
+      "toolCallId": "plot_root_004",
+      "toolName": "",
+      "content": [
+        {
+          "text": "{\n  \"status\": \"ready\"\n}"
+        }
+      ],
+      "isError": false,
+      "text": "{\n  \"status\": \"ready\"\n}"
+    },
+    "root/005": {
+      "toolCallId": "plot_root_005",
+      "toolName": "",
+      "content": [
+        {
+          "text": "{\n  \"current_state\": \"Complete\",\n  \"state\": {\n    \"available_transitions\": [\n      \"_fsm_exit\"\n    ],\n    \"description\": \"Computation committed\",\n    \"fsm_name\": \"Reference\",\n    \"instructions\": \"Verify committed increment and finish const, then exit\",\n    \"stack_depth\": 2,\n    \"state_id\": \"Complete\",\n    \"state_status\": {\n      \"kind\": \"terminal\",\n      \"message\": \"当前是终止态。完成本状态 instructions 与 liveness 后，对 `_fsm_exit` 调用一次 fsm_submit_self_check，再 fsm_try_transition 到 `_fsm_exit`，即退出当前 FSM。若尚未持有这个 exact current state 的完整视图，先调用一次 fsm_get_state，且不要重复。available_transitions 中的其它目标仍是合法替代。\"\n    }\n  },\n  \"status\": \"accept\"\n}"
+        }
+      ],
+      "isError": false,
+      "text": "{\n  \"current_state\": \"Complete\",\n  \"state\": {\n    \"available_transitions\": [\n      \"_fsm_exit\"\n    ],\n    \"description\": \"Computation committed\",\n    \"fsm_name\": \"Reference\",\n    \"instructions\": \"Verify committed increment and finish const, then exit\",\n    \"stack_depth\": 2,\n    \"state_id\": \"Complete\",\n    \"state_status\": {\n      \"kind\": \"terminal\",\n      \"message\": \"当前是终止态。完成本状态 instructions 与 liveness 后，对 `_fsm_exit` 调用一次 fsm_submit_self_check，再 fsm_try_transition 到 `_fsm_exit`，即退出当前 FSM。若尚未持有这个 exact current state 的完整视图，先调用一次 fsm_get_state，且不要重复。available_transitions 中的其它目标仍是合法替代。\"\n    }\n  },\n  \"status\": \"accept\"\n}"
+    },
+    "root/006": {
+      "toolCallId": "plot_root_006",
+      "toolName": "",
+      "content": [
+        {
+          "text": "{\n  \"key\": \"increment\",\n  \"value\": \"${increment}\"\n}"
+        }
+      ],
+      "isError": false,
+      "text": "{\n  \"key\": \"increment\",\n  \"value\": \"${increment}\"\n}",
+      "json": {
+        "key": "increment",
+        "value": "${increment}"
+      }
+    },
+    "root/007": {
+      "toolCallId": "plot_root_00${increment}",
+      "toolName": "",
+      "content": [
+        {
+          "text": "{\n  \"status\": \"ready\"\n}"
+        }
+      ],
+      "isError": false,
+      "text": "{\n  \"status\": \"ready\"\n}"
+    },
+    "root/008": {
+      "toolCallId": "plot_root_008",
+      "toolName": "",
+      "content": [
+        {
+          "text": "{\n  \"current_state\": \"S_default\",\n  \"state\": {\n    \"available_transitions\": [],\n    \"description\": \"默认自动机。请通过 fsm_enter 加载目标工作流。\",\n    \"fsm_name\": \"_default\",\n    \"instructions\": \"\",\n    \"stack_depth\": 1,\n    \"state_id\": \"S_default\",\n    \"state_status\": {\n      \"kind\": \"inactive\",\n      \"message\": \"当前没有活动 FSM；不要重复调用 fsm_get_state，也不要重复尝试退出。\"\n    }\n  },\n  \"status\": \"accept\"\n}"
+        }
+      ],
+      "isError": false,
+      "text": "{\n  \"current_state\": \"S_default\",\n  \"state\": {\n    \"available_transitions\": [],\n    \"description\": \"默认自动机。请通过 fsm_enter 加载目标工作流。\",\n    \"fsm_name\": \"_default\",\n    \"instructions\": \"\",\n    \"stack_depth\": 1,\n    \"state_id\": \"S_default\",\n    \"state_status\": {\n      \"kind\": \"inactive\",\n      \"message\": \"当前没有活动 FSM；不要重复调用 fsm_get_state，也不要重复尝试退出。\"\n    }\n  },\n  \"status\": \"accept\"\n}"
+    }
+  },
+  "results": {
+    "root": "Computed result: 7"
+  }
+}

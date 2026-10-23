@@ -1,0 +1,44 @@
+name: Reference
+initial_state: Compute
+exit_state: Complete
+description: Deterministic arithmetic and permission reference
+invariants:
+  - Arithmetic input {{ vars.committed.base }} is immutable
+watch:
+  enabled: false
+  interval_seconds: 601
+  methodology: [Verify arithmetic from observed messages]
+soft_mode: parallel
+states:
+  Compute:
+    description: Compute base plus mutable increment
+    instructions: Set increment, verify its pending view, then commit
+    liveness_properties: [increment prepared]
+    invariants: [No unapproved shell command runs]
+    allow_user_interaction: false
+    tool_permissions:
+      blacklist:
+        - name: Bash
+          input:
+            command: 'printf forbidden'
+      whitelist:
+        - name: '(Bash|Read|Edit|Write|Glob|Grep|agent_send|agent_list|agent_stop)'
+        - name: Agent
+          requires_dispatch: true
+    transitions:
+      - target: Complete
+        guard:
+          hard:
+            - run: 'test "$(mcp-server-fsm var get pending increment)" = 7'
+        finish:
+          run: 'mcp-server-fsm var ensure-const finished yes'
+          timeout_seconds: 30
+  Complete:
+    description: Computation committed
+    instructions: Verify committed increment and finish const, then exit
+    liveness_properties: [committed result verified]
+    allow_enter_fsm: false
+    allow_dispatch_subagent: false
+    watch:
+      enabled: false
+      methodology: [Confirm final sum]

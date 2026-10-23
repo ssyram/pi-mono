@@ -1,0 +1,140 @@
+{
+  "golden": "/Users/ssyram/workspace/ai-tools/pi-mono/my-plugins/hc-fsm-reference/.runtime/never-freeze-fail-fast.json",
+  "workflows": [],
+  "prompt": "Intentional infrastructure mismatch: actual 42 must fail the predeclared 43 expectation. Never execute the following write.",
+  "normalize_bindings": [
+    "run",
+    "work",
+    "package",
+    "session.root"
+  ],
+  "actors": {
+    "root": {
+      "marker": "PLOT_INTENTIONAL_HC_MISMATCH_6d80",
+      "result": "UNREACHABLE",
+      "steps": [
+        {
+          "tool": "fsm_fsm_get_state",
+          "arguments": {},
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "json"
+          ],
+          "persisted_state": "absent",
+          "expect": [
+            {
+              "path": "/json/fsm_name",
+              "equals": "_default"
+            },
+            {
+              "path": "/json/const_vars/session_id",
+              "regex": "^(ses_[A-Za-z0-9]+)$",
+              "bind": "session.root"
+            }
+          ]
+        },
+        {
+          "tool": "bash",
+          "arguments": {
+            "command": "printf %s \"$((6*7))\"",
+            "description": "Intentional mismatch subject"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/text",
+              "equals": "43"
+            }
+          ]
+        },
+        {
+          "tool": "write",
+          "arguments": {
+            "filePath": "${work}/MUST_NOT_EXIST",
+            "content": "mismatch was not fail-fast"
+          },
+          "capture": [
+            "toolCallId",
+            "toolName",
+            "isError",
+            "text"
+          ],
+          "expect": [
+            {
+              "path": "/text",
+              "contains": "written"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "observations": {
+    "fsm_actors": [
+      "root"
+    ],
+    "completion_reports": [],
+    "tool_definitions": {
+      "count": 26,
+      "required": [
+        "bash",
+        "write",
+        "fsm_fsm_get_state"
+      ]
+    },
+    "process_identity": {
+      "count": 1
+    },
+    "final_actor": {
+      "fsm_name": "_default",
+      "state_id": "S_default",
+      "stack_depth": 1,
+      "is_terminal": true,
+      "no_progress_count": 0
+    },
+    "matching": {
+      "tool_receipt": "exact declared step.capture projection; full raw payload preserved",
+      "identity_bindings": {
+        "session": "injective, full identifier token",
+        "part": "injective, full identifier token",
+        "message": "injective, full identifier token"
+      },
+      "text_bindings": "only names listed in normalize_bindings; numeric business values never normalized",
+      "hc_tool_time": {
+        "paths": [
+          "/state/time/start",
+          "/state/time/end"
+        ],
+        "rule": "integer wall milliseconds; start <= end"
+      },
+      "fsm_history_time": {
+        "path": "/*/history/*/timestamp",
+        "rule": "ISO8601; nondecreasing across each stored stack"
+      },
+      "gate_reason": "Allow omits reason_code; Deny equals the exact declared step.gate_reason",
+      "daemon_time": {
+        "path": "/timestamp",
+        "rule": "inside correlated HC tool span; 1ms timestamp rounding tolerance"
+      },
+      "duration": {
+        "path": "/content/duration_ms",
+        "rule": "integer; 0 <= value <= step.ledger.duration_bound_ms"
+      },
+      "process_identity": {
+        "agent_pid": "exact owned HC PID",
+        "start_time": "positive integer stable process identity",
+        "opencode_server_url": "exact owned loopback HC URL"
+      },
+      "ordering": "actor/step keyed; selected consumed messages identity keyed; no global concurrent event ordering",
+      "raw_logs": "retain all; compare complete explicitly correlated gate and transition ledger events",
+      "unknown_fields": "retain and exact-match within each declared captured object"
+    }
+  }
+}

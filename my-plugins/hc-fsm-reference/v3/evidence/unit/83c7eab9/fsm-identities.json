@@ -1,0 +1,1 @@
+[{"agent_pid": 1234, "start_time": 999, "session_id": "ses_a", "cwd": "/work", "opencode_server_url": "http://127.0.0.1:5"}, {"agent_pid": 9876, "start_time": 999, "session_id": "ses_r", "cwd": "/work", "opencode_server_url": "http://127.0.0.1:5"}]

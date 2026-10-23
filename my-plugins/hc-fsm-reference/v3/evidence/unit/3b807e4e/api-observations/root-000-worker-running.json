@@ -1,0 +1,20 @@
+{
+  "type": "tool",
+  "tool": "bash",
+  "callID": "plot_worker_000",
+  "id": "prt_busy",
+  "messageID": "msg_busy",
+  "sessionID": "ses_w",
+  "state": {
+    "status": "running",
+    "input": {
+      "command": "blocking"
+    },
+    "time": {
+      "start": 100
+    },
+    "metadata": {
+      "not_a_pid": 999
+    }
+  }
+}

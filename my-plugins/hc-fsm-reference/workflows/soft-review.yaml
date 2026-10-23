@@ -1,0 +1,31 @@
+name: SoftReview
+initial_state: Compute
+exit_state: Complete
+soft_mode: sequential
+states:
+  Compute:
+    description: Two independent mock reviewers inspect actual arithmetic
+    instructions: Write arithmetic.txt from shell arithmetic and commit the amount const
+    liveness_properties: [arithmetic artifact prepared]
+    transitions:
+      - target: Complete
+        guard:
+          soft_mode: parallel
+          hard:
+            - run: 'test "$(mcp-server-fsm var get committed amount)" = 42'
+          soft:
+            - type: llm_review
+              strategy: single
+              criteria: PLOT_SOFT_REVIEW_A_6d80; arithmetic.txt must contain exactly 42
+              timeout_seconds: 90
+            - type: llm_review
+              strategy: single
+              criteria: PLOT_SOFT_REVIEW_B_6d80; independently verify arithmetic.txt contains exactly 42
+              timeout_seconds: 90
+        finish:
+          run: 'mcp-server-fsm var ensure-const soft_finished yes'
+          timeout_seconds: 30
+  Complete:
+    description: Both review gates accepted before finish and commit
+    instructions: Verify feedback and exit
+    liveness_properties: [review feedback consumed]
