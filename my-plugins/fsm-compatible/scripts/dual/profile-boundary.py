@@ -27,8 +27,43 @@ def tool_result(run, actor, index, step, plot, bindings):
     return original_result(run, actor, index, step, plot, bindings)
 
 
+def project_agent_list_row(text, call_id):
+    # D8: the HC self row's agent_type comes from the host default profile and
+    # its title from the host session title; Pi has neither concept. Project
+    # exactly those two columns of the self row, leave every other row/field.
+    lines = text.split('\n')
+    header = 'session_id\tname\tagent_type\trelation\tstatus\ttitle\tworkdir'
+    if len(lines) < 2 or lines[0] != header:
+        return text
+    projected = False
+    for i, line in enumerate(lines[1:], start=1):
+        columns = line.split('\t')
+        if len(columns) == 7 and columns[3] == 'self':
+            record('agent_list self agent_type/title', call_id, [columns[2], columns[5]])
+            columns[2] = ''
+            columns[5] = ''
+            lines[i] = '\t'.join(columns)
+            projected = True
+    return '\n'.join(lines) if projected else text
+
+
 def compare_receipt(left, right):
     if isinstance(left, dict) and isinstance(right, dict):
+        if isinstance(left.get('text'), str) and left['text'].startswith('session_id\t'):
+            left = {**left, 'text': project_agent_list_row(left['text'], left.get('toolCallId'))}
+            left_observation = left.get('observation') or {}
+            hc = left_observation.get('hc_result')
+            if isinstance(hc, dict) and isinstance(hc.get('state'), dict) and isinstance(hc['state'].get('output'), str):
+                hc = {**hc, 'state': {**hc['state'], 'output': project_agent_list_row(hc['state']['output'], left.get('toolCallId'))}}
+                left = {**left, 'observation': {**left_observation, 'hc_result': hc}}
+            right = copy.deepcopy(right)
+            if isinstance(right.get('text'), str):
+                right['text'] = project_agent_list_row(right['text'], right.get('toolCallId'))
+            right_observation = right.get('observation') or {}
+            hc = right_observation.get('hc_result')
+            if isinstance(hc, dict) and isinstance(hc.get('state'), dict) and isinstance(hc['state'].get('output'), str) and hc['state']['output'].startswith('session_id\t'):
+                hc = {**hc, 'state': {**hc['state'], 'output': project_agent_list_row(hc['state']['output'], right.get('toolCallId'))}}
+                right = {**right, 'observation': {**right_observation, 'hc_result': hc}}
         actual = left.get('observation', {}).get('hc_result')
         expected = right.get('observation', {}).get('hc_result')
         if isinstance(actual, dict) and isinstance(expected, dict) and 'agent' in actual and 'agent' in expected:

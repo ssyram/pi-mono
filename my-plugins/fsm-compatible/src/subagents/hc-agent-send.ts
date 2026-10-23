@@ -38,6 +38,14 @@ export async function sendHcAgent(services: HcAgentRuntimeServices, input: HcAge
 		if (outcome === "unknown") throw HcAgentDomainError.agentNotFound(resolved);
 		return { resolved };
 	}
+	// Root-bound messages go to the root conversation (sendUserMessage), never
+	// through the child-session host: the root record intentionally has no
+	// child handle or session file.
+	if (target.session_id === services.root.rootSessionId) {
+		await services.deliverMessage({ target: resolved, sender: caller.session_id,
+			sender_name: caller.name, sender_agent: caller.agent_type, body: input.message });
+		return { resolved };
+	}
 	if (!target.handle) {
 		await services.host.open(target, services.launchPlan(target), services.observe);
 	}

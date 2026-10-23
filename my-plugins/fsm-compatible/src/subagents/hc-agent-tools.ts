@@ -139,8 +139,12 @@ export function registerHcAgentTools(pi: ExtensionAPI, options: HcAgentToolsOpti
 			parameters: Type.Object({}),
 			async execute(_id, _input, _signal, _update, ctx) {
 				guard();
-				return executeHcTool("agents", async () =>
-					formatAgentList(agentNeighborhood(callerId(ctx, services), services.directory.toAgentSessions())));
+				return executeHcTool("agents", async () => {
+					const caller = callerId(ctx, services);
+					const members = agentNeighborhood(caller, services.directory.toAgentSessions())
+						.map((member) => member.relation === "self" ? { ...member, status: "running" as const } : member);
+					return formatAgentList(members);
+				});
 			},
 		});
 	}
@@ -158,7 +162,7 @@ export function registerHcAgentTools(pi: ExtensionAPI, options: HcAgentToolsOpti
 				signal?.throwIfAborted();
 				return executeHcTool(input.target, async () => {
 					const accepted = await sendHcAgent(services, { caller: callerId(ctx, services), target: input.target, message: input.message }).catch((error) => {
-					if (process.env.FSM_DUAL_DEBUG) console.error("[hc-send-failed]", input.target, error);
+					if (process.env.FSM_DUAL_DEBUG) console.error("[hc-send-failed]", input.target, error instanceof Error ? error.stack : error);
 					throw error;
 				});
 					return formatAgentAccepted(input.target, accepted.resolved);

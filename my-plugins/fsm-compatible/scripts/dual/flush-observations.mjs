@@ -134,7 +134,10 @@ for (const source of sources) {
 		const startedSid = isAgent ? (/session_id: (ses_[A-Za-z0-9]+)/.exec(output)?.[1] ?? null) : null;
 		const isSend = toolName === "agent_send";
 		const isStop = toolName === "agent_stop";
+		const isList = toolName === "agent_list";
 		const rawTarget = typeof call.args?.target === "string" ? call.args.target : "";
+		// HC agent_list part metadata carries the roster count and title "agents".
+		const listCount = isList ? Math.max(0, output.split("\n").length - 3) : 0;
 		const part = {
 			type: "tool",
 			callID: m.toolCallId,
@@ -148,13 +151,15 @@ for (const source of sources) {
 					status: "completed",
 					input: call.args,
 					output,
-					title: isBash ? command : isAgent ? String(call.args?.description ?? "") : isSend || isStop ? rawTarget : "",
+					title: isBash ? command : isAgent ? String(call.args?.description ?? "") : isSend || isStop ? rawTarget : isList ? "agents" : "",
 					metadata: isBash
 						? { output, exit: 0, truncated: false }
 						: isAgent
 							? { model: { providerID: "plot", modelID: "plot-model" }, sessionId: startedSid, parentSessionId: source.sid, truncated: false }
 							: isSend
-								? { target: rawTarget, truncated: false }
+								? { target: (m.details && m.details.metadata && typeof m.details.metadata.target === "string" ? m.details.metadata.target : rawTarget), truncated: false }
+							: isList
+								? { count: listCount, truncated: false }
 								: isStop
 									? { stopped: (output.match(/^Stopped (\d+) Agent/m)?.[1] ? Number(output.match(/^Stopped (\d+) Agent/m)[1]) : 0),
 										failed: (/^Failed:/m.test(output) ? (output.match(/^- /gm)?.length ?? 0) : 0), truncated: false }

@@ -12,7 +12,10 @@ export class HcSessionDirectory {
 
 	constructor(root: RootBinding, snapshots: readonly HcSessionSnapshot[] = []) {
 		this.root = root;
-		this.records.set(root.rootSessionId, makeRootRecord(root, "main", Date.now()));
+		// HC parity: a root session has no explicit agent, so its agent type is
+		// defaultInfo()'s name (build) — prompt.ts falls back the same way when
+		// inbox delivery resolves the sender agent of an agent-less session.
+		this.records.set(root.rootSessionId, makeRootRecord(root, "main", Date.now(), "build"));
 		for (const snapshot of snapshots) {
 			const record = restoreHcSessionRecord(snapshot);
 			if (record.binding.rootSessionId !== root.rootSessionId) throw new Error("hc session snapshot root mismatch");
@@ -90,12 +93,12 @@ export class HcSessionDirectory {
 }
 
 /** Root record: depth 0, no parent; present in every directory so neighborhoods can address it. */
-export function makeRootRecord(root: RootBinding, title: string, timeCreated: number): HcSessionRecord {
+export function makeRootRecord(root: RootBinding, title: string, timeCreated: number, agentType?: string): HcSessionRecord {
 	return {
 		session_id: root.rootSessionId,
 		parent_id: undefined,
 		name: undefined,
-		agent_type: undefined,
+		agent_type: agentType,
 		title,
 		time_created: timeCreated,
 		workdir: undefined,

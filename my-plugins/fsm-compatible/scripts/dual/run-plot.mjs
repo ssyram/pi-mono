@@ -58,7 +58,7 @@ await waitHttp(mockPort, "/__admin/scripts", 20000);
 const cfgFile = join(run, "flush-cfg.json");
 await writeFile(cfgFile, JSON.stringify({ run, work }));
 const shim = join(run, "plot-shim.sh");
-const modelCommand = engineRoot === REF ? join(engineRoot, "bin/use-plot") : `python3 ${join(PLUGIN, "scripts/dual/profile-boundary.py")} ${engineRoot}`;
+const modelCommand = `python3 ${join(PLUGIN, "scripts/dual/profile-boundary.py")} ${engineRoot}`;
 await writeFile(shim, `#!/bin/sh\nnode ${join(PLUGIN, "scripts/dual/flush-observations.mjs")} --standalone ${cfgFile}\nRES=$?\n[ $RES -eq 0 ] || exit $RES\nexec ${modelCommand} ${plotPath} "$@"\n`, { mode: 0o755 });
 const mount = await http(mockPort, "/__admin/scripts", { name: "plot", command: `sh ${shim}` });
 await writeFile(join(run, "mount.json"), JSON.stringify(mount, null, 2));
@@ -120,7 +120,11 @@ try {
 	});
 	await new Promise((r) => facade.listen(facadePort, "127.0.0.1", r));
 
-	await Promise.all(roots.map((root) => root.rpc.promptAndWait(plot.actors[root.role].marker + "\n" + (plot.actors[root.role].initial_prompt ?? plot.prompt), undefined, 240000)));
+	try {
+		await Promise.all(roots.map((root) => root.rpc.promptAndWait(plot.actors[root.role].marker + "\n" + (plot.actors[root.role].initial_prompt ?? plot.prompt), undefined, 240000)));
+	} finally {
+		for (const root of roots) await writeFile(join(run, `pi-stderr-${root.role}.log`), root.rpc.getStderr()).catch(() => {});
+	}
 	for (const root of roots) {
 		const prefix = root.role === "root" ? "pi" : root.role;
 		await writeFile(join(run, `${prefix}-stderr.log`), root.rpc.getStderr());
