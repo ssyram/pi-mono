@@ -33,12 +33,15 @@
 | D5 | 跨树 agent_send | owner 裁决"做了比较好"，已实现：FSM_DATA_DIR 下共享 sid→owner 注册表，runtime 登记 root/孩子 SID 与 bridge 凭据；agent_send 本树未命中时经注册表转发到 owner runtime 的 /fsm-compatible/agent-message（Basic auth），owner 按 busy/idle 投递。注册表 miss 仍按 HC 语义拒绝 AgentNotFound。跨树路由不经 FSM 门禁（与 HC 一致：目标按自身权限执行）。 |
 | D6 | 宿主内部不可见物 | owner 裁决 header 是问题，已修：孩子以协议 SID 发布真实 header（id=sid、timestamp=真实创建时间、cwd=真实目录）；roster/statuses 的 root 对外 id 改用协议 SID，FSM 按协议 SID 反查 getExecution 命中 root。剩余宿主内部格式（落盘形状、SDK 内部 ID）仍按"仅 FSM 实际读取字段参与比较"。 |
 
+| D8 | 宿主 profile/title 概念 | HC 的 session 有 defaultInfo profile（root 落 build、Stop parts-only 续行发生 general→build 翻转）与 session title；Pi 宿主无对应概念。Pi 侧如实报 agent:null/空。对偶经 scripts/dual/profile-boundary.py 包装原版引擎做**三个精确投影点**：①step.hc_agent 断言跳过；②完整 receipt 比较中 hc_result.agent 投影为 null；③agent_list 文本 self 行的 agent_type/title 两列置空（receipt.text 与 hc_result.state.output 同步）。每次投影写 run/profile-boundaries.jsonl（callID、golden 值、pi:null）。wrapper 无其他投影点；其余字段（provider/model/status/timestamps/全部业务值）照原版严格比较。root 的 agent_type=build 已按 HC defaultInfo 推导在生产复刻（非投影），title 保持投影。 |
+| D9 | 剧本并发时序对宿主调度敏感（**候选，待 owner 裁决**） | reference alpha/009：use-plot 对依赖未满足的请求持 state.lock 忙等自旋（plot_engine.execute 无 sleep 重试），把并发的 gamma agent_send 结构性钉在 alpha 起跑请求之后——实测 send 间隔恒 = debounce 窗口 + ~0.3s（1s→1.38s、5s→5.24s、6.5s→6.82s、8s→8.22s 四组），时间窗口不可解。单 worker 剧本（idle-resume）无此耦合。处置选项：(a) declared-boundary 跳过该 inbox 断言；(b) 修参考包忙等（需 owner 授权改参考产品）；(c) runner 侧确定性等待。在裁决前 reference 对偶止于 41/68 回执。 |
+
 ## 4. 判定流程
 
 1. mismatch 锁存后先对照第 3 节归类；命中 → 记录为 declared difference，继续。
 2. 未命中 → 缺口：改 Pi 实现（默认）或修剧本，禁止改 golden/期望迁就 Pi。
 3. 想新增差异类 → 停下报 owner；不允许在对偶中途自己扩合同。
-4. 比较基础设施用严格 JSON（类型精确，`true≠1`），沿用参考包 `json_equality` 口径。
+4. 比较基础设施用严格 JSON（类型精确，`true≠1`），沿用参考包 `json_equality` 口径；D8 投影后的比较仍走同一严格比较器。
 
 ## 5. 首批对偶顺序
 
