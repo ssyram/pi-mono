@@ -18,6 +18,8 @@ export type RunningWidget = {
 };
 export const LOOP_WIDGET_MAX_LINES = 10;
 const KEY = "loop-running-scripts";
+const SPINNER_FRAMES = ["◓", "◑", "◒", "◐"] as const;
+const SPINNER_INTERVAL_MS = 600;
 
 export function createRunningWidget(
 	ctx: ExtensionContext,
@@ -32,6 +34,8 @@ export function createRunningWidget(
 	let tui: TUI | undefined;
 	let width = 0;
 	let timer: ReturnType<typeof setInterval> | undefined;
+	let spinnerFrame = 0;
+	let spinnerTimer: ReturnType<typeof setInterval> | undefined;
 	const report = (error: unknown): void =>
 		notifyLoop(
 			ctx,
@@ -48,6 +52,7 @@ export function createRunningWidget(
 			tui?.requestRender();
 		} catch (error) {
 			clearTimer();
+			clearSpinnerTimer();
 			report(error);
 		}
 	};
@@ -64,6 +69,22 @@ export function createRunningWidget(
 				timer.unref?.();
 			}
 		} else clearTimer();
+	};
+	const clearSpinnerTimer = (): void => {
+		if (spinnerTimer !== undefined) clearInterval(spinnerTimer);
+		spinnerTimer = undefined;
+	};
+	const advanceSpinner = (): void => {
+		spinnerFrame = (spinnerFrame + 1) % SPINNER_FRAMES.length;
+		requestRender();
+	};
+	const updateSpinnerTimer = (): void => {
+		if (!closed && installed && visible && tui !== undefined) {
+			if (spinnerTimer === undefined) {
+				spinnerTimer = setInterval(advanceSpinner, SPINNER_INTERVAL_MS);
+				spinnerTimer.unref?.();
+			}
+		} else clearSpinnerTimer();
 	};
 	const toggle = (): void => {
 		try {
@@ -89,6 +110,7 @@ export function createRunningWidget(
 	};
 	const hide = (): void => {
 		clearTimer();
+		clearSpinnerTimer();
 		expanded = false;
 		if (installed) ctx.ui.setWidget(KEY, undefined);
 		installed = false;
@@ -107,7 +129,7 @@ export function createRunningWidget(
 				return;
 			}
 			if (ctx.mode === "rpc") {
-				ctx.ui.setWidget(KEY, [` \u21BB Loop · ${items.length} scheduled`], {
+				ctx.ui.setWidget(KEY, [` ${SPINNER_FRAMES[0]} Loop · ${items.length} scheduled`], {
 					placement: "aboveEditor",
 				});
 				installed = true;
@@ -134,7 +156,7 @@ export function createRunningWidget(
 										expanded = false;
 										updateTimer();
 									}
-									const label = ` \u21BB Loop · ${items.length} scheduled`;
+									const label = ` ${SPINNER_FRAMES[spinnerFrame]} Loop · ${items.length} scheduled`;
 									const summary = theme.fg(
 										"accent",
 										truncateToWidth(label, columns),
@@ -171,6 +193,7 @@ export function createRunningWidget(
 				installed = true;
 			}
 			updateTimer();
+			updateSpinnerTimer();
 			requestRender();
 		} catch (error) {
 			report(error);

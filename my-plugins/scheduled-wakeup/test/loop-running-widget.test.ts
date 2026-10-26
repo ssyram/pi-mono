@@ -63,7 +63,7 @@ test("waiting items keep a nonzero summary; zero and show off hide it", async ()
 	widget.refresh();
 	assert.match(
 		setup.header?.render(80)[0] ?? "",
-		/\u21BB Loop · 1 scheduled/,
+		/\u25D3 Loop · 1 scheduled/,
 	);
 	widget.setVisible(false);
 	assert.equal(setup.header, undefined);
@@ -127,6 +127,25 @@ test("short terminals, occupied input docks and unknown layouts stay collapsed",
 	header.render(80);
 	header.handleMouse?.(click);
 	assert.equal(header.render(80).length, 1);
+	widget.dispose();
+});
+
+test("summary spinner advances on its own interval and stops when hidden or disposed", (t) => {
+	t.mock.timers.enable({ apis: ["Date", "setInterval"], now: 1000 });
+	const setup = fixture("fullscreen");
+	const widget = createRunningWidget(setup.ctx, () => [row]);
+	widget.refresh();
+	const header = setup.header;
+	assert.ok(header);
+	assert.match(header.render(80)[0] ?? "", /\u25D3 Loop · 1 scheduled/);
+	t.mock.timers.tick(600);
+	assert.match(header.render(80)[0] ?? "", /\u25D1 Loop · 1 scheduled/);
+	t.mock.timers.tick(1200);
+	assert.match(header.render(80)[0] ?? "", /\u25D0 Loop · 1 scheduled/);
+	widget.setVisible(false);
+	const stopped = setup.renders;
+	t.mock.timers.tick(3000);
+	assert.equal(setup.renders, stopped);
 	widget.dispose();
 });
 

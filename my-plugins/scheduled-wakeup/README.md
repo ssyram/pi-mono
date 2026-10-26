@@ -59,7 +59,7 @@ Put script options before the schedule; repeat `--script` with a JSON object for
 
 In fullscreen TUI, left-click anywhere on a `Loop ·` result card — title, body, or padding rows — to expand/collapse its model-facing body. Cards are independent; global Expand still works. Legacy TUI keeps keyboard Expand and does not receive fullscreen mouse events. This changes presentation only: no message is resent and no AI turn starts.
 
-Default runtime text is short English: ` ↻ Loop · N scheduled`, `Waiting`, `Running`, `wake` / `no wake`. User prompts, paths and script output are never translated.
+Default runtime text is short English: ` ◓ Loop · N scheduled`, `Waiting`, `Running`, `wake` / `no wake`. User prompts, paths and script output are never translated. In TUI modes the summary glyph slowly cycles `◓ ◑ ◒ ◐` (upper→right→lower→left, clockwise) every 600ms (cached lines only; rpc output stays static).
 
 The above-editor widget summarizes current-session Loop items: scheduled prompts/scripts plus in-flight script batches, merged by item ID; named items show `name · id`. Running once-items remain until their batch ends; recurring items are not double-counted. N > 0 displays one summary line; N = 0 hides it. Fullscreen click (or `/loop running`) toggles inline details, never a separate dialog: at most 10 total lines including the summary, one item per detail row. Waiting rows count down; executing rows show I/K/M (successes / ended attempts, including failures and timeouts / total) plus the current command on the same truncated line. Legacy TUI is always one line and cannot expand, even through the command.
 
