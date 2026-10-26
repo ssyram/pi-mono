@@ -60,6 +60,7 @@ export function hcChildHook(deps: HcChildHookDeps): ChildHookExtension {
 				},
 				judges: deps.judges,
 				analysisEnabled: deps.analysisEnabled,
+				markStopContinuation: (id) => { const r = deps.services.directory.get(id); if (r) r.turnProfile = "build"; },
 			});
 			registerHcAgentTools(pi, {
 				services: deps.services,

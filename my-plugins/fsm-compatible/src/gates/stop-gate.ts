@@ -59,6 +59,8 @@ export async function runStopCheck(request: DaemonRequester, binding: GateBindin
 export interface StopGateDeps {
 	/** True when any child agent of this session is still running (OC has_busy_child parity). */
 	hasBusyChild?(sessionId: string): boolean | Promise<boolean>;
+	/** Marks a session whose turn continues after a Stop block (host default profile takes over). */
+	markStopContinuation?(sessionId: string): void;
 	/** Judge sessions for the soft-stop Analyze route; absent disables analysis with a warning. */
 	judges?: JudgeSessions;
 	/** FSM_STOP_ANALYSIS parity: default on; opt-out. */
@@ -145,6 +147,9 @@ export function installStopGate(pi: ExtensionAPI, request: DaemonRequester, bind
 				ctx.ui.notify(decision.reason, "info");
 				return undefined;
 			}
+			// HC hook identity: sessionId is the root sid, agentId the acting
+			// child sid — the acting session is the one whose turn continues.
+			deps?.markStopContinuation?.(current.agentId ?? current.sessionId);
 			return { entries: [{ type: "custom_message" as const, customType: "fsm-compatible:stop",
 				content: decision.reason, display: true }], continue: true };
 		} finally { void sid; }

@@ -124,6 +124,7 @@ export async function openHcAgentRuntime(deps: HcRuntimeDeps): Promise<HcRuntime
 			const record = directory.get(target);
 			if (!record) return false;
 			if (!record.handle) await host.open(record, services.launchPlan(record), services.observe);
+			delete record.turnProfile;
 			await host.deliver(record, text);
 			return true;
 		},

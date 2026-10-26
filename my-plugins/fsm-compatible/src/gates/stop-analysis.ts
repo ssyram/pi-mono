@@ -44,10 +44,17 @@ export function reduceStop(facts: StopRouteFacts, verdict: StopAnalysisVerdict |
 	if ("error" in verdict) return { allowed: false, reason: `FSM Stop 分析未能形成合法判定，已保守阻止停止：${verdict.error}`, resetOnAllow: false };
 	const reason = verdict.reason.trim();
 	if (reason.length === 0) return { allowed: false, reason: "FSM Stop 分析返回了空理由，已保守阻止停止。", resetOnAllow: false };
-	if (verdict.action === "wait_for_async_work" || verdict.action === "exit_fsm") return { allowed: true, reason, resetOnAllow: true };
+	// Branch table mirrors the hook's stop_judge_verdict reducer verbatim.
+	if (verdict.action === "wait_for_async_work") return { allowed: true, reason, resetOnAllow: true };
 	if (verdict.action === "human_intervention") {
-		if (facts.recentPlans.length > 0) return { allowed: true, reason: `${reason}（no-progress ${facts.noProgress} 次，等待人工介入）`, resetOnAllow: true };
-		return { allowed: false, reason: "FSM Stop 分析请求人工介入，但没有多轮 recent_stop_plans 证明同一不可修复障碍；已保守阻止停止。", resetOnAllow: false };
+		if (facts.recentPlans.length > 0) return { allowed: true, reason, resetOnAllow: true };
+		return { allowed: false, reason: "FSM Stop 分析错误地请求人工介入，但没有提供多轮 recent_stop_plans 证明同一不可修复障碍；已保守阻止停止。", resetOnAllow: false };
+	}
+	if (verdict.action === "continue_work" && facts.isExitState) {
+		return { allowed: false, reason: "FSM Stop 分析在 exit state 返回 continue_work，语义矛盾；请核实异步工作，或在全部完成后对 `_fsm_exit` 做 self-check 并迁移过去以退出。", resetOnAllow: false };
+	}
+	if (verdict.action === "exit_fsm" && !facts.isExitState) {
+		return { allowed: false, reason: "FSM Stop 分析在非 exit state 请求退出 FSM，已保守阻止停止；请继续当前状态工作并按 FSM 迁移。", resetOnAllow: false };
 	}
 	return { allowed: false, reason, resetOnAllow: false };
 }

@@ -29,7 +29,7 @@ export async function sendHcAgent(services: HcAgentRuntimeServices, input: HcAge
 		target: resolved,
 		sender: caller.session_id,
 		sender_name: caller.name,
-		sender_agent: caller.agent_type,
+		sender_agent: caller.turnProfile ?? caller.agent_type,
 		body: input.message,
 	});
 	if (!target) {
@@ -43,7 +43,7 @@ export async function sendHcAgent(services: HcAgentRuntimeServices, input: HcAge
 	// child handle or session file.
 	if (target.session_id === services.root.rootSessionId) {
 		await services.deliverMessage({ target: resolved, sender: caller.session_id,
-			sender_name: caller.name, sender_agent: caller.agent_type, body: input.message });
+			sender_name: caller.name, sender_agent: caller.turnProfile ?? caller.agent_type, body: input.message });
 		return { resolved };
 	}
 	if (!target.handle) {
