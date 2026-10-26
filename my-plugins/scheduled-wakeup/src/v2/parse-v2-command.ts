@@ -13,9 +13,10 @@ export type ParsedLoopV2Command =
 	| { kind: "running" }
 	| { kind: "show"; visible: boolean }
 	| { kind: "stop"; target: string }
-	| { kind: "delete"; scope: SharedScope; definitionId: string; force: boolean }
+	| { kind: "delete"; scope: SharedScope | undefined; definitionId: string; force: boolean }
 	| { kind: "run"; id: string }
 	| { kind: "defer"; id: string; time: DeferTime }
+	| { kind: "rename"; target: string; name: string | undefined }
 	| { kind: "help" }
 	| { kind: "error"; message: string };
 
@@ -47,6 +48,8 @@ export function parseLoopV2Command(args: string, now: number = Date.now(), baseC
 			return parseDelete(rest);
 		case "run":
 			return parseRun(rest);
+		case "rename":
+			return parseRename(rest);
 		case "defer":
 			return parseDefer(rest, now);
 		default:
@@ -65,13 +68,15 @@ export function loopV2HelpText(): string {
 		"/loop add at <time...> -- <prompt...>         Session one-shot at a clock time",
 		"/loop define <ws|workspace|global> <forms>    Shared definition (same forms as add)",
 		"/loop available [ws|workspace|global]         Unregistered shared definitions",
-		"/loop register <ws|workspace|global> <id>     Register a shared definition",
-		"/loop unregister <registration-id>            Remove this session's registration",
+		"/loop register <ws|workspace|global> <id|name>   Register a shared definition",
+		"/loop unregister <registration-id|name>         Remove this session's registration",
 		"/loop list                                    Show this session's active set",
-		"/loop stop <id|all>                           Stop active tasks and registrations",
-		"/loop delete [--force] <definition-id>        Delete a shared definition (scope from id prefix)",
-		"/loop run <id>                                Deliver the prompt now, progress unchanged",
-		"/loop defer <id> <duration|time...>            Postpone only the next scheduled delivery",
+		"/loop stop <id|name|all>                      Stop active tasks and registrations",
+		"/loop delete [--force] <definition-id|name>    Delete a shared definition",
+		"/loop run <id|name>                           Deliver the prompt now, progress unchanged",
+		"/loop defer <id|name> <duration|time...>        Postpone only the next scheduled delivery",
+		"/loop rename <id|name> <new-name...>           Name a task or shared definition; --clear removes the name",
+		"Names resolve when unique within the command's candidates; ambiguous names list their ids. defer takes a single-token id or name.",
 		"Defer durations extend max(now, next run); absolute times must be later than both.",
 		"--no-boulder may precede the schedule/prompt; it inhibits Boulder for the schedule's active lifetime.",
 		"/loop help                                    Show this help",
@@ -127,11 +132,27 @@ function parseDelete(tokens: string[]): ParsedLoopV2Command {
 	const force = tokens.includes("--force");
 	const ids = tokens.filter((token) => token !== "--force");
 	const id = ids.length === 1 ? ids[0] : undefined;
-	const scope = id === undefined ? undefined : parseScope(id.split(":", 1)[0]);
-	if (id === undefined || scope === undefined) {
-		return { kind: "error", message: 'Usage: /loop delete [--force] <definition-id> where the id starts with "workspace:" or "global:".' };
-	}
+	if (id === undefined)
+		return { kind: "error", message: 'Usage: /loop delete [--force] <definition-id|name> where ids start with "workspace:" or "global:".' };
+	const scope = parseScope(id.split(":", 1)[0]);
 	return { kind: "delete", scope, definitionId: id, force };
+}
+
+const RENAME_USAGE =
+	"Usage: /loop rename <id|name> <new-name...> | /loop rename <id|name> --clear";
+
+function parseRename(tokens: string[]): ParsedLoopV2Command {
+	const target = tokens[0];
+	if (target === undefined) return { kind: "error", message: RENAME_USAGE };
+	const clear = tokens.indexOf("--clear");
+	if (clear === 1)
+		return tokens.length === 2
+			? { kind: "rename", target, name: undefined }
+			: { kind: "error", message: RENAME_USAGE };
+	if (clear > 0) return { kind: "error", message: RENAME_USAGE };
+	const name = tokens.slice(1).join(" ").trim();
+	if (name.length === 0) return { kind: "error", message: RENAME_USAGE };
+	return { kind: "rename", target, name };
 }
 
 function parseScope(value: string | undefined): SharedScope | undefined {

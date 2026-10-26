@@ -5,7 +5,7 @@ import { DuePoller } from "../src/v2/due-poller.js";
 import { createLoopCommandAutocompleteProvider } from "../src/v2/loop-command-autocomplete.js";
 import type { LoopV2Core } from "../src/v2/loop-core.js";
 
-const source = { activeIds: () => [], sharedDefinitionIds: () => [] };
+const source = { taskLabels: () => [], definitionLabels: () => [] };
 const choice = { label: "x", value: "x" };
 const delegate: AutocompleteProvider & {
 	shouldTriggerFileCompletion(lines: string[]): boolean;

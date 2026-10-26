@@ -10,6 +10,8 @@ export class UserLoopV2Commands {
 
 	addSessionTask(input: TaskInput) { return this.core.createSessionTask(input); }
 	defineSharedTask(scope: SharedScope, input: TaskInput): SharedDefinition { return this.core.createSharedDefinition(scope, input); }
+	renameSessionTask(taskId: string, name: string | undefined) { return this.core.renameSessionTask(taskId, name); }
+	renameSharedTask(scope: SharedScope, definitionId: string, name: string | undefined) { return this.core.renameSharedDefinition(scope, definitionId, name); }
 	registerSharedTask(scope: SharedScope, definitionId: string) { return this.core.registerSharedDefinition(scope, definitionId); }
 	unregisterSharedTask(registrationId: string): CancellationResult { return this.core.unregisterSharedDefinition(registrationId); }
 	cancelSessionTask(taskId: string): CancellationResult { return this.core.cancelSessionTask(taskId); }

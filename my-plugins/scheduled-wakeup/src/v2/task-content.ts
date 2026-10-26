@@ -1,4 +1,4 @@
-import { isAbsolute } from "node:path";
+import { basename, isAbsolute } from "node:path";
 import { prepareScriptTask } from "../script-tasks/prepare-task.js";
 import type { ScriptTask } from "../script-tasks/task-spec.js";
 
@@ -44,8 +44,23 @@ export function cloneTaskContent(value: TaskContent): TaskContent {
 	};
 }
 
+const PROMPT_SUMMARY_MAX_CHARS = 80;
+
 export function describeTaskContent(value: TaskContent): string {
-	return value.scriptTask === undefined
-		? value.prompt
-		: `${value.scriptTask.scripts.length} scripts | ${value.scriptTask.wakeUp.kind}`;
+	if (value.scriptTask === undefined) return summarizePrompt(value.prompt);
+	const { wakeUp, scripts } = value.scriptTask;
+	if (wakeUp.kind !== "never") return summarizePrompt(wakeUp.prompt);
+	const first = basename(scripts[0]?.path ?? "");
+	return scripts.length > 1
+		? `运行 ${first} 等 ${scripts.length} 个脚本`
+		: `运行 ${first}`;
+}
+
+function summarizePrompt(prompt: string): string {
+	const line =
+		prompt.split("\n").find((candidate) => candidate.trim().length > 0) ?? "";
+	const trimmed = line.trim();
+	return trimmed.length > PROMPT_SUMMARY_MAX_CHARS
+		? `${trimmed.slice(0, PROMPT_SUMMARY_MAX_CHARS)}...`
+		: trimmed;
 }

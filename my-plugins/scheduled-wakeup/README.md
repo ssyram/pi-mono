@@ -24,21 +24,24 @@ Creation (`add`, `define`, `register`, and tool `action=add`) requires an existi
 /loop add at <time...> -- <prompt...>          Session one-shot at a clock time
 /loop define <ws|workspace|global> <forms>     Shared definition (same forms as add)
 /loop available [ws|workspace|global]          Unregistered shared definitions (default: both)
-/loop register <ws|workspace|global> <id>      Register a shared definition
-/loop unregister <registration-id>             Remove this session's registration
+/loop register <ws|workspace|global> <id|name>  Register a shared definition
+/loop unregister <registration-id|name>         Remove this session's registration
 /loop list                                     Show this session's active set
 /loop running                                  Toggle inline details (fullscreen only)
 /loop show off|on                              Hide/show widget; does not stop tasks
-/loop stop <id|all>                            Stop active tasks and registrations
-/loop delete [--force] <definition-id>         Delete a shared definition (scope from id prefix)
-/loop run <id>                                 Deliver the prompt now, progress unchanged
-/loop defer <id> <duration|time...>             Postpone only the next scheduled delivery
+/loop stop <id|name|all>                       Stop active tasks and registrations
+/loop delete [--force] <definition-id|name>    Delete a shared definition (scope from id prefix)
+/loop run <id|name>                            Deliver the prompt now, progress unchanged
+/loop defer <id|name> <duration|time...>         Postpone only the next scheduled delivery
+/loop rename <id|name> <new-name...>           Name a task or shared definition; --clear removes the name
 /loop help                                     Show command help
 ```
 
 Durations support `s`, `m`, `h`, `d` (for example `10s`, `5m`, `2h`, `1d`). `at` accepts `12am tomorrow`, `09:30 +08:00`, or ISO timestamps; ambiguous zone abbreviations such as `PST` are rejected. Past or overflow times are errors.
 
-`defer` takes an active ID from `/loop list`. For example, `/loop defer session:abc 10m` adds ten minutes to the later of now and its current next run time; `/loop defer session:abc 12am tomorrow` sets an absolute time later than both. Repeated durations extend the delay. Only this session's progress changes, even for shared registrations; run counts and definitions stay unchanged, and restart follows the close/resume rules below. After delivery, recurring tasks resume their original interval measured from the actual delivery time, not the original clock cadence. Already delivered or queued prompts cannot be postponed. `defer` is user-only, not an AI tool action.
+Optional names identify items in `/loop list`, `/loop available`, and the widget (`name [id]`). Creation accepts a name through the AI tool's `name` field; `/loop rename` sets or clears (`--clear`) it afterwards — renaming a shared definition affects every session that registers it. Command targets resolve by exact id first, then by name; a name used by several candidates in the command's scope is rejected with the matching ids listed. `defer` takes a single-token id or name, so names containing spaces need the id there. A bare `delete <name>` (no `workspace:`/`global:` prefix) resolves across both scopes.
+
+`defer` takes an active id (or single-token name) from `/loop list`. For example, `/loop defer session:abc 10m` adds ten minutes to the later of now and its current next run time; `/loop defer session:abc 12am tomorrow` sets an absolute time later than both. Repeated durations extend the delay. Only this session's progress changes, even for shared registrations; run counts and definitions stay unchanged, and restart follows the close/resume rules below. After delivery, recurring tasks resume their original interval measured from the actual delivery time, not the original clock cadence. Already delivered or queued prompts cannot be postponed. `defer` is user-only, not an AI tool action.
 
 Deletion boundaries: `delete` succeeds only when no other session's index entry references the definition; `--force` (user commands only) atomically removes the definition and every registration-index record, making all old references unavailable immediately. Offline sessions clean up on their next `session_start` reconciliation.
 
@@ -52,13 +55,13 @@ Put script options before the schedule; repeat `--script` with a JSON object for
 /loop running
 ```
 
-`--wake` is `always` (default), `on-error`, or `never`; `--error-mode` is `or` (default) or `and` and requires on-error. Each script defaults to cwd `.` / params `[]` / timeoutSeconds `1800`; null has no deadline. Paths are prepared against the creating context's cwd and stored absolute, including current-user `~/` expansion. Executables must be executable, or explicitly invoke `/bin/sh`; there is no PATH lookup, shell expansion, dependency inference or fail-fast. All scripts run sequentially, ordinary failures included, then one result card/custom message is sent. A never policy does not start a new AI run. Its result is appended at a safe message boundary and may become visible to an already-running AI before its final reply.
+`--wake` is `always` (default), `on-error`, or `never`; `--error-mode` is `or` (default) or `and` and requires on-error. Each script defaults to cwd `.` / params `[]` / timeoutSeconds `1800`; null has no deadline. Paths are prepared against the creating context's cwd and stored absolute, including current-user `~/` expansion. Executables must be executable, or explicitly invoke `/bin/sh`; there is no PATH lookup, shell expansion, dependency inference or fail-fast. All scripts run sequentially, ordinary failures included, then one result card/custom message is sent. The delivered body carries the `<prompts>` block only when this run actually wakes (`never`, or `on-error` with no triggering failure); script blocks omit empty fields (`params: []`, null `signal`/`error`, empty `stdout`/`stderr`) while raw results keep every value. A never policy does not start a new AI run. Its result is appended at a safe message boundary and may become visible to an already-running AI before its final reply.
 
-In fullscreen TUI, left-click a `Loop ·` result-card title to expand/collapse its model-facing body. Clicking the body does not toggle it. Cards are independent; global Expand still works. Legacy TUI keeps keyboard Expand and does not receive fullscreen mouse events. This changes presentation only: no message is resent and no AI turn starts.
+In fullscreen TUI, left-click anywhere on a `Loop ·` result card — title, body, or padding rows — to expand/collapse its model-facing body. Cards are independent; global Expand still works. Legacy TUI keeps keyboard Expand and does not receive fullscreen mouse events. This changes presentation only: no message is resent and no AI turn starts.
 
-Default runtime text is short English: `Loop · N scheduled`, `Waiting`, `Running`, `wake` / `no wake`. User prompts, paths and script output are never translated.
+Default runtime text is short English: ` ↻ Loop · N scheduled`, `Waiting`, `Running`, `wake` / `no wake`. User prompts, paths and script output are never translated.
 
-The above-editor widget summarizes current-session Loop items: scheduled prompts/scripts plus in-flight script batches, merged by item ID. Running once-items remain until their batch ends; recurring items are not double-counted. N > 0 displays one summary line; N = 0 hides it. Fullscreen click (or `/loop running`) toggles inline details, never a separate dialog: at most 10 total lines including the summary, one item per detail row. Waiting rows count down; executing rows show I/K/M (successes / ended attempts, including failures and timeouts / total) plus the current command on the same truncated line. Legacy TUI is always one line and cannot expand, even through the command.
+The above-editor widget summarizes current-session Loop items: scheduled prompts/scripts plus in-flight script batches, merged by item ID; named items show `name · id`. Running once-items remain until their batch ends; recurring items are not double-counted. N > 0 displays one summary line; N = 0 hides it. Fullscreen click (or `/loop running`) toggles inline details, never a separate dialog: at most 10 total lines including the summary, one item per detail row. Waiting rows count down; executing rows show I/K/M (successes / ended attempts, including failures and timeouts / total) plus the current command on the same truncated line. Legacy TUI is always one line and cannot expand, even through the command.
 
 `/loop show off|on` changes only this session branch's display preference (default on), recorded in a custom entry and restored on reload/tree changes. It does not cancel or pause work; no persistent/global flags or settings-service dependency are added. Countdown repaint runs only while expanded waiting rows are visible, uses cached UI data and is cleaned on hide/close. Verified official Pi 1.2/1.3 public input-dock components are measured before expansion, leaving editor/footer plus a transcript row intact; insufficient or unrecognized layouts stay collapsed.
 
@@ -82,9 +85,10 @@ action=add     prompt=<text> at="12am tomorrow"  # one-shot clock time
 action=add     prompt=<text> at="2026-08-05T00:00:00Z"
 action=add     prompt=<text> interval=10m        # recurring
 action=add     prompt=<text> interval=10m inhibitBoulder=true # hold loop inhibition
+action=add     prompt=<text> interval=10m name="nightly check"  # optional display name
 action=list
-action=cancel  id=<active task id>
-action=delete  id=<registration id>              # ordinary deletion via your own registration
+action=cancel  id=<active task id or unique name>
+action=delete  id=<registration id or unique definition name>   # ordinary deletion via your own registration
 ```
 
 For script tasks, use `scriptTask: {wakeUp: {kind: "on-error", aggregation: "or", prompt: "Handle failures"}, scripts: [{path: "./check.sh"}]}` instead of top-level `prompt`; the two are mutually exclusive. For `action=add`, provide exactly one of `delay`, `at`, or `interval`. The schema has no `scope` or `force` fields; supplying them at runtime is rejected. Results return short text content with `AiSessionActionResult` details (`ok`, `message`, `active`).

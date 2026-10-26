@@ -63,7 +63,7 @@ test("waiting items keep a nonzero summary; zero and show off hide it", async ()
 	widget.refresh();
 	assert.match(
 		setup.header?.render(80)[0] ?? "",
-		/Loop · 1 scheduled · expand/,
+		/\u21BB Loop · 1 scheduled/,
 	);
 	widget.setVisible(false);
 	assert.equal(setup.header, undefined);

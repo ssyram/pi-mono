@@ -42,7 +42,7 @@ test("Boulder provenance, user-specified tags and focused failure markers", () =
 		result("failed", 7),
 		result("timeout", null),
 		result("start-failed", null),
-	]);
+	], true);
 	assert.ok(
 		content.startsWith(
 			"<SYSTEM:loop-wakeup>\nThis reminder was generated automatically by the system, NOT sent by the user.",
@@ -88,7 +88,7 @@ test("dynamic delimiters and attribute quotes cannot create extra structural blo
 			error: malicious,
 			signal: malicious,
 		},
-	]);
+	], true);
 	assert.equal(content.split("<script=").length - 1, 1);
 	assert.equal(content.split("</script>").length - 1, 1);
 	assert.equal(content.split("</prompts>").length - 1, 1);
@@ -107,7 +107,7 @@ test("generated text inputs preserve one genuine block per result", () => {
 		}
 		const content = buildWakeUpContent(task, [
 			{ ...result("success", 0), stdout: text },
-		]);
+		], false);
 		assert.equal(content.split("<script=").length - 1, 1);
 		assert.equal(content.split("</script>").length - 1, 1);
 	}
@@ -126,5 +126,28 @@ test("expanded display reuses model content exactly and short display includes I
 		async () => result("success", 0),
 	);
 	assert.match(renderTaskRun(silent, false), /1\/1 OK · no wake/);
-	assert.match(silent.content, /<prompts>\n\n<\/prompts>/);
+	assert.doesNotMatch(silent.content, /<prompts>/);
+});
+
+test("no-wake deliveries omit prompts and empty result fields", () => {
+	const script = task.scripts[0];
+	assert.ok(script);
+	const quiet = buildWakeUpContent(
+		{ wakeUp: task.wakeUp, scripts: [{ ...script, params: [] }] },
+		[
+			{
+				...result("success", 0),
+				script: { ...script, params: [] },
+				stdout: "",
+				stderr: "",
+			},
+		],
+		false,
+	);
+	assert.doesNotMatch(quiet, /<prompts>/);
+	assert.match(quiet, /<script="\/work\/check.sh", exit-code="0">/);
+	assert.match(quiet, /status: success/);
+	assert.match(quiet, /cwd: \/work/);
+	assert.doesNotMatch(quiet, /params:|signal:|error:|stdout:|stderr:/);
+	assert.equal(quiet.split("</script>").length - 1, 1);
 });

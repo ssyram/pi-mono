@@ -13,6 +13,7 @@ import type {
 	TaskRun,
 } from "./script-tasks/task-spec.js";
 import { buildWakeUpContent } from "./script-tasks/wake-up-content.js";
+import { shouldWakeUp } from "./script-tasks/wake-up-policy.js";
 import type { ExecutionTarget } from "./v2/model.js";
 import { cloneTaskContent } from "./v2/task-content.js";
 
@@ -126,7 +127,7 @@ export function createTaskDispatcher(
 					results: [],
 					successCount: 0,
 					shouldWake: true,
-					content: buildWakeUpContent(task, []),
+					content: buildWakeUpContent(task, [], shouldWakeUp(task.wakeUp, [])),
 				});
 				return;
 			}

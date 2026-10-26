@@ -72,9 +72,9 @@ implemented-by `src/script-tasks/execute-task.ts`。Pre：task来自prepare；ID
 
 ## 正文与展示
 
-### buildWakeUpContent(task:ScriptTask,results:readonly ScriptResult[]):string
+### buildWakeUpContent(task:ScriptTask,results:readonly ScriptResult[],shouldWake:boolean):string
 
-implemented-by `src/script-tasks/wake-up-content.ts`。Pre：规格及结果合法，results同序对应task；Post：Boulder来源外层 `<SYSTEM:loop-wakeup>`，明确自动生成非用户，prompts块与每项script块；非success出现FAILED及准确status；退出码null为unavailable；包含cwd、params、signal/error、stdout/stderr。never仍有空prompts用于展示。
+implemented-by `src/script-tasks/wake-up-content.ts`。Pre：规格及结果合法，results同序对应task，shouldWake为调用方用shouldWakeUp(task.wakeUp,results)算得的同一值；Post：Boulder来源外层 `<SYSTEM:loop-wakeup>`，明确自动生成非用户；`<prompts>`块存在当且仅当shouldWake且kind≠never（never、on-error未触发等no-wake投递不携带prompts）；每项script块固定含script头（path、exit-code，null为unavailable）、status、cwd与（非success时）FAILED行，仅当有值时含params（length>0）、signal（非null）、error（非null）、stdout（非空）、stderr（非空）——空栏目不打印，原始值仍完整保存在results。
 
 用户指定标签是展示分隔协议，不是合法XML；不新增XML parser。动态path、prompt、输出和元数据文本转义&<>及属性引号，防止正文中的闭合标记改变分块；原始stdout/stderr仍完整保存于results，转义不截断。内部escapeMarkup(text:string):string是确定替换，无副作用、不生成模型请求。循环每个结果恰生成一块，有限n保证终止，失败与正常分支均有closing tag。共同正文在TaskRun唯一生成。
 

@@ -33,6 +33,36 @@ describe("Loop 2.0 session custom-entry state", () => {
 		assert.deepEqual(restored.tasks[0]?.progress, { status: "completed", runCount: 1, lastRunAt: 100 });
 	});
 
+	it("renames a session task and round-trips the name through the codec", () => {
+		const journal = createJournal();
+		const adapter = new SessionEntryAdapter(journal.port);
+		adapter.dispatch({
+			kind: "add-task",
+			task: {
+				...TASK,
+				definition: { ...TASK.definition, name: "first" },
+			},
+		});
+		adapter.dispatch({ kind: "rename-task", taskId: TASK.definition.id, name: "second" });
+		assert.equal(adapter.snapshot().tasks[0]?.definition.name, "second");
+		assert.equal(
+			new SessionEntryAdapter(journal.port).snapshot().tasks[0]?.definition.name,
+			"second",
+		);
+		adapter.dispatch({ kind: "rename-task", taskId: TASK.definition.id, name: undefined });
+		const cleared = adapter.snapshot().tasks[0]?.definition;
+		assert.equal(cleared?.name, undefined);
+		assert.equal(Object.hasOwn(cleared ?? {}, "name"), false);
+		assert.equal(
+			new SessionEntryAdapter(journal.port).snapshot().tasks[0]?.definition.name,
+			undefined,
+		);
+		assert.throws(
+			() => adapter.dispatch({ kind: "rename-task", taskId: "session:none", name: "x" }),
+			/does not exist/,
+		);
+	});
+
 	it("rejects interval progress that would overflow a persisted timestamp", () => {
 		assert.throws(
 			() => initialProgress({ kind: "interval", intervalMs: 1 }, Number.MAX_SAFE_INTEGER),

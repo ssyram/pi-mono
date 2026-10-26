@@ -14,37 +14,34 @@ export function registerTaskRunRenderer(pi: ExtensionAPI): void {
 		(message, { expanded, outputPad }, theme) => {
 			try {
 				if (!message.details) return undefined;
-				const box = new Box(outputPad, 1, (text) =>
-					theme.bg("customMessageBg", text),
-				);
 				const previous = views.get(message);
 				const state =
 					previous?.globalExpanded === expanded
 						? previous
 						: { expanded, globalExpanded: expanded };
 				views.set(message, state);
-				const body = new Text(message.details.content, 0, 0);
-				const title = new MouseRegion(
-					new Text(renderTaskRun(message.details, false), 0, 0),
-					(event) => {
-						if (event.type !== "click" || event.button !== "left")
-							return undefined;
-						try {
-							state.expanded = !state.expanded;
-							refresh();
-							return { handled: true };
-						} catch {
-							return { handled: true, render: false };
-						}
-					},
+				const box = new Box(outputPad, 1, (text) =>
+					theme.bg("customMessageBg", text),
 				);
+				const title = new Text(renderTaskRun(message.details, false), 0, 0);
+				const body = new Text(message.details.content, 0, 0);
 				const refresh = (): void => {
 					box.clear();
 					box.addChild(title);
 					if (state.expanded) box.addChild(body);
 				};
 				refresh();
-				return box;
+				return new MouseRegion(box, (event) => {
+					if (event.type !== "click" || event.button !== "left")
+						return undefined;
+					try {
+						state.expanded = !state.expanded;
+						refresh();
+						return { handled: true };
+					} catch {
+						return { handled: true, render: false };
+					}
+				});
 			} catch {
 				return undefined;
 			}

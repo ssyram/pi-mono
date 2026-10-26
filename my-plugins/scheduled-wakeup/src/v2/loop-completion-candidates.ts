@@ -4,6 +4,8 @@ import { readScriptOptions } from "./script-task-options.js";
 
 export type Candidate = { value: string; description?: string };
 
+export type TaskLabel = { id: string; name?: string | undefined };
+
 export function topLevel(): Candidate[] {
 	return [
 		"add",
@@ -18,6 +20,7 @@ export function topLevel(): Candidate[] {
 		"delete",
 		"run",
 		"defer",
+		"rename",
 		"help",
 	].map((value) => ({ value }));
 }
@@ -26,15 +29,21 @@ export function scopes(): Candidate[] {
 	return [{ value: "workspace" }, { value: "global" }];
 }
 export function ids(
-	values: readonly string[],
+	values: readonly TaskLabel[],
 	description: string,
 ): Candidate[] {
-	return values.map((value) => ({ value, description }));
+	return values.map((value) => ({
+		value: value.id,
+		description: value.name ?? description,
+	}));
 }
-export function registrationIds(values: readonly string[]): Candidate[] {
+export function registrationIds(values: readonly TaskLabel[]): Candidate[] {
 	return values
-		.filter((value) => value.startsWith("registration:"))
-		.map((value) => ({ value, description: "active registration" }));
+		.filter((value) => value.id.startsWith("registration:"))
+		.map((value) => ({
+			value: value.id,
+			description: value.name ?? "active registration",
+		}));
 }
 
 export function registerCandidates(
@@ -44,7 +53,7 @@ export function registerCandidates(
 	if (previous.length === 1) return scopes();
 	const scope = previous[1];
 	if (previous.length === 2 && scope !== undefined && isScope(scope))
-		return ids(source.sharedDefinitionIds([scope]), "shared definition");
+		return ids(source.definitionLabels([scope]), "shared definition");
 	return [];
 }
 
@@ -55,11 +64,23 @@ export function deleteCandidates(
 	if (previous.length === 1)
 		return [
 			{ value: "--force", description: "remove every registration" },
-			...ids(source.sharedDefinitionIds(), "shared definition"),
+			...ids(source.definitionLabels(), "shared definition"),
 		];
 	if (previous.length === 2 && previous[1] === "--force")
-		return ids(source.sharedDefinitionIds(), "shared definition");
+		return ids(source.definitionLabels(), "shared definition");
 	return [];
+}
+
+export function renameCandidates(
+	previous: string[],
+	source: LoopCommandAutocompleteSource,
+): Candidate[] {
+	return previous.length === 1
+		? [
+				...ids(source.taskLabels(), "active task"),
+				...ids(source.definitionLabels(), "shared definition"),
+		]
+		: [];
 }
 
 export function addFlags(parsed: { previous: string[] }): Candidate[] {

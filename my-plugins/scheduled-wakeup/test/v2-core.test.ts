@@ -11,6 +11,10 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { AiSessionActions } from "../src/v2/ai-session-actions.js";
 import { SharedDefinitionStore } from "../src/v2/definition-store.js";
+import {
+	formatActiveTasks,
+	formatAvailableDefinitions,
+} from "../src/v2/format-list.js";
 import { LoopV2Core } from "../src/v2/loop-core.js";
 import type {
 	SessionEntryLike,
@@ -115,6 +119,68 @@ describe("Loop 2.0 scopes and registrations", () => {
 			),
 			true,
 		);
+	});
+
+	it("stores optional names, renames tasks and shared definitions, and displays them", () => {
+		const roots = createRoots();
+		const journal = createJournal();
+		const core = createCore("named", journal.port, roots);
+		const user = new UserLoopV2Commands(core);
+
+		const named = core.createSessionTask({
+			prompt: "named work",
+			schedule: { kind: "interval", intervalMs: 500 },
+			name: "  spaced  ",
+		});
+		assert.equal(named.name, "spaced");
+		assert.equal(
+			createCore("named", journal.port, roots).snapshotSessionState().tasks[0]
+				?.definition.name,
+			"spaced",
+		);
+		assert.equal(core.renameSessionTask(named.id, "renamed")?.name, "renamed");
+		assert.equal(
+			createCore("named", journal.port, roots).snapshotSessionState().tasks[0]
+				?.definition.name,
+			"renamed",
+		);
+		assert.throws(
+			() =>
+				core.createSessionTask({
+					prompt: "bad name",
+					schedule: { kind: "interval", intervalMs: 500 },
+					name: "   ",
+				}),
+			/name must be a non-empty string/,
+		);
+		assert.equal(core.renameSessionTask("session:missing", "x"), undefined);
+
+		const definition = user.defineSharedTask("global", {
+			prompt: "shared named",
+			schedule: { kind: "once", runAt: NOW },
+			name: "shared name",
+		});
+		assert.equal(definition.name, "shared name");
+		const other = createCore("other", createJournal().port, roots);
+		assert.equal(other.listDefinitions(["global"])[0]?.name, "shared name");
+		assert.match(
+			formatAvailableDefinitions(other.listAvailable(["global"])),
+			/shared name \[global:/,
+		);
+		other.registerSharedDefinition("global", definition.id);
+		assert.match(
+			formatActiveTasks(other.listActive(), NOW),
+			/shared name \[registration:/,
+		);
+		assert.equal(
+			other.renameSharedDefinition("global", definition.id, undefined)?.name,
+			undefined,
+		);
+		assert.equal(
+			other.renameSharedDefinition("global", "global:missing", "x"),
+			undefined,
+		);
+		assert.equal(other.listDefinitions(["global"])[0]?.name, undefined);
 	});
 
 	it("rejects a shared document containing a definition for another scope", () => {

@@ -29,7 +29,7 @@ export function formatAvailableDefinitions(
 	return definitions
 		.map(
 			(definition) =>
-				`${definition.id} | ${definition.scope} | ${describeSchedule(definition.schedule)} | ${describeTaskContent(definition)}`,
+				`${label(definition.id, definition.name)} | ${definition.scope} | ${describeSchedule(definition.schedule)} | ${describeTaskContent(definition)}`,
 		)
 		.join("\n");
 }
@@ -38,7 +38,7 @@ function formatActiveTask(item: ActiveTask, now: number): string {
 	if (item.kind === "session") {
 		const definition = item.task.definition;
 		return formatLine(
-			definition.id,
+			label(definition.id, definition.name),
 			definition.scope,
 			describeSchedule(definition.schedule),
 			describeTaskContent(definition),
@@ -58,13 +58,17 @@ function formatActiveTask(item: ActiveTask, now: number): string {
 		);
 	}
 	return formatLine(
-		registration.id,
+		label(registration.id, definition.name),
 		registration.reference.scope,
 		describeSchedule(definition.schedule),
 		`${describeTaskContent(definition)} (definition available)`,
 		registration.progress,
 		now,
 	);
+}
+
+function label(id: string, name: string | undefined): string {
+	return name === undefined ? id : `${name} [${id}]`;
 }
 
 function formatLine(

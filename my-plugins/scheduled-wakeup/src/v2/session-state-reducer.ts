@@ -1,4 +1,6 @@
 import {
+	cloneDefinition,
+	cloneProgress,
 	cloneRegistration,
 	cloneSessionState,
 	cloneSessionTask,
@@ -13,6 +15,7 @@ export type SessionStateAction =
 	| { kind: "add-task"; task: SessionTask }
 	| { kind: "remove-task"; taskId: string }
 	| { kind: "advance-task"; taskId: string; progress: ExecutionProgress }
+	| { kind: "rename-task"; taskId: string; name: string | undefined }
 	| { kind: "add-registration"; registration: Registration }
 	| { kind: "remove-registration"; registrationId: string }
 	| { kind: "advance-registration"; registrationId: string; progress: ExecutionProgress };
@@ -34,6 +37,8 @@ export function reduceSessionLoopState(state: SessionLoopState, action: SessionS
 			return { ...cloneSessionState(state), tasks: state.tasks.filter((task) => task.definition.id !== action.taskId).map(cloneSessionTask) };
 		case "advance-task":
 			return advanceTask(state, action.taskId, action.progress);
+		case "rename-task":
+			return renameTask(state, action.taskId, action.name);
 		case "add-registration":
 			if (state.registrations.some((registration) => registration.id === action.registration.id)) {
 				throw new Error(`Registration ${action.registration.id} already exists`);
@@ -52,6 +57,20 @@ export function reduceSessionLoopState(state: SessionLoopState, action: SessionS
 		default:
 			return cloneSessionState(state);
 	}
+}
+
+function renameTask(state: SessionLoopState, taskId: string, name: string | undefined): SessionLoopState {
+	let found = false;
+	const tasks = state.tasks.map((task) => {
+		if (task.definition.id !== taskId) return cloneSessionTask(task);
+		found = true;
+		const definition = cloneDefinition(task.definition);
+		if (name === undefined) delete definition.name;
+		else definition.name = name;
+		return { definition, progress: cloneProgress(task.progress) };
+	});
+	if (!found) throw new Error(`Session task ${taskId} does not exist`);
+	return { version: 1, tasks, registrations: state.registrations.map(cloneRegistration) };
 }
 
 function advanceTask(state: SessionLoopState, taskId: string, progress: ExecutionProgress): SessionLoopState {

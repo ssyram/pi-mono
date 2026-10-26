@@ -78,12 +78,11 @@ function text(component: Component, width = 100) {
 	return component.render(width).join("\n");
 }
 
-test("left-click title toggles the exact model body; padding, body and other mouse input do not", () => {
+test("left-click on the card toggles the exact model body; other mouse input does not", () => {
 	const render = fixture();
 	const entry = message();
 	const card = render(entry);
 	assert.ok(!text(card).includes("MODEL_BODY"));
-	assert.equal(mouse(card, 0)?.handled, undefined);
 	assert.equal(mouse(card, 1, "right")?.handled, undefined);
 	assert.equal(mouse(card, 1, "left", 100, "wheel")?.handled, undefined);
 	assert.equal(mouse(card, 1)?.handled, true);
@@ -92,9 +91,11 @@ test("left-click title toggles the exact model body; padding, body and other mou
 		.map((line) => line.trim())
 		.join("\n");
 	assert.ok(expanded.includes(entry.details.content));
-	assert.equal(mouse(card, 2)?.handled, undefined);
-	assert.ok(text(card).includes("MODEL_BODY"));
+	assert.equal(mouse(card, 2)?.handled, true);
+	assert.ok(!text(card).includes("MODEL_BODY"));
 	assert.equal(mouse(card, 1)?.handled, true);
+	assert.ok(text(card).includes("MODEL_BODY"));
+	assert.equal(mouse(card, 0)?.handled, true);
 	assert.ok(!text(card).includes("MODEL_BODY"));
 });
 

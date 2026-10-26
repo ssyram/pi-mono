@@ -8,6 +8,7 @@ import type {
 	SharedScope,
 	TaskSchedule,
 } from "./model.js";
+import { readTaskName } from "./model.js";
 import { readTaskContent, type TaskContent } from "./task-content.js";
 
 export function parseSessionLoopState(value: unknown): SessionLoopState | undefined {
@@ -56,13 +57,14 @@ function parseReference(value: unknown): DefinitionReference | undefined {
 	return { scope: value.scope, definitionId: value.definitionId };
 }
 
-function parseDefinitionBase(value: Record<string, unknown>): (TaskContent & { id: string; schedule: TaskSchedule; createdAt: number; inhibitBoulder?: boolean }) | undefined {
+function parseDefinitionBase(value: Record<string, unknown>): (TaskContent & { id: string; schedule: TaskSchedule; createdAt: number; inhibitBoulder?: boolean; name?: string }) | undefined {
 	if (!isText(value.id) || !isTimestamp(value.createdAt)) return undefined;
 	const content = readTaskContent(value);
 	const schedule = parseSchedule(value.schedule);
 	if (schedule === undefined || content === undefined) return undefined;
 	const inhibitBoulder = value.inhibitBoulder === true ? true : undefined;
-	return { ...content, id: value.id, schedule, createdAt: value.createdAt, ...(inhibitBoulder !== undefined ? { inhibitBoulder } : {}) };
+	const name = readTaskName(value.name);
+	return { ...content, id: value.id, schedule, createdAt: value.createdAt, ...(inhibitBoulder !== undefined ? { inhibitBoulder } : {}), ...(name !== undefined ? { name } : {}) };
 }
 
 function parseSchedule(value: unknown): TaskSchedule | undefined {

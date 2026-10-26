@@ -21,6 +21,14 @@ import type { LoopV2Core } from "./v2/loop-core.js";
 import type { SharedDeleteResult } from "./v2/model.js";
 import type { ParsedLoopV2Command } from "./v2/parse-v2-command.js";
 import { loopV2HelpText } from "./v2/parse-v2-command.js";
+import {
+	activeTaskCandidates,
+	definitionCandidates,
+	registrationCandidates,
+	resolveTarget,
+	scopeOfDefinitionId,
+	sessionTaskCandidates,
+} from "./v2/resolve-target.js";
 import { cloneTaskContent } from "./v2/task-content.js";
 import type { UserLoopV2Commands } from "./v2/user-commands.js";
 
@@ -104,19 +112,43 @@ export function handleLoopCommand(
 			break;
 		}
 		case "register": {
+			const resolution = resolveTarget(
+				command.definitionId,
+				definitionCandidates(rt.core, [command.scope]),
+			);
+			if (!resolution.ok) {
+				notify(
+					ctx,
+					`Cannot register ${command.definitionId}: ${resolution.message}.`,
+					"warning",
+				);
+				return;
+			}
 			const registration = rt.user.registerSharedTask(
 				command.scope,
-				command.definitionId,
+				resolution.id,
 			);
 			notify(ctx, `Registered ${registration.id}.`, "info");
 			break;
 		}
 		case "unregister": {
-			const outcome = rt.user.unregisterSharedTask(command.registrationId);
+			const resolution = resolveTarget(
+				command.registrationId,
+				registrationCandidates(rt.core),
+			);
+			if (!resolution.ok) {
+				notify(
+					ctx,
+					`Cannot unregister ${command.registrationId}: ${resolution.message}.`,
+					"warning",
+				);
+				return;
+			}
+			const outcome = rt.user.unregisterSharedTask(resolution.id);
 			notify(
 				ctx,
 				outcome === "cancelled"
-					? `Unregistered ${command.registrationId}.`
+					? `Unregistered ${resolution.id}.`
 					: `Cannot unregister ${command.registrationId}: ${outcome}.`,
 				outcome === "cancelled" ? "info" : "warning",
 			);
@@ -130,23 +162,72 @@ export function handleLoopCommand(
 			);
 			break;
 		case "delete": {
+			const resolution =
+				command.scope === undefined
+					? resolveTarget(
+								command.definitionId,
+								definitionCandidates(rt.core),
+						)
+					: { ok: true as const, id: command.definitionId };
+			if (!resolution.ok) {
+				notify(
+					ctx,
+					`Cannot delete ${command.definitionId}: ${resolution.message}.`,
+					"warning",
+				);
+				return;
+			}
+			const scope = command.scope ?? scopeOfDefinitionId(resolution.id);
+			if (scope === undefined) {
+				notify(
+					ctx,
+					`Cannot delete ${resolution.id}: expected a "workspace:" or "global:" id.`,
+					"warning",
+				);
+				return;
+			}
 			const outcome = rt.user.deleteSharedTask(
-				command.scope,
-				command.definitionId,
+				scope,
+				resolution.id,
 				command.force,
 			);
 			notify(
 				ctx,
-				deleteMessage(command.definitionId, outcome),
+				deleteMessage(resolution.id, outcome),
 				outcome.kind === "deleted" ? "info" : "warning",
 			);
 			break;
 		}
-		case "run":
-			runPromptNow(pi, rt, command.id, ctx);
+		case "run": {
+			const resolution = resolveTarget(
+				command.id,
+				activeTaskCandidates(rt.core),
+			);
+			if (!resolution.ok) {
+				notify(
+					ctx,
+					`Cannot run ${command.id}: ${resolution.message}.`,
+					"warning",
+				);
+				return;
+			}
+			runPromptNow(pi, rt, resolution.id, ctx);
 			break;
+		}
 		case "defer": {
-			const outcome = rt.user.deferActiveTask(command.id, command.time);
+			const resolution = resolveTarget(
+				command.id,
+				activeTaskCandidates(rt.core),
+			);
+			if (!resolution.ok) {
+				notify(
+					ctx,
+					`Cannot defer ${command.id}: ${resolution.message}.`,
+					"warning",
+				);
+				return;
+			}
+			const outcome = rt.user.deferActiveTask(resolution.id, command.time);
 			if (outcome.kind !== "deferred") {
 				notify(
 					ctx,
@@ -157,9 +238,15 @@ export function handleLoopCommand(
 			}
 			notify(
 				ctx,
-				`Deferred ${command.id} until ${formatTimestamp(outcome.nextRunAt)} (next delivery only; schedule unchanged).`,
+				`Deferred ${resolution.id} until ${formatTimestamp(outcome.nextRunAt)} (next delivery only; schedule unchanged).`,
 				"info",
 			);
+			break;
+		}
+		case "rename": {
+			const outcome = renameTarget(rt, command);
+			notify(ctx, outcome.message, outcome.ok ? "info" : "warning");
+			if (!outcome.ok) return;
 			break;
 		}
 		case "error":
@@ -179,10 +266,42 @@ function stopAll(rt: LoopV2Runtime): string {
 }
 
 function stopOne(rt: LoopV2Runtime, target: string): string {
-	const outcome = rt.core.cancelActive(target);
+	const resolution = resolveTarget(target, activeTaskCandidates(rt.core));
+	if (!resolution.ok) return `Cannot stop ${target}: ${resolution.message}.`;
+	const outcome = rt.core.cancelActive(resolution.id);
 	return outcome === "cancelled"
-		? `Stopped ${target}.`
+		? `Stopped ${resolution.id}.`
 		: `Cannot stop ${target}: ${outcome}.`;
+}
+
+function renameTarget(
+	rt: LoopV2Runtime,
+	command: { target: string; name: string | undefined },
+): { ok: boolean; message: string } {
+	const candidates = [
+		...sessionTaskCandidates(rt.core),
+		...definitionCandidates(rt.core),
+	];
+	const resolution = resolveTarget(command.target, candidates);
+	if (!resolution.ok)
+		return {
+			ok: false,
+			message: `Cannot rename ${command.target}: ${resolution.message}.`,
+		};
+	const scope = scopeOfDefinitionId(resolution.id);
+	const renamed =
+		scope === undefined
+			? rt.user.renameSessionTask(resolution.id, command.name)
+			: rt.user.renameSharedTask(scope, resolution.id, command.name);
+	if (renamed === undefined)
+		return { ok: false, message: `No renameable task ${resolution.id}.` };
+	return {
+		ok: true,
+		message:
+			command.name === undefined
+				? `Cleared the name of ${resolution.id}.`
+				: `Named ${resolution.id} "${command.name}".`,
+	};
 }
 
 function deleteMessage(id: string, outcome: SharedDeleteResult): string {

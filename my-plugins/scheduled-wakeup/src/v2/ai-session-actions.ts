@@ -1,6 +1,12 @@
 import { loopErrorMessage } from "../loop-error-message.js";
 import type { LoopV2Core } from "./loop-core.js";
 import type { ActiveTask, TaskInput, TaskSchedule } from "./model.js";
+import { readTaskName } from "./model.js";
+import {
+	activeTaskCandidates,
+	registrationCandidates,
+	resolveTarget,
+} from "./resolve-target.js";
 import { readTaskContent } from "./task-content.js";
 import { validOnceTime } from "./valid-once-time.js";
 
@@ -60,25 +66,34 @@ export class AiSessionActions {
 			);
 		return this.result(
 			true,
-			`Added session task ${this.core.createSessionTask(task).id}.`,
+			`Added session task ${this.core.createSessionTask(task).id}${task.name === undefined ? "" : ` (${task.name})`}.`,
 		);
 	}
 
 	private cancel(input: Record<string, unknown>): AiSessionActionResult {
 		if (!text(input.id))
 			return this.result(false, "Error: cancel requires an active task id.");
-		const outcome = this.core.cancelActive(input.id);
+		const resolution = resolveTarget(input.id, activeTaskCandidates(this.core));
+		if (!resolution.ok)
+			return this.result(false, `Error: cancel ${resolution.message}.`);
+		const outcome = this.core.cancelActive(resolution.id);
 		return outcome === "cancelled"
-			? this.result(true, `Cancelled ${input.id}.`)
-			: this.result(false, `Error: ${input.id} is ${outcome}.`);
+			? this.result(true, `Cancelled ${resolution.id}.`)
+			: this.result(false, `Error: ${resolution.id} is ${outcome}.`);
 	}
 
 	private delete(input: Record<string, unknown>): AiSessionActionResult {
 		if (!text(input.id))
 			return this.result(false, "Error: delete requires a registration id.");
-		const outcome = this.core.deleteRegistrationDefinition(input.id);
+		const resolution = resolveTarget(
+			input.id,
+			registrationCandidates(this.core),
+		);
+		if (!resolution.ok)
+			return this.result(false, `Error: delete ${resolution.message}.`);
+		const outcome = this.core.deleteRegistrationDefinition(resolution.id);
 		return outcome.kind === "deleted"
-			? this.result(true, `Deleted shared definition for ${input.id}.`)
+			? this.result(true, `Deleted shared definition for ${resolution.id}.`)
 			: this.result(false, `Error: delete is ${outcome.kind}.`);
 	}
 
@@ -112,10 +127,12 @@ function parseTaskInput(input: Record<string, unknown>): TaskInput | undefined {
 	const schedule = parseSchedule(input.schedule);
 	if (schedule === undefined) return undefined;
 	const inhibitBoulder = input.inhibitBoulder === true ? true : undefined;
+	const name = readTaskName(input.name);
 	return {
 		...content,
 		schedule,
 		...(inhibitBoulder !== undefined ? { inhibitBoulder } : {}),
+		...(name !== undefined ? { name } : {}),
 	};
 }
 function parseSchedule(value: unknown): TaskSchedule | undefined {

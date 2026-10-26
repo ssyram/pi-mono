@@ -6,7 +6,7 @@ import { createLoopCommandAutocompleteProvider, type LoopCommandAutocompleteSour
 describe("Loop 2.0 command autocomplete", () => {
 	it("completes top-level commands and scope positions with loose matching", async () => {
 		const provider = createLoopCommandAutocompleteProvider(fallback(), source());
-		assert.deepEqual(await values(provider, "/loop "), ["add", "define", "available", "register", "unregister", "list", "running", "show", "stop", "delete", "run", "defer", "help"]);
+		assert.deepEqual(await values(provider, "/loop "), ["add", "define", "available", "register", "unregister", "list", "running", "show", "stop", "delete", "run", "defer", "rename", "help"]);
 		assert.deepEqual(await values(provider, "/loop d"), ["define", "delete", "defer", "add"]);
 		assert.deepEqual(await values(provider, "/loop define "), ["workspace", "global"]);
 		assert.deepEqual(await values(provider, "/loop register g"), ["global"]);
@@ -26,6 +26,15 @@ describe("Loop 2.0 command autocomplete", () => {
 		assert.deepEqual(await values(provider, "/loop delete --force "), ["workspace:one", "global:two"]);
 	});
 
+	it("offers active tasks and shared definitions for rename with names as descriptions", async () => {
+		const provider = createLoopCommandAutocompleteProvider(fallback(), source());
+		const line = "/loop rename ";
+		const result = await provider.getSuggestions([line], 0, line.length, { signal: new AbortController().signal, force: true });
+		assert.deepEqual(result?.items.map((item) => item.value), ["session:active", "registration:global:two", "workspace:one", "global:two"]);
+		assert.equal(result?.items[0]?.description, "nightly check");
+		assert.equal(result?.items[1]?.description, "active task");
+	});
+
 	it("claims forced Tab positions, applies candidates, and falls back when unsupported", async () => {
 		const current = fallback();
 		const provider = createLoopCommandAutocompleteProvider(current, source());
@@ -38,7 +47,18 @@ describe("Loop 2.0 command autocomplete", () => {
 });
 
 function source(): LoopCommandAutocompleteSource {
-	return { activeIds: () => ["session:active", "registration:global:two"], sharedDefinitionIds: (scopes) => scopes?.[0] === "workspace" ? ["workspace:one"] : scopes?.[0] === "global" ? ["global:two"] : ["workspace:one", "global:two"] };
+	return {
+		taskLabels: () => [
+			{ id: "session:active", name: "nightly check" },
+			{ id: "registration:global:two" },
+		],
+		definitionLabels: (scopes) =>
+			scopes?.[0] === "workspace"
+				? [{ id: "workspace:one" }]
+				: scopes?.[0] === "global"
+					? [{ id: "global:two" }]
+					: [{ id: "workspace:one" }, { id: "global:two" }],
+	};
 }
 function fallback(): AutocompleteProvider & { shouldTriggerFileCompletion?(lines: string[], row: number, col: number): boolean } {
 	return {

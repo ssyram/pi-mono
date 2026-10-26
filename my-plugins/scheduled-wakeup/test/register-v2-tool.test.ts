@@ -65,6 +65,28 @@ describe("registerScheduledWakeupV2Tool", () => {
 		assert.match(deleted.details.message, /Deleted shared definition/);
 	});
 
+	it("adds with a name and resolves cancel/delete by unique name", async () => {
+		const setup = createSetup();
+		const added = await setup.execute({ action: "add", prompt: "cancel me", delay: "5m", name: "the watcher" });
+		assert.match(added.details.message, /Added session task .*\(the watcher\)\./);
+		const cancelled = await setup.execute({ action: "cancel", id: "the watcher" });
+		assert.equal(cancelled.details.ok, true);
+		assert.match(cancelled.details.message, /Cancelled session:/);
+
+		const definition = setup.core.createSharedDefinition("workspace", { prompt: "shared", schedule: { kind: "once", runAt: NOW }, name: "the shared one" });
+		setup.core.registerSharedDefinition("workspace", definition.id);
+		const deleted = await setup.execute({ action: "delete", id: "the shared one" });
+		assert.equal(deleted.details.ok, true);
+		assert.match(deleted.details.message, /Deleted shared definition for registration:/);
+
+		const ambiguous = setup.core.createSessionTask({ prompt: "dup", schedule: { kind: "once", runAt: NOW }, name: "dup" });
+		setup.core.createSessionTask({ prompt: "dup2", schedule: { kind: "once", runAt: NOW }, name: "dup" });
+		const failed = await setup.execute({ action: "cancel", id: "dup" });
+		assert.equal(failed.details.ok, false);
+		assert.match(failed.details.message, /ambiguous name "dup" matches/);
+		assert.match(failed.details.message, new RegExp(ambiguous.id));
+	});
+
 	it("cancels by id, lists without mutating, and keeps AiSessionActionResult details", async () => {
 		const setup = createSetup();
 		const added = await setup.execute({ action: "add", prompt: "cancel me", delay: "5m" });
@@ -83,7 +105,7 @@ describe("registerScheduledWakeupV2Tool", () => {
 
 		const missing = await setup.execute({ action: "cancel", id: "session:none" });
 		assert.equal(missing.details.ok, false);
-		assert.match(missing.details.message, /missing/);
+		assert.match(missing.details.message, /no match for "session:none"/);
 	});
 });
 

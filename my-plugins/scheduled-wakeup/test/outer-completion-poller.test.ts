@@ -8,8 +8,8 @@ import type { SessionEntryLike } from "../src/v2/session-entry-adapter.js";
 import { createBoundaryFixture } from "./outer-boundary-fixture.js";
 
 const source = {
-	activeIds: () => ["session:one"],
-	sharedDefinitionIds: () => [],
+	taskLabels: () => [{ id: "session:one" }],
+	definitionLabels: () => [],
 };
 
 test("async completion rejection is caught, and the next call remains usable", async () => {
@@ -47,7 +47,7 @@ test("completion source and sync delegation failures preserve input without esca
 	};
 	const provider = createLoopCommandAutocompleteProvider(current, {
 		...source,
-		activeIds: () => {
+		taskLabels: () => {
 			throw new Error("unavailable");
 		},
 	});

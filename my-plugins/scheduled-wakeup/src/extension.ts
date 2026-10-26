@@ -92,9 +92,25 @@ export default function scheduledWakeup(pi: ExtensionAPI): void {
 			try {
 				ensure(ctx);
 				registerLoopAutocomplete(ctx, {
-					activeIds: () => runtime?.core.activeIds() ?? [],
-					sharedDefinitionIds: (scopes) =>
-						runtime?.core.sharedDefinitionIds(scopes) ?? [],
+					taskLabels: () =>
+						runtime?.core.listActive().map((item) =>
+							item.kind === "session"
+								? {
+										id: item.task.definition.id,
+										name: item.task.definition.name,
+									}
+									: {
+										id: item.registration.id,
+										name: item.definition?.name,
+									},
+						) ?? [],
+					definitionLabels: (scopes) =>
+						runtime?.core
+							.listDefinitions(scopes)
+							.map((definition) => ({
+								id: definition.id,
+								name: definition.name,
+							})) ?? [],
 				});
 				const refreshError = reschedule();
 				if (refreshError !== undefined) {

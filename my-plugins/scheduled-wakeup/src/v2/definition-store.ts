@@ -57,6 +57,22 @@ export class SharedDefinitionStore {
 		});
 	}
 
+	rename(
+		scope: SharedScope,
+		definitionId: string,
+		name: string | undefined,
+	): "missing" | SharedDefinition {
+		return this.transaction(scope, (catalog) => {
+			const definition = catalog.definitions.find(
+				(item) => item.id === definitionId,
+			);
+			if (definition === undefined) return "missing";
+			if (name === undefined) delete definition.name;
+			else definition.name = name;
+			return cloneDefinition(definition);
+		});
+	}
+
 	indexRegistration(entry: SharedRegistrationIndex): "indexed" | "missing" {
 		return this.transaction(entry.scope, (catalog) => {
 			if (!catalog.definitions.some((item) => item.id === entry.definitionId))

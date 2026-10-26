@@ -12,14 +12,16 @@ import {
 	ids,
 	registerCandidates,
 	registrationIds,
+	renameCandidates,
 	scopes,
 	topLevel,
+	type TaskLabel,
 } from "./loop-completion-candidates.js";
 import type { SharedScope } from "./model.js";
 
 export type LoopCommandAutocompleteSource = {
-	activeIds(): readonly string[];
-	sharedDefinitionIds(scopes?: readonly SharedScope[]): readonly string[];
+	taskLabels(): readonly TaskLabel[];
+	definitionLabels(scopes?: readonly SharedScope[]): readonly TaskLabel[];
 };
 type Parsed = { previous: string[]; token: string; start: number };
 type TabAutocompleteProvider = AutocompleteProvider & {
@@ -50,12 +52,13 @@ export function createLoopCommandAutocompleteProvider(
 			return registerCandidates(parsed.previous, source);
 		if (first === "unregister")
 			return parsed.previous.length === 1
-				? registrationIds(source.activeIds())
+				? registrationIds(source.taskLabels())
 				: [];
 		if (first === "stop" || first === "run" || first === "defer")
 			return parsed.previous.length === 1
-				? ids(source.activeIds(), "active task")
+				? ids(source.taskLabels(), "active task")
 				: [];
+		if (first === "rename") return renameCandidates(parsed.previous, source);
 		if (first === "delete") return deleteCandidates(parsed.previous, source);
 		return [];
 	};

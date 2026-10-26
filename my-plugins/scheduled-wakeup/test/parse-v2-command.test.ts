@@ -68,13 +68,21 @@ describe("parseLoopV2Command", () => {
 		}
 	});
 
-	it("derives delete scope from the id prefix and keeps --force user-only by parsing it", () => {
+	it("derives delete scope from the id prefix and accepts a bare name form", () => {
 		assert.deepEqual(parseLoopV2Command("delete workspace:abc", NOW), { kind: "delete", scope: "workspace", definitionId: "workspace:abc", force: false });
 		assert.deepEqual(parseLoopV2Command("delete --force global:abc", NOW), { kind: "delete", scope: "global", definitionId: "global:abc", force: true });
-		assert.match(errorOf(parseLoopV2Command("delete abc", NOW)), /workspace:/);
+		assert.deepEqual(parseLoopV2Command("delete abc", NOW), { kind: "delete", scope: undefined, definitionId: "abc", force: false });
 		assert.match(errorOf(parseLoopV2Command("delete", NOW)), /Usage/);
 		assert.match(errorOf(parseLoopV2Command("delete --force", NOW)), /Usage/);
 		assert.equal(parseLoopV2Command("list extra", NOW).kind, "error");
+	});
+
+	it("parses rename with multi-token names and --clear", () => {
+		assert.deepEqual(parseLoopV2Command("rename session:abc nightly build check", NOW), { kind: "rename", target: "session:abc", name: "nightly build check" });
+		assert.deepEqual(parseLoopV2Command("rename workspace:abc --clear", NOW), { kind: "rename", target: "workspace:abc", name: undefined });
+		assert.match(errorOf(parseLoopV2Command("rename", NOW)), /Usage/);
+		assert.match(errorOf(parseLoopV2Command("rename session:abc", NOW)), /Usage/);
+		assert.match(errorOf(parseLoopV2Command("rename session:abc --clear extra", NOW)), /Usage/);
 	});
 
 	it("returns help for empty args and help, and errors on unknown commands", () => {

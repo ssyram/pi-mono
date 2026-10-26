@@ -15,6 +15,7 @@ export type TaskSchedule =
 export type TaskInput = TaskContent & {
 	schedule: TaskSchedule;
 	inhibitBoulder?: boolean;
+	name?: string;
 };
 
 export type TaskDefinition = TaskContent & {
@@ -23,6 +24,7 @@ export type TaskDefinition = TaskContent & {
 	schedule: TaskSchedule;
 	createdAt: number;
 	inhibitBoulder?: boolean;
+	name?: string;
 };
 
 export type SharedDefinition = TaskDefinition & { scope: SharedScope };
@@ -92,6 +94,12 @@ export function isSharedScope(scope: Scope): scope is SharedScope {
 	return scope === "workspace" || scope === "global";
 }
 
+export function readTaskName(value: unknown): string | undefined {
+	if (typeof value !== "string") return undefined;
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
+}
+
 export function assertTaskInput(input: TaskInput): void {
 	if (readTaskContent({ ...input }) === undefined)
 		throw new Error("Task requires a nonempty prompt or a prepared scriptTask");
@@ -100,6 +108,8 @@ export function assertTaskInput(input: TaskInput): void {
 		typeof input.inhibitBoulder !== "boolean"
 	)
 		throw new Error("inhibitBoulder must be a boolean when provided");
+	if (input.name !== undefined && readTaskName(input.name) === undefined)
+		throw new Error("name must be a non-empty string when provided");
 	if (input.schedule.kind === "once") {
 		if (!validOnceTime(input.schedule.runAt))
 			throw new Error(

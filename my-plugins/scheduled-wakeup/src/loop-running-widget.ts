@@ -107,7 +107,7 @@ export function createRunningWidget(
 				return;
 			}
 			if (ctx.mode === "rpc") {
-				ctx.ui.setWidget(KEY, [`Loop · ${items.length} scheduled`], {
+				ctx.ui.setWidget(KEY, [` \u21BB Loop · ${items.length} scheduled`], {
 					placement: "aboveEditor",
 				});
 				installed = true;
@@ -134,7 +134,7 @@ export function createRunningWidget(
 										expanded = false;
 										updateTimer();
 									}
-									const label = `Loop · ${items.length} scheduled${surface.mode === "fullscreen" ? (expanded ? " · collapse (ok/done/total)" : " · expand") : ""}`;
+									const label = ` \u21BB Loop · ${items.length} scheduled`;
 									const summary = theme.fg(
 										"accent",
 										truncateToWidth(label, columns),

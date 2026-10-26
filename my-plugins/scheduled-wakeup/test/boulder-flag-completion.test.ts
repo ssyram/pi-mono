@@ -25,7 +25,7 @@ test("Tab offers the flag only in add/define option positions, including ws alia
 	const provider = createLoopCommandAutocompleteProvider({
 		getSuggestions: async () => null,
 		applyCompletion: (lines, cursorLine, cursorCol) => ({ lines, cursorLine, cursorCol }),
-	}, { activeIds: () => [], sharedDefinitionIds: () => [] });
+	}, { taskLabels: () => [], definitionLabels: () => [] });
 	for (const text of ["/loop add ", "/loop add 1h ", "/loop add once ", "/loop define ws "]) {
 		assert.deepEqual((await provider.getSuggestions([text], 0, text.length, options))?.items.map((item) => item.value),
 			text === "/loop add " || text === "/loop define ws " ? ["--no-boulder", "--script", "--wake"] : ["--no-boulder"]);

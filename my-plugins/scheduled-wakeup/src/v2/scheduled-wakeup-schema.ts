@@ -43,6 +43,12 @@ export const ScheduledWakeupParams = Type.Object({
 				"Pure prompt task. Use either prompt or scriptTask, never both.",
 		}),
 	),
+	name: Type.Optional(
+		Type.String({
+			description:
+				"Optional display name shown in /loop list; unique names can replace ids in loop commands.",
+		}),
+	),
 	scriptTask: Type.Optional(scriptTask),
 	delay: Type.Optional(
 		Type.String({
@@ -61,7 +67,8 @@ export const ScheduledWakeupParams = Type.Object({
 	),
 	id: Type.Optional(
 		Type.String({
-			description: "Active task id for cancel, registration id for delete.",
+			description:
+				"Active task id or unique name for cancel; registration id or unique definition name for delete.",
 		}),
 	),
 });
@@ -70,6 +77,7 @@ export type ToolParams = {
 	action: "add" | "list" | "cancel" | "delete";
 	inhibitBoulder?: boolean | undefined;
 	prompt?: string | undefined;
+	name?: string | undefined;
 	scriptTask?: unknown;
 	delay?: string | undefined;
 	at?: string | undefined;

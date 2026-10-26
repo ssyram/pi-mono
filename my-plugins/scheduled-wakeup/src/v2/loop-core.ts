@@ -9,6 +9,7 @@ import {
 	cloneSessionState,
 	initialProgress,
 	isDue,
+	readTaskName,
 	type ActiveTask,
 	type ExecutionResult,
 	type Registration,
@@ -60,7 +61,8 @@ export class LoopV2Core {
 	createSessionTask(input: TaskInput): SessionDefinition {
 		return this.withStateLock(() => {
 			assertTaskInput(input);
-			const definition: SessionDefinition = { id: `session:${this.idFactory()}`, scope: "session", ...cloneTaskContent(input.scriptTask === undefined ? { prompt: input.prompt.trim() } : input), schedule: { ...input.schedule }, createdAt: this.currentNow(), ...(input.inhibitBoulder !== undefined ? { inhibitBoulder: input.inhibitBoulder } : {}) };
+			const name = readTaskName(input.name);
+			const definition: SessionDefinition = { id: `session:${this.idFactory()}`, scope: "session", ...cloneTaskContent(input.scriptTask === undefined ? { prompt: input.prompt.trim() } : input), schedule: { ...input.schedule }, createdAt: this.currentNow(), ...(name !== undefined ? { name } : {}), ...(input.inhibitBoulder !== undefined ? { inhibitBoulder: input.inhibitBoulder } : {}) };
 			this.sessionState.dispatch({ kind: "add-task", task: { definition, progress: initialProgress(definition.schedule, definition.createdAt) } });
 			return cloneDefinition(definition);
 		});
@@ -68,8 +70,29 @@ export class LoopV2Core {
 
 	createSharedDefinition(scope: SharedScope, input: TaskInput): SharedDefinition {
 		assertTaskInput(input);
-		const definition: SharedDefinition = { id: `${scope}:${this.idFactory()}`, scope, ...cloneTaskContent(input.scriptTask === undefined ? { prompt: input.prompt.trim() } : input), schedule: { ...input.schedule }, createdAt: this.currentNow(), ...(input.inhibitBoulder !== undefined ? { inhibitBoulder: input.inhibitBoulder } : {}) };
+		const name = readTaskName(input.name);
+		const definition: SharedDefinition = { id: `${scope}:${this.idFactory()}`, scope, ...cloneTaskContent(input.scriptTask === undefined ? { prompt: input.prompt.trim() } : input), schedule: { ...input.schedule }, createdAt: this.currentNow(), ...(name !== undefined ? { name } : {}), ...(input.inhibitBoulder !== undefined ? { inhibitBoulder: input.inhibitBoulder } : {}) };
 		return this.definitions.create(definition);
+	}
+
+	renameSessionTask(taskId: string, name: string | undefined): SessionDefinition | undefined {
+		return this.withStateLock(() => {
+			const normalized = readTaskName(name);
+			if (name !== undefined && normalized === undefined)
+				throw new Error("name must be a non-empty string when provided");
+			if (!this.sessionState.snapshot().tasks.some((task) => task.definition.id === taskId)) return undefined;
+			this.sessionState.dispatch({ kind: "rename-task", taskId, name: normalized });
+			const renamed = this.sessionState.snapshot().tasks.find((task) => task.definition.id === taskId);
+			return renamed === undefined ? undefined : cloneDefinition(renamed.definition);
+		});
+	}
+
+	renameSharedDefinition(scope: SharedScope, definitionId: string, name: string | undefined): SharedDefinition | undefined {
+		const normalized = readTaskName(name);
+		if (name !== undefined && normalized === undefined)
+			throw new Error("name must be a non-empty string when provided");
+		const renamed = this.definitions.rename(scope, definitionId, normalized);
+		return renamed === "missing" ? undefined : renamed;
 	}
 
 	registerSharedDefinition(scope: SharedScope, definitionId: string): Registration {
@@ -173,6 +196,7 @@ export class LoopV2Core {
 		return { kind: "resolved", inhibitBoulder: definition.inhibitBoulder === true };
 	}
 	sharedDefinitionIds(scopes: readonly SharedScope[] = ["workspace", "global"]): readonly string[] { return this.definitionsIds(scopes); }
+	listDefinitions(scopes: readonly SharedScope[] = ["workspace", "global"]): readonly SharedDefinition[] { return scopes.flatMap((scope) => this.definitions.list(scope)); }
 	activeIds(): readonly string[] { return this.listActive().map((item) => item.kind === "session" ? item.task.definition.id : item.registration.id); }
 
 	private definitionsIds(scopes: readonly SharedScope[]): readonly string[] { return scopes.flatMap((scope) => this.definitions.list(scope).map((definition) => definition.id)); }
