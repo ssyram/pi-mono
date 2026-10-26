@@ -549,7 +549,7 @@ frames:
       progress:
         kind: item_done
       fork: []
-    - text: '对偶里程碑（2026-10-23晚）：idle-resume 全剧本 PASS（root/worker done、23/23回执逐对象一致、final=Idle-resume result: 42，首个完整对偶通过）。reference 推进 41/68 回执（root0-13、beta 13/13 done、gamma 5/5），已知卡点 alpha/009 inbox：beta/gamma send 间隔随 runner shim 每请求开销放大（828ms→5.5s 实测），固定窗口（已至5s trailing合并）无法覆盖，定性 harness 时序放大而非生产差异，下一责任=shim 增量 flush/锁优化。Sol互补剧本0/4过但产出G1（root预注册actor→提前persist，已修：owned-runtime删提前acquire）与G2（judge read无HC行号，已修）两生产缺口；D8 wrapper（hc_agent断言/hc_result.agent/agent_list self行三投影点+boundary日志）已启用全剧本。'
+    - text: 对偶终态（本段）：①idle-resume 全剧本 PASS（23/23回执，首个完整对偶）；②reference 41/68回执验证（root0-13/beta13/gamma5全对golden），唯一卡点alpha/009定性完成——use-plot对未满足依赖请求持state.lock忙等自旋（plot_engine.execute 150-168行无sleep重试），把gamma的send结构性钉在alpha起跑请求之后：四组实测间隔恒=debounce窗口+0.3s（5s→5.24s、6.5s→6.82s、8s→8.22s、1s→1.38s），任何窗口都无法让GAMMA先于alpha首个call到达；时间窗口不可解，列D9候选=剧本并发时序对宿主调度敏感，待owner裁决（选项：a接受declared-boundary跳过该inbox断言；b要求参考包侧修复忙等=改参考产品需owner授权；c runner侧给该点确定性等待=改观察口径）；③flush锁重构后90ms/请求（原300ms）+facade锁内重读修并发覆盖；④生产窗口收敛1s对齐HC fork量级。Sol互补剧本产出G1/G2两生产缺口已修，semantic-*待G1修复后重跑（下一责任）。
       children: []
       progress:
         kind: in_progress
@@ -567,6 +567,7 @@ frames:
       - owner五项裁决落地（2026-10-23）：①@file=D4测试约束（FSM无此功能）维持；②错误渲染D3维持；③跨树send已实现——hc-session-registry（FSM_DATA_DIR共享注册表+owner转发端点/fsm-compatible/agent-message+Basic auth），sendHcAgent本树miss走注册表，miss仍AgentNotFound；⑤header已修——孩子发布协议SID真实header（真实created/cwd），roster/statuses root对外id=协议SID，getExecution按协议SID命中root；④extraArgs按owner裁决关闭不管。新增test/hc-session-registry.test.ts 4例；全量170/170+check 0。
       - 本轮5项真实实现修复全部带全量170/170+check 0回归；对偶已深入beta阶段，证明SID协议化/门禁文案/子会话FSM投影/异步Started/workdir语义均已按golden对齐。
       - '本段新增生产修复：G1 root不预注册（对齐announceSubagentStart root-skip）；G2 judge read N: line渲染；agent_list self status=running（busy投影事实）；root agent_type=build（HC defaultInfo推导）；send→root走root投递（EISDIR根因=误对root record开child host）。三笔commit：9d7517bae实验包/7607d87fe插件主体/03263f23b+93a254da0对偶修复，均170/170+check 0，未push。'
+      - 'D9证据链：间隔=窗口+常数 四组数据（runs mvky7a2hi1s/mvkyd1lb1274/mvl1fovb1j3o/mvl1wtpzqgf），机制=use-plot execute()的None自旋持锁+flock排队顺序把gamma step3处理排在alpha起跑请求后；idle-resume无此耦合（单worker）。commits: 03263f23b/93a254da0/90a5ed954 均未push。'
       side_effects: []
       principles: []
       remarks:
@@ -618,6 +619,9 @@ frames:
     - action: update
       at: 2026-10-23T13:56:26.439661000Z
       detail: 结算idle-resume完整通过与reference卡点定性，登记shim优化为下一责任；变更字段：content.results、plan[3].text
+    - action: update
+      at: 2026-10-23T14:31:14.232130000Z
+      detail: 结算reference唯一剩余卡点的完整定性证据，登记D9候选与三个处置选项供owner裁决；变更字段：content.results、plan[3].text
   6:
     parent: null
     title: 独立HC FSM实验包：use-plot与真实collect/replay基准

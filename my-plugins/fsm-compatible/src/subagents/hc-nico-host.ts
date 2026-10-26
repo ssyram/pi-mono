@@ -111,7 +111,7 @@ export class HcNicoSessionHost {
 					/* record frozen paths stay on the event stream */
 				}
 			});
-		}, 1000);
+		}, 2000);
 		this.pendingStarts.set(record.session_id, pending);
 	}
 

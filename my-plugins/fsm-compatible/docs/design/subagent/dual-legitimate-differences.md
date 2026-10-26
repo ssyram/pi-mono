@@ -34,7 +34,7 @@
 | D6 | 宿主内部不可见物 | owner 裁决 header 是问题，已修：孩子以协议 SID 发布真实 header（id=sid、timestamp=真实创建时间、cwd=真实目录）；roster/statuses 的 root 对外 id 改用协议 SID，FSM 按协议 SID 反查 getExecution 命中 root。剩余宿主内部格式（落盘形状、SDK 内部 ID）仍按"仅 FSM 实际读取字段参与比较"。 |
 
 | D8 | 宿主 profile/title 概念 | HC 的 session 有 defaultInfo profile（root 落 build、Stop parts-only 续行发生 general→build 翻转）与 session title；Pi 宿主无对应概念。Pi 侧如实报 agent:null/空。对偶经 scripts/dual/profile-boundary.py 包装原版引擎做**三个精确投影点**：①step.hc_agent 断言跳过；②完整 receipt 比较中 hc_result.agent 投影为 null；③agent_list 文本 self 行的 agent_type/title 两列置空（receipt.text 与 hc_result.state.output 同步）。每次投影写 run/profile-boundaries.jsonl（callID、golden 值、pi:null）。wrapper 无其他投影点；其余字段（provider/model/status/timestamps/全部业务值）照原版严格比较。root 的 agent_type=build 已按 HC defaultInfo 推导在生产复刻（非投影），title 保持投影。 |
-| D9 | 剧本并发时序对宿主调度敏感（**候选，待 owner 裁决**） | reference alpha/009：use-plot 对依赖未满足的请求持 state.lock 忙等自旋（plot_engine.execute 无 sleep 重试），把并发的 gamma agent_send 结构性钉在 alpha 起跑请求之后——实测 send 间隔恒 = debounce 窗口 + ~0.3s（1s→1.38s、5s→5.24s、6.5s→6.82s、8s→8.22s 四组），时间窗口不可解。单 worker 剧本（idle-resume）无此耦合。处置选项：(a) declared-boundary 跳过该 inbox 断言；(b) 修参考包忙等（需 owner 授权改参考产品）；(c) runner 侧确定性等待。在裁决前 reference 对偶止于 41/68 回执。 |
+| D9 | 剧本并发时序对宿主调度敏感（owner 裁决 (a)：declared-boundary） | reference alpha/009：use-plot 对依赖未满足的请求持 state.lock 忙等自旋（plot_engine.execute 无 sleep 重试），把并发的 gamma agent_send 结构性钉在 alpha 起跑请求之后——实测 send 间隔恒 = debounce 窗口 + ~0.3s（1s→1.38s、5s→5.24s、6.5s→6.82s、8s→8.22s 四组），时间窗口不可解。单 worker 剧本（idle-resume）无此耦合。owner 裁决 (a)：该 inbox 断言按 declared-boundary 跳过并记录 d9-boundaries 日志；实现于 profile-boundary wrapper 的 PLOT_D9_SKIP 显式豁免（plot→actor/index→contains 清单），其余断言照常。 |
 
 ## 4. 判定流程
 

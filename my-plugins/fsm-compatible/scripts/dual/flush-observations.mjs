@@ -3,6 +3,7 @@
 // hc-fsm-reference observation files. Runs before each use-plot invocation.
 import { createHash } from "node:crypto";
 import { appendFile, readFile, readdir, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const cfg = JSON.parse(await readFile(process.argv[3], "utf8"));
@@ -58,6 +59,59 @@ const stableRead = async (file) => {
 	return previous;
 };
 const facadePath = join(run, "facade-messages.json");
+// D9 declared boundary (owner ruling a): a send whose Accepted receipt is on
+// disk must actually land in the recipient's transcript before the engine
+// compares inboxes — wait lock-free (this shim holds no state lock).
+const d9Tokens = (() => {
+	try {
+		return Object.values(JSON.parse(process.env.PLOT_D9_SKIP ?? "{}")).flat();
+	} catch {
+		return [];
+	}
+})();
+if (d9Tokens.length) {
+	const tokenOnDisk = (needle) => {
+		for (const source of sources) {
+			let text = "";
+			try {
+				text = readFileSync(source.file, "utf8");
+			} catch {
+				continue;
+			}
+			if (text.includes(needle)) return text.includes('"role":"user"') || true;
+		}
+		return false;
+	};
+	// Wait only until the send's toolCall/receipt lands on disk: holding this
+	// shim (lock-free) gives the sender's engine call the processing window,
+	// and the boundary wrapper can then backfill from the real send arguments.
+	const sendOnDisk = (token) => {
+		for (const source of sources) {
+			let text = "";
+			try {
+				text = readFileSync(source.file, "utf8");
+			} catch {
+				continue;
+			}
+			if (!text.includes(token)) continue;
+			for (const line of text.split("\n")) {
+				if (!line.includes(token) || !line.includes("agent_send")) continue;
+				try {
+					const entry = JSON.parse(line);
+					const message = entry.message ?? {};
+					const blocks = Array.isArray(message.content) ? message.content : [];
+					if (blocks.some((b) => b && (b.type === "toolCall" || b.type === "toolResult") && (b.name === "agent_send" || b.toolCallId))) return true;
+				} catch { /* partial line */ }
+			}
+		}
+		return false;
+	};
+	const missingSend = () => d9Tokens.some((token) => !sendOnDisk(token));
+	for (let i = 0; i < 80 && missingSend(); i++) {
+		await new Promise((r) => setTimeout(r, 150));
+	}
+}
+
 // ---- lock-free scan ----
 const scanned = [];
 for (const source of sources) {
@@ -160,19 +214,15 @@ for (const { source, lines, calls } of scanned) {
 					status: "completed",
 					input: call.args,
 					output,
-					title: isBash ? command : isAgent ? String(call.args?.description ?? "") : isSend || isStop ? rawTarget : isList ? "agents" : "",
-					metadata: isBash
-						? { output, exit: 0, truncated: false }
-						: isAgent
-							? { model: { providerID: "plot", modelID: "plot-model" }, sessionId: startedSid, parentSessionId: source.sid, truncated: false }
-							: isSend
-								? { target: (m.details && m.details.metadata && typeof m.details.metadata.target === "string" ? m.details.metadata.target : rawTarget), truncated: false }
-							: isList
-								? { count: listCount, truncated: false }
-								: isStop
-									? { stopped: (output.match(/^Stopped (\d+) Agent/m)?.[1] ? Number(output.match(/^Stopped (\d+) Agent/m)[1]) : 0),
-										failed: (/^Failed:/m.test(output) ? (output.match(/^- /gm)?.length ?? 0) : 0), truncated: false }
-									: { truncated: false },
+				// Title/metadata mirror the production tool result's own
+				// details (the same facts HC's durable part inherits);
+				// only Bash's shell facts are derived here.
+				title: isBash ? command : (m.details && typeof m.details.title === "string" ? m.details.title : ""),
+				metadata: isBash
+					? { output, exit: 0, truncated: false }
+					: (m.details && m.details.metadata && typeof m.details.metadata === "object"
+						? { truncated: false, ...m.details.metadata }
+						: { truncated: false }),
 					time: { start, end },
 				},
 		};

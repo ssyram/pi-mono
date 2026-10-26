@@ -9,6 +9,7 @@ import { createWriteStream } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startPiRoots } from "./pi-roots.mjs";
+import { createObservationApi } from "./observation-api.mjs";
 
 const PLUGIN = fileURLToPath(new URL("../..", import.meta.url));
 const REF = resolve(process.env.DUAL_REF ?? join(PLUGIN, "../hc-fsm-reference"));
@@ -25,7 +26,7 @@ const facadePort = 21000 + (process.pid % 20000);
 const runId = `${Date.now().toString(36)}${process.pid.toString(36)}`;
 const run = join("/tmp/fsm-dual", runId);
 const work = join(run, "work"), agentDir = join(run, "agent"), fsmData = join(run, "fsm"), dataDir = join(run, "plugin-data");
-for (const d of ["home", "tmp", "config", "cache", "state", "model-inputs", "hooks", "captures", "hc-tool-parts", "fsm-states", "managed"]) await mkdir(join(run, d), { recursive: true });
+for (const d of ["home", "tmp", "config", "cache", "state", "model-inputs", "hooks", "captures", "hc-tool-parts", "fsm-states", "api-observations", "managed"]) await mkdir(join(run, d), { recursive: true });
 for (const d of [work, agentDir, fsmData, dataDir]) await mkdir(d, { recursive: true });
 
 const env = { LANG: process.env.LANG ?? "en_US.UTF-8", LC_ALL: "C", SHELL: "/bin/bash", USER: process.env.USER ?? "ssyram",
@@ -58,8 +59,10 @@ await waitHttp(mockPort, "/__admin/scripts", 20000);
 const cfgFile = join(run, "flush-cfg.json");
 await writeFile(cfgFile, JSON.stringify({ run, work }));
 const shim = join(run, "plot-shim.sh");
-const modelCommand = `python3 ${join(PLUGIN, "scripts/dual/profile-boundary.py")} ${engineRoot}`;
-await writeFile(shim, `#!/bin/sh\nnode ${join(PLUGIN, "scripts/dual/flush-observations.mjs")} --standalone ${cfgFile}\nRES=$?\n[ $RES -eq 0 ] || exit $RES\nexec ${modelCommand} ${plotPath} "$@"\n`, { mode: 0o755 });
+// D9 declared boundaries (owner ruling a): scheduling-coupled inbox asserts.
+const D9_SKIP = plotPath.endsWith("/plots/reference.json") ? { "alpha/009": ["GAMMA_VALUE="], "root/015": ["ALPHA_VALUE="] } : {};
+const modelCommand = `PLOT_D9_SKIP='${JSON.stringify(D9_SKIP)}' python3 ${join(PLUGIN, "scripts/dual/profile-boundary.py")} ${engineRoot}`;
+await writeFile(shim, `#!/bin/sh\nnode ${join(PLUGIN, "scripts/dual/flush-observations.mjs")} --standalone ${cfgFile}\nRES=$?\n[ $RES -eq 0 ] || exit $RES\n${modelCommand} ${plotPath} "$@"\n`, { mode: 0o755 });
 const mount = await http(mockPort, "/__admin/scripts", { name: "plot", command: `sh ${shim}` });
 await writeFile(join(run, "mount.json"), JSON.stringify(mount, null, 2));
 
@@ -109,15 +112,7 @@ try {
 	if (engineRoot !== REF) await writeFile(join(run, "state.json"), JSON.stringify({
 		bindings: { ...JSON.parse(env.PLOT_BINDINGS), ...Object.fromEntries(roots.map((root) => [`session.${root.role}`, root.protoSid])) }, actors: {}, receipts: {},
 	}, null, 2));
-	facade = (await import("node:http")).createServer((req, res) => {
-		const match = /^\/session\/([^/]+)\/message$/.exec(req.url ?? "");
-		if (!match) { res.writeHead(404, { "content-type": "application/json" }); res.end("{}"); return; }
-			readFile(join(run, "facade-messages.json"), "utf8").then((t) => {
-				const map = JSON.parse(t);
-				res.writeHead(200, { "content-type": "application/json" });
-				res.end(JSON.stringify(map[match[1]] ?? []));
-			}, () => { res.writeHead(200, { "content-type": "application/json" }); res.end("[]"); });
-	});
+	facade = (await import("node:http")).createServer(await createObservationApi(run, roots));
 	await new Promise((r) => facade.listen(facadePort, "127.0.0.1", r));
 
 	try {
