@@ -1,6 +1,7 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { DaemonRequester } from "../broker/daemon-request.ts";
+import { appendFileSync } from "node:fs";
 import { isAdmissionObject } from "../admission/parse-policy-input.ts";
 import type { JudgeSessions } from "../judge/judge-session.ts";
 import type { GateBinding } from "./permission-gate.ts";
@@ -66,6 +67,18 @@ export interface StopGateDeps {
 	analysisBudgetMs?: number;
 }
 
+// Dual-harness evidence: record the final Stop decision with the same shape
+// the reference hook emits, so observation layers can verify it verbatim.
+function dualStopLog(entry: Record<string, unknown>): void {
+	const target = process.env.FSM_DUAL_STOP_LOG;
+	if (!target) return;
+	try {
+		appendFileSync(target, JSON.stringify(entry) + "\n");
+	} catch {
+		/* best-effort evidence */
+	}
+}
+
 /** Stop gate v2: hard law first, then the soft Analyze route (upstream hook parity, fail-closed). */
 export function installStopGate(pi: ExtensionAPI, request: DaemonRequester, binding: () => GateBinding | undefined,
 	timeoutMs: number, deps?: StopGateDeps): () => void {
@@ -122,6 +135,11 @@ export function installStopGate(pi: ExtensionAPI, request: DaemonRequester, bind
 		try {
 			const verdict = await runStopAnalysis(deps.judges, sid, facts, evidence.dir);
 			const decision = reduceStop(facts, verdict);
+			dualStopLog({ session_id: current.sessionId, agent_id: current.agentId,
+				last_assistant_message: facts.lastAssistantMessage, decision: decision.allowed ? "allow" : "block",
+				reason: "reason" in verdict ? verdict.reason : decision.reason,
+				...(facts.noProgress > 0 ? { no_progress_count: facts.noProgress } : {}),
+				agent: current.agentId === "main" ? "stop" : "subagent-stop" });
 			if (decision.allowed) {
 				if (decision.resetOnAllow) await resetStopGate(request, current, Date.now() + timeoutMs);
 				ctx.ui.notify(decision.reason, "info");

@@ -19,6 +19,7 @@ export async function startPiRoots(options, roots) {
 		}
 		const rpc = new RpcClient({ cliPath, cwd: rootWork, env: { ...env,
 			PI_CODING_AGENT_DIR: rootAgent, FSM_COMPATIBLE_CONFIG: rootConfig, FSM_TEST_WORKSPACE: rootWork,
+			FSM_DUAL_STOP_LOG: join(run, "stop-decisions.jsonl"),
 		}, model: "plot/plot-model", args: ["-ne", "-e", join(plugin, "src/index.ts"), "-e", providerExt] });
 		const root = { role, rpc, work: rootWork, agentDir: rootAgent };
 		roots.push(root);

@@ -288,6 +288,37 @@ for (const line of fresh) {
 	await writeFile(`${prefix}.stderr`, blocked ? `${reason}\n` : "");
 }
 
+// Dual Stop decisions: synthesize the reference hook's five-file record so
+// stop-phase observation can match verdicts verbatim.
+{
+	let stopText = "";
+	try {
+		stopText = await readFile(join(run, "stop-decisions.jsonl"), "utf8");
+	} catch { /* none */ }
+	const lines = stopText.split("\n").filter(Boolean);
+	const freshStop = lines.slice(seen.stopDecisions ?? 0);
+	seen.stopDecisions = lines.length;
+	for (const line of freshStop) {
+		let e;
+		try {
+			e = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		const id = ++seen.hooks;
+		const prefix = join(run, "hooks", String(id));
+		const blocked = e.decision === "block";
+		const verdict = { decision: e.decision, reason: e.reason, ...(e.no_progress_count !== undefined ? { no_progress_count: e.no_progress_count } : {}) };
+		const stdoutText = JSON.stringify(verdict, Object.keys(verdict).sort()) + "\n";
+		await writeFile(`${prefix}.argv`, [e.agent ?? "stop", "--emit", "json", "--agent-cli", "opencode"].join("\n") + "\n");
+		await writeFile(`${prefix}.input.json`, JSON.stringify({ session_id: e.session_id, agent_id: e.agent_id,
+			last_assistant_message: e.last_assistant_message, cwd: work }));
+		await writeFile(`${prefix}.exit`, (blocked ? 2 : 0) + "\n");
+		await writeFile(`${prefix}.stdout`, stdoutText);
+		await writeFile(`${prefix}.stderr`, blocked ? String(e.reason) + "\n" : "");
+	}
+}
+
 await writeFile(statePath, JSON.stringify(seen));
 await writeFile(facadePath, JSON.stringify(facade));
 await release();

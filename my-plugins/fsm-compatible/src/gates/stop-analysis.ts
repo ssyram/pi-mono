@@ -127,7 +127,7 @@ export async function runStopAnalysis(judges: JudgeSessions, sid: string, facts:
 		"",
 		"Authoritative Stop facts:",
 		JSON.stringify({
-			legal_pause: facts.isExitState,
+			legal_pause: false,
 			fsm_name: facts.fsmName,
 			state_id: facts.stateId,
 			is_exit_state: facts.isExitState,
