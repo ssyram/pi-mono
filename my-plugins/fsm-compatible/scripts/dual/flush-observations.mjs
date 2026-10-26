@@ -204,6 +204,8 @@ for (const { source, lines, calls } of scanned) {
 		// {truncated: false}.
 		const toolName = m.toolName ?? call.name;
 		const isBash = toolName === "bash";
+		// HC StructuredOutput durable part: fixed title, validity in metadata.
+		const isStructured = toolName === "StructuredOutput";
 		const command = typeof call.args?.command === "string" ? call.args.command : "";
 		// HC agent parts carry the description as title and creation metadata;
 		// the created sid is parsed from the Started receipt itself.
@@ -231,12 +233,14 @@ for (const { source, lines, calls } of scanned) {
 				// Title/metadata mirror the production tool result's own
 				// details (the same facts HC's durable part inherits);
 				// only Bash's shell facts are derived here.
-				title: isBash ? command : (m.details && typeof m.details.title === "string" ? m.details.title : ""),
-				metadata: isBash
-					? { output, exit: 0, truncated: false }
-					: (m.details && m.details.metadata && typeof m.details.metadata === "object"
-						? { truncated: false, ...m.details.metadata }
-						: { truncated: false }),
+				title: isStructured ? "Structured Output" : isBash ? command : (m.details && typeof m.details.title === "string" ? m.details.title : ""),
+				metadata: isStructured
+					? { valid: true }
+					: isBash
+						? { output, exit: 0, truncated: false }
+						: (m.details && m.details.metadata && typeof m.details.metadata === "object"
+							? { truncated: false, ...m.details.metadata }
+							: { truncated: false }),
 					time: { start, end },
 				},
 		};
