@@ -549,7 +549,7 @@ frames:
       progress:
         kind: item_done
       fork: []
-    - text: 对偶终态（本段）：①idle-resume 全剧本 PASS（23/23回执，首个完整对偶）；②reference 41/68回执验证（root0-13/beta13/gamma5全对golden），唯一卡点alpha/009定性完成——use-plot对未满足依赖请求持state.lock忙等自旋（plot_engine.execute 150-168行无sleep重试），把gamma的send结构性钉在alpha起跑请求之后：四组实测间隔恒=debounce窗口+0.3s（5s→5.24s、6.5s→6.82s、8s→8.22s、1s→1.38s），任何窗口都无法让GAMMA先于alpha首个call到达；时间窗口不可解，列D9候选=剧本并发时序对宿主调度敏感，待owner裁决（选项：a接受declared-boundary跳过该inbox断言；b要求参考包侧修复忙等=改参考产品需owner授权；c runner侧给该点确定性等待=改观察口径）；③flush锁重构后90ms/请求（原300ms）+facade锁内重读修并发覆盖；④生产窗口收敛1s对齐HC fork量级。Sol互补剧本产出G1/G2两生产缺口已修，semantic-*待G1修复后重跑（下一责任）。
+    - text: '对偶双剧本全PASS：reference（68/68回执，final=Computed result: 21 + 21 = 42）+ idle-resume（23/23）。D9(a)落地=wrapper三层（inbox断言删除/锁内bind恢复取自真实send参数/golden消费列表按实际送达对齐）+shim无锁等待send回执落盘；flush part title/metadata改原样转存生产details；owner铁律=框架可修但必须保证HC完全match的剧本性质，白名单外差异必须暴露。新派遣：#144 Sol审计dual框架（过豁免/吞差异/竞态）、#145 Sol第三套fuzz/PBT剧本（撞门禁→边界/中点性质→HC双轮固化，产出在hc-fsm-reference/fuzz/）。'
       children: []
       progress:
         kind: in_progress
@@ -568,6 +568,7 @@ frames:
       - 本轮5项真实实现修复全部带全量170/170+check 0回归；对偶已深入beta阶段，证明SID协议化/门禁文案/子会话FSM投影/异步Started/workdir语义均已按golden对齐。
       - '本段新增生产修复：G1 root不预注册（对齐announceSubagentStart root-skip）；G2 judge read N: line渲染；agent_list self status=running（busy投影事实）；root agent_type=build（HC defaultInfo推导）；send→root走root投递（EISDIR根因=误对root record开child host）。三笔commit：9d7517bae实验包/7607d87fe插件主体/03263f23b+93a254da0对偶修复，均170/170+check 0，未push。'
       - 'D9证据链：间隔=窗口+常数 四组数据（runs mvky7a2hi1s/mvkyd1lb1274/mvl1fovb1j3o/mvl1wtpzqgf），机制=use-plot execute()的None自旋持锁+flock排队顺序把gamma step3处理排在alpha起跑请求后；idle-resume无此耦合（单worker）。commits: 03263f23b/93a254da0/90a5ed954 均未push。'
+      - reference PASS关键修复：D9 bind恢复须在plot过滤前提取（被删inbox item携带bind）；golden对齐只裁golden侧未达条目、已达条目严格比较；root/027的agent_stop part metadata={stopped,failed}来自生产details转存（不再猜测合成）。commit de397a0cf（170/170全绿，未push）。
       side_effects: []
       principles: []
       remarks:
@@ -622,6 +623,9 @@ frames:
     - action: update
       at: 2026-10-23T14:31:14.232130000Z
       detail: 结算reference唯一剩余卡点的完整定性证据，登记D9候选与三个处置选项供owner裁决；变更字段：content.results、plan[3].text
+    - action: update
+      at: 2026-10-26T02:55:06.832667000Z
+      detail: 结算reference全PASS里程碑与owner铁律，登记两个新派遣；变更字段：content.results、plan[3].text
   6:
     parent: null
     title: 独立HC FSM实验包：use-plot与真实collect/replay基准
