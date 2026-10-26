@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { Agent } from "@earendil-works/pi-agent-core";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
@@ -22,6 +24,7 @@ export interface JudgeModelSource {
 
 interface JudgeEntry {
 	transcript: AgentMessage[];
+	sessionFile?: string;
 	agent: Agent | undefined;
 }
 
@@ -69,10 +72,18 @@ export class JudgeSessions {
 
 	create(): string {
 		if (this.entries.size >= this.maxJudges) throw new RuntimeError("queue-full");
-		const sessionId = randomUUID();
+		// HC judge sessions carry the ses_ protocol prefix; the FSM stop hook
+		// addresses judges by this id on the bridge surface.
+		const sessionId = `ses_${randomUUID().replace(/-/g, "").slice(0, 24)}`;
 		this.entries.set(sessionId, { transcript: [], agent: undefined });
+		// Persist under the instance cwd so observation layers that scan
+		// session transcripts (dual harness evidence) can see judge turns.
+		const sessionFile = join(this.cwd, ".fsm-compatible-judges", sessionId, "session.jsonl");
+		mkdirSync(dirname(sessionFile), { recursive: true });
+		writeFileSync(sessionFile, "");
+		this.entries.set(sessionId, { transcript: [], agent: undefined, sessionFile });
 		this.store.registerJudge({ sessionId, title: "fsm-gate", createdAt: Date.now(), updatedAt: Date.now(),
-			sessionFile: null, lifecycle: "idle" });
+			sessionFile, lifecycle: "idle" });
 		return sessionId;
 	}
 
@@ -107,6 +118,10 @@ export class JudgeSessions {
 			await agent.waitForIdle();
 			const updated = agent.state.messages;
 			entry.transcript = [...updated];
+			if (entry.sessionFile) {
+				const lines = updated.map((message) => JSON.stringify({ type: "message", message }) + "\n").join("");
+				writeFileSync(entry.sessionFile, lines);
+			}
 			const envelope = this.terminalEnvelope(sessionId, updated, capture);
 			this.store.updateJudge(sessionId, "idle", Date.now());
 			return envelope;

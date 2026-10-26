@@ -41,6 +41,20 @@ for (const session of sessions) {
 		}
 	}
 }
+// Judge sessions persist under each root's work directory (in-memory no more):
+// .fsm-compatible-judges/<sid>/session.jsonl carries their turns.
+for (const session of sessions) {
+	const judgeRoot = join(session.agentDir ?? join(run, "agent"), "..", "..", "work", ".fsm-compatible-judges");
+	for (const sid of await readdir(judgeRoot).catch(() => [])) {
+		sources.push({ sid, file: join(judgeRoot, sid, "session.jsonl") });
+	}
+}
+{
+	const workJudges = join(work, ".fsm-compatible-judges");
+	for (const sid of await readdir(workJudges).catch(() => [])) {
+		sources.push({ sid, file: join(workJudges, sid, "session.jsonl") });
+	}
+}
 
 // Transcript writes race model requests: re-read until stable.
 const stableRead = async (file) => {
@@ -128,7 +142,7 @@ for (const source of sources) {
 		}
 		if (e.type !== "message") continue;
 		for (const b of e.message?.content ?? []) {
-			if (b.type === "toolCall") calls.set(b.id, { name: b.name, args: b.arguments, ts: Date.parse(e.timestamp),
+			if (b.type === "toolCall") calls.set(b.id, { name: b.name, args: b.arguments, ts: Date.parse(e.timestamp ?? "") || (typeof e.message?.timestamp === "number" ? e.message.timestamp : undefined),
 				providerID: e.message.provider, modelID: e.message.model });
 		}
 	}
@@ -183,7 +197,7 @@ for (const { source, lines, calls } of scanned) {
 		if (!call || seenCalls.includes(m.toolCallId) || emitted.has(m.toolCallId)) continue;
 		seenCalls.push(m.toolCallId);
 		const start = call.ts ?? Date.now();
-		const end = Date.parse(e.timestamp) || Date.now();
+		const end = Date.parse(e.timestamp ?? "") || (typeof e.message?.timestamp === "number" ? e.message.timestamp : undefined) || Date.now();
 		const output = (m.content ?? []).filter((c) => c.type === "text").map((c) => c.text).join("");
 		// HC durable parts carry shell facts for Bash: the command as title and
 		// {output, exit, truncated} in metadata; other tools use title "" and
@@ -209,7 +223,7 @@ for (const { source, lines, calls } of scanned) {
 			id: `prt_${rid()}`,
 			messageID: `msg_${rid()}`,
 			state: m.isError
-				? { status: "error", input: call.args, error: output, time: { start, end } }
+				? { status: "error", input: call.args, error: output, time: { start: Math.min(start, end), end: Math.max(start, end) } }
 				: {
 					status: "completed",
 					input: call.args,

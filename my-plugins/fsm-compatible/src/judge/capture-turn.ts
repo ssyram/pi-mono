@@ -49,6 +49,8 @@ export class CaptureTurn {
 			return { kind: "invalid", content: failed.error, terminate: false, failed };
 		}
 		this.captured = [...this.captured, { toolCallId, value: structuredClone(input), time: { start, end: Date.now() } }];
-		return { kind: "captured", content: JSON.stringify(input), terminate: true, failed: undefined };
+		// HC's StructuredOutput tool acknowledges with this fixed text; the
+		// captured input travels in the durable part, not the receipt.
+		return { kind: "captured", content: "Structured output captured successfully.", terminate: true, failed: undefined };
 	}
 }
