@@ -18,6 +18,7 @@ function toExecutionRecord(binding: PersistedBinding, facts: RecordFacts): Execu
 		branch: Object.freeze([...facts.branch]),
 		sessionFile: facts.sessionFile,
 		errorMessage: facts.errorMessage,
+		...(facts.agentDisplayName ? { agentDisplayName: facts.agentDisplayName } : {}),
 	});
 }
 

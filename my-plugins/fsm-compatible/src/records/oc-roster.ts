@@ -5,8 +5,10 @@ import type { ExecutionRecord } from "./session-record.ts";
 
 export interface OcSession {
 	readonly id: string;
-	readonly parentID: string | null;
+	readonly parentID?: string | null;
 	readonly title: string;
+	readonly agent?: string;
+	readonly name?: string;
 	readonly time: { readonly created: number; readonly updated: number };
 }
 export type OcStatusType = "busy" | "retry" | "idle";
@@ -17,7 +19,13 @@ function sessionOf(record: ExecutionRecord, rootHostId: string, rootProtocolId: 
 	const created = record.header ? normalizeIsoTimestamp(record.header.timestamp) : record.updatedAt;
 	const id = record.sessionId === rootHostId ? rootProtocolId : record.sessionId;
 	const parentID = record.parentSessionId === rootHostId ? rootProtocolId : record.parentSessionId;
-	return { id, parentID, title: record.title,
+	// HC stores the execution profile on the session: the root carries the host
+	// default profile, children carry their spawn type (agentId holds it).
+	// A root session omits parentID entirely — HC distinguishes absent from
+	// null on this wire.
+	return { id, ...(parentID === null ? {} : { parentID }), title: record.title,
+		agent: record.sessionId === rootHostId ? "build" : (record.agentName ?? record.agentId),
+		...(record.agentDisplayName ? { name: record.agentDisplayName } : {}),
 		time: { created, updated: record.updatedAt } };
 }
 
@@ -38,7 +46,9 @@ export function projectOcRoster(store: RecordStore): readonly OcSession[] {
 		seen.add(current);
 		const record = store.getExecution(current);
 		if (record) sessions.push(sessionOf(record, store.rootId, store.rootProtocolId));
-		const children = store.executionChildren(current)
+		// Children record the root's protocol sid as parent, while the BFS
+		// starts at the host root id: match both spellings at the root layer.
+		const children = [...store.executionChildren(current), ...(current === store.rootId ? store.executionChildren(store.rootProtocolId) : [])]
 			.map((child) => child.sessionId)
 			.sort((left, right) => (left < right ? -1 : 1));
 		queue.push(...children);
@@ -52,9 +62,13 @@ export function projectOcRoster(store: RecordStore): readonly OcSession[] {
 
 export function projectOcStatuses(store: RecordStore): ReadonlyMap<string, OcStatus> {
 	const statuses = new Map<string, OcStatus>();
+	// OC's /session/status lists only sessions with active runs; idle sessions
+	// are absent from the map, and observers treat absence as idle.
 	for (const record of store.listExecutions()) {
+		const status = lifecycleStatus(record.lifecycle);
+		if (status === "idle") continue;
 		const id = record.sessionId === store.rootId ? store.rootProtocolId : record.sessionId;
-		statuses.set(id, { type: lifecycleStatus(record.lifecycle) });
+		statuses.set(id, { type: status });
 	}
 	for (const judge of store.listJudges()) {
 		if (judge.lifecycle === "unavailable") throw new RuntimeError("not-ready");

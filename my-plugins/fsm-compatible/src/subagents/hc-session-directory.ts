@@ -15,7 +15,9 @@ export class HcSessionDirectory {
 		// HC parity: a root session has no explicit agent, so its agent type is
 		// defaultInfo()'s name (build) — prompt.ts falls back the same way when
 		// inbox delivery resolves the sender agent of an agent-less session.
-		this.records.set(root.rootSessionId, makeRootRecord(root, "main", Date.now(), "build"));
+		// The root title mirrors the host's session title (HC sets it at root
+		// creation; hosts may override via FSM_COMPATIBLE_ROOT_TITLE).
+		this.records.set(root.rootSessionId, makeRootRecord(root, process.env.FSM_COMPATIBLE_ROOT_TITLE ?? "main", Date.now(), "build"));
 		for (const snapshot of snapshots) {
 			const record = restoreHcSessionRecord(snapshot);
 			if (record.binding.rootSessionId !== root.rootSessionId) throw new Error("hc session snapshot root mismatch");

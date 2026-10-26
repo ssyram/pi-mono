@@ -2,6 +2,7 @@ import type { DaemonRequester } from "../broker/daemon-request.ts";
 import type { FsmInvoker } from "../broker/fsm-tools.ts";
 import { registerProjectedTools } from "../broker/fsm-tools.ts";
 import type { FsmTool } from "../broker/fsm-catalog.ts";
+import { registerShellToolAlias } from "../gates/shell-tool-alias.ts";
 import { installPermissionGate } from "../gates/permission-gate.ts";
 import { installStopGate } from "../gates/stop-gate.ts";
 import type { JudgeSessions } from "../judge/judge-session.ts";
@@ -62,6 +63,9 @@ export function hcChildHook(deps: HcChildHookDeps): ChildHookExtension {
 				analysisEnabled: deps.analysisEnabled,
 				markStopContinuation: (id) => { const r = deps.services.directory.get(id); if (r) r.turnProfile = "build"; },
 			});
+			// HC child sessions run the host shell tool with HC abort/timeout
+			// envelope semantics.
+			registerShellToolAlias(pi, deps.record.workdir?.path ?? process.cwd());
 			registerHcAgentTools(pi, {
 				services: deps.services,
 				depth: deps.record.depth,

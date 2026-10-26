@@ -8,6 +8,12 @@ import { join } from "node:path";
 
 const cfg = JSON.parse(await readFile(process.argv[3], "utf8"));
 const { run, work } = cfg;
+const stageFile = process.env.FSM_FLUSH_STAGE;
+let stageN = 0;
+const stage = async (name) => {
+	if (!stageFile) return;
+	await appendFile(stageFile, `${process.argv[2]} #${stageN++} ${name}\n`).catch(() => {});
+};
 let sessionFile = null;
 let protoSid = null;
 for (let i = 0; i < 200; i++) {
@@ -73,6 +79,9 @@ const stableRead = async (file) => {
 	return previous;
 };
 const facadePath = join(run, "facade-messages.json");
+// The engine reads this file on every settle; it must exist even before the
+// first projected event.
+await appendFile(join(run, "hc-tools.jsonl"), "");
 // D9 declared boundary (owner ruling a): a send whose Accepted receipt is on
 // disk must actually land in the recipient's transcript before the engine
 // compares inboxes — wait lock-free (this shim holds no state lock).
@@ -121,7 +130,11 @@ if (d9Tokens.length) {
 		return false;
 	};
 	const missingSend = () => d9Tokens.some((token) => !sendOnDisk(token));
-	for (let i = 0; i < 80 && missingSend(); i++) {
+	// The D9 send-receipt wait belongs to the request path (one shim flush per
+	// model call); the engine's 50ms poll must never hold the state lock for
+	// seconds waiting on tokens, so polls take a single quick pass.
+	const budget = process.argv[2] === "--poll" ? 1 : 80;
+	for (let i = 0; i < budget && missingSend(); i++) {
 		await new Promise((r) => setTimeout(r, 150));
 	}
 }
@@ -151,18 +164,26 @@ for (const source of sources) {
 // ---- write phase: serialized between overlapping request shims ----
 const { mkdir, rmdir } = await import("node:fs/promises");
 const lockDir = join(run, "flush.lock");
+// Poll mode runs inside the engine's 50ms dependency loop: never queue behind
+// another flush, just skip this round — the next poll picks it up.
+const pollMode = process.argv[2] === "--poll";
+await stage("pre-lock");
 for (let attempt = 0; ; attempt++) {
 	try {
 		await mkdir(lockDir);
 		break;
 	} catch {
-		if (attempt > 400) throw new Error("flush lock contention");
+		if (pollMode || attempt > 400) {
+			if (pollMode) process.exit(0);
+			throw new Error("flush lock contention");
+		}
 		await new Promise((r) => setTimeout(r, 15));
 	}
 }
 const release = () => rmdir(lockDir).catch(() => {});
+await stage("locked");
 Object.assign(seen, JSON.parse(await readFile(statePath, "utf8").catch(() => "{}")));
-seen.files ??= {}; seen.hooks ??= 0; seen.daemonLines ??= 0;
+seen.files ??= {}; seen.hooks ??= 0; seen.daemonLines ??= 0; seen.runningPartIds ??= {};
 // Re-read the facade under the lock too: a stale copy would drop messages
 // another shim appended between our scan and this write phase.
 const facade = JSON.parse(await readFile(facadePath, "utf8").catch(() => "{}"));
@@ -179,6 +200,7 @@ try {
 	}
 } catch { /* first flush */ }
 
+await stage("scanned:" + scanned.length);
 for (const { source, lines, calls } of scanned) {
 	const seenCalls = (seen.files[source.file] ??= []);
 
@@ -193,6 +215,9 @@ for (const { source, lines, calls } of scanned) {
 		}
 		if (e.type !== "message" || e.message?.role !== "toolResult") continue;
 		const m = e.message;
+		// HC parts persist across the running→completed transition with one
+		// stable identity; reuse the synthesized running part's ids.
+		const stableIds = seen.runningPartIds[m.toolCallId];
 		const call = calls.get(m.toolCallId);
 		if (!call || seenCalls.includes(m.toolCallId) || emitted.has(m.toolCallId)) continue;
 		seenCalls.push(m.toolCallId);
@@ -222,8 +247,8 @@ for (const { source, lines, calls } of scanned) {
 			callID: m.toolCallId,
 			tool: m.toolName ?? call.name,
 			sessionID: source.sid,
-			id: `prt_${rid()}`,
-			messageID: `msg_${rid()}`,
+			id: stableIds?.partId ?? `prt_${rid()}`,
+			messageID: stableIds?.messageId ?? `msg_${rid()}`,
 			state: m.isError
 				? { status: "error", input: call.args, error: output, time: { start: Math.min(start, end), end: Math.max(start, end) } }
 				: {
@@ -236,8 +261,10 @@ for (const { source, lines, calls } of scanned) {
 				title: isStructured ? "Structured Output" : isBash ? command : (m.details && typeof m.details.title === "string" ? m.details.title : ""),
 				metadata: isStructured
 					? { valid: true }
-					: isBash
-						? { output, exit: 0, truncated: false }
+					: isBash && m.details && typeof m.details.metadata === "object" && m.details.metadata !== null && "exit" in m.details.metadata
+						? { truncated: false, ...m.details.metadata }
+						: isBash
+							? { output, exit: 0, truncated: false }
 						: (m.details && m.details.metadata && typeof m.details.metadata === "object"
 							? { truncated: false, ...m.details.metadata }
 							: { truncated: false }),
@@ -247,9 +274,49 @@ for (const { source, lines, calls } of scanned) {
 		await emit({ kind: "before", input: { tool: part.tool, sessionID: source.sid, callID: part.callID }, output: { args: call.args }, observedAt: start });
 		await emit({ kind: "event", input: { id: `evt_${rid()}`, type: "message.part.updated", properties: { sessionID: source.sid, part, time: end } }, output: null, observedAt: end });
 		await writeFile(join(run, "hc-tool-parts", `${part.callID}.json`), JSON.stringify(part, null, 1));
+		if (stableIds) {
+			const stale = facadeMessages.findIndex((entry) => entry.id === stableIds.messageId);
+			if (stale >= 0) facadeMessages.splice(stale, 1);
+			facadeIds.delete(part.messageID);
+		}
 		if (!facadeIds.has(part.messageID)) {
 			facadeMessages.push({ id: part.messageID, info: { id: part.messageID, sessionID: source.sid, role: "assistant",
 				providerID: call.providerID, modelID: call.modelID, agent: null, time: { created: end } }, parts: [part] });
+		}
+	}
+	// Unsettled calls are genuinely running: emit one stable running part so
+	// the cancellation boundary can observe the in-flight tool; once settled,
+	// drop it so exactly one durable part remains per call.
+	seen.running ??= {};
+	for (const [callId, call] of calls) {
+		const settled = seenCalls.includes(callId) || emitted.has(callId);
+		const mid = seen.running[callId];
+		if (settled) {
+			if (mid) {
+				const idx = facadeMessages.findIndex((m) => m.id === mid);
+				// The completed part may already occupy this message slot under
+				// the reused stable id; only retire a still-running placeholder.
+				if (idx >= 0 && facadeMessages[idx].parts.some((part) => part.state?.status === "running")) facadeMessages.splice(idx, 1);
+				delete seen.running[callId];
+				delete seen.runningPartIds[callId];
+			}
+			continue;
+		}
+		if (mid) continue;
+		const start = call.ts ?? Date.now();
+		const rpart = {
+			type: "tool", callID: callId, tool: call.name, sessionID: source.sid,
+			id: `prt_${rid()}`, messageID: `msg_${rid()}`,
+			state: call.name === "bash"
+				? { status: "running", input: call.args, metadata: { output: "" }, time: { start } }
+				: { status: "running", input: call.args, time: { start } },
+		};
+		seen.running[callId] = rpart.messageID;
+		(seen.runningPartIds ??= {})[callId] = { partId: rpart.id, messageId: rpart.messageID };
+		await emit({ kind: "event", input: { id: `evt_${rid()}`, type: "message.part.updated", properties: { sessionID: source.sid, part: rpart, time: start } }, output: null, observedAt: start });
+		if (!facadeIds.has(rpart.messageID)) {
+			facadeMessages.push({ id: rpart.messageID, info: { id: rpart.messageID, sessionID: source.sid, role: "assistant",
+				providerID: call.providerID, modelID: call.modelID, agent: null, time: { created: start } }, parts: [rpart] });
 		}
 	}
 }
@@ -308,14 +375,19 @@ for (const line of fresh) {
 		const id = ++seen.hooks;
 		const prefix = join(run, "hooks", String(id));
 		const blocked = e.decision === "block";
-		const verdict = { decision: e.decision, reason: e.reason, ...(e.no_progress_count !== undefined ? { no_progress_count: e.no_progress_count } : {}) };
+		// HC allow verdicts: wait_for_async_work carries no count; human
+		// intervention's allow does. Blocks always carry the anti-spiral count.
+		const withCount = e.decision === "block" || e.action === "human_intervention";
+		const verdict = { decision: e.decision, reason: e.reason, ...(withCount && e.no_progress_count !== undefined ? { no_progress_count: e.no_progress_count } : {}) };
 		const stdoutText = JSON.stringify(verdict, Object.keys(verdict).sort()) + "\n";
 		await writeFile(`${prefix}.argv`, [e.agent ?? "stop", "--emit", "json", "--agent-cli", "opencode"].join("\n") + "\n");
 		await writeFile(`${prefix}.input.json`, JSON.stringify({ session_id: e.session_id, agent_id: e.agent_id,
 			last_assistant_message: e.last_assistant_message, cwd: work }));
 		await writeFile(`${prefix}.exit`, (blocked ? 2 : 0) + "\n");
 		await writeFile(`${prefix}.stdout`, stdoutText);
-		await writeFile(`${prefix}.stderr`, blocked ? String(e.reason) + "\n" : "");
+		// HC emit_verdict: the evaluator's reason always goes to the
+		// diagnostics channel, allow included.
+		await writeFile(`${prefix}.stderr`, String(e.reason) + "\n");
 	}
 }
 

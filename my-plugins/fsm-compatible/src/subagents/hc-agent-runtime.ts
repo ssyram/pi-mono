@@ -55,6 +55,28 @@ export interface HcRuntimeHandle {
 	close(): Promise<void>;
 }
 
+/** HC applyAgentRoster parity: a sentinel-marked block on the last user
+ * message naming the session's direct children (running rows, else a
+ * none-(N idle) summary). */
+function withAgentRoster(directory: HcSessionDirectory, sessionId: string, text: string): string {
+	const children = directory.list().filter((record) => record.parent_id === sessionId);
+	if (children.length === 0) return text;
+	const live = children
+		.filter((record) => record.status === "busy" || record.status === "retry")
+		.sort((left, right) => right.time_created - left.time_created);
+	const shown = live.slice(0, 10);
+	const rows = shown.map((record) => `  ${record.session_id}  ${record.name ?? ""}  — ${record.title}`);
+	const roster = [
+		"<!-- opencode:subagents -->",
+		shown.length === 0
+			? `Your subagents working right now: none (${children.length - live.length} idle).`
+			: "Your subagents working right now:",
+		...rows,
+		...(live.length > 10 ? [`  ${live.length - 10} more are running.`] : []),
+	].join("\n");
+	return `${text}\n${roster}`;
+}
+
 /** Owning runtime for one HC session tree; children are in-process Nico sessions. */
 export async function openHcAgentRuntime(deps: HcRuntimeDeps): Promise<HcRuntimeHandle> {
 	const { pi, ctx, config, policy, binding, store, request } = deps;
@@ -114,18 +136,22 @@ export async function openHcAgentRuntime(deps: HcRuntimeDeps): Promise<HcRuntime
 		deliverMessage: async (message: HcAgentMessage) => {
 			await services.deliverRendered(message.target, renderAgentMessage(message));
 		},
-		deliverRendered: async (target: string, text: string) => {
+		deliverRendered: async (target: string, rendered: string) => {
+			// HC inbox delivery is a plain user message (string content on the
+			// wire): busy → read at the next step (steer), idle → next run.
+			// HC applies the agent roster only when a delivery STARTS a turn
+			// (idle wake): direct children as a sentinel-marked block.
 			if (target === binding.rootSessionId) {
-				// HC inbox delivery is a plain user message (string content on the
-				// wire): busy → read at the next step (steer), idle → next run.
-				await pi.sendUserMessage(text, deps.ctx.isIdle() ? undefined : { deliverAs: "steer" });
+				const idle = deps.ctx.isIdle();
+				const text = idle ? withAgentRoster(directory, target, rendered) : rendered;
+				await pi.sendUserMessage(text, idle ? undefined : { deliverAs: "steer" });
 				return true;
 			}
-			const record = directory.get(target);
+			const record = directory.find(target);
 			if (!record) return false;
 			if (!record.handle) await host.open(record, services.launchPlan(record), services.observe);
 			delete record.turnProfile;
-			await host.deliver(record, text);
+			await host.deliver(record, record.status === "idle" ? withAgentRoster(directory, target, rendered) : rendered);
 			return true;
 		},
 		deliverNotification: async (parentId, text, meta) => {

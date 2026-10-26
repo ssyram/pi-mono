@@ -34,8 +34,9 @@ test("roster is a real BFS of the execution tree with judges as separate roots",
 		updatedAt: Date.parse(ROOT) + 20, sessionFile: null, lifecycle: "busy" });
 	const roster = projectOcRoster(store);
 	assert.deepEqual(roster.map((session) => session.id), [protocolSessionId("root"), "child-a", "child-b", "grand", "judge-1"]);
-	assert.deepEqual(roster.map((session) => session.parentID), [null, protocolSessionId("root"), protocolSessionId("root"), "child-a", null]);
-	assert.equal(roster[0]?.parentID, null);
+	// HC wire parity: a root session omits parentID entirely; children carry it.
+	assert.deepEqual(roster.map((session) => session.parentID), [undefined, protocolSessionId("root"), protocolSessionId("root"), "child-a", null]);
+	assert.equal("parentID" in (roster[0] ?? {}), false);
 	assert.equal(roster[3]?.parentID, "child-a");
 	assert.equal(roster[4]?.parentID, null);
 	assert.deepEqual(roster[0]?.time, { created: Date.parse(ROOT), updated: Date.parse(ROOT) + 5000 });
@@ -47,7 +48,9 @@ test("statuses map real lifecycles and never hide unavailable facts as idle", ()
 	store.publishExecution(binding("done", protocolSessionId("root"), "root"), facts("aborted", "2026-10-14T10:01:00.000Z", "done"));
 	store.registerJudge({ sessionId: "judge-1", title: "fsm-gate", createdAt: 1, updatedAt: 2,
 		sessionFile: null, lifecycle: "idle" });
-	assert.deepEqual(projectOcStatuses(store), new Map([[protocolSessionId("root"), { type: "retry" }], ["done", { type: "idle" }], ["judge-1", { type: "idle" }]]));
+	// OC /session/status lists only active runs: idle executions are absent,
+	// idle judges stay listed (judge lifecycle remains observable).
+	assert.deepEqual(projectOcStatuses(store), new Map([[protocolSessionId("root"), { type: "retry" }], ["judge-1", { type: "idle" }]]));
 	const hidden = new RecordStore(binding("root2", "root2", null));
 	hidden.publishExecution(binding("root2", "root2", null), facts("running", ROOT, "root2"));
 	hidden.publishExecution(binding("lost", protocolSessionId("root2"), "root2"), facts("unavailable", "2026-10-14T10:01:00.000Z", "lost"));

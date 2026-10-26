@@ -13,7 +13,7 @@ export interface StopRouteFacts {
 	readonly noProgress: number;
 	readonly recentPlans: string[];
 	readonly lastAssistantMessage: string | null;
-	readonly liveWork: boolean;
+	readonly liveWork: StopLiveWork;
 	readonly analysisEnabled: boolean;
 }
 
@@ -138,7 +138,7 @@ export async function runStopAnalysis(judges: JudgeSessions, sid: string, facts:
 			fsm_name: facts.fsmName,
 			state_id: facts.stateId,
 			is_exit_state: facts.isExitState,
-			live_work: facts.liveWork ? "confirmed" : "none",
+			live_work: facts.liveWork,
 			recent_stop_plans_present: facts.recentPlans.length > 0,
 		}),
 	].join("\n");
@@ -165,16 +165,38 @@ export async function runStopAnalysis(judges: JudgeSessions, sid: string, facts:
 
 export interface StopEvidenceSnapshot {
 	readonly dir: string | null;
-	readonly liveWork: boolean;
+	readonly liveWork: StopLiveWork;
 }
 
-export async function collectStopEvidence(request: DaemonRequester, binding: { sessionId: string; agentId: string }, deadline: number): Promise<StopEvidenceSnapshot> {
+export type StopLiveWork =
+	| "none"
+	| "unknown"
+	| { readonly confirmed: { readonly subjects: readonly { readonly kind: string; readonly pid_or_agent_id: string; readonly description: string }[] } };
+
+function parseLiveWork(value: unknown): StopLiveWork {
+	if (value === "none" || value === "unknown") return value;
+	if (isAdmissionObject(value) && isAdmissionObject(value.confirmed) && Array.isArray(value.confirmed.subjects)) {
+		const subjects = value.confirmed.subjects.filter((s): s is { kind: string; pid_or_agent_id: string; description: string } =>
+			isAdmissionObject(s) && typeof s.kind === "string" && typeof s.pid_or_agent_id === "string" && typeof s.description === "string");
+		if (subjects.length === value.confirmed.subjects.length) return { confirmed: { subjects } };
+	}
+	return "unknown";
+}
+
+export async function collectStopEvidence(request: DaemonRequester, binding: { sessionId: string; agentId: string }, deadline: number, sourcePassword?: string): Promise<StopEvidenceSnapshot> {
+	// HC hook parity: refresh the OpenCode source auth on every Stop consumer
+	// entry, then ask live-work through the daemon (which calls back into the
+	// bridge's /session/status and /session/<id>/children).
+	// HC hook order is strict: source-auth refresh completes before live-work
+	// asks the daemon (which needs the password to call back into the bridge).
+	await request({ method: "POST", path: "/evidence/source-auth", deadline,
+		body: { session_id: binding.sessionId, password: sourcePassword ?? process.env.OPENCODE_SERVER_PASSWORD ?? null } }).catch(() => null);
 	const [collect, live] = await Promise.all([
 		request({ method: "POST", path: "/evidence/collect", deadline, body: { session_id: binding.sessionId } }).catch(() => null),
 		request({ method: "POST", path: "/evidence/live-work", deadline, body: { session_id: binding.sessionId, agent_id: binding.agentId } }).catch(() => null),
 	]);
 	const dir = collect && isAdmissionObject(collect.body) && typeof collect.body.dir === "string" ? collect.body.dir : null;
-	const liveWork = Boolean(live && isAdmissionObject(live.body) && (live.body as { live?: unknown }).live === true);
+	const liveWork = parseLiveWork(live?.body);
 	return { dir, liveWork };
 }
 

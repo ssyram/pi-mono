@@ -24,7 +24,9 @@ export async function sendHcAgent(services: HcAgentRuntimeServices, input: HcAge
 	});
 	if (resolved === input.caller) throw HcAgentDomainError.selfDelivery();
 	const caller = services.directory.get(input.caller);
-	const target = services.directory.get(resolved);
+	// Cross-tree targets are absent here by design; find (not get) so the
+	// cross-tree branch below can take over instead of throwing.
+	const target = services.directory.find(resolved);
 	const rendered = renderAgentMessage({
 		target: resolved,
 		sender: caller.session_id,
@@ -46,9 +48,9 @@ export async function sendHcAgent(services: HcAgentRuntimeServices, input: HcAge
 			sender_name: caller.name, sender_agent: caller.turnProfile ?? caller.agent_type, body: input.message });
 		return { resolved };
 	}
-	if (!target.handle) {
-		await services.host.open(target, services.launchPlan(target), services.observe);
-	}
-	await services.host.deliver(target, rendered);
+	// One inbox path for every target: the runtime's deliverRendered owns
+	// handle-open, turn-profile reset, and the HC roster block on idle wakes.
+	const delivered = await services.deliverRendered(resolved, rendered);
+	if (!delivered) throw HcAgentDomainError.agentNotFound(resolved);
 	return { resolved };
 }

@@ -59,6 +59,8 @@ export async function runStopCheck(request: DaemonRequester, binding: GateBindin
 export interface StopGateDeps {
 	/** True when any child agent of this session is still running (OC has_busy_child parity). */
 	hasBusyChild?(sessionId: string): boolean | Promise<boolean>;
+	/** Bridge password for the daemon's OpenCode source-auth refresh (HC env parity). */
+	sourcePassword?: string;
 	/** Marks a session whose turn continues after a Stop block (host default profile takes over). */
 	markStopContinuation?(sessionId: string): void;
 	/** Judge sessions for the soft-stop Analyze route; absent disables analysis with a warning. */
@@ -104,13 +106,17 @@ export function installStopGate(pi: ExtensionAPI, request: DaemonRequester, bind
 		if (check.isTerminal) return undefined;
 		const analysisEnabled = deps?.analysisEnabled ?? true;
 		const evidence = analysisEnabled
-			? await collectStopEvidence(request, current, Date.now() + timeoutMs).catch(() => ({ dir: null, liveWork: false }))
-			: { dir: null, liveWork: false };
+			? await collectStopEvidence(request, current, Date.now() + timeoutMs, deps?.sourcePassword).catch(() => ({ dir: null, liveWork: "unknown" as const }))
+			: { dir: null, liveWork: "unknown" as const };
 		const facts: StopRouteFacts = {
 			isTerminal: check.isTerminal, stateMissing: check.stateMissing, isExitState: check.isExitState,
 			fsmName: check.fsmName, stateId: check.stateId, noProgress: check.noProgress, recentPlans: check.recentPlans,
 			lastAssistantMessage: lastAssistantText(event.context.contextMessages) ?? null,
-			liveWork: evidence.liveWork || (deps?.hasBusyChild ? await Promise.resolve(deps.hasBusyChild(current.sessionId)).catch(() => false) === true : false),
+			liveWork: typeof evidence.liveWork === "object"
+				? evidence.liveWork
+				: deps?.hasBusyChild && await Promise.resolve(deps.hasBusyChild(current.sessionId)).catch(() => false) === true
+					? { confirmed: { subjects: [] } }
+					: evidence.liveWork,
 			analysisEnabled,
 		};
 		const plan = planStopRoute(facts);
@@ -123,11 +129,8 @@ export function installStopGate(pi: ExtensionAPI, request: DaemonRequester, bind
 			return { entries: [{ type: "custom_message" as const, customType: "fsm-compatible:stop",
 				content: plan.reason, display: true }], continue: true };
 		}
-		// Analyze: soft stop review. OC parity: a waiting parent with live async work may yield.
-		if (facts.liveWork) {
-			await resetStopGate(request, current, Date.now() + timeoutMs);
-			return undefined;
-		}
+		// HC plan_stop_route never short-circuits on live work: the judge sees
+		// the live-work evidence and decides (wait_for_async_work).
 		if (!deps?.judges) {
 			ctx.ui.notify("FSM Stop analysis unavailable (no judge model); deterministic fallback", "warning");
 			return { entries: [{ type: "custom_message" as const, customType: "fsm-compatible:stop",
@@ -139,6 +142,7 @@ export function installStopGate(pi: ExtensionAPI, request: DaemonRequester, bind
 			const decision = reduceStop(facts, verdict);
 			dualStopLog({ session_id: current.sessionId, agent_id: current.agentId,
 				last_assistant_message: facts.lastAssistantMessage, decision: decision.allowed ? "allow" : "block",
+				action: "action" in verdict ? verdict.action : undefined,
 				reason: "reason" in verdict ? verdict.reason : decision.reason,
 				...(facts.noProgress > 0 ? { no_progress_count: facts.noProgress } : {}),
 				agent: current.agentId === "main" ? "stop" : "subagent-stop" });

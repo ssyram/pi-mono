@@ -34,7 +34,8 @@ const env = { LANG: process.env.LANG ?? "en_US.UTF-8", LC_ALL: "C", SHELL: "/bin
 	XDG_CACHE_HOME: join(run, "cache"), XDG_STATE_HOME: join(run, "state"),
 	FSM_DATA_DIR: fsmData, FSM_STOP_ANALYSIS: stopAnalysis, FSM_CLIENT_LOG: join(run, "fsm-client.log"),
 	PLOT_RUN: run, PLOT_REAL_HOOK: join(FSM, "mcp-server-fsm-hook"),
-	PLOT_BINDINGS: JSON.stringify({ run, work, package: engineRoot, ...(plot.bindings ?? {}) }), PLOT_HC_PORT: String(facadePort), PATH: `${FSM}:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin` };
+	PLOT_BINDINGS: JSON.stringify({ run, work, package: engineRoot, ...(plot.bindings ?? {}) }), PLOT_HC_PORT: String(facadePort), PATH: `${FSM}:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin`,
+	RUST_LOG: process.env.FSM_DUAL_DEBUG ? "debug" : process.env.RUST_LOG ?? "" };
 
 const owned = [];
 const start = (name, command, args, cwd = work) => { const child = spawn(command, args, { env, cwd, stdio: ["ignore", "pipe", "pipe"], detached: true });
@@ -61,8 +62,8 @@ await writeFile(cfgFile, JSON.stringify({ run, work }));
 const shim = join(run, "plot-shim.sh");
 // D9 declared boundaries (owner ruling a): scheduling-coupled inbox asserts.
 const D9_SKIP = plotPath.endsWith("/plots/reference.json") ? { "alpha/009": ["GAMMA_VALUE="], "root/015": ["ALPHA_VALUE="] } : {};
-const modelCommand = `PLOT_D9_SKIP='${JSON.stringify(D9_SKIP)}' python3 ${join(PLUGIN, "scripts/dual/profile-boundary.py")} ${engineRoot}`;
-await writeFile(shim, `#!/bin/sh\nnode ${join(PLUGIN, "scripts/dual/flush-observations.mjs")} --standalone ${cfgFile}\nRES=$?\n[ $RES -eq 0 ] || exit $RES\n${modelCommand} ${plotPath} "$@"\n`, { mode: 0o755 });
+const modelCommand = `PLOT_D9_SKIP='${JSON.stringify(D9_SKIP)}' PLOT_FLUSH_CFG=${cfgFile} PLOT_FLUSH_SCRIPT=${join(PLUGIN, "scripts/dual/flush-observations.mjs")} python3 ${join(PLUGIN, "scripts/dual/profile-boundary.py")} ${engineRoot}`;
+await writeFile(shim, `#!/bin/sh\nSTAGE=${join(run, "stage-$$.log")}\nSTDIN_F=${join(run, "stdin-$$.json")}\necho "$$ cat-begin" >> "$STAGE"\ncat > "$STDIN_F"\necho "$$ cat-done" >> "$STAGE"\npython3 -c "import fcntl,sys; f=open(sys.argv[1],'a'); fcntl.flock(f, fcntl.LOCK_EX|fcntl.LOCK_NB)" ${join(run, "state.lock")} 2>>${join(run, "shim.log")} && echo "$$ lock-free" >> "$STAGE" || echo "$$ LOCK-HELD" >> "$STAGE"\nEXEC_IN="$STDIN_F" ${modelCommand} ${plotPath} "$@" 2>> ${join(run, "shim.log")}\necho "$$ engine-done rc=$?" >> "$STAGE"\n`, { mode: 0o755 });
 const mount = await http(mockPort, "/__admin/scripts", { name: "plot", command: `sh ${shim}` });
 await writeFile(join(run, "mount.json"), JSON.stringify(mount, null, 2));
 
@@ -80,14 +81,28 @@ const proxy = (await import("node:http")).createServer(async (req, res) => {
 			for (const message of parsed.messages) {
 				if (message.role !== "user" || !Array.isArray(message.content) || message.content.length !== 1
 					|| message.content[0]?.type !== "text" || typeof message.content[0]?.text !== "string") continue;
-				message.content = message.content[0].text;
+				const text = message.content[0].text;
+				// HC carries the agent roster as a separate synthetic text part
+				// on the same user message; Pi only has the joined string. Split
+				// on the stable sentinel to restore the two-part shape.
+				const split = text.indexOf("\n<!-- opencode:subagents -->");
+				if (split >= 0 && !text.startsWith("<!-- opencode:subagents -->")) {
+					message.content = [
+						{ type: "text", text: text.slice(0, split) },
+						{ type: "text", text: text.slice(split + 1) },
+					];
+					continue;
+				}
+				message.content = text;
 			}
 			out = Buffer.from(JSON.stringify(parsed));
 		}
 	} catch { /* non-JSON pass through */ }
 	const target = new URL(req.url ?? "/", mount.url);
+	void import("node:fs/promises").then((fs) => fs.appendFile(join(run, "proxy.log"), `${Date.now()} ${req.method} ${req.url} bytes=${out.length}\n`));
 	const upstream = await fetch(target, { method: req.method, headers: { ...req.headers, host: target.host, "content-length": String(out.length) },
 		body: req.method === "GET" || req.method === "HEAD" ? undefined : out });
+	void import("node:fs/promises").then((fs) => fs.appendFile(join(run, "proxy.log"), `${Date.now()} -> ${upstream.status}\n`));
 	res.writeHead(upstream.status, Object.fromEntries(upstream.headers));
 	const responseBuffer = Buffer.from(await upstream.arrayBuffer());
 	res.end(responseBuffer);
@@ -104,7 +119,8 @@ await writeFile(configPath, JSON.stringify({ dataDir, clientCommand: join(FSM, "
 await writeFile(join(work, "committer.json"), JSON.stringify({ name: "dual", email: "dual@localhost" }));
 await import("node:child_process").then((c) => c.spawnSync("/usr/bin/git", ["init", "--quiet", work], { env }));
 
-const piEnv = { ...env, FSM_COMPATIBLE_CLIENT: join(FSM, "mcp-server-fsm-client"), FSM_DUAL_DAEMON_LOG: join(run, "daemon-calls.jsonl") };
+const piEnv = { ...env, FSM_COMPATIBLE_CLIENT: join(FSM, "mcp-server-fsm-client"), FSM_DUAL_DAEMON_LOG: join(run, "daemon-calls.jsonl"),
+	FSM_COMPATIBLE_ROOT_TITLE: String(plot.actors?.root?.title ?? "HC FSM reference") };
 const roots = [];
 let finalMessage = null, failure = null, facade;
 try {
@@ -119,6 +135,19 @@ try {
 		await Promise.all(roots.map((root) => root.rpc.promptAndWait(plot.actors[root.role].marker + "\n" + (plot.actors[root.role].initial_prompt ?? plot.prompt), undefined, 240000)));
 	} finally {
 		for (const root of roots) await writeFile(join(run, `pi-stderr-${root.role}.log`), root.rpc.getStderr()).catch(() => {});
+	}
+	// HC decouples plot completion from any one prompt's lifecycle: a Stop
+	// allow legitimately ends the root prompt while the plot continues through
+	// inbox wake-ups. Wait for the plot state itself to close out.
+	{
+		const deadline = Date.now() + (plot.wait_seconds ?? 90) * 1000 + 30_000;
+		while (Date.now() < deadline) {
+			const failed = await readFile(join(run, "FAILURE.json"), "utf8").catch(() => null);
+			if (failed) break;
+			const st = JSON.parse(await readFile(join(run, "state.json"), "utf8").catch(() => "{}"));
+			if (st?.actors?.root?.done) break;
+			await new Promise((r) => setTimeout(r, 200));
+		}
 	}
 	for (const root of roots) {
 		const prefix = root.role === "root" ? "pi" : root.role;

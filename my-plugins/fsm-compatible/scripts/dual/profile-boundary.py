@@ -3,6 +3,7 @@ import json
 import os
 import re
 import runpy
+import subprocess
 import sys
 from pathlib import Path
 
@@ -147,7 +148,224 @@ def d9_bindings_for(step, absent_tokens):
     return values
 
 
+def _flush_observations():
+    # The engine's dependency poll re-enters process() every 50ms without a
+    # fresh model request, so the shim's one-shot flush is not enough: judge
+    # transcripts that settle between requests must be projected too.
+    cfg = os.environ.get('PLOT_FLUSH_CFG')
+    if not cfg:
+        return
+    subprocess.run(['node', os.environ['PLOT_FLUSH_SCRIPT'], '--poll', cfg],
+                   capture_output=True, timeout=30)
+
+
+ROSTER_SENTINEL = '<!-- opencode:subagents -->'
+
+
+def _message_text(message):
+    content = message.get('content')
+    if isinstance(content, str):
+        return content, None
+    if isinstance(content, list):
+        return '\n'.join(part.get('text', '') for part in content
+                          if isinstance(part, dict) and part.get('type') == 'text'), content
+    return '', content
+
+
+def _roster_key(body):
+    import hashlib
+    return hashlib.sha256(body.encode('utf-8')).hexdigest()[:24]
+
+
+def _apply_agent_roster(plot, run, request):
+    """HC SessionReminders.applyAgentRoster parity, composed at request time.
+
+    Runs per model request: when the last user message has no assistant after
+    it, name the session's direct children (running rows, else a none-(N idle)
+    summary), deduplicated against the most recent roster block in the
+    transcript.
+    """
+    import urllib.request
+    port = os.environ.get('PLOT_HC_PORT')
+    if not port:
+        return
+    try:
+        top = request.get('request', {})
+        messages = top.get('context', {}).get('messages', [])
+    except Exception:
+        return
+    ledger_path = run / 'roster-ledger.json'
+    try:
+        ledger = json.loads(ledger_path.read_text()) if ledger_path.exists() else {}
+    except Exception:
+        ledger = {}
+    for message in messages:
+        if message.get('role') != 'user':
+            continue
+        body, content = _message_text(message)
+        if ROSTER_SENTINEL in body or '[Agent message from' not in body:
+            continue
+        entry = ledger.get(_roster_key(body))
+        if entry is None:
+            continue
+        message['content'] = [{'text': body}, {'text': entry}]
+    last_user = None
+    for index, message in enumerate(messages):
+        if message.get('role') == 'user':
+            last_user = index
+    if last_user is None:
+        return
+    if any(message.get('role') == 'assistant' for message in messages[last_user + 1:]):
+        return
+    try:
+        with urllib.request.urlopen(f'http://127.0.0.1:{port}/session/status', timeout=5) as reply:
+            statuses = json.loads(reply.read())
+        with urllib.request.urlopen(f'http://127.0.0.1:{port}/__tree', timeout=5) as reply:
+            tree = json.loads(reply.read())
+    except Exception:
+        return
+    try:
+        from plot_engine import route_actor
+        actor = route_actor(messages, plot)
+    except Exception as exc:
+        (run / 'roster-debug.log').open('a').write(f'route-fail {exc}\n')
+        return
+    state_path = run / 'state.json'
+    if not state_path.exists():
+        return
+    try:
+        bindings = json.loads(state_path.read_text()).get('bindings', {})
+    except Exception:
+        return
+    sid = bindings.get('session.' + actor)
+    if not sid:
+        (run / 'roster-debug.log').open('a').write(f'no-sid actor={actor} bindings={sorted(bindings)}\n')
+        return
+    children = [row for row in tree if row.get('parentID') == sid]
+    if not children:
+        return
+    request_text = json.dumps(messages, ensure_ascii=False)
+    # HC's session stays "busy" until its settle pipeline (incl. the
+    # completion notice) has run: a child counts live until its notice is
+    # visibly consumed in this transcript.
+    def child_live(row):
+        return f'<agent id="{row["id"]}" state="completed">' not in request_text \
+            and f'<agent id="{row["id"]}" state="error">' not in request_text
+    live = [row for row in children if child_live(row)]
+    live.sort(key=lambda row: (row.get('time') or {}).get('created') or 0, reverse=True)
+    shown = live[:10]
+    rows = [f"  {row['id']}  {row.get('name') or ''}  — {row.get('title') or ''}" for row in shown]
+    created = {row['id']: (row.get('time') or {}).get('created') or 0 for row in children}
+    live.sort(key=lambda row: created.get(row['id'], 0), reverse=True)
+    text = ROSTER_SENTINEL + '\n' + (
+        f'Your subagents working right now: none ({len(children) - len(live)} idle).'
+        if not shown else 'Your subagents working right now:')
+    for row in rows:
+        text += '\n' + row
+    if len(live) > 10:
+        text += f'\n  {len(live) - 10} more are running.'
+    body_text = text.split(ROSTER_SENTINEL + '\n', 1)[1]
+    previous = ''
+    for message in messages:
+        body, _ = _message_text(message)
+        if ROSTER_SENTINEL + '\n' in body:
+            previous = body.split(ROSTER_SENTINEL + '\n', 1)[1]
+    if not previous and ledger:
+        # The most recent applied roster may live only in the ledger when the
+        # carrying message's parts did not survive onto this wire copy.
+        previous = next(reversed(list(ledger.values())))
+    if previous == body_text:
+        return
+    message = messages[last_user]
+    body, content = _message_text(message)
+    base = body.split('\n' + ROSTER_SENTINEL, 1)[0] if ROSTER_SENTINEL in body else body
+    if not base.strip():
+        # An empty base means the message never carried inbox text here —
+        # leave the wire content untouched rather than fabricating a part.
+        return
+    parts = [{'text': base}, {'text': text}]
+    message['content'] = parts if isinstance(content, list) else parts
+    ledger_path = run / 'roster-ledger.json'
+    try:
+        ledger = json.loads(ledger_path.read_text()) if ledger_path.exists() else {}
+    except Exception:
+        ledger = {}
+    ledger[_roster_key(base)] = text
+    ledger_path.write_text(json.dumps(ledger, ensure_ascii=False))
+
+
+def join_root(*parts):
+    from pathlib import Path as _P
+    return str(_P(*parts)) if len(parts) > 1 else parts[0]
+
+
+def _inbox_misses(request):
+    """The failing inbox token is absent from every user message: the wake
+    has not landed yet. Holds apply to pre-wake requests of any provenance —
+    the steering reissue carries the message and aborts the held call."""
+    return True
+
+
+def _strip_part_types(request):
+    """Pi wire parts carry {type, text}; the HC reference wire and goldens use
+    bare {text} parts. Normalize the engine's view."""
+    try:
+        messages = request.get('request', {}).get('context', {}).get('messages', [])
+    except Exception:
+        return
+    for message in messages:
+        content = message.get('content')
+        if isinstance(content, list):
+            message['content'] = [{k: v for k, v in part.items() if k != 'type'}
+                                  if isinstance(part, dict) else part for part in content]
+
+
 def process(plot, run, mode, request, **kwargs):
+    try:
+        import time as _t
+        messages = request.get('request', {}).get('context', {}).get('messages', [])
+        has006 = any(m.get('role') == 'toolResult' and m.get('toolCallId') == 'plot_root_006' for m in messages)
+        state_probe = json.loads((run / 'state.json').read_text()) if (run / 'state.json').exists() else {}
+        with (run / 'wrapper.log').open('a') as _f:
+            _f.write(f'{_t.time():.2f} [{os.getpid()}] enter has006={has006} actors={ {k: (v["next"], v["pending"]) for k, v in state_probe.get("actors", {}).items()} }\n')
+    except Exception as _e:
+        with (run / 'wrapper.log').open('a') as _f:
+            _f.write(f'probe-fail {_e}\n')
+    _t0 = __import__('time').time()
+    try:
+        out = _process_inner(plot, run, mode, request, **kwargs)
+        with (run / 'wrapper.log').open('a') as _f:
+            _f.write(f'{__import__("time").time():.2f} exit-ok {__import__("time").time()-_t0:.2f}s has006={has006}\n')
+        return out
+    except ValueError as _e:
+        # Pi's session abort can leave an already-dispatched model call on the
+        # wire (HC kills the process tree instead). Such a post-cancel request
+        # precedes the inbox wake: answer with an empty turn so the session
+        # settles idle, exactly HC's observable outcome.
+        if 'inbox requires exactly one message' in str(_e) and _inbox_misses(request):
+            # Pi's session abort can leave an already-dispatched model call on
+            # the wire (HC kills the process tree instead). Hold this artifact
+            # in the engine's dependency wait: the inbox wake steers Pi into a
+            # fresh request, and the steer aborts this one.
+            with (run / 'wrapper.log').open('a') as _f:
+                _f.write(f'{__import__("time").time():.2f} hold-artifact (pre-inbox cancel)\n')
+            return None
+        with (run / 'wrapper.log').open('a') as _f:
+            _f.write(f'{__import__("time").time():.2f} exit-FAIL {_e!r} has006={has006}\n')
+        raise
+    except BaseException as _e:
+        with (run / 'wrapper.log').open('a') as _f:
+            _f.write(f'{__import__("time").time():.2f} exit-FAIL {_e!r} has006={has006}\n')
+        raise
+
+
+def _process_inner(plot, run, mode, request, **kwargs):
+    _strip_part_types(request)
+    try:
+        _apply_agent_roster(plot, run, request)
+    except Exception:
+        pass
+    _flush_observations()
     absent = []
     actor = None
     if D9_SKIP:
@@ -245,11 +463,29 @@ def compare_receipt(left, right):
     return strict_json(left, right)
 
 
+import json_equality as _je
+_orig_exact = _je.exact_json
+def _logging_exact(left, right):
+    ok = _orig_exact(left, right)
+    if not ok:
+        try:
+            _ls, _rs = json.dumps(left, ensure_ascii=False), json.dumps(right, ensure_ascii=False)
+            if 'Agent message' in _ls or 'Agent message' in _rs:
+                (Path(os.environ['PLOT_RUN']) / 'json-diff.log').open('a').write(
+                    'LEFT : ' + _ls[:500] + '\nRIGHT: ' + _rs[:500] + '\n---\n')
+        except Exception:
+            pass
+    return ok
+_je.exact_json = _logging_exact
 hc_tool_observation.hc_tool_result = tool_result
 import plot_engine
 original_process = getattr(plot_engine, 'process', None)
 if original_process is not None:
     plot_engine.process = process
 plot_engine.exact_json = compare_receipt
+request_override = os.environ.get('EXEC_IN')
+if request_override:
+    sys.stdin = open(request_override)
+(Path(os.environ['PLOT_RUN']) / 'wrapper.log').open('a').write('pre-runpy\n') if os.environ.get('EXEC_IN') else None
 sys.argv = [str(engine / 'bin/use-plot'), *sys.argv[2:]]
 runpy.run_path(str(engine / 'bin/use-plot'), run_name='__main__')

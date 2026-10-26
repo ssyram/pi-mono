@@ -72,6 +72,7 @@ test("agent_send reaches foreign sids through the registry and refuses unknown o
 			toAgentSessions: () => [{ session_id: "ses_local", parent_id: undefined, name: "origin", agent_type: "explore",
 				title: "origin", time_created: 1, workdir: undefined, status: "idle" as const }],
 			get: (id: string) => (id === "ses_local" ? callerRecord : undefined),
+			find: (id: string) => (id === "ses_local" ? callerRecord : undefined),
 		},
 		crossTree: registry,
 	} as unknown as HcAgentRuntimeServices;

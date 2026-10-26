@@ -18,6 +18,7 @@ export function publishHcExecution(store: RecordStore, record: HcSessionRecord, 
 	if (record.binding.kind !== "execution-child") return;
 	store.publishExecution(record.binding, {
 		title: record.title,
+		...(record.name ? { agentDisplayName: record.name } : {}),
 		lifecycle: lifecycleOf(record),
 		updatedAt: Date.now(),
 		header: {

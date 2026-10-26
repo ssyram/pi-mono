@@ -4,6 +4,8 @@ export type SessionLifecycle = "starting" | "running" | "settling" | "retrying" 
 
 export interface RecordFacts {
 	readonly title: string;
+	/** Model-facing spawn name (HC AgentInbox roster rows); host sessions have none. */
+	readonly agentDisplayName?: string;
 	readonly lifecycle: SessionLifecycle;
 	readonly updatedAt: number;
 	readonly header: SessionHeader | null;

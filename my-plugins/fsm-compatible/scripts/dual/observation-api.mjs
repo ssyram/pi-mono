@@ -19,12 +19,48 @@ export async function createObservationApi(run, roots) {
 	});
 	await writeFile(join(run, "hc.process.json"), JSON.stringify({ pid: owners.find((owner) => owner.role === "root").pid }));
 	await writeFile(join(run, "pi-processes.json"), JSON.stringify(owners, null, 2));
+	// The engine's 50ms dependency poll fans out per-request roster/status
+	// probes; a short shared TTL keeps the bridges from being hammered.
+	const cache = new Map();
+	const cached = async (key, ttl, load) => {
+		const hit = cache.get(key);
+		if (hit && Date.now() - hit.at < ttl) return hit.value;
+		const value = await load();
+		cache.set(key, { at: Date.now(), value });
+		return value;
+	};
+	const statuses = () => cached("statuses", 250, async () => {
+		const merged = {};
+		for (const owner of owners) {
+			const reply = await fetch(`${owner.url}/session/status`);
+			if (!reply.ok) throw new Error(`Runtime status HTTP ${reply.status}`);
+			Object.assign(merged, await reply.json());
+		}
+		return merged;
+	});
+	const tree = () => cached("tree", 250, async () => {
+		const rows = [];
+		for (const owner of owners) {
+			const reply = await fetch(`${owner.url}/session`);
+			if (!reply.ok) throw new Error(`Bridge roster HTTP ${reply.status}`);
+			rows.push(...await reply.json());
+		}
+		return rows;
+	});
 	return async (req, res) => {
 		const finish = (status, body) => {
 			res.writeHead(status, { "content-type": "application/json" });
 			res.end(JSON.stringify(body));
 		};
 		try {
+			if (req.url === "/__tree") {
+				// Merged session tree for request-time roster composition.
+				const t0 = Date.now();
+				const value = await tree();
+				if (process.env.FSM_DUAL_DEBUG) console.error(`__tree ${Date.now() - t0}ms rows=${value.length}`);
+				finish(200, value);
+				return;
+			}
 			const messages = /^\/session\/([^/]+)\/message$/.exec(req.url ?? "");
 			if (messages) {
 				const facade = JSON.parse(await readFile(join(run, "facade-messages.json"), "utf8").catch(() => "{}"));
@@ -32,13 +68,7 @@ export async function createObservationApi(run, roots) {
 				return;
 			}
 			if (req.url === "/session/status") {
-				const statuses = {};
-				for (const owner of owners) {
-					const reply = await fetch(`${owner.url}/session/status`);
-					if (!reply.ok) throw new Error(`Runtime status HTTP ${reply.status}`);
-					Object.assign(statuses, await reply.json());
-				}
-				finish(200, statuses);
+				finish(200, await statuses());
 				return;
 			}
 			if (/^\/session\/[^/]+$/.test(req.url ?? "")) {

@@ -43,10 +43,13 @@ export function createOcHandlers(store: RecordStore, judges: JudgeSessions, extr
 		children: (id) => {
 			extras?.refresh?.();
 			if (store.getJudge(id) && !store.getExecution(id)) return [];
-			requireExecution(store, id);
+			// The wire id space is protocol sids; the store keys executions by
+			// host id, so resolve the root host id before matching children.
+			const resolved = store.getExecution(id) ? id : (id === store.rootProtocolId ? store.rootId : null);
+			requireExecution(store, resolved ?? id);
 			return projectOcRoster(store)
 				.filter((session) => session.parentID === id)
-				.map((session) => ({ id: session.id }));
+				.map((session) => ({ id: session.id, title: session.title ?? null }));
 		},
 		messages: (id) => { extras?.refresh?.(); return projectOcMessages(requireExecution(store, id)); },
 		async createSession(body) {

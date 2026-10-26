@@ -48,7 +48,10 @@ export async function openOwnedRuntime(pi: ExtensionAPI, ctx: ExtensionContext, 
 		|| saved.value.agentId !== binding.agentId))) throw new Error("binding restore conflict");
 	pi.appendEntry(BINDING_CUSTOM_TYPE, binding);
 	const store = new RecordStore(binding);
-	const publishRoot = () => store.publishExecution(binding, { title: binding.agentName ?? "main",
+	// HC hosts set the root session title at creation (the plot's declared
+	// controller title); mirror it when the host provides one.
+	const rootTitle = process.env.FSM_COMPATIBLE_ROOT_TITLE ?? binding.agentName ?? "main";
+	const publishRoot = () => store.publishExecution(binding, { title: rootTitle,
 		lifecycle: ctx.isIdle() ? "idle" : "running", updatedAt: Date.now(), header: ctx.sessionManager.getHeader(),
 		branch: ctx.sessionManager.getBranch(), sessionFile: ctx.sessionManager.getSessionFile() ?? null, errorMessage: null });
 	publishRoot();
@@ -120,7 +123,7 @@ export async function openOwnedRuntime(pi: ExtensionAPI, ctx: ExtensionContext, 
 			callerVariant: () => pi.getThinkingLevel() ?? "default" }));
 		offs.push(installPermissionGate(pi, request, bindingRef, config.timeoutMs));
 		offs.push(installStopGate(pi, request, bindingRef, config.timeoutMs, { hasBusyChild: (id) => hc!.busy(id),
-			judges, analysisEnabled: config.stopAnalysis ?? true,
+			judges, analysisEnabled: config.stopAnalysis ?? true, sourcePassword: bridgePassword,
 			markStopContinuation: (id) => { const r = hc!.services.directory.get(id); if (r) r.turnProfile = "build"; } }));
 		if (ctx.hasUI) offs.push(registerAskTool(pi, { request, binding: bindingRef, waitState, timeoutMs: config.timeoutMs }));
 		if (ctx.hasUI && (config.fleetWidgetPlacement ?? "belowEditor") !== "off") {
@@ -164,6 +167,9 @@ export async function openOwnedRuntime(pi: ExtensionAPI, ctx: ExtensionContext, 
 					entry.type === "custom_message" && (entry.details as { deliveryId?: string } | undefined)?.deliveryId === deliveryId) });
 		}));
 		resources.own(async () => { advisories.close(); });
+		// The root is an addressable agent for cross-tree sends (HC delivers to
+		// any existing session id): publish it once the bridge is up.
+		if (crossTree) await crossTree.publish({ sid: binding.rootSessionId, bridgeUrl, bridgePassword: bridgePassword });
 		const epoch = health.begin(sessionId); health.markInitialized("fsm-compatible", true); health.markPrepared(epoch, sessionId);
 		if (!health.commit(epoch)) throw new Error("root ready commit failed");
 		bound = true;
