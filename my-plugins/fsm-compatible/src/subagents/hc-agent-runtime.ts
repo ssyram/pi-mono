@@ -24,6 +24,7 @@ import { publishHcExecution } from "./hc-record-publish.ts";
 import { hcFleetView, type FleetView } from "./hc-fleet-view.ts";
 import { hcChildHook } from "./hc-child-hooks.ts";
 import type { ChildSessionEvent, ChildSessionFactory } from "./hc-nico-factory.ts";
+import { HcFleetExternalBridge } from "../tui/hc-fleet-external.ts";
 
 export interface HcRuntimeDeps {
 	/** Shared registry publishing this tree's sids for cross-tree agent_send. */
@@ -70,6 +71,20 @@ export async function openHcAgentRuntime(deps: HcRuntimeDeps): Promise<HcRuntime
 	const deferred = new Set<string>();
 	const permitted = policy.agents.map((agent) => agent.canonicalName);
 	const subagentDepth = config.subagentDepth ?? 3;
+	// Display-only mirror of every HC session into pi-subagents' Fleet overlay
+	// (external runs carry the live FSM frame in their label). Harmless absent.
+	const fleetBridge = new HcFleetExternalBridge(ctx.sessionManager.getSessionId());
+	const syncFleetBridge = async () => {
+		try {
+			const reply = await request({ method: "GET", path: "/actors", deadline: Date.now() + config.timeoutMs });
+			const body = reply.body as { actors?: { agent_id?: string; fsm_name?: string; state_id?: string; no_progress_count?: number }[] };
+			const facts = new Map((body.actors ?? []).map((actor) => [actor.agent_id ?? "",
+				{ fsmName: actor.fsm_name, stateId: actor.state_id, noProgress: actor.no_progress_count ?? 0 }]));
+			await fleetBridge.sync(directory.list(), (sid) => facts.get(sid === binding.rootSessionId ? "main" : sid));
+		} catch {
+			/* the mirror is best-effort */
+		}
+	};
 	const notifyFleet = (sessionId: string, event: Record<string, unknown>) => {
 		for (const listener of events) {
 			try {
@@ -178,6 +193,7 @@ export async function openHcAgentRuntime(deps: HcRuntimeDeps): Promise<HcRuntime
 		},
 		refresh: () => {
 			for (const record of directory.list()) publishHcExecution(store, record, config.cwd);
+			void syncFleetBridge();
 		},
 		manualLaunch: async (input) => {
 			const started = await createHcAgent(services, {
@@ -192,7 +208,10 @@ export async function openHcAgentRuntime(deps: HcRuntimeDeps): Promise<HcRuntime
 			});
 			return { session_id: started.sessionId };
 		},
-		close: () => host.close(),
+		close: async () => {
+			await fleetBridge.dispose();
+			await host.close();
+		},
 	};
 }
 
