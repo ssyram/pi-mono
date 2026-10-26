@@ -55,8 +55,11 @@ export function createJudgeFileTools(cwd: string, allowExternal: boolean) {
 			// HC Read renders file lines numbered ("N: line"); the reviewer's
 			// FSM-visible receipt must match that format, not the SDK's bare text.
 			const plain = await runSdk(read as unknown as SdkTool, { path: target, offset: offset || 1, limit }, signal);
-			const numbered = plain.content.split("\n").map((line, index) => `${(offset || 1) + index}: ${line}`);
-			return { ...plain, content: numbered.join("\n") };
+			const lines = plain.content.split("\n").filter((line, index, all) => line !== "" || index !== all.length - 1);
+			const numbered = lines.map((line, index) => `${(offset || 1) + index}: ${line}`);
+			// HC Read wraps numbered lines in its file envelope.
+			const content = `<path>${target}</path>\n<type>file</type>\n<content>\n${numbered.join("\n")}\n\n(End of file - total ${lines.length} lines)\n</content>`;
+			return { ...plain, content };
 		},
 		async grep(input: unknown, signal?: Signal): Promise<JudgeToolResult> {
 			if (!isAdmissionObject(input)) throw new RuntimeError("protocol-invalid");

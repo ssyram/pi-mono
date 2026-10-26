@@ -549,7 +549,7 @@ frames:
       progress:
         kind: item_done
       fork: []
-    - text: '对偶双剧本全PASS：reference（68/68回执，final=Computed result: 21 + 21 = 42）+ idle-resume（23/23）。D9(a)落地=wrapper三层（inbox断言删除/锁内bind恢复取自真实send参数/golden消费列表按实际送达对齐）+shim无锁等待send回执落盘；flush part title/metadata改原样转存生产details；owner铁律=框架可修但必须保证HC完全match的剧本性质，白名单外差异必须暴露。新派遣：#144 Sol审计dual框架（过豁免/吞差异/竞态）、#145 Sol第三套fuzz/PBT剧本（撞门禁→边界/中点性质→HC双轮固化，产出在hc-fsm-reference/fuzz/）。'
+    - text: 审计修复批次（commit bec9b9ea4）：Sol 独立审计 8 critical/9 warning/4 info；C1-C3 已修（D9 改 absent-gated 幂等豁免+作用域对齐+bind 恢复要求 Accepted 回执+user-only absent 检测），审计反例验证通过，reference 68/68 重跑 PASS。剩余审计项待修：C4 raw tools 全量校验、C5 postflight 全 actor/闭环验证、C6 Bash metadata 真实 exit、C7 hook 生产决定边界记录、C8 status 类型校验、W1-W9。Fleet external-runs 桥已交付（commit 前一笔）：HC 会话 FSM 帧显示进 pi-subagents Fleet。fuzz 第三套剧本已交付：hc-fsm-reference/fuzz/ 4 剧本+生成器+性质目录，414 回执双轮通过。
       children: []
       progress:
         kind: in_progress
@@ -569,6 +569,7 @@ frames:
       - '本段新增生产修复：G1 root不预注册（对齐announceSubagentStart root-skip）；G2 judge read N: line渲染；agent_list self status=running（busy投影事实）；root agent_type=build（HC defaultInfo推导）；send→root走root投递（EISDIR根因=误对root record开child host）。三笔commit：9d7517bae实验包/7607d87fe插件主体/03263f23b+93a254da0对偶修复，均170/170+check 0，未push。'
       - 'D9证据链：间隔=窗口+常数 四组数据（runs mvky7a2hi1s/mvkyd1lb1274/mvl1fovb1j3o/mvl1wtpzqgf），机制=use-plot execute()的None自旋持锁+flock排队顺序把gamma step3处理排在alpha起跑请求后；idle-resume无此耦合（单worker）。commits: 03263f23b/93a254da0/90a5ed954 均未push。'
       - reference PASS关键修复：D9 bind恢复须在plot过滤前提取（被删inbox item携带bind）；golden对齐只裁golden侧未达条目、已达条目严格比较；root/027的agent_stop part metadata={stopped,failed}来自生产details转存（不再猜测合成）。commit de397a0cf（170/170全绿，未push）。
+      - 本轮 Sol 双交付：①框架审计（27.6KB，执行验证的反例暴露 D9 过度豁免）②fuzz/PBT 第三套剧本（hc-fsm-reference/fuzz/，seed 2161731/2161732，4 正式剧本 gate/variables/depth/names 各完成真实 HC collect→全新 replay，414 回执严格匹配；性质目录 property-catalog.json）。
       side_effects: []
       principles: []
       remarks:
@@ -626,6 +627,9 @@ frames:
     - action: update
       at: 2026-10-26T02:55:06.832667000Z
       detail: 结算reference全PASS里程碑与owner铁律，登记两个新派遣；变更字段：content.results、plan[3].text
+    - action: update
+      at: 2026-10-26T04:18:13.594668000Z
+      detail: 结算审计修复与双 Sol 交付，登记剩余 C4-C8/W 项为下一责任；变更字段：content.results、plan[3].text
   6:
     parent: null
     title: 独立HC FSM实验包：use-plot与真实collect/replay基准

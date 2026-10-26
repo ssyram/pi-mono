@@ -50,7 +50,14 @@ export function hcChildHook(deps: HcChildHookDeps): ChildHookExtension {
 				const current = binding();
 				return { sessionId: current.rootSessionId, agentId: current.sessionId };
 			}, deps.timeoutMs, {
-				hasBusyChild: (sessionId) => deps.services.hasBusyDescendant(sessionId),
+				// The busy-descendant check looks below the stopping child, not
+				// the root: the child itself being busy (agent_before_settle) is
+				// the normal stopping path, never "live work".
+				hasBusyChild: (sessionId) => {
+					const current = binding();
+					if (sessionId === current.rootSessionId) return deps.services.hasBusyDescendant(current.sessionId);
+					return deps.services.hasBusyDescendant(sessionId);
+				},
 				judges: deps.judges,
 				analysisEnabled: deps.analysisEnabled,
 			});
