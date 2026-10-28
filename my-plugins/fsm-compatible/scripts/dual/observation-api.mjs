@@ -34,7 +34,12 @@ export async function createObservationApi(run, roots) {
 		for (const owner of owners) {
 			const reply = await fetch(`${owner.url}/session/status`);
 			if (!reply.ok) throw new Error(`Runtime status HTTP ${reply.status}`);
-			Object.assign(merged, await reply.json());
+			const body = await reply.json();
+			// C8: an invalid shape must surface, never wash into an empty map.
+			if (typeof body !== "object" || body === null || Array.isArray(body)) {
+				throw new Error(`Runtime status shape invalid from ${owner.role}`);
+			}
+			Object.assign(merged, body);
 		}
 		return merged;
 	});

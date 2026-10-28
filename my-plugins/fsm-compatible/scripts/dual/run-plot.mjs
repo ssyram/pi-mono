@@ -73,12 +73,21 @@ await writeFile(join(run, "mount.json"), JSON.stringify(mount, null, 2));
 // the HC reference sent plain strings; the golden comparison is strict on the
 // decoded shape. Collapse single-text-part user content on the way to the mock.
 const proxyPort = 22000 + (process.pid % 20000);
+let toolsSeq = 0;
+await mkdir(join(run, "raw-tools"), { recursive: true });
 const proxy = (await import("node:http")).createServer(async (req, res) => {
 	const chunks = []; for await (const c of req) chunks.push(c);
 	const body = Buffer.concat(chunks);
 	let out = body;
 	try {
 		const parsed = JSON.parse(body.toString("utf8"));
+		// C4: the mock script input carries no tools array; capture the raw
+		// wire definitions so the shim can enforce HC's per-request tool
+		// contract.
+		if (Array.isArray(parsed?.tools) && parsed.tools.length > 0) {
+			const seq = toolsSeq++;
+			writeFile(join(run, "raw-tools", `${String(seq).padStart(4, "0")}.json`), JSON.stringify(parsed.tools)).catch(() => {});
+		}
 		if (Array.isArray(parsed?.messages)) {
 			for (const message of parsed.messages) {
 				if (message.role !== "user" || !Array.isArray(message.content) || message.content.length !== 1
@@ -101,10 +110,8 @@ const proxy = (await import("node:http")).createServer(async (req, res) => {
 		}
 	} catch { /* non-JSON pass through */ }
 	const target = new URL(req.url ?? "/", mount.url);
-	void import("node:fs/promises").then((fs) => fs.appendFile(join(run, "proxy.log"), `${Date.now()} ${req.method} ${req.url} bytes=${out.length}\n`));
 	const upstream = await fetch(target, { method: req.method, headers: { ...req.headers, host: target.host, "content-length": String(out.length) },
 		body: req.method === "GET" || req.method === "HEAD" ? undefined : out });
-	void import("node:fs/promises").then((fs) => fs.appendFile(join(run, "proxy.log"), `${Date.now()} -> ${upstream.status}\n`));
 	res.writeHead(upstream.status, Object.fromEntries(upstream.headers));
 	const responseBuffer = Buffer.from(await upstream.arrayBuffer());
 	res.end(responseBuffer);
@@ -160,6 +167,11 @@ try {
 	await writeFile(join(run, "manifest.json"), JSON.stringify(manifest, null, 2));
 	try { const history = await import("node:child_process").then((c) => c.execFileSync(join(FSM, "mcp-server-fsm"), ["store", "history"], { env, cwd: work, maxBuffer: 64 * 1024 * 1024 })); await writeFile(join(run, "fsm-history.jsonl"), history); } catch {}
 	const plotState = JSON.parse(await readFile(join(run, "state.json"), "utf8").catch(() => "{}"));
+	// C5: root alone is not success — every declared actor must close.
+	if (!failure) {
+		const undone = Object.keys(plot.actors ?? {}).filter((actor) => plotState?.actors?.[actor]?.done !== true);
+		if (undone.length > 0) failure = JSON.stringify({ error: `actors not all done: ${undone.join(", ")}` });
+	}
 	finalMessage = plotState?.actors?.root?.result ?? null;
 	failure = await readFile(join(run, "FAILURE.json"), "utf8").catch(() => null);
 	await writeFile(join(run, "outcome.json"), JSON.stringify({ finalMessage, failure: failure ? JSON.parse(failure) : null, actorsDone: Object.fromEntries(Object.entries(plotState?.actors ?? {}).map(([k, v]) => [k, v.done])) }, null, 2));

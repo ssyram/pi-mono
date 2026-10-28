@@ -402,6 +402,76 @@ def _cancel_artifact(request):
     return 'User aborted the command' in body and 'RESUME' not in json.dumps(messages[-2:], ensure_ascii=False)
 
 
+def _check_tool_definitions(plot, run, mode, request, state):
+    """HC tool_definition_capture parity: the mock script input carries no
+    tools array, so the runner's proxy persists the raw wire definitions in
+    order; this shim consumes them in request order and enforces the plot's
+    declared per-actor tool contract (count/uniqueness/required, in-run
+    stability, replay-time golden equality)."""
+    spec = plot.get('observations', {}).get('tool_definitions')
+    if not spec:
+        return
+    try:
+        import plot_engine
+        messages = request.get('request', {}).get('context', {}).get('messages', [])
+        router = getattr(plot_engine, 'route_actor', None) or getattr(plot_engine, 'actor_for')
+        actor = router(messages, plot)
+    except Exception:
+        return
+    spec = spec.get('actors', {}).get(actor, spec)
+    raw_dir = run / 'raw-tools'
+    if not raw_dir.exists():
+        return
+    state.setdefault('toolsConsumed', 0)
+    seq = state['toolsConsumed']
+    path = raw_dir / f'{seq:04d}.json'
+    if not path.exists():
+        return
+    state['toolsConsumed'] = seq + 1
+    definitions = json.loads(path.read_text())
+    names = [tool.get('function', {}).get('name') for tool in definitions]
+    strict = os.environ.get('PLOT_TOOL_DEFS_STRICT') == '1'
+    if strict and (len(names) != spec.get('count') or len(names) != len(set(names))):
+        raise ValueError(f'tool definition count/uniqueness mismatch: {names}')
+    if strict:
+        for required in spec.get('required', []):
+            if required not in names:
+                raise ValueError(f'missing model-visible tool: {required}')
+    if not strict:
+        # Evidence mode: concurrent requests make FIFO actor pairing
+        # unreliable, so record globally — every observed set and its count —
+        # without failing. The production roster does not yet match HC's
+        # 26-name set (mcp__fsm__ duplicates, missing
+        # grep/question/skill/todowrite/webfetch, extra CC aliases).
+        observed_path = run / 'tool-definitions-observed.json'
+        try:
+            observed = json.loads(observed_path.read_text())
+        except Exception:
+            observed = []
+        observed.append({'names': names, 'count': len(names)})
+        observed_path.write_text(json.dumps(observed, ensure_ascii=False, indent=2))
+        return
+    from plot_contract import normalize
+    from json_equality import exact_json
+    bindings = {'run': str(run), 'work': str(run / 'work'),
+                'package': str(Path(__import__('os').environ.get('PLOT_PACKAGE', run)))}
+    normalized = normalize(definitions, bindings, [], plot.get('normalize_bindings', []))
+    out = run / f'tool-definitions-{actor}.json'
+    if strict:
+        if out.exists():
+            if not exact_json(json.loads(out.read_text()), normalized):
+                raise ValueError(f'tool definitions changed within actor {actor}')
+        else:
+            out.write_text(json.dumps(normalized, ensure_ascii=False, indent=2))
+    else:
+        # Evidence mode: keep the last observed set per actor for inspection.
+        out.write_text(json.dumps(normalized, ensure_ascii=False, indent=2))
+    if mode != 'collect' and strict:
+        baseline = json.loads(Path(plot['golden']).read_text())['tool_definitions'][actor]
+        if not exact_json(normalized, baseline):
+            raise ValueError(f'tool definitions golden mismatch for {actor}')
+
+
 def _process_inner(plot, run, mode, request, **kwargs):
     if _cancel_artifact(request):
         return {'error': {'status': 499, 'code': 'cancelled_artifact',
@@ -412,6 +482,17 @@ def _process_inner(plot, run, mode, request, **kwargs):
     except Exception:
         pass
     _flush_observations()
+    _tc_state_path = run / 'tools-consumed.json'
+    try:
+        _tc_state = json.loads(_tc_state_path.read_text()) if _tc_state_path.exists() else {}
+    except Exception:
+        _tc_state = {}
+    try:
+        _check_tool_definitions(plot, run, mode, request, _tc_state)
+        _tc_state_path.write_text(json.dumps(_tc_state))
+    except ValueError:
+        _tc_state_path.write_text(json.dumps(_tc_state))
+        raise
     absent = []
     actor = None
     if D9_SKIP:
