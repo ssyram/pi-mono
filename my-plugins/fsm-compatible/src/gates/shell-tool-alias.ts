@@ -16,7 +16,11 @@ export function registerShellToolAlias(pi: ExtensionAPI, cwd = process.cwd(), en
 	const tool = { ...base,
 		async execute(id: string, input: { command: string; timeout?: number }, signal?: AbortSignal, update?: Parameters<typeof base.execute>[3], ctx?: Parameters<typeof base.execute>[4]) {
 			try {
-				return await base.execute(id, input as never, signal, update, ctx as Parameters<typeof base.execute>[4]);
+				// HC's wire contract declares timeout in milliseconds; the host
+				// implementation takes seconds.
+				const normalized = input.timeout === undefined ? input
+					: { ...input, timeout: input.timeout / 1000 };
+				return await base.execute(id, normalized as never, signal, update, ctx as Parameters<typeof base.execute>[4]);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				if (/^Command aborted$|\n\nCommand aborted$/.test(message)) return shellMetadataResult(message, "User aborted the command") as never;
