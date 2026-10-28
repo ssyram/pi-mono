@@ -1,9 +1,11 @@
 import type { ScriptResult, ScriptTask } from "./task-spec.js";
+import { formatTimestamp } from "../v2/format-timestamp.js";
 
 export function buildWakeUpContent(
 	task: ScriptTask,
 	results: readonly ScriptResult[],
 	shouldWake: boolean,
+	timestamps?: { completedAt: number; sentAt: number },
 ): string {
 	const blocks = results.map((result) =>
 		[
@@ -32,6 +34,12 @@ export function buildWakeUpContent(
 	return [
 		"<SYSTEM:loop-wakeup>",
 		"This reminder was generated automatically by the system, NOT sent by the user.",
+		...(timestamps === undefined
+			? []
+			: [
+					`completed-at: ${formatTimestamp(timestamps.completedAt)}`,
+				`sent-at: ${formatTimestamp(timestamps.sentAt)}`,
+				]),
 		...prompts,
 		...blocks,
 		"</SYSTEM:loop-wakeup>",

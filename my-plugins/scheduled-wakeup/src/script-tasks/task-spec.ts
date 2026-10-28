@@ -38,5 +38,6 @@ export type TaskRun = {
 	results: readonly ScriptResult[];
 	successCount: number;
 	shouldWake: boolean;
+	completedAt: number;
 	content: string;
 };

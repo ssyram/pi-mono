@@ -41,6 +41,7 @@ function message(id = "card-one") {
 		results: [],
 		successCount: 0,
 		shouldWake: true,
+		completedAt: 1793172000000,
 		content: `MODEL_BODY_${id}\n<script="/test", exit-code="0">\nresult\n</script>`,
 	};
 	return {

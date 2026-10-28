@@ -37,6 +37,7 @@ function fixture() {
 		options?: { triggerTurn?: boolean };
 	}[] = [];
 	const notifications: string[] = [];
+	const listeners = new Map<string, Set<() => void>>();
 	const pi = {
 		sendMessage: (
 			message: Omit<(typeof messages)[number], "options">,
@@ -44,12 +45,21 @@ function fixture() {
 		) => messages.push({ ...message, ...(options ? { options } : {}) }),
 		sendUserMessage: () =>
 			assert.fail("automatic event must not impersonate user"),
+		on(event: string, handler: () => void) {
+			const set = listeners.get(event) ?? new Set();
+			set.add(handler);
+			listeners.set(event, set);
+			return () => set.delete(handler);
+		},
 	} as unknown as ExtensionAPI;
 	const ctx = {
 		hasUI: true,
 		ui: { notify: (text: string) => notifications.push(text) },
 	} as unknown as ExtensionContext;
-	return { pi, ctx, messages, notifications };
+	const emit = (event: string) => {
+		for (const handler of listeners.get(event) ?? []) handler();
+	};
+	return { pi, ctx, messages, notifications, emit };
 }
 
 test("progress tracks current script and I/K/M; all scripts finish before one custom wakeup", async () => {
@@ -167,4 +177,83 @@ test("shutdown aborts owned work, never publishes late results, and contains cal
 		() => dispatcher.dispatch({ id: "late", scope: "session", prompt: "x" }),
 		/inactive/,
 	);
+});
+
+test("no-wake report is held while an agent run is active and appends once settled", async () => {
+	const setup = fixture();
+	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
+		runner: async (script) => result(script, true),
+	});
+	setup.emit("agent_start");
+	dispatcher.dispatch({
+		id: "session:quiet",
+		scope: "session",
+		scriptTask: { scripts: scripts.slice(0, 1), wakeUp: { kind: "never" } },
+	});
+	await setImmediate();
+	assert.equal(setup.messages.length, 0);
+	assert.equal(dispatcher.deliveryStatus().get("session:quiet")?.noWakes, 1);
+	setup.emit("agent_settled");
+	assert.equal(setup.messages.length, 1);
+	assert.equal(setup.messages[0]?.options?.triggerTurn, false);
+	assert.equal(dispatcher.deliveryStatus().size, 0);
+});
+
+test("wake delivery bypasses the hold and sends immediately while busy", async () => {
+	const setup = fixture();
+	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
+		runner: async (script) => result(script, true),
+	});
+	setup.emit("agent_start");
+	dispatcher.dispatch({
+		id: "session:alert",
+		scope: "session",
+		scriptTask: {
+			scripts: scripts.slice(0, 1),
+			wakeUp: { kind: "always", prompt: "act now" },
+		},
+	});
+	await setImmediate();
+	assert.equal(setup.messages.length, 1);
+	assert.equal(setup.messages[0]?.options?.triggerTurn, true);
+	assert.equal(dispatcher.deliveryStatus().get("session:alert")?.wakeUps, 1);
+	setup.emit("agent_settled");
+	assert.equal(dispatcher.deliveryStatus().size, 0);
+});
+
+test("dispose drops held no-wake reports", async () => {
+	const setup = fixture();
+	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
+		runner: async (script) => result(script, true),
+	});
+	setup.emit("agent_start");
+	dispatcher.dispatch({
+		id: "session:dying",
+		scope: "session",
+		scriptTask: { scripts: scripts.slice(0, 1), wakeUp: { kind: "never" } },
+	});
+	await setImmediate();
+	dispatcher.dispose();
+	setup.emit("agent_settled");
+	assert.equal(setup.messages.length, 0);
+});
+
+test("includeTimestamp stamps completed-at and sent-at into the delivered content", async () => {
+	const setup = fixture();
+	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
+		runner: async (script) => result(script, true),
+	});
+	dispatcher.dispatch({
+		id: "session:stamped",
+		scope: "session",
+		includeTimestamp: true,
+		scriptTask: {
+			scripts: scripts.slice(0, 1),
+			wakeUp: { kind: "always", prompt: "x" },
+		},
+	});
+	await setImmediate();
+	assert.equal(setup.messages.length, 1);
+	assert.match(String(setup.messages[0]?.content), /completed-at: /);
+	assert.match(String(setup.messages[0]?.content), /sent-at: /);
 });

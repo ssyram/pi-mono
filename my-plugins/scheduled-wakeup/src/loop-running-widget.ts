@@ -7,7 +7,11 @@ import {
 } from "@earendil-works/pi-tui";
 import { loopErrorMessage } from "./loop-error-message.js";
 import { notifyLoop } from "./loop-notification.js";
-import { type LoopWidgetItem, loopWidgetLines } from "./loop-widget-items.js";
+import {
+	formatQueuedSuffix,
+	type LoopWidgetItem,
+	loopWidgetLines,
+} from "./loop-widget-items.js";
 import { createWidgetSpaceProbe } from "./loop-widget-space.js";
 
 export type RunningWidget = {
@@ -20,6 +24,16 @@ export const LOOP_WIDGET_MAX_LINES = 10;
 const KEY = "loop-running-scripts";
 const SPINNER_FRAMES = ["◓", "◑", "◒", "◐"] as const;
 const SPINNER_INTERVAL_MS = 600;
+
+const queuedSuffix = (list: readonly LoopWidgetItem[]): string => {
+	let wakeUps = 0;
+	let noWakes = 0;
+	for (const item of list) {
+		wakeUps += item.queued?.wakeUps ?? 0;
+		noWakes += item.queued?.noWakes ?? 0;
+	}
+	return formatQueuedSuffix(wakeUps, noWakes);
+};
 
 export function createRunningWidget(
 	ctx: ExtensionContext,
@@ -129,9 +143,13 @@ export function createRunningWidget(
 				return;
 			}
 			if (ctx.mode === "rpc") {
-				ctx.ui.setWidget(KEY, [` ${SPINNER_FRAMES[0]} Loop · ${items.length} scheduled`], {
-					placement: "aboveEditor",
-				});
+				ctx.ui.setWidget(
+					KEY,
+					[` ${SPINNER_FRAMES[0]} Loop · ${items.length} scheduled${queuedSuffix(items)}`],
+					{
+						placement: "aboveEditor",
+					},
+				);
 				installed = true;
 				return;
 			}
@@ -156,7 +174,7 @@ export function createRunningWidget(
 										expanded = false;
 										updateTimer();
 									}
-									const label = ` ${SPINNER_FRAMES[spinnerFrame]} Loop · ${items.length} scheduled`;
+									const label = ` ${SPINNER_FRAMES[spinnerFrame]} Loop · ${items.length} scheduled${queuedSuffix(items)}`;
 									const summary = theme.fg(
 										"accent",
 										truncateToWidth(label, columns),

@@ -102,7 +102,7 @@ function createSetup() {
 	} as unknown as ExtensionCommandContext;
 	const runtime: LoopV2Runtime = {
 		core,
-		dispatcher: { dispatch: () => assert.fail("rename must not dispatch"), list: () => [], dispose() {} },
+		dispatcher: { dispatch: () => assert.fail("rename must not dispatch"), list: () => [], deliveryStatus: () => new Map(), dispose() {} },
 		widget: { refresh() {}, show: async () => {}, setVisible() {}, dispose() {} },
 		dispose() {},
 		user: new UserLoopV2Commands(core),

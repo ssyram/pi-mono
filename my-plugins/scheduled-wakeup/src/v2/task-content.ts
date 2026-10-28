@@ -2,13 +2,18 @@ import { basename, isAbsolute } from "node:path";
 import { prepareScriptTask } from "../script-tasks/prepare-task.js";
 import type { ScriptTask } from "../script-tasks/task-spec.js";
 
-export type TaskContent =
+export type TaskContent = { includeTimestamp?: boolean } & (
 	| { prompt: string; scriptTask?: never }
-	| { scriptTask: ScriptTask; prompt?: never };
+	| { scriptTask: ScriptTask; prompt?: never }
+);
 
 export function readTaskContent(
 	value: Record<string, unknown>,
 ): TaskContent | undefined {
+	const includeTimestamp =
+		typeof value.includeTimestamp === "boolean" ? value.includeTimestamp : undefined;
+	const extra =
+		includeTimestamp === undefined ? {} : { includeTimestamp };
 	if (Object.hasOwn(value, "scriptTask")) {
 		if (Object.hasOwn(value, "prompt")) return undefined;
 		const prepared = prepareScriptTask(value.scriptTask, "/");
@@ -24,24 +29,29 @@ export function readTaskContent(
 			)
 		)
 			return undefined;
-		return { scriptTask: prepared.task };
+		return { scriptTask: prepared.task, ...extra };
 	}
 	return typeof value.prompt === "string" && value.prompt.trim().length > 0
-		? { prompt: value.prompt }
+		? { prompt: value.prompt, ...extra }
 		: undefined;
 }
 
 export function cloneTaskContent(value: TaskContent): TaskContent {
-	if (value.scriptTask === undefined) return { prompt: value.prompt };
+	const extra =
+		value.includeTimestamp === undefined
+			? {}
+			: { includeTimestamp: value.includeTimestamp };
+	if (value.scriptTask === undefined) return { prompt: value.prompt, ...extra };
 	return {
-		scriptTask: {
-			wakeUp: { ...value.scriptTask.wakeUp },
-			scripts: value.scriptTask.scripts.map((script) => ({
-				...script,
-				params: [...script.params],
-			})),
-		},
-	};
+			scriptTask: {
+				wakeUp: { ...value.scriptTask.wakeUp },
+				scripts: value.scriptTask.scripts.map((script) => ({
+					...script,
+					params: [...script.params],
+				})),
+			},
+			...extra,
+		};
 }
 
 const PROMPT_SUMMARY_MAX_CHARS = 80;

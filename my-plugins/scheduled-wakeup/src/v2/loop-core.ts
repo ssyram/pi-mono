@@ -62,7 +62,7 @@ export class LoopV2Core {
 		return this.withStateLock(() => {
 			assertTaskInput(input);
 			const name = readTaskName(input.name);
-			const definition: SessionDefinition = { id: `session:${this.idFactory()}`, scope: "session", ...cloneTaskContent(input.scriptTask === undefined ? { prompt: input.prompt.trim() } : input), schedule: { ...input.schedule }, createdAt: this.currentNow(), ...(name !== undefined ? { name } : {}), ...(input.inhibitBoulder !== undefined ? { inhibitBoulder: input.inhibitBoulder } : {}) };
+			const definition: SessionDefinition = { id: `session:${this.idFactory()}`, scope: "session", ...cloneTaskContent(input.scriptTask === undefined ? { prompt: input.prompt.trim(), ...(input.includeTimestamp !== undefined ? { includeTimestamp: input.includeTimestamp } : {}) } : input), schedule: { ...input.schedule }, createdAt: this.currentNow(), ...(name !== undefined ? { name } : {}), ...(input.inhibitBoulder !== undefined ? { inhibitBoulder: input.inhibitBoulder } : {}) };
 			this.sessionState.dispatch({ kind: "add-task", task: { definition, progress: initialProgress(definition.schedule, definition.createdAt) } });
 			return cloneDefinition(definition);
 		});
@@ -71,7 +71,7 @@ export class LoopV2Core {
 	createSharedDefinition(scope: SharedScope, input: TaskInput): SharedDefinition {
 		assertTaskInput(input);
 		const name = readTaskName(input.name);
-		const definition: SharedDefinition = { id: `${scope}:${this.idFactory()}`, scope, ...cloneTaskContent(input.scriptTask === undefined ? { prompt: input.prompt.trim() } : input), schedule: { ...input.schedule }, createdAt: this.currentNow(), ...(name !== undefined ? { name } : {}), ...(input.inhibitBoulder !== undefined ? { inhibitBoulder: input.inhibitBoulder } : {}) };
+		const definition: SharedDefinition = { id: `${scope}:${this.idFactory()}`, scope, ...cloneTaskContent(input.scriptTask === undefined ? { prompt: input.prompt.trim(), ...(input.includeTimestamp !== undefined ? { includeTimestamp: input.includeTimestamp } : {}) } : input), schedule: { ...input.schedule }, createdAt: this.currentNow(), ...(name !== undefined ? { name } : {}), ...(input.inhibitBoulder !== undefined ? { inhibitBoulder: input.inhibitBoulder } : {}) };
 		return this.definitions.create(definition);
 	}
 

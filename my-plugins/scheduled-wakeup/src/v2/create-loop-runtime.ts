@@ -32,7 +32,7 @@ export function createLoopRuntime(
 	});
 	const widget = createRunningWidget(
 		ctx,
-		() => collectLoopWidgetItems(core.listActive(), dispatcher.list()),
+		() => collectLoopWidgetItems(core.listActive(), dispatcher.list(), dispatcher.deliveryStatus()),
 		readLoopWidgetVisibility(ctx.sessionManager.getBranch()),
 	);
 	const runtime: LoopV2Runtime = {

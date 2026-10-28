@@ -31,6 +31,12 @@ export const ScheduledWakeupParams = Type.Object({
 				"Inhibit Boulder while this schedule is active. Optional for add.",
 		}),
 	),
+	includeTimestamp: Type.Optional(
+		Type.Boolean({
+			description:
+				"Include run-completed/report-sent timestamps in the delivered loop message. Default false (current behavior).",
+		}),
+	),
 	action: Type.Union([
 		Type.Literal("add"),
 		Type.Literal("list"),
@@ -76,6 +82,7 @@ export const ScheduledWakeupParams = Type.Object({
 export type ToolParams = {
 	action: "add" | "list" | "cancel" | "delete";
 	inhibitBoulder?: boolean | undefined;
+	includeTimestamp?: boolean | undefined;
 	prompt?: string | undefined;
 	name?: string | undefined;
 	scriptTask?: unknown;

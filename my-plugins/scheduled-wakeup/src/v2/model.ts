@@ -108,6 +108,11 @@ export function assertTaskInput(input: TaskInput): void {
 		typeof input.inhibitBoulder !== "boolean"
 	)
 		throw new Error("inhibitBoulder must be a boolean when provided");
+	if (
+		input.includeTimestamp !== undefined &&
+		typeof input.includeTimestamp !== "boolean"
+	)
+		throw new Error("includeTimestamp must be a boolean when provided");
 	if (input.name !== undefined && readTaskName(input.name) === undefined)
 		throw new Error("name must be a non-empty string when provided");
 	if (input.schedule.kind === "once") {

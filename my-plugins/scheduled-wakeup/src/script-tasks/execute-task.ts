@@ -23,5 +23,5 @@ export async function executeScriptTask(
 	const shouldWake = shouldWakeUp(task.wakeUp, results);
 	// Step P4: Model input and expanded display share this one content value.
 	const content = buildWakeUpContent(task, results, shouldWake);
-	return { wakeUpId, results, successCount, shouldWake, content };
+	return { wakeUpId, results, successCount, shouldWake, completedAt: Date.now(), content };
 }

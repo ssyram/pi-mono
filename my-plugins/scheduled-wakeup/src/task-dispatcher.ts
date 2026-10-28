@@ -25,9 +25,11 @@ export type RunningTask = {
 	total: number;
 	current?: ScriptSpec;
 };
+export type DeliveryStatus = { wakeUps: number; noWakes: number };
 export type TaskDispatcher = {
 	dispatch(target: ExecutionTarget): void;
 	list(): readonly RunningTask[];
+	deliveryStatus(): ReadonlyMap<string, DeliveryStatus>;
 	dispose(): void;
 };
 export type DispatcherOptions = {
@@ -46,7 +48,15 @@ export function createTaskDispatcher(
 		string,
 		{ progress: RunningTask; abort: AbortController }
 	>();
+	const deliveryQueue: {
+		taskId: string;
+		run: TaskRun;
+		task: ScriptTask;
+		includeTimestamp: boolean;
+	}[] = [];
+	const wakeInFlight = new Map<string, number>();
 	let closed = false;
+	let agentBusy = false;
 	const report = (error: unknown): void => {
 		if (!closed)
 			notifyLoop(
@@ -62,19 +72,71 @@ export function createTaskDispatcher(
 			report(error);
 		}
 	};
-	const publish = (run: TaskRun): void =>
+	const sendMessageNow = (
+		taskId: string,
+		run: TaskRun,
+		task: ScriptTask,
+		includeTimestamp: boolean,
+	): void => {
+		if (run.shouldWake)
+			wakeInFlight.set(taskId, (wakeInFlight.get(taskId) ?? 0) + 1);
 		pi.sendMessage(
 			{
 				customType: TASK_RUN_MESSAGE,
-				content: run.content,
+				content: includeTimestamp
+					? buildWakeUpContent(task, run.results, run.shouldWake, {
+							completedAt: run.completedAt,
+							sentAt: Date.now(),
+						})
+					: run.content,
 				display: true,
 				details: run,
 			},
 			{ triggerTurn: run.shouldWake, deliverAs: "followUp" },
 		);
+	};
+	// pi flushes pending no-trigger custom messages at every turn_end boundary,
+	// which injects them into the live run. Hold no-wake reports until agent_settled
+	// so they only append to history once the session is idle.
+	const flushDeliveries = (): void => {
+		if (deliveryQueue.length === 0) return;
+		const pending = deliveryQueue.splice(0, deliveryQueue.length);
+		for (const entry of pending) {
+			if (closed) break;
+			sendMessageNow(entry.taskId, entry.run, entry.task, entry.includeTimestamp);
+		}
+		changed();
+	};
+	const publish = (
+		taskId: string,
+		run: TaskRun,
+		task: ScriptTask,
+		includeTimestamp: boolean,
+	): void => {
+		if (run.shouldWake || !agentBusy) {
+			sendMessageNow(taskId, run, task, includeTimestamp);
+			return;
+		}
+		deliveryQueue.push({ taskId, run, task, includeTimestamp });
+		changed();
+	};
+	const unsubscribeAgentStart = pi.on("agent_start", () => {
+		agentBusy = true;
+	});
+	const unsubscribeAgentSettled = pi.on("agent_settled", () => {
+		agentBusy = false;
+		// pi's followUp queue is guaranteed empty once settled: the post-run
+		// continuation loop has drained every queued message by then.
+		if (wakeInFlight.size > 0) {
+			wakeInFlight.clear();
+			changed();
+		}
+		flushDeliveries();
+	});
 	const execute = async (
 		task: ScriptTask,
 		job: { progress: RunningTask; abort: AbortController },
+		includeTimestamp: boolean,
 	): Promise<void> => {
 		try {
 			const run = await executeScriptTask(
@@ -96,7 +158,7 @@ export function createTaskDispatcher(
 					return result;
 				},
 			);
-			if (!closed) publish(run);
+			if (!closed) publish(job.progress.id, run, task, includeTimestamp);
 		} catch (error) {
 			report(error);
 		} finally {
@@ -122,13 +184,19 @@ export function createTaskDispatcher(
 					wakeUp: { kind: "always", prompt: content.prompt },
 					scripts: [],
 				};
-				publish({
-					wakeUpId: `${target.id}/${randomUUID()}`,
-					results: [],
-					successCount: 0,
-					shouldWake: true,
-					content: buildWakeUpContent(task, [], shouldWakeUp(task.wakeUp, [])),
-				});
+				publish(
+					target.id,
+					{
+						wakeUpId: `${target.id}/${randomUUID()}`,
+						results: [],
+						successCount: 0,
+						shouldWake: true,
+						completedAt: Date.now(),
+						content: buildWakeUpContent(task, [], shouldWakeUp(task.wakeUp, [])),
+					},
+					task,
+					content.includeTimestamp === true,
+				);
 				return;
 			}
 			const task = content.scriptTask;
@@ -144,7 +212,7 @@ export function createTaskDispatcher(
 			};
 			running.set(target.id, job);
 			changed();
-			void execute(task, job);
+			void execute(task, job, content.includeTimestamp === true);
 		},
 		list: () =>
 			[...running.values()]
@@ -160,9 +228,27 @@ export function createTaskDispatcher(
 							}
 						: {}),
 				})),
+		deliveryStatus: () => {
+			const status = new Map<string, DeliveryStatus>();
+			for (const [taskId, count] of wakeInFlight)
+				status.set(taskId, { wakeUps: count, noWakes: 0 });
+		for (const entry of deliveryQueue) {
+				const current = status.get(entry.taskId) ?? {
+					wakeUps: 0,
+					noWakes: 0,
+				};
+				current.noWakes++;
+				status.set(entry.taskId, current);
+			}
+			return status;
+		},
 		dispose() {
 			if (closed) return;
 			closed = true;
+			unsubscribeAgentStart();
+			unsubscribeAgentSettled();
+			deliveryQueue.length = 0;
+			wakeInFlight.clear();
 			for (const job of running.values()) job.abort.abort();
 			running.clear();
 		},

@@ -209,3 +209,9 @@
 - **来源**：`startNext` 委派审查连续遇到 staged 验收条件和模型标识校验故障时，进度回复直接暴露了 `thinking`、模型 ID 和重试协议，用户无法判断这些术语与功能任务的关系。
 - **原则**：面向用户报告执行基础设施故障时，先说明实际任务哪一步完成、哪一步未完成、代码是否受影响以及下一步；内部模型标签、调度字段和协议细节只有在需要用户选择配置或授权时才展开。自动重试不得形成无法理解的连续状态噪声，出现重复基础设施故障时应收敛或请求决策。
 - **适用**：子代理、模型路由、验收 gate、后台任务与异步进度沟通。
+
+## 2026-10-28 — pi 扩展两条投递/订阅铁律（loop no-wake 实测教训）
+
+- **来源**：实测发现 no-wake（triggerTurn:false）报告在 turn_end 边界被注入进行中的 run（session 文件中落在 toolResult 后 2ms）；第一版修复订阅了 `pi.events.on("agent_start")` 无效——那是跨扩展消息总线，不是生命周期事件。
+- **原则**：pi 中生命周期事件必须用 `pi.on("agent_start"/"agent_settled"/...)` 订阅；`pi.events` 只用于扩展间 pub/sub 频道。`triggerTurn:false` 的自定义消息不是"安静追加"：streaming 时进 `_pendingCustomMessages`，在每个 turn_end（LLM turn 边界，非 run 边界）flush，等于注入当前 run；要真正不打扰必须自己 hold 到 `agent_settled` 再发（此时 idle 路径才只进 history）。
+- **边界**：wake（triggerTurn:true）走 `agent.followUp()` 队列，只在下个 run 开始时 drain，本身安全；`deliverAs` 参数仅在 streaming 且 triggerTurn!==false 时生效。单测 mock 必须与真实 API 表面一致（mock 了错误总线只会让测试陪着 bug 通过）。

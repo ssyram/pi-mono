@@ -118,6 +118,7 @@ function createSetup() {
 			handler: (event: unknown, ctx: ExtensionContext) => Promise<void>,
 		) => {
 			handlers.set(event, handler);
+			return () => handlers.delete(event);
 		},
 		registerCommand: (
 			_name: string,
