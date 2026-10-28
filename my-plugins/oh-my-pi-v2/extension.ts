@@ -29,7 +29,7 @@ import { ensureSubagentIntegration } from "./subagent-links.js";
 import { createTaskSettings } from "./task-settings.js";
 import { registerTaskTool } from "./tools/task.js";
 import { isUnblocked } from "./tools/task-dependencies.js";
-import { TaskWidgetComponent } from "./tools/task-display.js";
+import { createTaskWidget } from "./tools/task-display.js";
 import type { Task } from "./tools/task-types.js";
 
 function renderTaskWidget(
@@ -61,7 +61,7 @@ function renderTaskWidget(
 		context.ui.setWidget("omp-tasks", undefined);
 		return;
 	}
-	context.ui.setWidget("omp-tasks", () => new TaskWidgetComponent(tasks));
+	context.ui.setWidget("omp-tasks", () => createTaskWidget(tasks));
 }
 
 export default async function ohMyPiV2(pi: ExtensionAPI): Promise<void> {

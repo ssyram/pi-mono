@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import type { Component } from "@earendil-works/pi-tui";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import {
 	buildTaskWidgetLines,
+	createTaskWidget,
 	normalizeTaskDisplayText,
+	resetTaskWidgetCollapsed,
 	sortTasksForDisplay,
 	TaskWidgetComponent,
+	toggleTaskWidgetCollapsed,
 } from "../tools/task-display.js";
 import type { Task } from "../tools/task-types.js";
 
@@ -20,6 +24,23 @@ function task(id: number, status: Task["status"], text = `task ${id}`, blockedBy
 		blockedBy,
 		createdAt: timestamp,
 		updatedAt: timestamp,
+	};
+}
+
+function clickEvent(overrides: Partial<Parameters<NonNullable<Component["handleMouse"]>>[0]> = {}) {
+	return {
+		type: "click" as const,
+		button: "left" as const,
+		x: 0,
+		y: 0,
+		screenX: 0,
+		screenY: 0,
+		width: 80,
+		height: 2,
+		shift: false,
+		alt: false,
+		ctrl: false,
+		...overrides,
 	};
 }
 
@@ -112,5 +133,54 @@ describe("task widget display", () => {
 		assert.ok(lines[1]?.includes("[reason continued]"));
 		assert.doesNotMatch(lines[1] ?? "", /[\r\n]/);
 		assert.deepEqual(source, original);
+	});
+});
+
+describe("task widget collapse", () => {
+	it("collapses to one summary line and expands back on toggle", () => {
+		resetTaskWidgetCollapsed();
+		const tasks = [
+			task(1, "in_progress"),
+			task(2, "pending"),
+			task(3, "pending", "blocked", [2]),
+			task(4, "done"),
+			task(5, "expired"),
+		];
+		const expanded = new TaskWidgetComponent(tasks).render(80);
+		toggleTaskWidgetCollapsed();
+		const collapsed = new TaskWidgetComponent(tasks).render(80);
+		toggleTaskWidgetCollapsed();
+
+		assert.equal(collapsed.length, 1);
+		assert.equal(collapsed[0], " ≡ Tasks ➤1 ⚡1 ○1 ✓1/5 (click to expand)");
+		assert.ok(visibleWidth(collapsed[0] ?? "") <= 80);
+		assert.ok(expanded.length > 1);
+	});
+
+	it("truncates the collapsed summary to the terminal width", () => {
+		resetTaskWidgetCollapsed();
+		toggleTaskWidgetCollapsed();
+		const lines = new TaskWidgetComponent([task(1, "in_progress")]).render(12);
+		resetTaskWidgetCollapsed();
+
+		assert.equal(lines.length, 1);
+		assert.ok(visibleWidth(lines[0] ?? "") <= 12);
+		assert.ok(lines[0]?.includes("…"));
+	});
+
+	it("toggles collapse on left click and ignores other mouse events", () => {
+		resetTaskWidgetCollapsed();
+		const widget = createTaskWidget([task(1, "in_progress")]);
+
+		assert.deepEqual(widget.handleMouse?.(clickEvent()), { handled: true });
+		assert.equal(new TaskWidgetComponent([task(1, "in_progress")]).render(80).length, 1);
+
+		assert.equal(widget.handleMouse?.(clickEvent({ button: "right" })), undefined);
+		assert.equal(widget.handleMouse?.(clickEvent({ type: "release" })), undefined);
+		assert.equal(new TaskWidgetComponent([task(1, "in_progress")]).render(80).length, 1);
+
+		assert.deepEqual(widget.handleMouse?.(clickEvent()), { handled: true });
+		assert.ok(new TaskWidgetComponent([task(1, "in_progress")]).render(80).length > 1);
+		resetTaskWidgetCollapsed();
 	});
 });

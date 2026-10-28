@@ -1,11 +1,23 @@
 import type { Component } from "@earendil-works/pi-tui";
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { MouseRegion, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { isUnblocked } from "./task-dependencies.js";
 import { formatTaskContent, statusTag } from "./task-format.js";
 import type { Task } from "./task-types.js";
 
 const MAX_DISPLAYED_TASKS = 10;
 const MAX_DISPLAYED_BLOCKERS = 3;
+
+// Module-level because setWidget rebuilds the component on every task change.
+let taskWidgetCollapsed = false;
+
+export function toggleTaskWidgetCollapsed(): void {
+	taskWidgetCollapsed = !taskWidgetCollapsed;
+}
+
+/** Test hook: restore the default expanded widget. */
+export function resetTaskWidgetCollapsed(): void {
+	taskWidgetCollapsed = false;
+}
 
 interface TaskWidgetRow {
 	content: string;
@@ -38,7 +50,7 @@ function buildTaskWidgetRows(tasks: Task[]): TaskWidgetRow[] {
 		(task) => task.status === "in_progress" || (task.status === "pending" && isUnblocked(task, tasks)),
 	).length;
 	const done = tasks.filter((task) => task.status === "done").length;
-	const rows: TaskWidgetRow[] = [{ content: `Tasks (${active} active, ${done}/${tasks.length} done)`, suffix: "" }];
+	const rows: TaskWidgetRow[] = [{ content: ` ≡ Tasks (${active} active, ${done}/${tasks.length} done)`, suffix: "" }];
 
 	for (const task of sorted.slice(0, MAX_DISPLAYED_TASKS)) {
 		const tag = statusTag(task, tasks);
@@ -71,6 +83,14 @@ function buildTaskWidgetRows(tasks: Task[]): TaskWidgetRow[] {
 	return rows;
 }
 
+function buildCollapsedTaskSummary(tasks: Task[]): string {
+	const running = tasks.filter((task) => task.status === "in_progress").length;
+	const ready = tasks.filter((task) => task.status === "pending" && isUnblocked(task, tasks)).length;
+	const blocked = tasks.filter((task) => task.status === "pending" && !isUnblocked(task, tasks)).length;
+	const done = tasks.filter((task) => task.status === "done").length;
+	return ` ≡ Tasks ➤${running} ⚡${ready} ○${blocked} ✓${done}/${tasks.length} (click to expand)`;
+}
+
 export function buildTaskWidgetLines(tasks: Task[]): string[] {
 	return buildTaskWidgetRows(tasks).map((row) => row.content + row.suffix);
 }
@@ -86,6 +106,9 @@ export class TaskWidgetComponent implements Component {
 
 	render(width: number): string[] {
 		const availableWidth = Math.max(1, width);
+		if (taskWidgetCollapsed) {
+			return [truncateToWidth(buildCollapsedTaskSummary(this.tasks), availableWidth, "…")];
+		}
 		return buildTaskWidgetRows(this.tasks).map((row) => {
 			if (row.suffix === "") return truncateToWidth(row.content, availableWidth, "…");
 			const suffixWidth = visibleWidth(row.suffix);
@@ -93,4 +116,13 @@ export class TaskWidgetComponent implements Component {
 			return truncateToWidth(row.content, availableWidth - suffixWidth, "…") + row.suffix;
 		});
 	}
+}
+
+/** Fullscreen TUI dispatches mouse events; in regular mode the region is inert. */
+export function createTaskWidget(tasks: Task[]): Component {
+	return new MouseRegion(new TaskWidgetComponent(tasks), (event) => {
+		if (event.type !== "click" || event.button !== "left") return undefined;
+		toggleTaskWidgetCollapsed();
+		return { handled: true };
+	});
 }
