@@ -13,6 +13,8 @@ import { registerProjectedTools } from "../broker/fsm-tools.ts";
 import { NativeFsmPool } from "../children/native-fsm-pool.ts";
 import { registerOcToolAliases } from "../gates/oc-tool-aliases.ts";
 import { registerHcSurfaceTools } from "../tools/hc-surface-tools.ts";
+import { registerHcNativeTools } from "../tools/hc-native-surface.ts";
+const HC_NATIVE_ADAPTER_NAMES: ReadonlySet<string> = new Set(["read", "write", "edit", "bash", "grep", "glob"]);
 import { hostModelSource } from "../judge/host-model-source.ts";
 import { JudgeSessions } from "../judge/judge-session.ts";
 import { createOcHandlers } from "../protocol/oc-handlers.ts";
@@ -97,13 +99,19 @@ export async function openOwnedRuntime(pi: ExtensionAPI, ctx: ExtensionContext, 
 		resources.own(() => server.close());
 		const env = { ...(config.env ?? process.env), OPENCODE_SERVER_URL: bridgeUrl, OPENCODE_SERVER_PASSWORD: bridgePassword };
 		registerOcToolAliases(pi, config.cwd, env);
-		// HC's model roster names the builtin content search: activate Pi's
-		// grep (registration-optional tools never join the default set).
+		// HC surface: the file/shell/search tools are re-registered under
+		// HC's exact wire schema; the shadowed Pi builtins must leave the
+		// active set first (a registration shadowing an active builtin
+		// disappears from the wire).
 		try {
-			const active = pi.getActiveTools();
-			if (!active.includes("grep")) pi.setActiveTools([...active, "grep"]);
+			const active = pi.getActiveTools().filter((name) => !(name in HC_NATIVE_ADAPTER_NAMES));
+			pi.setActiveTools(active);
 		} catch { /* headless hosts without the loadout API */ }
 		offs.push(registerHcSurfaceTools(pi));
+		offs.push(await registerHcNativeTools(pi, (tool, input) => {
+			const target = pi.getAllTools().find((candidate) => candidate.name === tool && candidate.sourceInfo === undefined);
+			throw new Error(`hc-native adapter for ${tool} not wired to an executor yet`);
+		}));
 		const channelConfig = { rootSessionId: binding.rootSessionId, cwd: config.cwd, serverUrl: bridgeUrl,
 			dataDir: config.dataDir, clientCommand: config.clientCommand, clientArgs: config.clientArgs, env,
 			capacity: config.capacity, ...(config.scope ? { scope: config.scope } : {}) };
