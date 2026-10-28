@@ -37,6 +37,7 @@ const env = { LANG: process.env.LANG ?? "en_US.UTF-8", LC_ALL: "C", SHELL: "/bin
 	FSM_DATA_DIR: fsmData, FSM_STOP_ANALYSIS: stopAnalysis, FSM_CLIENT_LOG: join(run, "fsm-client.log"),
 	PLOT_RUN: run, PLOT_REAL_HOOK: join(FSM, "mcp-server-fsm-hook"),
 	PLOT_BINDINGS: JSON.stringify({ run, work, package: engineRoot, ...(plot.bindings ?? {}) }), PLOT_HC_PORT: String(facadePort), PATH: `${FSM}:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin`,
+	PLOT_TOOL_DEFS_STRICT: process.env.PLOT_TOOL_DEFS_STRICT ?? "",
 	RUST_LOG: process.env.FSM_DUAL_DEBUG ? "debug" : process.env.RUST_LOG ?? "" };
 
 const owned = [];
