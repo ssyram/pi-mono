@@ -1,4 +1,4 @@
-const HC_QUESTION_DESCRIPTION = "Ask the user a question and wait for their response. Use for any interaction requiring human input: clarifications, confirmations, choices, or missing information. The question and options will be shown to the user in a dialog.";
+const HC_QUESTION_DESCRIPTION = "Use this tool when you need to ask the user questions during execution. This allows you to:\n1. Gather user preferences or requirements\n2. Clarify ambiguous instructions\n3. Get decisions on implementation choices as you work\n4. Offer choices to the user about what direction to take.\n\nUsage notes:\n- When `custom` is enabled (default), a \"Type your own answer\" option is added automatically; don't include \"Other\" or catch-all options\n- Answers are returned as arrays of labels; set `multiple: true` to allow selecting more than one\n- If you recommend a specific option, make that the first option in the list and add \"(Recommended)\" at the end of the label\n";
 import { Type } from "typebox";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { DaemonRequester } from "../broker/daemon-request.ts";

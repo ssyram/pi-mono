@@ -14,7 +14,7 @@ import { NativeFsmPool } from "../children/native-fsm-pool.ts";
 import { registerOcToolAliases } from "../gates/oc-tool-aliases.ts";
 import { registerHcSurfaceTools } from "../tools/hc-surface-tools.ts";
 import { registerHcNativeTools } from "../tools/hc-native-surface.ts";
-const HC_NATIVE_ADAPTER_NAMES: ReadonlySet<string> = new Set(["read", "write", "edit", "bash", "glob"]);
+const HC_NATIVE_ADAPTER_NAMES: ReadonlySet<string> = new Set(["read", "write", "edit", "grep"]);
 import { hostModelSource } from "../judge/host-model-source.ts";
 import { JudgeSessions } from "../judge/judge-session.ts";
 import { createOcHandlers } from "../protocol/oc-handlers.ts";
@@ -126,25 +126,31 @@ export async function openOwnedRuntime(pi: ExtensionAPI, ctx: ExtensionContext, 
 		offs.push(registerHcAgentTools(pi, { services: hc.services, depth: 0,
 			permitted: policy.agents.map((agent) => agent.canonicalName),
 			callerVariant: () => pi.getThinkingLevel() ?? "default" }));
-		// HC surface finishing pass: after every tool registration, drop the
+		// Capture the builtin executors before they leave the active set.
+		const builtinExecutors = new Map<string, (id: string, input: never, s: undefined, u: undefined, c: undefined) => unknown>();
+		for (const name of HC_NATIVE_ADAPTER_NAMES) {
+			const builtin = (pi as unknown as { getTool?: (n: string) => { execute: unknown } | undefined }).getTool?.(name);
+			if (builtin) builtinExecutors.set(name, builtin.execute as never);
+		}
+		offs.push(await registerHcNativeTools(pi, async (tool, input) => {
+			// Route through the Pi builtin the adapter normalized input for.
+			const executor = builtinExecutors.get(tool);
+			if (!executor) throw new Error(`hc-native: no builtin executor for ${tool}`);
+			return executor(`hc_${tool}`, input as never, undefined, undefined, undefined);
+		}));
+
+				// HC surface finishing pass: after every tool registration, drop the
 		// shadowed builtins from the active set and ensure grep is activated.
 		try {
-			const active = pi.getActiveTools().filter((name) => name !== "grep" && !HC_NATIVE_ADAPTER_NAMES.has(name));
+			const active = pi.getActiveTools().filter((name) => !HC_NATIVE_ADAPTER_NAMES.has(name));
 			pi.setActiveTools([...active, "grep"]);
 		} catch { /* headless hosts without the loadout API */ }
 		try {
 			const active = pi.getActiveTools();
-			const needed = ["read", "write", "edit", "bash", "glob"].filter((name) => !active.includes(name));
+			const needed = ["read", "write", "edit"].filter((name) => !active.includes(name));
 			if (needed.length) pi.setActiveTools([...active, ...needed]);
 		} catch { /* headless hosts without the loadout API */ }
-				offs.push(await registerHcNativeTools(pi, async (tool, input) => {
-			// Route through the Pi builtin the adapter normalized input for.
-			const registry = (pi as unknown as { getTool?: (name: string) => { execute: unknown } | undefined }).getTool;
-			const target = registry?.call(pi, tool);
-			if (!target) throw new Error(`hc-native: no builtin executor for ${tool}`);
-			return (target.execute as (id: string, input: never, s: undefined, u: undefined, c: undefined) => unknown)(`hc_${tool}`, input as never, undefined, undefined, undefined);
-		}));
-
+		
 		offs.push(installPermissionGate(pi, request, bindingRef, config.timeoutMs));
 		offs.push(installStopGate(pi, request, bindingRef, config.timeoutMs, { hasBusyChild: (id) => hc!.busy(id),
 			judges, analysisEnabled: config.stopAnalysis ?? true, sourcePassword: bridgePassword,

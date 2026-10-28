@@ -20,7 +20,7 @@ const AGENT_DESCRIPTION = [
 	"- Always asynchronous: this returns once the subagent has started. Every run ends with a report to you as a message in your conversation; there is nothing to poll",
 	"- Several can run at the same time",
 	"- When `cwd` is omitted a new working directory is created and the subagent is told to use it, which keeps parallel edits apart. This is a convention, not a sandbox: a shared `cwd`, or an absolute path into the rest of the project, can still collide",
-	"- To continue work in an existing directory or worktree, pass that path as `cwd`. Naming it only in the prompt is not enough: a fresh directory is created regardless and the Agent is told to use that one, so the two instructions conflict",
+	"- To continue work in an existing directory or worktree, pass it as `cwd`. Naming it only in the prompt is not enough: a fresh directory is created regardless and the Agent is told to use that one, so the two instructions conflict",
 	"- The returned `session_id` always works as a target for agent_send and agent_stop",
 	"- `name` is optional and shorter to use, but is not guaranteed unique; if two subagents share one, that name is refused and you must use the session_id",
 	"- Nesting is bounded: a subagent deep enough in the tree is not offered this tool at all",

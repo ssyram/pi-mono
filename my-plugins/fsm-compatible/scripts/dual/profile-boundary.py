@@ -422,13 +422,23 @@ def _check_tool_definitions(plot, run, mode, request, state):
     raw_dir = run / 'raw-tools'
     if not raw_dir.exists():
         return
-    state.setdefault('toolsConsumed', 0)
-    seq = state['toolsConsumed']
-    path = raw_dir / f'{seq:04d}.json'
-    if not path.exists():
+    import hashlib
+    messages = request.get('request', {}).get('context', {}).get('messages', [])
+    mh = hashlib.sha256(json.dumps(messages[-6:], ensure_ascii=False).encode()).hexdigest()[:16]
+    state.setdefault('toolsConsumed', [])
+    candidates = [p for p in sorted(raw_dir.glob('*.json')) if p.name not in state['toolsConsumed']]
+    path = None
+    for candidate in candidates:
+        try:
+            if json.loads(candidate.read_text()).get('mh') == mh:
+                path = candidate
+                break
+        except Exception:
+            continue
+    if path is None:
         return
-    state['toolsConsumed'] = seq + 1
-    definitions = json.loads(path.read_text())
+    state['toolsConsumed'].append(path.name)
+    definitions = json.loads(path.read_text())['tools']
     names = [tool.get('function', {}).get('name') for tool in definitions]
     strict = os.environ.get('PLOT_TOOL_DEFS_STRICT') == '1'
     if strict and (len(names) != spec.get('count') or len(names) != len(set(names))):
