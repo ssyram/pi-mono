@@ -36,6 +36,21 @@
 | D8 | 宿主 profile/title 概念 | HC 的 session 有 defaultInfo profile（root 落 build、Stop parts-only 续行发生 general→build 翻转）与 session title；Pi 宿主无对应概念。Pi 侧如实报 agent:null/空。对偶经 scripts/dual/profile-boundary.py 包装原版引擎做**三个精确投影点**：①step.hc_agent 断言跳过；②完整 receipt 比较中 hc_result.agent 投影为 null；③agent_list 文本 self 行的 agent_type/title 两列置空（receipt.text 与 hc_result.state.output 同步）。每次投影写 run/profile-boundaries.jsonl（callID、golden 值、pi:null）。wrapper 无其他投影点；其余字段（provider/model/status/timestamps/全部业务值）照原版严格比较。root 的 agent_type=build 已按 HC defaultInfo 推导在生产复刻（非投影），title 保持投影。 |
 | D9 | 剧本并发时序对宿主调度敏感（owner 裁决 (a)：declared-boundary） | reference alpha/009：use-plot 对依赖未满足的请求持 state.lock 忙等自旋（plot_engine.execute 无 sleep 重试），把并发的 gamma agent_send 结构性钉在 alpha 起跑请求之后——实测 send 间隔恒 = debounce 窗口 + ~0.3s（1s→1.38s、5s→5.24s、6.5s→6.82s、8s→8.22s 四组），时间窗口不可解。单 worker 剧本（idle-resume）无此耦合。owner 裁决 (a)：该 inbox 断言按 declared-boundary 跳过并记录 d9-boundaries 日志；实现于 profile-boundary wrapper 的 PLOT_D9_SKIP 显式豁免（plot→actor/index→contains 清单），其余断言照常。 |
 
+## 3b. v3/v4/fuzz 收口新增机制（2026-10-28，待 owner 追认归类）
+
+14/14 剧本对偶通过所依赖的新机制。前四项为 Pi 生产侧等价复刻（非差异）；后四项为框架侧投影/适配，逻辑上归属 D7（线格式适配）或构成新差异类，按第 4.3 条停报 owner 追认：
+
+| 机制 | 侧 | 性质 |
+|---|---|---|
+| inbox sidecar（`inbox.jsonl`）：steer 输入即时落盘 | 生产 | 等价复刻：消除 Pi steer 转录滞后（HC inbox 即时可见），使 wait_messages/wait_complete 可观察 |
+| 终态 Stop-allow 也记录 stop 决定（legal-pause 文案） | 生产 | 等价复刻：HC hook 对 Allow 也 emit_verdict |
+| AgentTypeNotFound available = HC 全量原生 roster（build/plan/general/explore 排序） | 生产 | 等价复刻 |
+| 完成通知走 inbox 通道（busy 时 steer）而非 custom 消息 | 生产 | 等价复刻（HC lifecycle.ts:456） |
+| shim 剥离 user part 的 `type` 键（线格式保留） | 框架 | D7 延伸：pi 线 parts {type,text} vs HC {text}，仅引擎视图归一 |
+| cancel-artifact 499：被中止 toolResult 结尾的请求立即以 provider 取消响应 | 框架 | 待归类：Pi abort 会把已发出的模型调用留在网上（HC 进程树杀死不产生该调用）；shim 抑制该多余调用，可观察结果等价 |
+| roster 请求时组合 + ledger 物化：running-rows 变体由 shim 按请求附加（通知缺席且 facade busy 判活），none-(N idle) 变体完全归生产 idle 唤醒内联 | 框架 | 待归类：HC applyAgentRoster 每步计算+内容去重；Pi 在投递时组合，shim 补齐请求时语义 |
+| facade 原子写 + poll 锁等待 + user 消息幂等自愈 | 框架 | 基础设施：无语义投影 |
+
 ## 4. 判定流程
 
 1. mismatch 锁存后先对照第 3 节归类；命中 → 记录为 declared difference，继续。

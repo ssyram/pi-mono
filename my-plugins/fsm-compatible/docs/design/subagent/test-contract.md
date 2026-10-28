@@ -157,3 +157,19 @@ export function availableAgentTools(depth: number, limit?: number): HcAgentToolN
 测试不运行真实 LLM、FSM daemon、tmux、provider API，不复制完整 HC 工程，不写生产源码，不放宽 HC 字符串。`Accepted` 的文字/同步返回合同可以单测；实际消费、续行、门禁和父通知的全链路留给独立真实 HC/Pi 同脚本实验，不用简单单测冒充它。
 
 隔离目录 `my-plugins/.runtime/fsm-compatible-unit-tests-20261023` 的 src 可链接到插件 src，test 使用最终位置的相对导入。先写断言；生产模块就绪后用已有 Vitest 对具体文件实际运行。若实现不符，保留失败，向主线程报告。主线程在双方完成后原样接入插件 test/。
+
+
+## 对偶状态（2026-10-28）
+
+14/14 套剧本 Pi 对偶全 PASS：v2×3（reference/idle-resume/soft-review）、v3×3（semantic-stop/semantic-wait/native-agents）、v4×4（domain-errors/creation-rejections/header-escaping/unnamed-cancellation）、fuzz×4（gate/variable/depth/name）。v3/v4/fuzz 均经稳定性复跑。
+
+运行方式（仓库根）：
+
+```sh
+node my-plugins/fsm-compatible/scripts/dual/run-plot.mjs --plot=my-plugins/hc-fsm-reference/plots/reference.json          # v2
+node my-plugins/fsm-compatible/scripts/dual/run-plot.mjs --plot=my-plugins/hc-fsm-reference/v3/plots/semantic-stop.json  # v3
+node my-plugins/fsm-compatible/scripts/dual/run-plot.mjs --plot=my-plugins/hc-fsm-reference/v4/plots/domain-errors.json # v4（daemon 数据目录 <run>/f）
+node my-plugins/fsm-compatible/scripts/dual/run-plot.mjs --plot=my-plugins/hc-fsm-reference/fuzz/suite/plots/gate-boundaries.json  # fuzz（复用 v2 引擎）
+```
+
+退出后看 `<run>/outcome.json`（finalMessage/failure）；证据在 `/tmp/fsm-dual/<id>/`。新差异面先对照 dual-legitimate-differences.md 第 3b 节，未命中按其第 4 节流程。
