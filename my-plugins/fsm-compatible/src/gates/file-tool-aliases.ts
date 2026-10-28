@@ -99,8 +99,4 @@ export function registerFileToolAliases(pi: ExtensionAPI, cwd = process.cwd()): 
 		pi.registerTool({ name, label: name, description, parameters, execute } as never);
 	};
 	// CC names only — Pi's native lowercase read/write/edit stay untouched.
-	reg(pi, "Read", "Read file contents (CC name; accepts file_path/filePath/path)", READ_PARAMS, read);
-	reg(pi, "Write", "Write file contents (CC name; accepts file_path/filePath/path)", WRITE_PARAMS, write);
-	reg(pi, "Edit", "Edit file with old/new pairs or edits[] (CC name)", EDIT_PARAMS, edit);
-	reg(pi, "MultiEdit", "Edit file with multiple old/new pairs (CC name)", EDIT_PARAMS, edit);
 }

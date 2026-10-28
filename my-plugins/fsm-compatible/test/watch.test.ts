@@ -34,7 +34,7 @@ test("ask tool waits on a real dialog, tracks wait state and releases the gate a
 	const { pi, tools } = piStub();
 	const waitState = createWaitState();
 	registerAskTool(pi, { request: requester(posts), binding: () => ({ sessionId: "r", agentId: "main" }), waitState, timeoutMs: 5000 });
-	const ask = tools.get("AskUserQuestion")!;
+	const ask = tools.get("question")!;
 	let releaseSelect: ((value: string) => void) | undefined;
 	const ctx = askCtx({ select: () => new Promise((resolve) => { releaseSelect = resolve; }), input: () => Promise.resolve("") });
 	const pending = ask.execute("call-1", { question: "continue?", options: ["yes", "no"] }, undefined, undefined, ctx);
@@ -47,7 +47,7 @@ test("ask tool waits on a real dialog, tracks wait state and releases the gate a
 	assert.equal(waitState.active, false);
 	await new Promise((resolve) => setTimeout(resolve, 10));
 	assert.deepEqual(posts, ["/gate/release"]);
-	const noUi = (await tools.get("AskUserQuestion")!.execute("call-2", { question: "q" }, undefined, undefined, askCtx({} as never))) as { isError: boolean };
+	const noUi = (await tools.get("question")!.execute("call-2", { question: "q" }, undefined, undefined, askCtx({} as never))) as { isError: boolean };
 	assert.equal(noUi.isError, true);
 	const cancelled = askCtx({ select: () => Promise.reject(new Error("user escaped")), input: () => Promise.resolve("") });
 	const failed = (await ask.execute("call-3", { question: "q", options: ["a"] }, undefined, undefined, cancelled)) as { isError: boolean };

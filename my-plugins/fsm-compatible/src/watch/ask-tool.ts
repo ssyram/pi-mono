@@ -45,8 +45,8 @@ function isAskParams(value: unknown): value is AskParams {
 export function registerAskTool(pi: ExtensionAPI, deps: AskToolDeps): () => void {
 	let registered = true;
 	pi.registerTool({
-		name: "AskUserQuestion",
-		label: "AskUserQuestion",
+		name: "question",
+		label: "question",
 		description: "Ask the human a task question and wait for the answer.",
 		parameters: Type.Object({
 			question: Type.String(),
@@ -55,7 +55,7 @@ export function registerAskTool(pi: ExtensionAPI, deps: AskToolDeps): () => void
 		}),
 		async execute(_id: string, params: unknown, _signal: AbortSignal | undefined, _onUpdate: undefined, ctx: ExtensionContext) {
 			if (!registered) throw new Error("ask tool disabled");
-			if (!isAskParams(params)) throw new Error("invalid AskUserQuestion input");
+			if (!isAskParams(params)) throw new Error("invalid question input");
 			const current = deps.binding();
 			if (!current) throw new Error("runtime not ready");
 			const dialog = ctx.ui;

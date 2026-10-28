@@ -12,6 +12,7 @@ import { prepareBrokerChannel } from "../broker/broker-channel.ts";
 import { registerProjectedTools } from "../broker/fsm-tools.ts";
 import { NativeFsmPool } from "../children/native-fsm-pool.ts";
 import { registerOcToolAliases } from "../gates/oc-tool-aliases.ts";
+import { registerHcSurfaceTools } from "../tools/hc-surface-tools.ts";
 import { hostModelSource } from "../judge/host-model-source.ts";
 import { JudgeSessions } from "../judge/judge-session.ts";
 import { createOcHandlers } from "../protocol/oc-handlers.ts";
@@ -96,6 +97,13 @@ export async function openOwnedRuntime(pi: ExtensionAPI, ctx: ExtensionContext, 
 		resources.own(() => server.close());
 		const env = { ...(config.env ?? process.env), OPENCODE_SERVER_URL: bridgeUrl, OPENCODE_SERVER_PASSWORD: bridgePassword };
 		registerOcToolAliases(pi, config.cwd, env);
+		// HC's model roster names the builtin content search: activate Pi's
+		// grep (registration-optional tools never join the default set).
+		try {
+			const active = pi.getActiveTools();
+			if (!active.includes("grep")) pi.setActiveTools([...active, "grep"]);
+		} catch { /* headless hosts without the loadout API */ }
+		offs.push(registerHcSurfaceTools(pi));
 		const channelConfig = { rootSessionId: binding.rootSessionId, cwd: config.cwd, serverUrl: bridgeUrl,
 			dataDir: config.dataDir, clientCommand: config.clientCommand, clientArgs: config.clientArgs, env,
 			capacity: config.capacity, ...(config.scope ? { scope: config.scope } : {}) };

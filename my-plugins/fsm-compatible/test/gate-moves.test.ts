@@ -20,8 +20,8 @@ function ctx(): ExtensionContext {
 }
 
 test("gate bisection: only an allowed AskUserQuestion suppresses; everything else releases", () => {
-	assert.equal(gateShouldSuppress(true, "AskUserQuestion"), true);
-	assert.equal(gateShouldSuppress(false, "AskUserQuestion"), false);
+	assert.equal(gateShouldSuppress(true, "question"), true);
+	assert.equal(gateShouldSuppress(false, "question"), false);
 	assert.equal(gateShouldSuppress(true, "bash"), false);
 	assert.equal(gateShouldSuppress(false, "read"), false);
 });
@@ -40,7 +40,7 @@ test("permission verdicts ride the main gate best-effort; children and failures 
 	};
 	installPermissionGate(pi, request, () => ({ sessionId: "r", agentId: "main" }), 5000);
 	const gate = handlers.get("tool_call")!;
-	assert.equal(await gate({ toolName: "AskUserQuestion", input: { question: "q" } }, ctx()), undefined);
+	assert.equal(await gate({ toolName: "question", input: { question: "q" } }, ctx()), undefined);
 	assert.equal(await gate({ toolName: "bash", input: { command: "ls" } }, ctx()), undefined);
 	await new Promise((resolve) => setTimeout(resolve, 20));
 	assert.deepEqual(posts, [
@@ -54,14 +54,14 @@ test("permission verdicts ride the main gate best-effort; children and failures 
 	};
 	const { pi: p2, handlers: h2 } = fakePi();
 	installPermissionGate(p2, failing, () => ({ sessionId: "r", agentId: "main" }), 5000);
-	assert.equal(await h2.get("tool_call")!({ toolName: "AskUserQuestion", input: {} }, ctx()), undefined);
+	assert.equal(await h2.get("tool_call")!({ toolName: "question", input: {} }, ctx()), undefined);
 	const childRequest: DaemonRequester = async (input): Promise<DaemonReply> => {
 		if (input.path.startsWith("/gate/")) throw new Error("child must not move the main gate");
 		return { status: 200, body: { ok: true, allowed: true } };
 	};
 	const { pi: p3, handlers: h3 } = fakePi();
 	installPermissionGate(p3, childRequest, () => ({ sessionId: "c", agentId: "child-1" }), 5000);
-	assert.equal(await h3.get("tool_call")!({ toolName: "AskUserQuestion", input: {} }, ctx()), undefined);
+	assert.equal(await h3.get("tool_call")!({ toolName: "question", input: {} }, ctx()), undefined);
 	assert.equal(await handlers.get("tool_call")!({ toolName: "mcp__fsm__fsm_get_state", input: {} }, ctx()), undefined);
 });
 

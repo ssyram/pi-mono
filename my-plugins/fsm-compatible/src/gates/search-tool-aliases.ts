@@ -46,10 +46,5 @@ export function registerSearchToolAliases(pi: ExtensionAPI, cwd = process.cwd())
 	const reg = (_pi: ExtensionAPI, name: string, description: string, parameters: object, execute: AliasExecute): void => {
 		pi.registerTool({ name, label: name, description, parameters, execute } as never);
 	};
-	reg(pi, "grep", "Search file contents by regex (accepts glob/include filter)", GREP_PARAMS, grep);
-	reg(pi, "Grep", "Search file contents by regex (CC name; accepts glob/include)", GREP_PARAMS, grep);
 	reg(pi, "glob", "Find files by glob pattern", GLOB_PARAMS, find);
-	reg(pi, "Glob", "Find files by glob pattern (CC name)", GLOB_PARAMS, find);
-	reg(pi, "ls", "List directory contents", LS_PARAMS, ls);
-	reg(pi, "LS", "List directory contents (CC name)", LS_PARAMS, ls);
 }
