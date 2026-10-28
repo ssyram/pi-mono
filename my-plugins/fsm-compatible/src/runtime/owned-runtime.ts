@@ -100,21 +100,7 @@ export async function openOwnedRuntime(pi: ExtensionAPI, ctx: ExtensionContext, 
 		const env = { ...(config.env ?? process.env), OPENCODE_SERVER_URL: bridgeUrl, OPENCODE_SERVER_PASSWORD: bridgePassword };
 		registerOcToolAliases(pi, config.cwd, env);
 		// HC surface: the file/shell/search tools are re-registered under
-		// HC's exact wire schema; the shadowed Pi builtins must leave the
-		// active set first (a registration shadowing an active builtin
-		// disappears from the wire).
-		try {
-			const active = pi.getActiveTools().filter((name) => name !== "grep" && !(HC_NATIVE_ADAPTER_NAMES.has(name)));
-			pi.setActiveTools([...active, "grep"]);
-		} catch { /* headless hosts without the loadout API */ }
 		offs.push(registerHcSurfaceTools(pi));
-		offs.push(await registerHcNativeTools(pi, async (tool, input) => {
-			// Route through the Pi builtin the adapter normalized input for.
-			const registry = (pi as unknown as { getTool?: (name: string) => { execute: unknown } | undefined }).getTool;
-			const target = registry?.call(pi, tool);
-			if (!target) throw new Error(`hc-native: no builtin executor for ${tool}`);
-			return (target.execute as (id: string, input: never, s: undefined, u: undefined, c: undefined) => unknown)(`hc_${tool}`, input as never, undefined, undefined, undefined);
-		}));
 		const channelConfig = { rootSessionId: binding.rootSessionId, cwd: config.cwd, serverUrl: bridgeUrl,
 			dataDir: config.dataDir, clientCommand: config.clientCommand, clientArgs: config.clientArgs, env,
 			capacity: config.capacity, ...(config.scope ? { scope: config.scope } : {}) };
@@ -140,6 +126,25 @@ export async function openOwnedRuntime(pi: ExtensionAPI, ctx: ExtensionContext, 
 		offs.push(registerHcAgentTools(pi, { services: hc.services, depth: 0,
 			permitted: policy.agents.map((agent) => agent.canonicalName),
 			callerVariant: () => pi.getThinkingLevel() ?? "default" }));
+		// HC surface finishing pass: after every tool registration, drop the
+		// shadowed builtins from the active set and ensure grep is activated.
+		try {
+			const active = pi.getActiveTools().filter((name) => name !== "grep" && !HC_NATIVE_ADAPTER_NAMES.has(name));
+			pi.setActiveTools([...active, "grep"]);
+		} catch { /* headless hosts without the loadout API */ }
+		try {
+			const active = pi.getActiveTools();
+			const needed = ["read", "write", "edit", "bash", "glob"].filter((name) => !active.includes(name));
+			if (needed.length) pi.setActiveTools([...active, ...needed]);
+		} catch { /* headless hosts without the loadout API */ }
+				offs.push(await registerHcNativeTools(pi, async (tool, input) => {
+			// Route through the Pi builtin the adapter normalized input for.
+			const registry = (pi as unknown as { getTool?: (name: string) => { execute: unknown } | undefined }).getTool;
+			const target = registry?.call(pi, tool);
+			if (!target) throw new Error(`hc-native: no builtin executor for ${tool}`);
+			return (target.execute as (id: string, input: never, s: undefined, u: undefined, c: undefined) => unknown)(`hc_${tool}`, input as never, undefined, undefined, undefined);
+		}));
+
 		offs.push(installPermissionGate(pi, request, bindingRef, config.timeoutMs));
 		offs.push(installStopGate(pi, request, bindingRef, config.timeoutMs, { hasBusyChild: (id) => hc!.busy(id),
 			judges, analysisEnabled: config.stopAnalysis ?? true, sourcePassword: bridgePassword,

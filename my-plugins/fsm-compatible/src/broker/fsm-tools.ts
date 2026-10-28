@@ -38,7 +38,7 @@ export function registerProjectedTools(pi: ExtensionAPI, owner: ProjectedToolOwn
 		const piName = `mcp__fsm__${tool.name}`;
 		// Register OC-name alias: "fsm_" + MCP tool name (e.g., fsm_enter_fsm → mcp__fsm__enter_fsm)
 		const ocName = `fsm_${tool.name}`;
-		pi.registerTool({ name: ocName, label: tool.name, description: `[OC alias] ${tool.description}`,
+		pi.registerTool({ name: ocName, label: tool.name, description: tool.description,
 			parameters: structuredClone(tool.inputSchema),
 			async execute(id, params, signal, onUpdate, ctx) {
 				if (!active || !owner.ready()) throw new RuntimeError("not-ready", "FSM projected runtime not ready");
