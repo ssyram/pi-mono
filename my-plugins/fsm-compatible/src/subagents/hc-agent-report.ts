@@ -39,7 +39,10 @@ async function deliverParentNotice(services: HcAgentRuntimeServices, record: HcS
 	const text = outcome.kind === "cancelled" ? "" : renderAgentNotification({ sessionId: record.session_id, state, summary, text: outcome.text });
 	const parent = services.directory.get(parentId);
 	if (parent.session_id === services.root.rootSessionId) {
-		await services.deliverNotification(parentId, text, { kind: "agent_notification", summary });
+		// HC lifecycle.ts:456: completion notices travel the inbox (a user
+		// message, steered in when busy), never a flush-at-turn-boundary
+		// custom channel — the latter races the parent's next model step.
+		await services.deliverRendered(parentId, text);
 		return;
 	}
 	if (!parent.handle) {

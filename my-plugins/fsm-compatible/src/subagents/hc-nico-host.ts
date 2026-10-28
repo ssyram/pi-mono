@@ -88,8 +88,10 @@ export class HcNicoSessionHost {
 		// HC parity: delivery enqueues synchronously but starts the run
 		// asynchronously (Effect fork + session pipeline), and back-to-back
 		// sends join the first run as separate user messages. Trailing merge:
-		// every idle send resets the start timer, the batch flushes as prompt
-		// (first) + queued steers (rest), preserving one user message per send.
+		// every idle send resets a short start timer (HC's pipeline-scale
+		// window, not seconds — a long window reorders wakes against the
+		// sender's own next steps), the batch flushes as prompt (first) +
+		// queued steers (rest), preserving one user message per send.
 		record.status = "busy";
 		const pending = this.pendingStarts.get(record.session_id) ?? { texts: [] as string[], timer: undefined as ReturnType<typeof setTimeout> | undefined };
 		pending.texts.push(text);
@@ -111,7 +113,7 @@ export class HcNicoSessionHost {
 					/* record frozen paths stay on the event stream */
 				}
 			});
-		}, 2000);
+		}, 150);
 		this.pendingStarts.set(record.session_id, pending);
 	}
 

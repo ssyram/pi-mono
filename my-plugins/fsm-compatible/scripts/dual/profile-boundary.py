@@ -167,8 +167,10 @@ def _message_text(message):
     if isinstance(content, str):
         return content, None
     if isinstance(content, list):
+        # Parts are already type-stripped by _strip_part_types; any dict with
+        # a text field is a text part in the engine's view.
         return '\n'.join(part.get('text', '') for part in content
-                          if isinstance(part, dict) and part.get('type') == 'text'), content
+                          if isinstance(part, dict) and isinstance(part.get('text'), str)), content
     return '', content
 
 
@@ -249,8 +251,13 @@ def _apply_agent_roster(plot, run, request):
     # completion notice) has run: a child counts live until its notice is
     # visibly consumed in this transcript.
     def child_live(row):
-        return f'<agent id="{row["id"]}" state="completed">' not in request_text \
-            and f'<agent id="{row["id"]}" state="error">' not in request_text
+        if f'<agent id="{row["id"]}" state="completed">' in request_text:
+            return False
+        if f'<agent id="{row["id"]}" state="error">' in request_text:
+            return False
+        # A cancelled child emits no notice to its parent: the facade's
+        # session status is the fallback truth (busy/retry = running).
+        return statuses.get(row['id'], {}).get('type') in ('busy', 'retry')
     live = [row for row in children if child_live(row)]
     live.sort(key=lambda row: (row.get('time') or {}).get('created') or 0, reverse=True)
     shown = live[:10]
@@ -283,6 +290,12 @@ def _apply_agent_roster(plot, run, request):
         # An empty base means the message never carried inbox text here —
         # leave the wire content untouched rather than fabricating a part.
         return
+    if not shown:
+        # The none-(N idle) variant belongs to idle-wake deliveries, which
+        # production already composes inline; HC's mid-turn agent messages
+        # never carry it alone (the imminent completion notice becomes the
+        # roster target instead).
+        return
     parts = [{'text': base}, {'text': text}]
     message['content'] = parts if isinstance(content, list) else parts
     ledger_path = run / 'roster-ledger.json'
@@ -292,6 +305,12 @@ def _apply_agent_roster(plot, run, request):
         ledger = {}
     ledger[_roster_key(base)] = text
     ledger_path.write_text(json.dumps(ledger, ensure_ascii=False))
+    try:
+        _users = [(ROSTER_SENTINEL in (_message_text(m)[0]), _message_text(m)[0][:50]) for m in messages if m.get('role') == 'user']
+        (run / 'ledger-write.log').open('a').write(
+            f'key={_roster_key(base)} base={base[:60]!r} prev={previous!r} new={body_text[:60]!r}\nusers={_users}\n')
+    except Exception:
+        pass
 
 
 def join_root(*parts):
@@ -344,12 +363,15 @@ def process(plot, run, mode, request, **kwargs):
         # settles idle, exactly HC's observable outcome.
         if 'inbox requires exactly one message' in str(_e) and _inbox_misses(request):
             # Pi's session abort can leave an already-dispatched model call on
-            # the wire (HC kills the process tree instead). Hold this artifact
-            # in the engine's dependency wait: the inbox wake steers Pi into a
-            # fresh request, and the steer aborts this one.
+            # the wire (HC kills the process tree instead). Resolve the
+            # pre-wake artifact as a provider-level cancellation: the turn
+            # ends without a Stop evaluation and the inbox wake starts a
+            # fresh, fast prompt — HC's observable outcome. Holding the HTTP
+            # would stall every later steer on this session.
             with (run / 'wrapper.log').open('a') as _f:
-                _f.write(f'{__import__("time").time():.2f} hold-artifact (pre-inbox cancel)\n')
-            return None
+                _f.write(f'{__import__("time").time():.2f} cancel-artifact (pre-inbox)\n')
+            return {'error': {'status': 499, 'code': 'cancelled_artifact',
+                              'message': 'post-cancel model artifact suppressed'}}
         with (run / 'wrapper.log').open('a') as _f:
             _f.write(f'{__import__("time").time():.2f} exit-FAIL {_e!r} has006={has006}\n')
         raise
@@ -359,7 +381,25 @@ def process(plot, run, mode, request, **kwargs):
         raise
 
 
+def _cancel_artifact(request):
+    """True when the request's last message is itself an aborted-command
+    tool result: HC's process-tree cancel never produces this model call at
+    all, so it resolves instantly as a provider cancellation."""
+    try:
+        messages = request.get('request', {}).get('context', {}).get('messages', [])
+    except Exception:
+        return False
+    last = messages[-1] if messages else None
+    if not isinstance(last, dict) or last.get('role') != 'toolResult':
+        return False
+    body = json.dumps(last.get('content'), ensure_ascii=False)
+    return 'User aborted the command' in body and 'RESUME' not in json.dumps(messages[-2:], ensure_ascii=False)
+
+
 def _process_inner(plot, run, mode, request, **kwargs):
+    if _cancel_artifact(request):
+        return {'error': {'status': 499, 'code': 'cancelled_artifact',
+                          'message': 'post-cancel model artifact suppressed'}}
     _strip_part_types(request)
     try:
         _apply_agent_roster(plot, run, request)
