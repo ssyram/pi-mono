@@ -2,9 +2,9 @@
 // (root + every plugin-owned child tree) and the daemon-call log into the
 // hc-fsm-reference observation files. Runs before each use-plot invocation.
 import { createHash } from "node:crypto";
-import { appendFile, readFile, readdir, writeFile } from "node:fs/promises";
+import { appendFile, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 
 const cfg = JSON.parse(await readFile(process.argv[3], "utf8"));
 const { run, work } = cfg;
@@ -173,7 +173,10 @@ for (let attempt = 0; ; attempt++) {
 		await mkdir(lockDir);
 		break;
 	} catch {
-		if (pollMode || attempt > 400) {
+		// A poll under contention waits briefly rather than skipping: skipping
+		// let a co-polling engine hold the lock in near-continuous cycles and
+		// starve this session's transcript projection indefinitely.
+		if (attempt > (pollMode ? 40 : 400)) {
 			if (pollMode) process.exit(0);
 			throw new Error("flush lock contention");
 		}
@@ -205,7 +208,63 @@ for (const { source, lines, calls } of scanned) {
 	const seenCalls = (seen.files[source.file] ??= []);
 
 	const facadeMessages = (facade[source.sid] ??= []);
-	const facadeIds = new Set(facadeMessages.map((m) => m.id));
+	let facadeIds = new Set(facadeMessages.map((m) => m.id));
+	// Plain user messages (inbox deliveries, completion notices) are part of
+	// the observable surface: wait_messages and completion reports scan them
+	// through the facade. Projected once, keyed by their stable transcript id.
+	seen.userMsgIds ??= {};
+	for (const line of lines) {
+		let e;
+		try {
+			e = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (e.type !== "message" || e.message?.role !== "user") continue;
+		const um = e.message;
+		const text = typeof um.content === "string" ? um.content
+			: Array.isArray(um.content) ? um.content.filter((c) => c && c.type === "text").map((c) => c.text).join("\n") : "";
+		if (!text.trim()) continue;
+		const key = um.id ?? createHash("sha256").update(`${source.sid}:${um.timestamp}:${text}`).digest("hex").slice(0, 20);
+		// Self-healing idempotence: a concurrent writer can persist the seen
+		// key while this facade copy lost the entry — only trust the key when
+		// the text is actually present here.
+		if (seen.userMsgIds[key] && facadeMessages.some((m) => m.parts.some((part) => part.text === text))) continue;
+		seen.userMsgIds[key] = true;
+		const mid = `msg_${rid()}`;
+		facadeIds.add(mid);
+		facadeMessages.push({ id: mid, info: { id: mid, sessionID: source.sid, role: "user",
+			providerID: null, modelID: null, agent: null, time: { created: um.timestamp ?? Date.now() } },
+			parts: [{ type: "text", text }] });
+	}
+	// Steered deliveries land in a sidecar the moment they are accepted;
+	// their transcript entries appear only when the next request is built.
+	{
+		let inboxText = "";
+		try {
+			inboxText = await readFile(join(dirname(source.file), "inbox.jsonl"), "utf8");
+		} catch { /* none */ }
+		for (const line of inboxText.split("\n")) {
+			if (!line.trim()) continue;
+			let entry;
+			try {
+				entry = JSON.parse(line);
+			} catch {
+				continue;
+			}
+			const text = typeof entry.text === "string" ? entry.text : "";
+			if (!text.trim()) continue;
+			const key = createHash("sha256").update(`${source.sid}:${entry.ts ?? 0}:${text}`).digest("hex").slice(0, 20);
+			if (seen.userMsgIds[key] && facadeMessages.some((m) => m.parts.some((part) => part.text === text))) continue;
+			seen.userMsgIds[key] = true;
+			const mid = `msg_${rid()}`;
+			facadeIds.add(mid);
+			facadeMessages.push({ id: mid, info: { id: mid, sessionID: source.sid, role: "user",
+				providerID: null, modelID: null, agent: null, time: { created: entry.ts ?? Date.now() } },
+				parts: [{ type: "text", text }] });
+		}
+	}
+	facadeIds = new Set(facadeMessages.map((m) => m.id));
 	for (const line of lines) {
 		let e;
 		try {
@@ -392,5 +451,11 @@ for (const line of fresh) {
 }
 
 await writeFile(statePath, JSON.stringify(seen));
-await writeFile(facadePath, JSON.stringify(facade));
+// Atomic swap: concurrent engine polls read this file while another flush
+// rewrites it; a torn read parses as {} and observers see empty sessions.
+{
+	const temporary = `${facadePath}.${process.pid}.tmp`;
+	await writeFile(temporary, JSON.stringify(facade));
+	await rename(temporary, facadePath);
+}
 await release();

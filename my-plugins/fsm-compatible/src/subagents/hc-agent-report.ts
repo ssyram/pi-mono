@@ -2,6 +2,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, ToolResultMessage } from "@earendil-works/pi-ai";
 import { classifyHcRunOutcome, renderAgentNotification, type HcDelegationOutcome } from "./hc-agent-delegation.ts";
 import type { HcAgentRuntimeServices } from "./hc-agent-services.ts";
+import { recordInboxSidecar } from "./hc-inbox-sidecar.ts";
 import type { HcSessionRecord } from "./hc-session-record.ts";
 
 function isAssistant(message: AgentMessage): message is AssistantMessage {
@@ -30,6 +31,11 @@ function reportableNow(services: HcAgentRuntimeServices, record: HcSessionRecord
 	return !liveDescendantExists(services, record);
 }
 
+function reportableWhy(services: HcAgentRuntimeServices, record: HcSessionRecord): string {
+	if (services.host.hasQueuedInput(record)) return "queued-input";
+	return liveDescendantExists(services, record) ? "live-descendant" : "ok";
+}
+
 async function deliverParentNotice(services: HcAgentRuntimeServices, record: HcSessionRecord, outcome: HcDelegationOutcome): Promise<void> {
 	const parentId = record.parent_id;
 	if (parentId === undefined) return;
@@ -48,6 +54,7 @@ async function deliverParentNotice(services: HcAgentRuntimeServices, record: HcS
 	if (!parent.handle) {
 		await services.host.open(parent, services.launchPlan(parent), services.observe);
 	}
+	recordInboxSidecar(parent, text);
 	await services.host.deliver(parent, text);
 }
 
@@ -63,7 +70,14 @@ export async function reportHcRunEnd(services: HcAgentRuntimeServices, deferred:
 		return;
 	}
 	if (!reportableNow(services, record)) {
+		if (process.env.FSM_DUAL_DEBUG) console.error("REPORT-DEFER", record.session_id, reportableWhy(services, record));
 		deferred.add(record.session_id);
+		// A freshly settled session's queued-input flag can read true for a
+		// moment; deferral must not wait for the *next* settle event (a busy
+		// parent waiting on this very report would deadlock past its
+		// deadline). Self-recheck on a short timer.
+		const once = setTimeout(() => { void recheckDeferredHcReports(services, deferred); }, 150);
+		once.unref?.();
 		return;
 	}
 	deferred.delete(record.session_id);

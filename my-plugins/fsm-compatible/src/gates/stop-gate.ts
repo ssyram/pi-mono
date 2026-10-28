@@ -103,7 +103,16 @@ export function installStopGate(pi: ExtensionAPI, request: DaemonRequester, bind
 			return { entries: [{ type: "custom_message" as const, customType: "fsm-compatible:stop",
 				content: `FSM Stop：stop-check 协议错误，已保守阻止停止（${message}）。`, display: true }], continue: true };
 		}
-		if (check.isTerminal) return undefined;
+		if (check.isTerminal) {
+			// HC plan_stop_route Allow still ran the hook and emitted a
+			// verdict; the dual record keeps that observable fact.
+			dualStopLog({ session_id: current.sessionId, agent_id: current.agentId,
+				last_assistant_message: lastAssistantText(event.context.contextMessages) ?? undefined,
+				decision: "allow",
+				reason: `FSM Stop：${check.fsmName ?? "工作流"}当前未处于需要阻止停止的位置（未加载活跃 FSM，或当前状态允许用户交互）；已允许停止。`,
+				agent: current.agentId === "main" ? "stop" : "subagent-stop" });
+			return undefined;
+		}
 		const analysisEnabled = deps?.analysisEnabled ?? true;
 		const evidence = analysisEnabled
 			? await collectStopEvidence(request, current, Date.now() + timeoutMs, deps?.sourcePassword).catch(() => ({ dir: null, liveWork: "unknown" as const }))

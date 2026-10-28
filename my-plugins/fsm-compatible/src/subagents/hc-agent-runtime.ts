@@ -1,5 +1,6 @@
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { join } from "node:path";
+import { appendFile } from "node:fs/promises";
+import { join, dirname } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AdmissionPolicy } from "../admission/admission-policy.ts";
 import type { RootBinding } from "../binding/actor-binding.ts";
@@ -13,6 +14,7 @@ import type { FsmCompatibleConfig } from "../runtime/runtime-config.ts";
 import { createHcAgent } from "./hc-agent-create.ts";
 import { findHcAgentDefinition, HC_NATIVE_AGENT_DEFINITIONS, type HcAgentDefinition } from "./hc-agent-definitions.ts";
 import { renderAgentMessage } from "./hc-agent-message.ts";
+import { recordInboxSidecar } from "./hc-inbox-sidecar.ts";
 import { classifyFromRun, recheckDeferredHcReports, reportHcRunEnd } from "./hc-agent-report.ts";
 import type { HcAgentMessage, HcAgentModel } from "./hc-agent-types.ts";
 import type { HcAgentRuntimeServices } from "./hc-agent-services.ts";
@@ -144,6 +146,10 @@ export async function openHcAgentRuntime(deps: HcRuntimeDeps): Promise<HcRuntime
 			if (target === binding.rootSessionId) {
 				const idle = deps.ctx.isIdle();
 				const text = idle ? withAgentRoster(directory, target, rendered) : rendered;
+				const rootFile = deps.ctx.sessionManager.getSessionFile();
+				if (rootFile) {
+					void appendFile(join(dirname(rootFile), "inbox.jsonl"), JSON.stringify({ text, ts: Date.now() }) + "\n").catch(() => {});
+				}
 				await pi.sendUserMessage(text, idle ? undefined : { deliverAs: "steer" });
 				return true;
 			}
@@ -151,7 +157,9 @@ export async function openHcAgentRuntime(deps: HcRuntimeDeps): Promise<HcRuntime
 			if (!record) return false;
 			if (!record.handle) await host.open(record, services.launchPlan(record), services.observe);
 			delete record.turnProfile;
-			await host.deliver(record, record.status === "idle" ? withAgentRoster(directory, target, rendered) : rendered);
+			const outgoing = record.status === "idle" ? withAgentRoster(directory, target, rendered) : rendered;
+			recordInboxSidecar(record, outgoing);
+			await host.deliver(record, outgoing);
 			return true;
 		},
 		deliverNotification: async (parentId, text, meta) => {

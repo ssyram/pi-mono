@@ -20,12 +20,14 @@ const plotArg = process.argv.find((a) => a.startsWith("--plot="))?.slice(7);
 if (!plotArg) throw new Error("usage: node run-plot.mjs --plot=<plot.json>");
 const plotPath = resolve(plotArg);
 const plot = JSON.parse(await readFile(plotPath, "utf8"));
-const engineRoot = plotPath.includes("/v3/") ? join(REF, "v3") : REF;
+const engineRoot = plotPath.includes("/v3/") ? join(REF, "v3") : plotPath.includes("/v4/") ? join(REF, "v4") : REF;
 const stopAnalysis = engineRoot === REF ? "0" : "1";
 const facadePort = 21000 + (process.pid % 20000);
 const runId = `${Date.now().toString(36)}${process.pid.toString(36)}`;
 const run = join("/tmp/fsm-dual", runId);
-const work = join(run, "work"), agentDir = join(run, "agent"), fsmData = join(run, "fsm"), dataDir = join(run, "plugin-data");
+// v4's frozen engine reads the daemon socket/token at <run>/f directly.
+const work = join(run, "work"), agentDir = join(run, "agent"),
+	fsmData = join(run, engineRoot.endsWith("/v4") ? "f" : "fsm"), dataDir = join(run, "plugin-data");
 for (const d of ["home", "tmp", "config", "cache", "state", "model-inputs", "hooks", "captures", "hc-tool-parts", "fsm-states", "api-observations", "managed"]) await mkdir(join(run, d), { recursive: true });
 for (const d of [work, agentDir, fsmData, dataDir]) await mkdir(d, { recursive: true });
 

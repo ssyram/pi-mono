@@ -155,8 +155,14 @@ def _flush_observations():
     cfg = os.environ.get('PLOT_FLUSH_CFG')
     if not cfg:
         return
-    subprocess.run(['node', os.environ['PLOT_FLUSH_SCRIPT'], '--poll', cfg],
-                   capture_output=True, timeout=30)
+    _fr = subprocess.run(['node', os.environ['PLOT_FLUSH_SCRIPT'], '--poll', cfg],
+                          capture_output=True, timeout=30)
+    if _fr.returncode != 0:
+        try:
+            (Path(os.environ['PLOT_RUN']) / 'flush-errors.log').open('a').write(
+                f'rc={_fr.returncode} {_fr.stderr.decode()[:300]}\n')
+        except Exception:
+            pass
 
 
 ROSTER_SENTINEL = '<!-- opencode:subagents -->'
@@ -517,6 +523,7 @@ def _logging_exact(left, right):
             pass
     return ok
 _je.exact_json = _logging_exact
+
 hc_tool_observation.hc_tool_result = tool_result
 import plot_engine
 original_process = getattr(plot_engine, 'process', None)

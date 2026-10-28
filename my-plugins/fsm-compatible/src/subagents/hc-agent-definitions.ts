@@ -18,6 +18,26 @@ const EXPLORE_DESCRIPTION =
 
 /** HC native agent types (packages/opencode/src/agent/agent.ts at the fixed baseline). */
 export const HC_NATIVE_AGENT_DEFINITIONS: readonly HcAgentDefinition[] = Object.freeze([
+	// HC's native roster also carries the two primary-mode profiles; the
+	// AgentTypeNotFound available list names every non-hidden one.
+	Object.freeze({
+		name: "build",
+		description: "The default agent. Executes tools based on configured permissions.",
+		mode: "primary",
+		hidden: false,
+		tools: undefined,
+		excludeTools: Object.freeze(["codemode"]),
+		model: undefined,
+	}),
+	Object.freeze({
+		name: "plan",
+		description: "Plan mode. Disallows all edit tools.",
+		mode: "primary",
+		hidden: false,
+		tools: undefined,
+		excludeTools: Object.freeze(["codemode"]),
+		model: undefined,
+	}),
 	Object.freeze({
 		name: "general",
 		description: GENERAL_DESCRIPTION,
@@ -44,7 +64,7 @@ export function findHcAgentDefinition(catalog: readonly HcAgentDefinition[], typ
 
 /** Unknown-type error list: every non-hidden catalog name (HC agent.ts list order, not the description filter). */
 export function hcAgentAvailableNames(catalog: readonly HcAgentDefinition[]): string[] {
-	return catalog.filter((definition) => !definition.hidden).map((definition) => definition.name);
+	return catalog.filter((definition) => !definition.hidden).map((definition) => definition.name).sort();
 }
 
 /**
