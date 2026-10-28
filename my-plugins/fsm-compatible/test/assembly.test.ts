@@ -102,7 +102,7 @@ test("root assembly prepares every resource, serves the bridge, projects tools a
 	assert.ok(tools.has("fsm_fsm_get_state"), "FSM tool registered");
 	const roster = await (await fetch(`${handle.bridgeUrl}/session`)).status;
 	assert.equal(roster, 200, "bridge serves loopback OC-parity requests without credentials");
-	const invoked = await tools.get("mcp__fsm__fsm_get_state")!.execute("call", {}, undefined, undefined,
+	const invoked = await tools.get("fsm_fsm_get_state")!.execute("call", {}, undefined, undefined,
 		{ ...ctx, sessionManager: manager, tools: [] } as never);
 	assert.equal((invoked as { isError?: boolean }).isError, false);
 	await handle.close(Date.now() + 10000);
