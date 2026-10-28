@@ -100,7 +100,7 @@ export async function openOwnedRuntime(pi: ExtensionAPI, ctx: ExtensionContext, 
 		const env = { ...(config.env ?? process.env), OPENCODE_SERVER_URL: bridgeUrl, OPENCODE_SERVER_PASSWORD: bridgePassword };
 		registerOcToolAliases(pi, config.cwd, env);
 		// HC surface: the file/shell/search tools are re-registered under
-		offs.push(registerHcSurfaceTools(pi));
+		offs.push(await registerHcSurfaceTools(pi));
 		const channelConfig = { rootSessionId: binding.rootSessionId, cwd: config.cwd, serverUrl: bridgeUrl,
 			dataDir: config.dataDir, clientCommand: config.clientCommand, clientArgs: config.clientArgs, env,
 			capacity: config.capacity, ...(config.scope ? { scope: config.scope } : {}) };

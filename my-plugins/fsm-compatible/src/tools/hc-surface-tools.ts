@@ -3,16 +3,19 @@ import { Type } from "typebox";
 
 /** HC's model surface carries skill/todowrite/webfetch alongside the core
  * tools; these registrations mirror that roster with real behavior. */
-export function registerHcSurfaceTools(pi: ExtensionAPI): () => void {
+import { loadHcToolSchemas } from "./hc-native-surface.ts";
+
+export async function registerHcSurfaceTools(pi: ExtensionAPI): Promise<() => void> {
+	const schemas = await loadHcToolSchemas();
 	let active = true;
 	pi.registerTool({
 		name: "todowrite",
 		label: "todowrite",
-		description: "Write the structured todo list (complete tool input replaces the list).",
-		parameters: Type.Object({ todos: Type.Array(Type.Object({
+		description: schemas.todowrite?.description ?? "Write the structured todo list.",
+		parameters: (schemas.todowrite?.parameters ?? Type.Object({ todos: Type.Array(Type.Object({
 			id: Type.String(), content: Type.String(), status: Type.String(),
 			priority: Type.Optional(Type.String()),
-		})) }),
+		})) })) as never,
 		async execute(_id: string, params: { todos?: unknown }) {
 			if (!active) throw new Error("todowrite disabled");
 			if (!Array.isArray(params?.todos)) throw new Error("invalid todowrite input");
@@ -22,7 +25,7 @@ export function registerHcSurfaceTools(pi: ExtensionAPI): () => void {
 	pi.registerTool({
 		name: "skill",
 		label: "skill",
-		description: "List available skills or read one skill's instructions.",
+		description: schemas.skill?.description ?? "List available skills or read one skill's instructions.",
 		parameters: Type.Object({ name: Type.Optional(Type.String()) }),
 		async execute(_id: string, params: { name?: string }) {
 			if (!active) throw new Error("skill disabled");
@@ -33,7 +36,7 @@ export function registerHcSurfaceTools(pi: ExtensionAPI): () => void {
 	pi.registerTool({
 		name: "webfetch",
 		label: "webfetch",
-		description: "Fetch a URL and return its text content.",
+		description: schemas.webfetch?.description ?? "Fetch a URL and return its text content.",
 		parameters: Type.Object({ url: Type.String(), prompt: Type.Optional(Type.String()) }),
 		async execute(_id: string, params: { url?: string }, signal?: AbortSignal) {
 			if (!active) throw new Error("webfetch disabled");

@@ -18,6 +18,7 @@ const ADAPTERS: Record<string, Adapter> = {
 	write: (input) => ({ path: input.filePath, content: input.content }),
 	bash: (input) => ({ command: input.command, ...(input.timeout !== undefined ? { timeout: Number(input.timeout) / 1000 } : {}) }),
 	glob: (input) => ({ pattern: input.pattern, path: input.path }),
+	edit: (input) => ({ path: input.filePath ?? input.path, ...(input.edits !== undefined ? { edits: input.edits } : {}) }),
 };
 
 /**

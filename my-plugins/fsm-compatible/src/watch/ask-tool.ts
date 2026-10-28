@@ -1,3 +1,4 @@
+const HC_QUESTION_DESCRIPTION = "Ask the user a question and wait for their response. Use for any interaction requiring human input: clarifications, confirmations, choices, or missing information. The question and options will be shown to the user in a dialog.";
 import { Type } from "typebox";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { DaemonRequester } from "../broker/daemon-request.ts";
@@ -47,7 +48,7 @@ export function registerAskTool(pi: ExtensionAPI, deps: AskToolDeps): () => void
 	pi.registerTool({
 		name: "question",
 		label: "question",
-		description: "Ask the human a task question and wait for the answer.",
+		description: HC_QUESTION_DESCRIPTION,
 		parameters: Type.Object({
 			question: Type.String(),
 			options: Type.Optional(Type.Array(Type.String())),
