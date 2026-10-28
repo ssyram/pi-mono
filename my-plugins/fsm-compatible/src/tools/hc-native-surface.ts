@@ -11,11 +11,12 @@ export async function loadHcToolSchemas(): Promise<Record<string, { description:
 type Adapter = (input: Record<string, unknown>, ctx: { cwd: string }) => Promise<unknown> | unknown;
 
 /** Parameter adapters: HC wire names → the host implementation's input. */
+// grep: the Pi builtin is schema-compatible after activation; a shadowing
+// registration would drop it from the wire entirely.
 const ADAPTERS: Record<string, Adapter> = {
 	read: (input) => ({ path: input.filePath, limit: input.limit, offset: input.offset }),
 	write: (input) => ({ path: input.filePath, content: input.content }),
 	bash: (input) => ({ command: input.command, ...(input.timeout !== undefined ? { timeout: Number(input.timeout) / 1000 } : {}) }),
-	grep: (input) => ({ pattern: input.pattern, path: input.path, glob: input.include ?? input.glob }),
 	glob: (input) => ({ pattern: input.pattern, path: input.path }),
 };
 

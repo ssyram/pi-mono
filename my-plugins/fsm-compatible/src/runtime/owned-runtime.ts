@@ -14,7 +14,7 @@ import { NativeFsmPool } from "../children/native-fsm-pool.ts";
 import { registerOcToolAliases } from "../gates/oc-tool-aliases.ts";
 import { registerHcSurfaceTools } from "../tools/hc-surface-tools.ts";
 import { registerHcNativeTools } from "../tools/hc-native-surface.ts";
-const HC_NATIVE_ADAPTER_NAMES: ReadonlySet<string> = new Set(["read", "write", "edit", "bash", "grep", "glob"]);
+const HC_NATIVE_ADAPTER_NAMES: ReadonlySet<string> = new Set(["read", "write", "edit", "bash", "glob"]);
 import { hostModelSource } from "../judge/host-model-source.ts";
 import { JudgeSessions } from "../judge/judge-session.ts";
 import { createOcHandlers } from "../protocol/oc-handlers.ts";
@@ -104,13 +104,16 @@ export async function openOwnedRuntime(pi: ExtensionAPI, ctx: ExtensionContext, 
 		// active set first (a registration shadowing an active builtin
 		// disappears from the wire).
 		try {
-			const active = pi.getActiveTools().filter((name) => !(name in HC_NATIVE_ADAPTER_NAMES));
-			pi.setActiveTools(active);
+			const active = pi.getActiveTools().filter((name) => name !== "grep" && !(HC_NATIVE_ADAPTER_NAMES.has(name)));
+			pi.setActiveTools([...active, "grep"]);
 		} catch { /* headless hosts without the loadout API */ }
 		offs.push(registerHcSurfaceTools(pi));
-		offs.push(await registerHcNativeTools(pi, (tool, input) => {
-			const target = pi.getAllTools().find((candidate) => candidate.name === tool && candidate.sourceInfo === undefined);
-			throw new Error(`hc-native adapter for ${tool} not wired to an executor yet`);
+		offs.push(await registerHcNativeTools(pi, async (tool, input) => {
+			// Route through the Pi builtin the adapter normalized input for.
+			const registry = (pi as unknown as { getTool?: (name: string) => { execute: unknown } | undefined }).getTool;
+			const target = registry?.call(pi, tool);
+			if (!target) throw new Error(`hc-native: no builtin executor for ${tool}`);
+			return (target.execute as (id: string, input: never, s: undefined, u: undefined, c: undefined) => unknown)(`hc_${tool}`, input as never, undefined, undefined, undefined);
 		}));
 		const channelConfig = { rootSessionId: binding.rootSessionId, cwd: config.cwd, serverUrl: bridgeUrl,
 			dataDir: config.dataDir, clientCommand: config.clientCommand, clientArgs: config.clientArgs, env,
