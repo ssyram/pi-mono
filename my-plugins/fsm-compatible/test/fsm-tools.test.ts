@@ -47,8 +47,9 @@ test("registered execute uses canonical identity and returns complete results/pr
 	const owner = await toolOwner(t, "progress");
 	const { pi, definitions } = toolPi();
 	const deactivate = registerProjectedTools(pi, owner);
-	assert.deepEqual([...definitions.keys()], ["fsm_fsm_get_state", "mcp__fsm__fsm_get_state", "fsm_fsm_set_var", "mcp__fsm__fsm_set_var"]);
-	const tool = definitions.get("mcp__fsm__fsm_get_state")!;
+	// HC model surface: only the fsm_* alias is registered.
+	assert.deepEqual([...definitions.keys()], ["fsm_fsm_get_state", "fsm_fsm_set_var"]);
+	const tool = definitions.get("fsm_fsm_get_state")!;
 	const ctx = { sessionManager: { getSessionId: () => "r" } } as unknown as ExtensionToolContext;
 	const progress: unknown[] = [];
 	const result = await tool.execute("call", {}, undefined, (value) => progress.push(value), ctx);
@@ -64,7 +65,7 @@ test("not-ready or foreign session cannot reach the broker", async (t) => {
 	let ready = false;
 	const { pi, definitions } = toolPi();
 	registerProjectedTools(pi, { ...owner, ready: () => ready });
-	const tool = definitions.get("mcp__fsm__fsm_get_state")!;
+	const tool = definitions.get("fsm_fsm_get_state")!;
 	const ctx = { sessionManager: { getSessionId: () => "foreign" } } as unknown as ExtensionToolContext;
 	await assert.rejects(tool.execute("call", {}, undefined, undefined, ctx), { code: "not-ready" });
 	ready = true;

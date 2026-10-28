@@ -56,23 +56,8 @@ export function registerProjectedTools(pi: ExtensionAPI, owner: ProjectedToolOwn
 				return projectMcpToolResult(result);
 			},
 		});
-		pi.registerTool({ name: piName, label: tool.name, description: tool.description,
-			parameters: structuredClone(tool.inputSchema),
-			async execute(_id, params, signal, onUpdate, ctx) {
-				if (!active || !owner.ready()) throw new RuntimeError("not-ready", "FSM projected runtime not ready");
-				const binding = owner.binding(ctx);
-				if ((owner.hostSessionId ?? binding.sessionId) !== ctx.sessionManager.getSessionId()) throw new RuntimeError("owner-unavailable");
-				// FSM tools run the full gate suite server-side (clightgen, git audits,
-				// judge sessions — legitimately minutes); the 30s daemon-call timeoutMs
-				// is for quick HTTP, not these. A deadline miss closes the transport and
-				// kills the whole FSM surface, so give gates headroom.
-				const result = await owner.broker.invoke(binding, tool.name, params, {
-					deadline: Date.now() + owner.timeoutMs * 10, ...(signal ? { signal } : {}),
-					...(onUpdate ? { onProgress: (progress: unknown) => onUpdate({ content: [], details: { progress } }) } : {}),
-				});
-				return projectMcpToolResult(result);
-			},
-		});
+		// HC exposes only the fsm_* alias to the model; the canonical MCP
+		// spelling is not registered (identical broker routing either way).
 	}
 	return () => { active = false; };
 }

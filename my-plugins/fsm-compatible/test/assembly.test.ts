@@ -99,7 +99,7 @@ test("root assembly prepares every resource, serves the bridge, projects tools a
 	for (const retired of ["Agent", "task", "subagent", "agent_status"]) {
 		assert.ok(!tools.has(retired), `retired alias ${retired} must not be registered`);
 	}
-	assert.ok(tools.has("mcp__fsm__fsm_get_state"), "FSM tool registered");
+	assert.ok(tools.has("fsm_fsm_get_state"), "FSM tool registered");
 	const roster = await (await fetch(`${handle.bridgeUrl}/session`)).status;
 	assert.equal(roster, 200, "bridge serves loopback OC-parity requests without credentials");
 	const invoked = await tools.get("mcp__fsm__fsm_get_state")!.execute("call", {}, undefined, undefined,
