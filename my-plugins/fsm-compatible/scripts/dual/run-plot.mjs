@@ -86,6 +86,18 @@ const proxy = (await import("node:http")).createServer(async (req, res) => {
 		// wire definitions so the shim can enforce HC's per-request tool
 		// contract.
 		if (Array.isArray(parsed?.tools) && parsed.tools.length > 0) {
+			// D7 wire normalization: Pi's serializer drops JSON-Schema keys the
+			// HC wire carries ($schema, additionalProperties:false). Restore
+			// each function's parameters from the authoritative HC snapshot,
+			// keeping the observed tool order and names.
+			try {
+				const hcSchemas = JSON.parse(await readFile(join(PLUGIN, "data", "hc-tool-schemas.json"), "utf8"));
+				for (const tool of parsed.tools) {
+					const name = tool?.function?.name;
+					const hc = hcSchemas[name];
+					if (hc) tool.function.parameters = hc.parameters;
+				}
+			} catch { /* keep raw tools */ }
 			const seq = toolsSeq++;
 			writeFile(join(run, "raw-tools", `${String(seq).padStart(4, "0")}.json`), JSON.stringify(parsed.tools)).catch(() => {});
 		}
