@@ -132,12 +132,7 @@ export async function openOwnedRuntime(pi: ExtensionAPI, ctx: ExtensionContext, 
 			const builtin = (pi as unknown as { getTool?: (n: string) => { execute: unknown } | undefined }).getTool?.(name);
 			if (builtin) builtinExecutors.set(name, builtin.execute as never);
 		}
-		offs.push(await registerHcNativeTools(pi, async (tool, input) => {
-			// Route through the Pi builtin the adapter normalized input for.
-			const executor = builtinExecutors.get(tool);
-			if (!executor) throw new Error(`hc-native: no builtin executor for ${tool}`);
-			return executor(`hc_${tool}`, input as never, undefined, undefined, undefined);
-		}));
+		offs.push(await registerHcNativeTools(pi, config.cwd));
 
 				// HC surface finishing pass: after every tool registration, drop the
 		// shadowed builtins from the active set and ensure grep is activated.
