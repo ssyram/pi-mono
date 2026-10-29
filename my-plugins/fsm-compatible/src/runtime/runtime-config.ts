@@ -12,6 +12,8 @@ export interface FsmCompatibleConfig {
 	readonly cwd: string;
 	readonly capacity: number;
 	readonly timeoutMs: number;
+	/** Unanswered question deadline in ms (default 5000). */
+	readonly askTimeoutMs?: number;
 	readonly modelSource: JudgeModelSource;
 	readonly allowedAgentNames?: readonly string[];
 	readonly maxDepth?: number;

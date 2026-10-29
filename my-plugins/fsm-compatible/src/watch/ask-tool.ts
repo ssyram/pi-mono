@@ -20,6 +20,8 @@ export interface AskToolDeps {
 	readonly binding: () => GateBinding | undefined;
 	readonly waitState: WaitState;
 	readonly timeoutMs: number;
+	/** Unanswered-ask deadline (default 5s): shorter than the HTTP deadline. */
+	readonly askTimeoutMs?: number;
 }
 
 interface AskParams {
@@ -68,14 +70,18 @@ export function registerAskTool(pi: ExtensionAPI, deps: AskToolDeps): () => void
 			deps.waitState.since = Date.now();
 			deps.waitState.question = params.question;
 			try {
-				let answer: string;
-				if (params.options && params.options.length > 0) {
-					const selected = await dialog.select(params.header ?? "Choose", [...params.options]);
-					answer = typeof selected === "string" ? selected : String(selected ?? "");
-				} else {
-					const typed = await dialog.input(params.header ?? "Answer", "");
-					answer = typeof typed === "string" ? typed : String(typed ?? "");
-				}
+				// Unanswered asks must fail fast, not pin the FSM gate open for
+				// the full HTTP deadline — headless/CI runs have no human.
+				const ask = params.options && params.options.length > 0
+					? dialog.select(params.header ?? "Choose", [...params.options])
+					: dialog.input(params.header ?? "Answer", "");
+				const answer = await Promise.race([
+					ask,
+					new Promise<undefined>((resolve) => { setTimeout(() => resolve(undefined), deps.askTimeoutMs ?? 5000).unref?.(); }),
+				]);
+				if (answer === undefined) throw new Error("user cancelled");
+				// Pi returns undefined when the user really cancels either dialog.
+				if (answer === undefined) throw new Error("user cancelled");
 				return { content: [{ type: "text" as const, text: answer }] };
 			} catch (error) {
 				return { content: [{ type: "text" as const, text: `question cancelled: ${error instanceof Error ? error.message : "unknown"}` }], isError: true };

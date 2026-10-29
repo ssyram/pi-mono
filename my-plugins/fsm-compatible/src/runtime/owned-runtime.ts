@@ -150,7 +150,7 @@ export async function openOwnedRuntime(pi: ExtensionAPI, ctx: ExtensionContext, 
 		offs.push(installStopGate(pi, request, bindingRef, config.timeoutMs, { hasBusyChild: (id) => hc!.busy(id),
 			judges, analysisEnabled: config.stopAnalysis ?? true, sourcePassword: bridgePassword,
 			markStopContinuation: (id) => { const r = hc!.services.directory.get(id); if (r) r.turnProfile = "build"; } }));
-		if (ctx.hasUI) offs.push(registerAskTool(pi, { request, binding: bindingRef, waitState, timeoutMs: config.timeoutMs }));
+		if (ctx.hasUI) offs.push(registerAskTool(pi, { request, binding: bindingRef, waitState, timeoutMs: config.timeoutMs, ...(config.askTimeoutMs !== undefined ? { askTimeoutMs: config.askTimeoutMs } : {}) }));
 		if (ctx.hasUI && (config.fleetWidgetPlacement ?? "belowEditor") !== "off") {
 			const model = ctx.model;
 			offs.push(registerFleetUI(pi, ctx, { placement: config.fleetWidgetPlacement === "aboveEditor" ? "aboveEditor" : "belowEditor",
