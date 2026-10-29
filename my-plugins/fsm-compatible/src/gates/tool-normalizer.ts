@@ -74,29 +74,20 @@ export function normalizeToolCall(call: ToolCallLike): NormalizedToolCall {
 	const input = isAdmissionObject(call.input) ? call.input : {};
 	const clone = <T>(value: T): T => structuredClone(value);
 	switch (NAME_TO_CC[name] ?? name) {
+		// HC hook canonical (v5 TOOL_MAP): only filePath is renamed; every
+		// other wire field (oldString/newString/content/include) rides as-is.
+		// HC hook canonical (v5 TOOL_MAP): only filePath is renamed to
+		// file_path; every other wire field rides along as-is.
 		case "Write":
-			return { toolName: "Write", toolInput: renamed(input, { filePath: "file_path", path: "file_path" }) };
-		case "Edit": {
-			const ccEdit = renamed(input, { filePath: "file_path", path: "file_path",
-				oldText: "old_string", oldString: "old_string", newText: "new_string", newString: "new_string" });
-			if (ccEditPair(input)) return { toolName: "Edit", toolInput: ccEdit };
-			if (Array.isArray(input.edits)) {
-				const edits = input.edits.map((entry) => {
-					if (!isAdmissionObject(entry)) throw new RuntimeError("protocol-invalid");
-					const pair = ccEditPair(entry);
-					if (!pair) throw new RuntimeError("protocol-invalid");
-					return pair;
-				});
-				return { toolName: "MultiEdit", toolInput: { ...renamed(input, { filePath: "file_path", path: "file_path", oldText: "", oldString: "", newText: "", newString: "" }), edits } };
-			}
-			return { toolName: "Edit", toolInput: ccEdit };
-		}
+			return { toolName: "Write", toolInput: renamed(input, { filePath: "file_path" }) };
+		case "Edit":
+			return { toolName: "Edit", toolInput: renamed(input, { filePath: "file_path" }) };
 		case "Read":
-			return { toolName: "Read", toolInput: renamed(input, { filePath: "file_path", path: "file_path" }) };
+			return { toolName: "Read", toolInput: renamed(input, { filePath: "file_path" }) };
 		case "Bash":
 			return { toolName: "Bash", toolInput: renamed(input, {}) };
 		case "Grep":
-			return { toolName: "Grep", toolInput: renamed(input, { include: "glob" }) };
+			return { toolName: "Grep", toolInput: renamed(input, {}) };
 		case "Glob":
 			return { toolName: "Glob", toolInput: renamed(input, {}) };
 		case "LS":

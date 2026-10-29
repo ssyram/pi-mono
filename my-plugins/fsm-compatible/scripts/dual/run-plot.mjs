@@ -153,6 +153,26 @@ try {
 	}, null, 2));
 	facade = (await import("node:http")).createServer(await createObservationApi(run, roots));
 	await new Promise((r) => facade.listen(facadePort, "127.0.0.1", r));
+	// v5 shell_barrier: a blocked FIFO opens only after its command's printf
+	// output has stabilized — release by writing one byte into the FIFO.
+	const barrierWatch = false ? setInterval(() => {
+		void (async () => {
+			const entries = await readdir(join(run, "tmp")).catch(() => []);
+			for (const fifo of entries) {
+				if (!fifo.startsWith("barrier-")) continue;
+				const callId = "plot_" + fifo.replace("barrier-", "").replaceAll("-", "_");
+				const partial = join(run, "tmp", `bash-${callId}.partial`);
+				const bytes = await readFile(partial, "utf8").catch(() => null);
+				if (bytes === null) continue;
+				await new Promise((r) => setTimeout(r, 250));
+				const again = await readFile(partial, "utf8").catch(() => null);
+				if (again === bytes) {
+					await (await import("node:fs/promises")).writeFile(join(run, "tmp", fifo), "x").catch(() => {});
+				}
+			}
+		})();
+	}, 400) : undefined;
+	barrierWatch?.unref?.();
 
 	try {
 		await Promise.all(roots.map((root) => root.rpc.promptAndWait(plot.actors[root.role].marker + "\n" + (plot.actors[root.role].initial_prompt ?? plot.prompt), undefined, 240000)));

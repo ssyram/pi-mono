@@ -38,7 +38,7 @@ test("permission gate maps allow/deny verbatim, fails closed, checks exactly onc
 	let binding = { sessionId: "r", agentId: "main" };
 	const off = installPermissionGate(pi, request, () => binding, 5000);
 	const gate = handlers.get("tool_call")!;
-	assert.deepEqual(await gate({ toolName: "read", input: { path: "/a" } }, fakeCtx()), undefined);
+	assert.deepEqual(await gate({ toolName: "read", input: { filePath: "/a" } }, fakeCtx()), undefined);
 	assert.deepEqual(bodies, [{ session_id: "r", agent_id: "main", tool_name: "Read", tool_input: { file_path: "/a" } }]);
 	const deniedRequest = requester({ "POST /check-permission": ok({ allowed: false, reason: "state blocks read" }) }).request;
 	const { handlers: h2 } = fakePi();
@@ -104,7 +104,7 @@ test("repeated same-name permission checks use explicit root/child IDs without w
 			const { pi, handlers } = fakePi();
 			installPermissionGate(pi, request, () => ({ sessionId: "r", agentId }), 5000);
 			for (let index = 0; index < 3; index++) {
-				assert.deepEqual(await handlers.get("tool_call")!({ toolName: "write", input: { path: "/a", content: "x" } }, fakeCtx()),
+				assert.deepEqual(await handlers.get("tool_call")!({ toolName: "write", input: { filePath: "/a", content: "x" } }, fakeCtx()),
 					allowed ? undefined : { block: true, reason: "FSM 门禁：工具 Write 不允许使用。原因：state denies write" });
 			}
 			const checks = seen.filter((input) => input.path === "/check-permission");
