@@ -112,6 +112,7 @@ function createSetup() {
 		| undefined;
 	const pi = {
 		registerMessageRenderer: () => undefined,
+		registerToolRenderer: () => undefined,
 		events: createEventBus(),
 		on: (
 			event: string,

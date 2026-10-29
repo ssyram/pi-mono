@@ -60,6 +60,7 @@ export function createSetup(options: {
 
 	const pi = {
 		registerMessageRenderer: () => undefined,
+		registerToolRenderer: () => undefined,
 		events: createEventBus(),
 		on: (
 			eventName: string,

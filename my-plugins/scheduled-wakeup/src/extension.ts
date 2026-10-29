@@ -11,6 +11,7 @@ import { loopErrorMessage } from "./loop-error-message.js";
 import { claimLoopInstance } from "./loop-instance-owner.js";
 import { notifyLoop } from "./loop-notification.js";
 import { readLoopWidgetVisibility } from "./loop-widget-visibility.js";
+import { registerScheduledWakeupToolRenderer } from "./scheduled-wakeup-tool-renderer.js";
 import { sessionPersistenceError } from "./session-persistence-error.js";
 import { registerTaskRunRenderer } from "./task-run-renderer.js";
 import { createLoopRuntime } from "./v2/create-loop-runtime.js";
@@ -86,6 +87,7 @@ export default function scheduledWakeup(pi: ExtensionAPI): void {
 		};
 
 		registerTaskRunRenderer(pi);
+		registerScheduledWakeupToolRenderer(pi);
 
 		pi.on("session_start", async (_event, ctx) => {
 			if (!isActive()) return;

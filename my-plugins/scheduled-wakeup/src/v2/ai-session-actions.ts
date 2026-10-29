@@ -1,4 +1,5 @@
 import { loopErrorMessage } from "../loop-error-message.js";
+import { formatActiveTasks } from "./format-list.js";
 import type { LoopV2Core } from "./loop-core.js";
 import type { ActiveTask, TaskInput, TaskSchedule } from "./model.js";
 import { readTaskName } from "./model.js";
@@ -38,7 +39,7 @@ export class AiSessionActions {
 				case "add":
 					return this.add(input);
 				case "list":
-					return this.result(true, "Listed active session work.", true);
+					return this.list();
 				case "cancel":
 					return this.cancel(input);
 				case "delete":
@@ -54,6 +55,21 @@ export class AiSessionActions {
 				false,
 				`Error: ${errorMessage(error)}. State may already have changed.`,
 			);
+		}
+	}
+
+	private list(): AiSessionActionResult {
+		try {
+			const active = this.core.listActive();
+			return { ok: true, message: formatActiveTasks(active), active };
+		} catch (error) {
+			const activeError = errorMessage(error);
+			return {
+				ok: false,
+				message: `Error: ${activeError}. State may already have changed.`,
+				active: null,
+				activeError,
+			};
 		}
 	}
 

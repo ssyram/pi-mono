@@ -43,6 +43,7 @@ export function createBoundaryFixture(t: TestContext) {
 	let tool: BoundaryTool | undefined;
 	const pi = {
 		registerMessageRenderer: () => undefined,
+		registerToolRenderer: () => undefined,
 		on: (
 			name: string,
 			handler: (event: unknown, ctx: ExtensionContext) => Promise<void>,

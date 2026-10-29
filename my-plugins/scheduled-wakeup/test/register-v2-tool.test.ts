@@ -101,11 +101,24 @@ describe("registerScheduledWakeupV2Tool", () => {
 		const listed = await setup.execute({ action: "list" });
 		assert.equal(listed.details.ok, true);
 		assert.equal(setup.mutations, mutationsBefore);
-		assert.deepEqual(listed.details, { ok: true, message: "Listed active session work.", active: [] });
+		assert.deepEqual(listed.details, { ok: true, message: "No active scheduled wakeups.", active: [] });
 
 		const missing = await setup.execute({ action: "cancel", id: "session:none" });
 		assert.equal(missing.details.ok, false);
 		assert.match(missing.details.message, /no match for "session:none"/);
+	});
+
+	it("lists the formatted active tasks as the model-visible text", async () => {
+		const setup = createSetup();
+		const mutationsBefore = setup.mutations;
+		await setup.execute({ action: "add", prompt: "check the thing", interval: "1h", name: "poller" });
+		const listed = await setup.execute({ action: "list" });
+		assert.equal(setup.mutations, mutationsBefore + 1);
+		assert.equal(listed.details.ok, true);
+		assert.equal(listed.content[0]?.text, listed.details.message);
+		assert.match(listed.details.message, /poller \[session:/);
+		assert.match(listed.details.message, /every 1h/);
+		assert.equal(listed.details.active.length, 1);
 	});
 });
 

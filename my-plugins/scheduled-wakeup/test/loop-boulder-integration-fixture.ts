@@ -49,6 +49,7 @@ export function loopBoulderFixture(
 	let tool: Tool | undefined;
 	const pi = {
 		registerMessageRenderer: () => undefined,
+		registerToolRenderer: () => undefined,
 		events: bus,
 		on(name: string, handler: Hook) {
 			const list = hooks.get(name) ?? [];
