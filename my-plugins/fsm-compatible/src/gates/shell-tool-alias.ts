@@ -14,13 +14,25 @@ export function registerShellToolAlias(pi: ExtensionAPI, cwd = process.cwd(), en
 	const base = createBashToolDefinition(cwd, { spawnHook: (context) => ({ ...context,
 		env: { ...context.env, ...env } }) });
 	const tool = { ...base,
-		async execute(id: string, input: { command: string; timeout?: number }, signal?: AbortSignal, update?: Parameters<typeof base.execute>[3], ctx?: Parameters<typeof base.execute>[4]) {
+		async execute(id: string, input: { command: string; timeout?: number; workdir?: string }, signal?: AbortSignal, update?: Parameters<typeof base.execute>[3], ctx?: Parameters<typeof base.execute>[4]) {
 			try {
-				// HC's wire contract declares timeout in milliseconds; the host
-				// implementation takes seconds.
-				const normalized = input.timeout === undefined ? input
-					: { ...input, timeout: input.timeout / 1000 };
-				return await base.execute(id, normalized as never, signal, update, ctx as Parameters<typeof base.execute>[4]);
+				// HC's wire contract declares timeout in milliseconds and an
+				// optional workdir; the host takes seconds and a fixed cwd.
+				const quoted = input.workdir ? `'${input.workdir.replaceAll("'", `'\''`)}'` : undefined;
+				const command = quoted ? `cd ${quoted} && ${input.command}` : input.command;
+				const normalized = input.timeout === undefined ? { command }
+					: { command, timeout: input.timeout / 1000 };
+				const runDir = process.env.PLOT_RUN;
+				const partial = runDir ? `${runDir}/tmp/bash-${id}.partial` : null;
+				type Patch = { content?: { type: string; text: string }[] };
+				const streamingUpdate = update && partial
+					? ((patch: Patch) => {
+							const text = (patch?.content ?? []).map((c) => c.text).join("");
+							if (text) void import("node:fs/promises").then((fs) => fs.writeFile(partial, text)).catch(() => {});
+							return (update as (p: Patch) => void)(patch);
+						}) as unknown as Parameters<typeof base.execute>[3]
+					: update;
+				return await base.execute(id, normalized as never, signal, streamingUpdate, ctx as Parameters<typeof base.execute>[4]);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				if (/^Command aborted$|\n\nCommand aborted$/.test(message)) return shellMetadataResult(message, "User aborted the command") as never;

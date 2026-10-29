@@ -318,9 +318,11 @@ for (const { source, lines, calls } of scanned) {
 				// details (the same facts HC's durable part inherits);
 				// only Bash's shell facts are derived here.
 				title: isStructured ? "Structured Output" : isBash ? command
-					: (m.details && typeof m.details.title === "string" ? m.details.title : ""),
-				metadata: isStructured
+					: m.details && m.details.title !== undefined ? m.details.title
+					: "",				metadata: isStructured
 					? { valid: true }
+					: m.details && m.details.metadata !== undefined
+						? m.details.metadata
 					: toolName === "write"
 						? { diagnostics: {}, filepath: call.args?.filePath, exists: false, truncated: false }
 					: isBash && m.details && typeof m.details.metadata === "object" && m.details.metadata !== null && "exit" in m.details.metadata

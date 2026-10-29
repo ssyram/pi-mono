@@ -3,7 +3,7 @@
 // mock/FSM builds. Comparison against HC golden happens offline (next stage);
 // this stage proves the plumbing and records where observation adapters are due.
 import { createHash } from "node:crypto";
-import { mkdir, rm, writeFile, readFile, appendFile, access } from "node:fs/promises";
+import { mkdir, rm, writeFile, readFile, appendFile, access, readdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { createWriteStream } from "node:fs";
 import { join, resolve } from "node:path";
@@ -155,12 +155,13 @@ try {
 	await new Promise((r) => facade.listen(facadePort, "127.0.0.1", r));
 	// v5 shell_barrier: a blocked FIFO opens only after its command's printf
 	// output has stabilized — release by writing one byte into the FIFO.
-	const barrierWatch = false ? setInterval(() => {
+	const barrierWatch = setInterval(() => {
 		void (async () => {
 			const entries = await readdir(join(run, "tmp")).catch(() => []);
 			for (const fifo of entries) {
 				if (!fifo.startsWith("barrier-")) continue;
-				const callId = "plot_" + fifo.replace("barrier-", "").replaceAll("-", "_");
+				const [actor, idx] = fifo.replace("barrier-", "").split("-");
+				const callId = `plot_${actor}_${String(Number(idx)).padStart(3, "0")}`;
 				const partial = join(run, "tmp", `bash-${callId}.partial`);
 				const bytes = await readFile(partial, "utf8").catch(() => null);
 				if (bytes === null) continue;
@@ -171,8 +172,8 @@ try {
 				}
 			}
 		})();
-	}, 400) : undefined;
-	barrierWatch?.unref?.();
+	}, 400);
+	barrierWatch.unref();
 
 	try {
 		await Promise.all(roots.map((root) => root.rpc.promptAndWait(plot.actors[root.role].marker + "\n" + (plot.actors[root.role].initial_prompt ?? plot.prompt), undefined, 240000)));
