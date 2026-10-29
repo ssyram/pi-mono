@@ -549,7 +549,7 @@ frames:
       progress:
         kind: item_done
       fork: []
-    - text: 审计修复批次（commit bec9b9ea4）：Sol 独立审计 8 critical/9 warning/4 info；C1-C3 已修（D9 改 absent-gated 幂等豁免+作用域对齐+bind 恢复要求 Accepted 回执+user-only absent 检测），审计反例验证通过，reference 68/68 重跑 PASS。剩余审计项待修：C4 raw tools 全量校验、C5 postflight 全 actor/闭环验证、C6 Bash metadata 真实 exit、C7 hook 生产决定边界记录、C8 status 类型校验、W1-W9。Fleet external-runs 桥已交付（commit 前一笔）：HC 会话 FSM 帧显示进 pi-subagents Fleet。fuzz 第三套剧本已交付：hc-fsm-reference/fuzz/ 4 剧本+生成器+性质目录，414 回执双轮通过。
+    - text: 全部完成：14/14 剧本对偶 PASS（strict 工具契约默认开启且 26/26 逐对象相等，含 bash timeout 毫秒契约转换修复）；任务收口（#122/#142/#143 done）。剩余仅长期项：随 HC 版本漂移的 re-collect 流程文档化。
       children: []
       progress:
         kind: in_progress
@@ -630,6 +630,30 @@ frames:
     - action: update
       at: 2026-10-26T04:18:13.594668000Z
       detail: 结算审计修复与双 Sol 交付，登记剩余 C4-C8/W 项为下一责任；变更字段：content.results、plan[3].text
+    - action: update
+      at: 2026-10-26T04:35:35.823425000Z
+      detail: 结算 soft-review PASS 与 Stop wire 对齐，登记 semantic-stop 时序观察为下一责任；变更字段：plan[3].text
+    - action: update
+      at: 2026-10-26T04:37:11.668311000Z
+      detail: 登记 semantic-stop 卡点的精确根因与两条修法，供下一上下文直接动手；变更字段：plan[3].text
+    - action: update
+      at: 2026-10-26T07:03:22.731982000Z
+      detail: 结算 judge part 对齐与 phase1 卡点定位；变更字段：plan[3].text
+    - action: update
+      at: 2026-10-26T07:55:58.348269000Z
+      detail: 结算 phase1-3 与 phase4 卡点；变更字段：plan[3].text
+    - action: update
+      at: 2026-10-26T14:15:42.985342000Z
+      detail: 结算 v3 两剧本全过与剩余卡点；变更字段：plan[3].text
+    - action: update
+      at: 2026-10-28T04:46:18.002597000Z
+      detail: 结算 v3 全过与 v4 交付；变更字段：plan[3].text
+    - action: update
+      at: 2026-10-28T07:36:51.062020000Z
+      detail: 结算 14/14 全过；变更字段：plan[3].text
+    - action: update
+      at: 2026-10-28T11:04:33.667808000Z
+      detail: FSM 支持收口；变更字段：plan[3].text
   6:
     parent: null
     title: 独立HC FSM实验包：use-plot与真实collect/replay基准

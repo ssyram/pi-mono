@@ -2,13 +2,29 @@
 
 官方 Pi 的 FSM Server（use-fsm）兼容插件。FSM daemon 保留状态、权限、调度和 Evidence 的裁决；插件负责身份绑定、OC HTTP 协议、工具映射和门禁。目标与历史设计见 [docs/principles.md](docs/principles.md)。
 
-## 当前运行依据
+## 当前运行依据（2026-10-28 收口）
 
-- 本轮为 HC 四原生工具与通信/FSM 行为的一比一替换（设计见 [docs/design/subagent/](docs/design/subagent/)，源证见 [docs/research/hc-subagent-contract-20261023.md](docs/research/hc-subagent-contract-20261023.md)）。
-- 固定合同单测：独立 Vitest 4文件 20例全部通过（消息转义/精确回执/邻域寻址stop/模型深度）；插件 `tsc --noEmit` 干净；admission/gates/protocol/commands/runtime/judge/watch/children/assembly 套件全部通过（真实退出码 0）。
-- headless 验证：真实 Nico factory 在进程内创建/销毁真实 AgentSession（模型解析自宿主 settings，无 LLM 调用）；注入 factory 的生命周期冒烟覆盖 create→每轮报告→send(busy steer/idle prompt)→级联 stop→cancelled 无结果信封→send 恢复→工厂 dispose（`.runtime/fsm-hc-lifecycle-smoke.mjs`、`.runtime/fsm-real-factory-probe.mjs`，可重复执行）。
-- 同脚本 HC/Pi 对照与完整协议 trace 由独立 reference agent 负责；本轮未宣称全协议兼容。`test/fleet-ui.test.ts` 仍断言已退出的 tmux 提示串，真实失败待主线程处置。
+- HC 四原生工具与通信/FSM 行为的一比一替换（设计见 [docs/design/subagent/](docs/design/subagent/)，源证见 [docs/research/hc-subagent-contract-20261023.md](docs/research/hc-subagent-contract-20261023.md)）。
+- 对偶测试：**14/14 剧本 PASS**（v2×3 + v3×3 + v4×4 + fuzz×4，`my-plugins/hc-fsm-reference`），运行方式与覆盖边界见 [docs/design/subagent/test-contract.md](docs/design/subagent/test-contract.md)；合法差异面以 [docs/design/subagent/dual-legitimate-differences.md](docs/design/subagent/dual-legitimate-differences.md) 为唯一合同（D1–D9 + 3b 节收口机制）。
+- 工具契约：模型可见工具面与 HC 逐对象相等（26 工具：名单/参数/约束/描述/wire 键），由对偶 runner 的 `PLOT_TOOL_DEFS_STRICT`（默认开启）每请求强制校验。
+- 单测：`npm run test` 170/170；`npm run check` 0。
 - 普通 permission/Stop 检查直接使用 actor IDs，不写 MCP identity 槽；真正 MCP 调用保留 identity acquire→consume。
+
+### HC 版本漂移：re-collect 流程
+
+golden 是真 HC collect 的快照。HC 二进制或协议升级后：
+
+```sh
+# 1. 重新 collect（拒绝覆盖已有 golden，先挪走旧目录）
+python3 my-plugins/hc-fsm-reference/bin/use-plot <plot> --collect   # v2（fuzz 复用）
+python3 my-plugins/hc-fsm-reference/v3/bin/use-plot <plot> --collect
+python3 my-plugins/hc-fsm-reference/v4/src/run_experiment.py my-plugins/hc-fsm-reference/v4/plots/<plot>.json --collect
+# 2. fresh replay 一轮确认双轮匹配（verify 脚本 exit 0）
+# 3. Pi 对偶全量复验（runner 自动用新 golden）：
+node my-plugins/fsm-compatible/scripts/dual/run-plot.mjs --plot=<plot.json>
+```
+
+任何 mismatch 先对照 dual-legitimate-differences.md 归类；未命中即 Pi 实现缺口（默认修实现，禁止改 golden 迁就）。
 
 ## 项目级加载（不全局安装）
 
