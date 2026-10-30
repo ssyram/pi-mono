@@ -211,8 +211,18 @@ run(
 				})();
 		}
 		await runCommand(`/loop run ${taskId}`);
+		await waitFor(
+			/Boulder signal loop=true/,
+			30_000,
+			"live run keeps inhibition despite completed schedule",
+		);
 		await waitFor(/1\/1 OK/, 90_000, "delivered result card for the quick task");
 		await waitFor(/no wake/, 60_000, "result card no-wake label");
+		await waitFor(
+			/Boulder signal loop=false/,
+			30_000,
+			"inhibition clears after delivery",
+		);
 
 		await runCommand("/loop running");
 

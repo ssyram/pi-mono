@@ -12,7 +12,10 @@ import { readLoopWidgetVisibility } from "../loop-widget-visibility.js";
 import { isRunnerEnabled, pollerEnabled } from "../runner-mode.js";
 import { createTaskDispatcher } from "../task-dispatcher.js";
 import { AiSessionActions } from "./ai-session-actions.js";
-import { createBoulderSync } from "./boulder-sync.js";
+import {
+	createBoulderSync,
+	inhibitingIdsFromSnapshot,
+} from "./boulder-sync.js";
 import { DuePoller } from "./due-poller.js";
 import { formatActiveTasks } from "./format-list.js";
 import { UserLoopV2Commands } from "./user-commands.js";
@@ -58,7 +61,17 @@ export function createLoopRuntime(
 			terminateTaskRuns: (taskId) => dispatcher.terminateTaskRuns(taskId),
 		}),
 		poller: undefined,
-		boulderSync: createBoulderSync(pi, ctx, core),
+		boulderSync: createBoulderSync(pi, ctx, core, {
+			liveInhibitingRun: () => {
+				const inhibiting = inhibitingIdsFromSnapshot(
+					core.snapshotSessionState(),
+					(id) => core.registrationInhibition(id),
+				);
+				return dispatcher
+					.liveRuns()
+					.some((view) => inhibiting.has(view.taskId));
+			},
+		}),
 		cwd: ctx.cwd,
 		sessionManager: ctx.sessionManager,
 		sessionId: ctx.sessionManager.getSessionId(),

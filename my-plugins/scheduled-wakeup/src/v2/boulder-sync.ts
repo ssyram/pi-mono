@@ -18,22 +18,62 @@ export interface BoulderSyncBridge {
 	sync(): void;
 }
 
+/** Task/registration ids whose live runs must keep the loop signal up. */
+export function inhibitingIdsFromSnapshot(
+	snapshot: {
+		tasks: readonly { definition: { id: string; inhibitBoulder?: boolean } }[];
+		registrations: readonly { id: string }[];
+	},
+	resolveRegistration: (id: string) =>
+		| { kind: "resolved"; inhibitBoulder: boolean }
+		| { kind: "missing" }
+		| { kind: "unavailable" },
+): Set<string> {
+	const inhibiting = new Set(
+		snapshot.tasks
+			.filter((task) => task.definition.inhibitBoulder === true)
+			.map((task) => task.definition.id),
+	);
+	for (const registration of snapshot.registrations) {
+		const resolved = resolveRegistration(registration.id);
+		if (resolved.kind === "resolved" && resolved.inhibitBoulder)
+			inhibiting.add(registration.id);
+	}
+	return inhibiting;
+}
+
 export function createBoulderSync(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	core: LoopV2Core,
+	options?: { liveInhibitingRun?: () => boolean },
 ): BoulderSyncBridge {
 	const client = createBoulderInhibitionClient(pi.events, ctx.sessionManager);
 	return {
 		sync() {
 			try {
 				const snapshot = core.snapshotSessionState();
+				// A one-shot completes its schedule at dispatch, but its run lives
+				// until delivery; inhibition must span that whole window.
+				const runHeld = options?.liveInhibitingRun?.() === true;
 				const result = syncLoopBoulderInhibition(
 					{
-						tasks: snapshot.tasks.map((task) => ({
-							definition: task.definition,
-							progress: { status: task.progress.status },
-						})),
+						tasks: [
+							...snapshot.tasks.map((task) => ({
+								definition: task.definition,
+								progress: { status: task.progress.status },
+							})),
+							...(runHeld
+								? [
+										{
+											definition: {
+												inhibitBoulder: true,
+											},
+											progress: { status: "active" as const },
+										},
+									]
+								: []),
+						],
 						registrations: snapshot.registrations.map((registration) => ({
 							id: registration.id,
 							reference: { ...registration.reference },
