@@ -60,7 +60,7 @@ export function parseLoopV2Command(args: string, now: number = Date.now(), baseC
 export function loopV2HelpText(): string {
 	return [
 		"Usage:",
-		"/loop running                               Toggle widget details (fullscreen only)",
+		"/loop running                               Toggle widget details incl. pending deliveries",
 		"/loop show off|on                            Hide/show widget for this session; never stops tasks",
 		'Script options before schedule: --script {"path":"./check.sh"} (repeatable), --wake always|on-error|never, --error-mode or|and.',
 		"/loop add <interval> <prompt...>              Session recurring task",
@@ -70,8 +70,8 @@ export function loopV2HelpText(): string {
 		"/loop available [ws|workspace|global]         Unregistered shared definitions",
 		"/loop register <ws|workspace|global> <id|name>   Register a shared definition",
 		"/loop unregister <registration-id|name>         Remove this session's registration",
-		"/loop list                                    Show this session's active set",
-		"/loop stop <id|name|all>                      Stop active tasks and registrations",
+		"/loop list                                    Show active set, live runs and pending deliveries",
+		"/loop stop <id|name|all>                      Stop tasks, runs and pending deliveries",
 		"/loop delete [--force] <definition-id|name>    Delete a shared definition",
 		"/loop run <id|name>                           Deliver the prompt now, progress unchanged",
 		"/loop defer <id|name> <duration|time...>        Postpone only the next scheduled delivery",

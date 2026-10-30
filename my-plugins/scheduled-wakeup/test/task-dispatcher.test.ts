@@ -1,259 +1,354 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { setImmediate } from "node:timers/promises";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import type {
-	ScriptResult,
-	ScriptSpec,
-	ScriptTask,
-} from "../src/script-tasks/task-spec.js";
+import type { ExecutionTarget } from "../src/v2/model.js";
+import type { RunCatalog } from "../src/v2/run-catalog.js";
+import type { RunView } from "../src/v2/run-catalog-state.js";
 import { createTaskDispatcher } from "../src/task-dispatcher.js";
 
-const scripts: ScriptSpec[] = ["one", "two"].map((path) => ({
-	path: `/work/${path}`,
-	cwd: "/work",
-	params: [],
-	timeoutSeconds: null,
-}));
-function result(script: ScriptSpec, success: boolean): ScriptResult {
+function view(
+	taskId: string,
+	state: RunView["state"],
+	overrides: Partial<RunView> = {},
+): RunView {
 	return {
-		script,
-		status: success ? "success" : "failed",
-		exitCode: success ? 0 : 1,
-		signal: null,
-		stdout: script.path,
-		stderr: "",
-		error: null,
+		taskId,
+		runId: `${taskId}-run`,
+		dir: `/tmp/runs/${taskId}/${taskId}-run`,
+		startedAt: 1,
+		record: {
+			version: 1,
+			taskId,
+			scope: "session",
+			payload: { prompt: "p" },
+			ownerSessionId: "dispatcher-session",
+			startedAt: 1,
+		},
+		status:
+			state === "running"
+				? { pid: 123, currentIndex: 0, success: 0, completed: 0, total: 2, updatedAt: 1 }
+				: undefined,
+		outcome:
+			state === "pendingDelivery"
+				? {
+						cancelled: false,
+						results: [],
+						successCount: 1,
+						shouldWake: false,
+						completedAt: 2,
+						content: "done",
+					}
+				: undefined,
+		state,
+		...overrides,
 	};
 }
-function fixture() {
+
+function fixture(views: RunView[]) {
 	const messages: {
 		customType: string;
 		content: unknown;
-		details?: unknown;
 		options?: { triggerTurn?: boolean };
 	}[] = [];
-	const notifications: string[] = [];
-	const listeners = new Map<string, Set<() => void>>();
+	const handlers = new Map<string, (event: unknown) => unknown>();
+	const started: ExecutionTarget[] = [];
+	const cancelled: string[] = [];
+	let idle = true;
+	const catalog: RunCatalog = {
+		startRun(target) {
+			started.push(target);
+			const pushed = view(target.id, "running");
+			pushed.record = {
+				...pushed.record,
+				payload:
+					target.scriptTask === undefined
+						? { prompt: target.prompt }
+						: { scriptTask: target.scriptTask },
+			};
+			views.push(pushed);
+			return pushed;
+		},
+		async scan() {
+			return views;
+		},
+		markDelivered(dir) {
+			const found = views.find((item) => item.dir === dir);
+			if (found !== undefined) found.state = "done";
+		},
+		markCancelled(dir) {
+			const found = views.find((item) => item.dir === dir);
+			if (found !== undefined) found.state = "cancelled";
+		},
+		async cancelRunning(target) {
+			cancelled.push(target.taskId);
+			const found = views.find(
+				(item) => item.taskId === target.taskId && item.state === "running",
+			);
+			if (found !== undefined) found.state = "cancelled";
+			return "cancelled";
+		},
+	};
 	const pi = {
 		sendMessage: (
-			message: Omit<(typeof messages)[number], "options">,
+			message: { customType: string; content: unknown },
 			options?: { triggerTurn?: boolean },
 		) => messages.push({ ...message, ...(options ? { options } : {}) }),
-		sendUserMessage: () =>
-			assert.fail("automatic event must not impersonate user"),
-		on(event: string, handler: () => void) {
-			const set = listeners.get(event) ?? new Set();
-			set.add(handler);
-			listeners.set(event, set);
-			return () => set.delete(handler);
+		sendUserMessage: () => assert.fail("must use custom messages"),
+		on: (name: string, handler: (event: unknown) => unknown) => {
+			handlers.set(name, handler);
+			return () => handlers.delete(name);
 		},
 	} as unknown as ExtensionAPI;
 	const ctx = {
-		hasUI: true,
-		ui: { notify: (text: string) => notifications.push(text) },
+		isIdle: () => idle,
+		hasPendingMessages: () => false,
+		sessionManager: { getSessionId: () => "dispatcher-session" },
 	} as unknown as ExtensionContext;
-	const emit = (event: string) => {
-		for (const handler of listeners.get(event) ?? []) handler();
+	return {
+		pi,
+		ctx,
+		messages,
+		handlers,
+		started,
+		cancelled,
+		catalog,
+		views,
+		setIdle(value: boolean) {
+			idle = value;
+		},
 	};
-	return { pi, ctx, messages, notifications, emit };
 }
 
-test("progress tracks current script and I/K/M; all scripts finish before one custom wakeup", async () => {
-	const setup = fixture();
-	const pending: { script: ScriptSpec; done: (value: ScriptResult) => void }[] =
-		[];
-	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
-		runner: (script) => new Promise((done) => pending.push({ script, done })),
-	});
-	dispatcher.dispatch({
-		id: "session:batch",
+function scriptTarget(id: string): ExecutionTarget {
+	return {
+		id,
 		scope: "session",
 		scriptTask: {
-			scripts,
-			wakeUp: { kind: "on-error", aggregation: "or", prompt: "check failures" },
+			wakeUp: { kind: "always", prompt: "check" },
+			scripts: [
+				{ cwd: "/w", path: "/w/a", params: [], timeoutSeconds: 1 },
+				{ cwd: "/w", path: "/w/b", params: [], timeoutSeconds: 1 },
+			],
 		},
+	};
+}
+
+test("dispatch starts a run, refresh adopts it, and same-id overlap is refused", async () => {
+	const setup = fixture([]);
+	const events: string[] = [];
+	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
+		onChange: () => events.push("change"),
+		onSettled: () => events.push("settled"),
+		catalog: setup.catalog,
 	});
+	await dispatcher.refresh();
+	dispatcher.dispatch(scriptTarget("session:batch"));
+	assert.equal(setup.started.length, 1);
+	await dispatcher.refresh();
 	assert.equal(dispatcher.list().length, 1);
-	assert.equal(dispatcher.list()[0]?.current?.path, "/work/one");
 	assert.deepEqual(
-		[
-			dispatcher.list()[0]?.success,
-			dispatcher.list()[0]?.completed,
-			dispatcher.list()[0]?.total,
-		],
-		[0, 0, 2],
+		[dispatcher.list()[0]?.success, dispatcher.list()[0]?.total],
+		[0, 2],
 	);
+	assert.equal(dispatcher.list()[0]?.current?.path, "/w/a");
+	assert.ok(events.includes("settled"));
 	assert.throws(
-		() =>
-			dispatcher.dispatch({
-				id: "session:batch",
-				scope: "session",
-				prompt: "duplicate",
-			}),
+		() => dispatcher.dispatch({ id: "session:batch", scope: "session", prompt: "dup" }),
 		/already running/,
 	);
-	const first = pending[0];
-	assert.ok(first);
-	first.done(result(first.script, false));
-	await setImmediate();
-	assert.equal(dispatcher.list()[0]?.current?.path, "/work/two");
-	assert.deepEqual(
-		[dispatcher.list()[0]?.success, dispatcher.list()[0]?.completed],
-		[0, 1],
-	);
-	assert.equal(setup.messages.length, 0);
-	const second = pending[1];
-	assert.ok(second);
-	second.done(result(second.script, true));
-	await setImmediate();
-	assert.equal(dispatcher.list().length, 0);
-	assert.equal(setup.messages.length, 1);
-	assert.equal(setup.messages[0]?.customType, "loop-task-run");
-	assert.equal(setup.messages[0]?.options?.triggerTurn, true);
-	assert.match(String(setup.messages[0]?.content), /FAILED/);
+	dispatcher.dispose();
 });
 
-for (const [wakeUp, shouldWake] of [
-	[{ kind: "never" }, false],
-	[{ kind: "always", prompt: "x" }, true],
-	[{ kind: "on-error", aggregation: "and", prompt: "x" }, false],
-] as const) {
-	test(`dispatcher applies ${wakeUp.kind} policy without changing execution order`, async () => {
-		const setup = fixture();
-		const calls: string[] = [];
-		const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
-			runner: async (script) => {
-				calls.push(script.path);
-				return result(script, script.path.endsWith("two"));
-			},
-		});
-		const task: ScriptTask = { scripts, wakeUp };
-		dispatcher.dispatch({ id: "id", scope: "session", scriptTask: task });
-		await setImmediate();
-		assert.deepEqual(calls, ["/work/one", "/work/two"]);
-		assert.equal(setup.messages.length, 1);
-		assert.equal(setup.messages[0]?.options?.triggerTurn, shouldWake);
-	});
-}
-
-test("shutdown aborts owned work, never publishes late results, and contains callback errors", async () => {
-	const setup = fixture();
-	let signal: AbortSignal | undefined;
-	let finish: (() => void) | undefined;
+test("prompt dispatch delivers immediately while idle and holds while busy", async () => {
+	const setup = fixture([]);
 	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
-		runner: (script, abort) => {
-			signal = abort;
-			return new Promise((done) => {
-				finish = () => done(result(script, false));
-			});
-		},
-		onChange: () => {
-			throw new Error("widget failed");
-		},
+		onChange: () => undefined,
+		onSettled: () => undefined,
+		catalog: setup.catalog,
 	});
-	dispatcher.dispatch({
-		id: "closing",
-		scope: "session",
-		scriptTask: {
-			scripts: scripts.slice(0, 1),
-			wakeUp: { kind: "always", prompt: "x" },
-		},
-	});
-	dispatcher.dispose();
-	assert.equal(signal?.aborted, true);
-	assert.ok(finish);
-	finish();
-	await setImmediate();
-	assert.equal(setup.messages.length, 0);
-	assert.deepEqual(dispatcher.list(), []);
-	assert.ok(
-		setup.notifications.some((message) => message.includes("widget failed")),
+	await dispatcher.refresh();
+	dispatcher.dispatch({ id: "session:prompt", scope: "session", prompt: "hello" });
+	assert.equal(setup.messages.length, 1);
+	assert.equal(setup.messages[0]?.options?.triggerTurn, true);
+	assert.match(String(setup.messages[0]?.content), /hello/);
+
+	setup.setIdle(false);
+	dispatcher.dispatch({ id: "session:quiet", scope: "session", prompt: "later" });
+	assert.equal(setup.messages.length, 1);
+	assert.equal(
+		dispatcher.deliveryStatus().get("session:quiet")?.wakeUps,
+		1,
 	);
+	const settled = setup.handlers.get("agent_settled");
+	assert.ok(settled);
+	setup.setIdle(true);
+	settled({ type: "agent_settled", aborted: false });
+	assert.equal(setup.messages.length, 2);
+	assert.equal(dispatcher.deliveryStatus().size, 0);
+	dispatcher.dispose();
+});
+
+test("busy wake delivery joins the boundary continuation", async () => {
+	const setup = fixture([]);
+	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
+		onChange: () => undefined,
+		onSettled: () => undefined,
+		catalog: setup.catalog,
+	});
+	await dispatcher.refresh();
+	setup.setIdle(false);
+	dispatcher.dispatch({ id: "session:alert", scope: "session", prompt: "act" });
+	const beforeSettle = setup.handlers.get("agent_before_settle");
+	assert.ok(beforeSettle);
+	const result = beforeSettle({ type: "agent_before_settle", outcome: "completed" }) as
+		| { entries: unknown[]; continue?: boolean }
+		| undefined;
+	assert.ok(result);
+	assert.equal(result.continue, true);
+	assert.equal(result.entries.length, 1);
+	assert.equal(setup.messages.length, 0);
+	assert.equal(dispatcher.deliveryStatus().size, 0);
+	dispatcher.dispose();
+});
+
+test("aborted boundary defers delivery to settle", async () => {
+	const setup = fixture([]);
+	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
+		onChange: () => undefined,
+		onSettled: () => undefined,
+		catalog: setup.catalog,
+	});
+	await dispatcher.refresh();
+	setup.setIdle(false);
+	dispatcher.dispatch({ id: "session:late", scope: "session", prompt: "x" });
+	const beforeSettle = setup.handlers.get("agent_before_settle");
+	assert.ok(beforeSettle);
+	assert.equal(
+		beforeSettle({ type: "agent_before_settle", outcome: "aborted" }),
+		undefined,
+	);
+	assert.equal(dispatcher.deliveryStatus().get("session:late")?.wakeUps, 1);
+	const settled = setup.handlers.get("agent_settled");
+	assert.ok(settled);
+	setup.setIdle(true);
+	settled({ type: "agent_settled", aborted: true });
+	assert.equal(setup.messages.length, 1);
+	dispatcher.dispose();
+});
+
+test("finished runs from the catalog are delivered once when idle", async () => {
+	const setup = fixture([view("session:done", "pendingDelivery")]);
+	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
+		onChange: () => undefined,
+		onSettled: () => undefined,
+		catalog: setup.catalog,
+	});
+	await dispatcher.refresh();
+	assert.equal(setup.messages.length, 1);
+	assert.equal(setup.messages[0]?.options?.triggerTurn, false);
+	await dispatcher.refresh();
+	assert.equal(setup.messages.length, 1);
+	dispatcher.dispose();
+});
+
+test("terminateTaskRuns retracts pending deliveries and kills running batches", async () => {
+	const pending = view("session:mixed", "pendingDelivery");
+	pending.dir = "/tmp/runs/session:mixed/pending-run";
+	const setup = fixture([view("session:mixed", "running"), pending]);
+	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
+		onChange: () => undefined,
+		onSettled: () => undefined,
+		catalog: setup.catalog,
+	});
+	setup.setIdle(false);
+	await dispatcher.refresh();
+	const termination = await dispatcher.terminateTaskRuns("session:mixed");
+	assert.deepEqual(termination, { killed: 1, retracted: 1 });
+	assert.deepEqual(setup.cancelled, ["session:mixed"]);
+	assert.equal(setup.messages.length, 0);
+	dispatcher.dispose();
+});
+
+test("dispose unsubscribes without killing anything", async () => {
+	const setup = fixture([]);
+	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
+		onChange: () => undefined,
+		onSettled: () => undefined,
+		catalog: setup.catalog,
+	});
+	await dispatcher.refresh();
+	setup.setIdle(false);
+	dispatcher.dispatch({ id: "session:held", scope: "session", prompt: "x" });
+	dispatcher.dispose();
+	assert.equal(setup.handlers.has("agent_settled"), false);
+	assert.equal(setup.cancelled.length, 0);
 	assert.throws(
 		() => dispatcher.dispatch({ id: "late", scope: "session", prompt: "x" }),
 		/inactive/,
 	);
 });
 
-test("no-wake report is held while an agent run is active and appends once settled", async () => {
-	const setup = fixture();
+test("E27: same-stack double dispatch is refused before any refresh", async () => {
+	const setup = fixture([]);
 	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
-		runner: async (script) => result(script, true),
+		onChange: () => undefined,
+		onSettled: () => undefined,
+		catalog: setup.catalog,
 	});
-	setup.emit("agent_start");
-	dispatcher.dispatch({
-		id: "session:quiet",
-		scope: "session",
-		scriptTask: { scripts: scripts.slice(0, 1), wakeUp: { kind: "never" } },
-	});
-	await setImmediate();
-	assert.equal(setup.messages.length, 0);
-	assert.equal(dispatcher.deliveryStatus().get("session:quiet")?.noWakes, 1);
-	setup.emit("agent_settled");
-	assert.equal(setup.messages.length, 1);
-	assert.equal(setup.messages[0]?.options?.triggerTurn, false);
-	assert.equal(dispatcher.deliveryStatus().size, 0);
-});
-
-test("wake delivery bypasses the hold and sends immediately while busy", async () => {
-	const setup = fixture();
-	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
-		runner: async (script) => result(script, true),
-	});
-	setup.emit("agent_start");
-	dispatcher.dispatch({
-		id: "session:alert",
-		scope: "session",
-		scriptTask: {
-			scripts: scripts.slice(0, 1),
-			wakeUp: { kind: "always", prompt: "act now" },
-		},
-	});
-	await setImmediate();
-	assert.equal(setup.messages.length, 1);
-	assert.equal(setup.messages[0]?.options?.triggerTurn, true);
-	assert.equal(dispatcher.deliveryStatus().get("session:alert")?.wakeUps, 1);
-	setup.emit("agent_settled");
-	assert.equal(dispatcher.deliveryStatus().size, 0);
-});
-
-test("dispose drops held no-wake reports", async () => {
-	const setup = fixture();
-	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
-		runner: async (script) => result(script, true),
-	});
-	setup.emit("agent_start");
-	dispatcher.dispatch({
-		id: "session:dying",
-		scope: "session",
-		scriptTask: { scripts: scripts.slice(0, 1), wakeUp: { kind: "never" } },
-	});
-	await setImmediate();
+	await dispatcher.refresh();
+	dispatcher.dispatch(scriptTarget("session:race"));
+	assert.throws(
+		() => dispatcher.dispatch(scriptTarget("session:race")),
+		/already running/,
+	);
 	dispatcher.dispose();
-	setup.emit("agent_settled");
-	assert.equal(setup.messages.length, 0);
 });
 
-test("includeTimestamp stamps completed-at and sent-at into the delivered content", async () => {
-	const setup = fixture();
+test("E28: an empty-scripts always-wake task delivers as a prompt without spawning", async () => {
+	const setup = fixture([]);
 	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
-		runner: async (script) => result(script, true),
+		onChange: () => undefined,
+		onSettled: () => undefined,
+		catalog: setup.catalog,
 	});
+	await dispatcher.refresh();
 	dispatcher.dispatch({
-		id: "session:stamped",
+		id: "session:empty",
 		scope: "session",
-		includeTimestamp: true,
-		scriptTask: {
-			scripts: scripts.slice(0, 1),
-			wakeUp: { kind: "always", prompt: "x" },
-		},
+		scriptTask: { wakeUp: { kind: "always", prompt: "direct please" }, scripts: [] },
 	});
-	await setImmediate();
+	assert.equal(setup.started.length, 0);
 	assert.equal(setup.messages.length, 1);
-	assert.match(String(setup.messages[0]?.content), /completed-at: /);
-	assert.match(String(setup.messages[0]?.content), /sent-at: /);
+	assert.match(String(setup.messages[0]?.content), /direct please/);
+	dispatcher.dispose();
 });
+
+test("E21a: a run that completes during stop is retracted, not delivered", async () => {
+	const setup = fixture([]);
+	const running = view("session:during", "running");
+	const pending = view("session:during", "pendingDelivery");
+	pending.dir = "/tmp/runs/session:during/pending-run";
+	setup.catalog.cancelRunning = async () => {
+		// simulate the wrapper finishing instead of honouring the stop
+		running.state = "pendingDelivery";
+		running.outcome = pending.outcome;
+		return "already-finished" as const;
+	};
+	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
+		onChange: () => undefined,
+		onSettled: () => undefined,
+		catalog: setup.catalog,
+	});
+	setup.views.push(running);
+	setup.setIdle(false);
+	await dispatcher.refresh();
+	const termination = await dispatcher.terminateTaskRuns("session:during");
+	assert.deepEqual(termination, { killed: 1, retracted: 1 });
+	assert.equal(setup.messages.length, 0);
+	void pending;
+	dispatcher.dispose();
+});
+

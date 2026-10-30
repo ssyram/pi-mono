@@ -40,10 +40,12 @@ test("queued counts annotate their own task and appear without an active schedul
 	);
 	assert.deepEqual(
 		items.map((item) => item.id),
-		["recurring", "finished-once"],
+		["finished-once", "recurring"],
 	);
-	assert.deepEqual(items[0]?.queued, { wakeUps: 1, noWakes: 2 });
-	assert.deepEqual(items[1]?.queued, { wakeUps: 0, noWakes: 1 });
+	assert.deepEqual(items[0]?.queued, { wakeUps: 0, noWakes: 1 });
+	assert.deepEqual(items[0]?.pendingDelivery, { shouldWake: false });
+	assert.deepEqual(items[1]?.queued, { wakeUps: 1, noWakes: 2 });
+	assert.equal(items[1]?.pendingDelivery, undefined);
 });
 
 test("task lines carry the queued suffix with zero parts omitted", () => {
@@ -58,12 +60,10 @@ test("task lines carry the queued suffix with zero parts omitted", () => {
 		]),
 	);
 	const lines = loopWidgetLines(items, 200, 0);
-	assert.match(lines[0] ?? "", /\(2 wake-up, 1 no-wake\)$/);
-	assert.doesNotMatch(lines[1] ?? "", /wake-up|no-wake/);
-	assert.match(lines[2] ?? "", /\(3 wake-up\)$/);
-	assert.doesNotMatch(lines[2] ?? "", /no-wake/);
-	assert.match(lines[3] ?? "", /\(4 no-wake\)$/);
-	assert.doesNotMatch(lines[3] ?? "", /wake-up,/);
+	assert.match(lines[0] ?? "", /^Pending delivery \(wake\) · wakes-only \(3 wake-up\)$/);
+	assert.match(lines[1] ?? "", /^Pending delivery \(no wake\) · no-wakes-only \(4 no-wake\)$/);
+	assert.match(lines[2] ?? "", /Waiting .* · recurring \(2 wake-up, 1 no-wake\)$/);
+	assert.doesNotMatch(lines[3] ?? "", /wake-up|no-wake/);
 });
 
 test("formatQueuedSuffix omits zero components and returns empty when both zero", () => {

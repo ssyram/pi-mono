@@ -1,8 +1,7 @@
 import { loopErrorMessage } from "../loop-error-message.js";
 import { formatActiveTasks } from "./format-list.js";
 import type { LoopV2Core } from "./loop-core.js";
-import type { ActiveTask, TaskInput, TaskSchedule } from "./model.js";
-import { readTaskName } from "./model.js";
+import type { ActiveTask, TaskInput, TaskSchedule } from "./model.js";import { readTaskName } from "./model.js";
 import {
 	activeTaskCandidates,
 	registrationCandidates,
@@ -18,15 +17,23 @@ export type AiSessionActionResult = {
 	activeError?: string;
 };
 
+export type RunTerminationPort = {
+	formatOverview(active: readonly ActiveTask[]): string;
+	liveRunIds(): string[];
+	terminateTaskRuns(taskId: string): Promise<{ killed: number; retracted: number }>;
+};
+
 /** This is the only surface intended for a future AI tool registration. */
 export class AiSessionActions {
 	private readonly core: LoopV2Core;
+	private readonly runs: RunTerminationPort | undefined;
 
-	constructor(core: LoopV2Core) {
+	constructor(core: LoopV2Core, runs?: RunTerminationPort) {
 		this.core = core;
+		this.runs = runs;
 	}
 
-	execute(input: unknown): AiSessionActionResult {
+	async execute(input: unknown): Promise<AiSessionActionResult> {
 		try {
 			if (!isRecord(input))
 				return this.result(false, "Error: request must be an object.");
@@ -41,7 +48,7 @@ export class AiSessionActions {
 				case "list":
 					return this.list();
 				case "cancel":
-					return this.cancel(input);
+					return await this.cancel(input);
 				case "delete":
 					return this.delete(input);
 				default:
@@ -61,7 +68,10 @@ export class AiSessionActions {
 	private list(): AiSessionActionResult {
 		try {
 			const active = this.core.listActive();
-			return { ok: true, message: formatActiveTasks(active), active };
+			const message = this.runs
+				? this.runs.formatOverview(active)
+				: formatActiveTasks(active);
+			return { ok: true, message, active };
 		} catch (error) {
 			const activeError = errorMessage(error);
 			return {
@@ -86,16 +96,41 @@ export class AiSessionActions {
 		);
 	}
 
-	private cancel(input: Record<string, unknown>): AiSessionActionResult {
+	private async cancel(input: Record<string, unknown>): Promise<AiSessionActionResult> {
 		if (!text(input.id))
 			return this.result(false, "Error: cancel requires an active task id.");
-		const resolution = resolveTarget(input.id, activeTaskCandidates(this.core));
+		// Run-only targets: a once task completes its schedule at dispatch, so a
+		// live wrapper may exist with no active entry left to resolve against.
+		const activeIds = new Set(
+			activeTaskCandidates(this.core).map((candidate) => candidate.id),
+		);
+		const runCandidates = (this.runs?.liveRunIds() ?? [])
+			.filter((id) => !activeIds.has(id))
+			.map((id) => ({ id }));
+		const resolution = resolveTarget(input.id, [
+			...activeTaskCandidates(this.core),
+			...runCandidates,
+		]);
 		if (!resolution.ok)
 			return this.result(false, `Error: cancel ${resolution.message}.`);
 		const outcome = this.core.cancelActive(resolution.id);
-		return outcome === "cancelled"
-			? this.result(true, `Cancelled ${resolution.id}.`)
-			: this.result(false, `Error: ${resolution.id} is ${outcome}.`);
+		const termination = await this.runs?.terminateTaskRuns(resolution.id);
+		if (
+			outcome !== "cancelled" &&
+			(termination === undefined ||
+				termination.killed + termination.retracted === 0)
+		)
+			return this.result(false, `Error: ${resolution.id} is ${outcome}.`);
+		const head =
+			outcome === "cancelled"
+				? `Cancelled ${resolution.id}.`
+				: `Cancelled runs of ${resolution.id}.`;
+		const parts: string[] = [];
+		if (termination !== undefined && termination.killed > 0)
+			parts.push(`Killed ${termination.killed} running batch${termination.killed === 1 ? "" : "es"}.`);
+		if (termination !== undefined && termination.retracted > 0)
+			parts.push(`Retracted ${termination.retracted} pending deliver${termination.retracted === 1 ? "y" : "ies"}.`);
+		return this.result(true, parts.length === 0 ? head : `${head} ${parts.join(" ")}`);
 	}
 
 	private delete(input: Record<string, unknown>): AiSessionActionResult {
@@ -142,7 +177,8 @@ function parseTaskInput(input: Record<string, unknown>): TaskInput | undefined {
 		return undefined;
 	const schedule = parseSchedule(input.schedule);
 	if (schedule === undefined) return undefined;
-	const inhibitBoulder = input.inhibitBoulder === true ? true : undefined;
+	const inhibitBoulder =
+		typeof input.inhibitBoulder === "boolean" ? input.inhibitBoulder : undefined;
 	const name = readTaskName(input.name);
 	return {
 		...content,

@@ -108,6 +108,25 @@ describe("registerScheduledWakeupV2Tool", () => {
 		assert.match(missing.details.message, /no match for "session:none"/);
 	});
 
+	it("cancel also terminates in-flight runs through the runs port", async () => {
+		const terminated: string[] = [];
+		const setup = createSetup({
+			formatOverview: () => "overview",
+			liveRunIds: () => [],
+			terminateTaskRuns: async (taskId) => {
+				terminated.push(taskId);
+				return { killed: 1, retracted: 0 };
+			},
+		});
+		const added = await setup.execute({ action: "add", prompt: "kill my run", delay: "5m" });
+		const first: ActiveTask | undefined = added.details.active[0];
+		const id = first?.kind === "session" ? first.task.definition.id : "";
+		const cancelled = await setup.execute({ action: "cancel", id });
+		assert.equal(cancelled.details.ok, true);
+		assert.deepEqual(terminated, [id], "tool cancel must terminate and retract the task's live runs, not just remove the schedule");
+		assert.match(cancelled.details.message, /Killed 1 running batch/);
+	});
+
 	it("lists the formatted active tasks as the model-visible text", async () => {
 		const setup = createSetup();
 		const mutationsBefore = setup.mutations;
@@ -131,7 +150,7 @@ type CapturedTool = {
 	execute(toolCallId: string, params: Record<string, unknown>, signal: undefined, onUpdate: undefined, ctx: ExtensionContext): Promise<ToolResult>;
 };
 
-function createSetup(): { core: LoopV2Core; mutations: number; execute(params: Record<string, unknown>): Promise<ToolResult> } {
+function createSetup(runs?: { formatOverview(active: readonly ActiveTask[]): string; liveRunIds(): string[]; terminateTaskRuns(taskId: string): Promise<{ killed: number; retracted: number }> }): { core: LoopV2Core; mutations: number; execute(params: Record<string, unknown>): Promise<ToolResult> } {
 	const root = mkdtempSync(join(tmpdir(), "scheduled-wakeup-tool-"));
 	const entries: SessionEntryLike[] = [];
 	const port: SessionEntryPort = {
@@ -147,7 +166,7 @@ function createSetup(): { core: LoopV2Core; mutations: number; execute(params: R
 		globalRoot: join(root, "global"),
 		now: () => NOW,
 	});
-	const actions = new AiSessionActions(core);
+	const actions = new AiSessionActions(core, runs);
 
 	let mutations = 0;
 	let captured: CapturedTool | undefined;
@@ -175,3 +194,17 @@ function createSetup(): { core: LoopV2Core; mutations: number; execute(params: R
 		execute: (params) => tool.execute("tool-call", params, undefined, undefined, ctx),
 	};
 }
+
+it("cancel resolves a run-only target whose schedule already completed", async () => {
+	const setup = createSetup({
+		formatOverview: () => "overview",
+		liveRunIds: () => ["session:runonly-0000-0000-0000-000000000000"],
+		terminateTaskRuns: async () => ({ killed: 1, retracted: 0 }),
+	});
+	const cancelled = await setup.execute({
+		action: "cancel",
+		id: "session:runonly-0000-0000-0000-000000000000",
+	});
+	assert.equal(cancelled.details.ok, true);
+	assert.match(cancelled.details.message, /Killed 1 running batch/);
+});

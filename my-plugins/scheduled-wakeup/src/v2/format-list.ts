@@ -1,8 +1,13 @@
 import { formatDuration } from "../format-duration.js";
+import {
+	collectLoopWidgetItems,
+	formatQueuedSuffix,
+	type LoopWidgetItem,
+} from "../loop-widget-items.js";
+import type { RunningTask } from "../task-dispatcher.js";
 import { formatTimestamp } from "./format-timestamp.js";
 import type {
 	ActiveTask,
-	ExecutionProgress,
 	SharedDefinition,
 	TaskSchedule,
 } from "./model.js";
@@ -16,10 +21,38 @@ export function describeSchedule(schedule: TaskSchedule): string {
 
 export function formatActiveTasks(
 	active: readonly ActiveTask[],
+	running: readonly RunningTask[] = [],
+	deliveryStatus: ReadonlyMap<string, { wakeUps: number; noWakes: number }> = new Map(),
 	now: number = Date.now(),
 ): string {
-	if (active.length === 0) return "No active scheduled wakeups.";
-	return active.map((item) => formatActiveTask(item, now)).join("\n");
+	const items = collectLoopWidgetItems(active, running, deliveryStatus);
+	if (items.length === 0) return "No active scheduled wakeups.";
+	return items.map((item) => formatItemLine(item, now)).join("\n");
+}
+
+function formatItemLine(item: LoopWidgetItem, now: number): string {
+	const label = item.name === undefined ? item.id : `${item.name} [${item.id}]`;
+	const queued = item.queued
+		? formatQueuedSuffix(item.queued.wakeUps, item.queued.noWakes)
+		: "";
+	if (item.running !== undefined) {
+		const { success, completed, total, current } = item.running;
+		const command = current
+			? `${current.path} ${current.params.map((param) => JSON.stringify(param)).join(" ")}`
+			: "finishing";
+		return `${label} | ${item.scope ?? "-"} | Running (${success}/${completed}/${total}) ${command}${queued}`;
+	}
+	if (item.pendingDelivery !== undefined && item.nextRunAt === undefined) {
+		return `${label} | ${item.scope ?? "-"} | Pending delivery (${item.pendingDelivery.shouldWake ? "wake" : "no wake"})${queued}`;
+	}
+	const next =
+		item.pausedRemaining !== undefined
+			? `paused with ${formatDuration(item.pausedRemaining)} remaining`
+			: item.nextRunAt === undefined
+				? "-"
+				: `next in ${formatDuration(Math.max(0, item.nextRunAt - now))}`;
+	const schedule = item.schedule === undefined ? "-" : describeSchedule(item.schedule);
+	return `${label} | ${item.scope ?? "-"} | ${schedule} | ${next} | runs ${item.runs ?? 0} | ${item.summary ?? "-"}${queued}`;
 }
 
 export function formatAvailableDefinitions(
@@ -34,56 +67,6 @@ export function formatAvailableDefinitions(
 		.join("\n");
 }
 
-function formatActiveTask(item: ActiveTask, now: number): string {
-	if (item.kind === "session") {
-		const definition = item.task.definition;
-		return formatLine(
-			label(definition.id, definition.name),
-			definition.scope,
-			describeSchedule(definition.schedule),
-			describeTaskContent(definition),
-			item.task.progress,
-			now,
-		);
-	}
-	const { registration, definition } = item;
-	if (definition === undefined) {
-		return formatLine(
-			registration.id,
-			registration.reference.scope,
-			"definition unavailable",
-			"-",
-			registration.progress,
-			now,
-		);
-	}
-	return formatLine(
-		label(registration.id, definition.name),
-		registration.reference.scope,
-		describeSchedule(definition.schedule),
-		`${describeTaskContent(definition)} (definition available)`,
-		registration.progress,
-		now,
-	);
-}
-
 function label(id: string, name: string | undefined): string {
 	return name === undefined ? id : `${name} [${id}]`;
-}
-
-function formatLine(
-	id: string,
-	scope: string,
-	schedule: string,
-	prompt: string,
-	progress: ExecutionProgress,
-	now: number,
-): string {
-	const next =
-		progress.status === "active"
-			? progress.suspendedAt === undefined
-				? `next in ${formatDuration(Math.max(0, progress.nextRunAt - now))}`
-				: `paused with ${formatDuration(Math.max(0, progress.nextRunAt - progress.suspendedAt))} remaining`
-			: progress.status;
-	return `${id} | ${scope} | ${schedule} | ${next} | runs ${progress.runCount} | ${prompt}`;
 }

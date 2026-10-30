@@ -25,14 +25,14 @@ import { UserLoopV2Commands } from "../src/v2/user-commands.js";
 const NOW = 10_000;
 
 describe("Loop 2.0 scopes and registrations", () => {
-	it("keeps AI actions session-only while explicit user commands define and register shared work", () => {
+	it("keeps AI actions session-only while explicit user commands define and register shared work", async () => {
 		const roots = createRoots();
 		const journal = createJournal();
 		const core = createCore("session-a", journal.port, roots);
 		const ai = new AiSessionActions(core);
 		const user = new UserLoopV2Commands(core);
 
-		const denied = ai.execute({
+		const denied = await ai.execute({
 			action: "add",
 			scope: "global",
 			prompt: "escalate",
@@ -42,7 +42,7 @@ describe("Loop 2.0 scopes and registrations", () => {
 		assert.match(denied.message, /do not accept scope/);
 		assert.deepEqual(core.listAvailable(), []);
 
-		const local = ai.execute({
+		const local = await ai.execute({
 			action: "add",
 			prompt: "session work",
 			schedule: { kind: "once", runAt: NOW },
@@ -169,7 +169,7 @@ describe("Loop 2.0 scopes and registrations", () => {
 		);
 		other.registerSharedDefinition("global", definition.id);
 		assert.match(
-			formatActiveTasks(other.listActive(), NOW),
+			formatActiveTasks(other.listActive(), [], new Map(), NOW),
 			/shared name \[registration:/,
 		);
 		assert.equal(
@@ -349,3 +349,21 @@ function createJournal(): {
 		},
 	};
 }
+
+it("inhibitBoulder defaults to true at creation and honors explicit false", () => {
+	const roots = createRoots();
+	const journal = createJournal();
+	const core = createCore("inhibit-default", journal.port, roots);
+	void journal;
+	const on = core.createSessionTask({
+		prompt: "default inhibition",
+		schedule: { kind: "once", runAt: NOW },
+	});
+	assert.equal(on.inhibitBoulder, true);
+	const off = core.createSessionTask({
+		prompt: "opted out",
+		schedule: { kind: "once", runAt: NOW },
+		inhibitBoulder: false,
+	});
+	assert.equal(off.inhibitBoulder, false);
+});

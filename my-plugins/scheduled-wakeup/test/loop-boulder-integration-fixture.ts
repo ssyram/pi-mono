@@ -85,6 +85,7 @@ export function loopBoulderFixture(
 			mode,
 			hasUI: false,
 			isIdle: () => true,
+		hasPendingMessages: () => false,
 			sessionManager: manager,
 			ui: {},
 		} as unknown as ExtensionContext;

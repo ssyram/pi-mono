@@ -1,21 +1,36 @@
 import { type ChildProcessByStdio, spawn } from "node:child_process";
 import type { Readable } from "node:stream";
 import { killScriptGroup } from "./kill-script-group.js";
+import { runScriptLogged } from "./run-script-logged.js";
 import { armScriptTimeout } from "./script-timeout.js";
-import type { ScriptResult, ScriptSpec } from "./task-spec.js";
+import {
+	type RunnerOptions,
+	type ScriptResult,
+	scriptStartFailure,
+	type ScriptSpec,
+} from "./task-spec.js";
 
 export function runScript(
 	script: ScriptSpec,
-	abortSignal?: AbortSignal,
+	options: RunnerOptions = {},
 ): Promise<ScriptResult> {
-	if (abortSignal?.aborted)
+	if (options.abortSignal?.aborted)
 		return Promise.resolve(
-			startFailure(script, "Session closed before script start."),
+			scriptStartFailure(script, "Session closed before script start."),
 		);
 	if (process.platform === "win32")
 		return Promise.resolve(
-			startFailure(script, "POSIX process groups are required."),
+			scriptStartFailure(script, "POSIX process groups are required."),
 		);
+	return options.logDir === undefined
+		? runPiped(script, options.abortSignal)
+		: runScriptLogged(script, options);
+}
+
+function runPiped(
+	script: ScriptSpec,
+	abortSignal?: AbortSignal,
+): Promise<ScriptResult> {
 	return new Promise((resolve) => {
 		let child: ChildProcessByStdio<null, Readable, Readable>;
 		try {
@@ -27,7 +42,7 @@ export function runScript(
 			});
 		} catch (error) {
 			resolve(
-				startFailure(
+				scriptStartFailure(
 					script,
 					error instanceof Error ? error.message : String(error),
 				),
@@ -97,16 +112,4 @@ export function runScript(
 			finish(status, code, signal, error);
 		});
 	});
-}
-
-function startFailure(script: ScriptSpec, error: string): ScriptResult {
-	return {
-		script,
-		status: "start-failed",
-		exitCode: null,
-		signal: null,
-		stdout: "",
-		stderr: "",
-		error,
-	};
 }

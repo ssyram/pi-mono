@@ -35,7 +35,7 @@ export function createBoundaryFixture(t: TestContext) {
 	const failures = { branch: false, append: false, notify: false };
 	const hooks = new Map<
 		string,
-		(event: unknown, ctx: ExtensionContext) => Promise<void>
+		(event: unknown, ctx: ExtensionContext) => Promise<unknown>
 	>();
 	let command:
 		| ((args: string, ctx: ExtensionCommandContext) => Promise<void>)
@@ -46,8 +46,13 @@ export function createBoundaryFixture(t: TestContext) {
 		registerToolRenderer: () => undefined,
 		on: (
 			name: string,
-			handler: (event: unknown, ctx: ExtensionContext) => Promise<void>,
-		) => hooks.set(name, handler),
+			handler: (event: unknown, ctx: ExtensionContext) => Promise<unknown>,
+		) => {
+			hooks.set(name, handler);
+			return () => {
+				if (hooks.get(name) === handler) hooks.delete(name);
+			};
+		},
 		registerCommand: (_name: string, spec: { handler: typeof command }) => {
 			command = spec.handler;
 		},
@@ -67,6 +72,7 @@ export function createBoundaryFixture(t: TestContext) {
 		mode: "print",
 		hasUI: true,
 		isIdle: () => true,
+		hasPendingMessages: () => false,
 		sessionManager: {
 			getSessionId: () => `boundary-${cwd}`,
 			getSessionFile: () => sessionFile,
@@ -88,6 +94,10 @@ export function createBoundaryFixture(t: TestContext) {
 		assert.ok(hook);
 		await hook({ type: name }, ctx);
 	};
+	const emit = async <R>(name: string, event: unknown): Promise<R | undefined> => {
+		const hook = hooks.get(name);
+		return hook === undefined ? undefined : ((await hook(event, ctx)) as R);
+	};
 	t.after(async () => {
 		await invoke("session_shutdown");
 		rmSync(cwd, { recursive: true, force: true });
@@ -108,6 +118,7 @@ export function createBoundaryFixture(t: TestContext) {
 		},
 		start: () => invoke("session_start"),
 		shutdown: () => invoke("session_shutdown"),
+		emit,
 		run: async (args: string) => {
 			assert.ok(command);
 			await command(args, ctx as ExtensionCommandContext);
