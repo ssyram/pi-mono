@@ -14,6 +14,7 @@ import { createTaskDispatcher } from "../task-dispatcher.js";
 import { AiSessionActions } from "./ai-session-actions.js";
 import { createBoulderSync } from "./boulder-sync.js";
 import { DuePoller } from "./due-poller.js";
+import { formatActiveTasks } from "./format-list.js";
 import { UserLoopV2Commands } from "./user-commands.js";
 
 export function createLoopRuntime(
@@ -24,6 +25,11 @@ export function createLoopRuntime(
 	core.reconcileSharedRegistrations();
 	core.resumeSchedules();
 	const dispatcher = createTaskDispatcher(pi, ctx, {
+		onForeignTasks: (taskIds) => {
+			// A real fork inherited the task entries: cancel them locally so this
+			// session stops scheduling/tracking work whose runs belong elsewhere.
+			for (const taskId of taskIds) core.cancelActive(taskId);
+		},
 		onChange: () => widget.refresh(),
 		onSettled: () => {
 			const result = runtime.poller?.reschedule();
@@ -40,7 +46,16 @@ export function createLoopRuntime(
 		dispatcher,
 		widget,
 		user: new UserLoopV2Commands(core),
-		actions: new AiSessionActions(core),
+		actions: new AiSessionActions(core, {
+			formatOverview: (active) =>
+				formatActiveTasks(
+					active,
+					dispatcher.list(),
+					dispatcher.deliveryStatus(),
+					Date.now(),
+				),
+			terminateTaskRuns: (taskId) => dispatcher.terminateTaskRuns(taskId),
+		}),
 		poller: undefined,
 		boulderSync: createBoulderSync(pi, ctx, core),
 		cwd: ctx.cwd,
