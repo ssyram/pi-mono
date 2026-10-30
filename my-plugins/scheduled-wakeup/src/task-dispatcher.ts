@@ -55,24 +55,22 @@ export function createTaskDispatcher(
 	},
 ): TaskDispatcher {
 	let foreignNotified = false;
-	const onForeign = (count: number): void => {
-		if (foreignNotified || count === 0) return;
+	const onForeignTasks = (taskIds: string[]): void => {
+		if (foreignNotified || taskIds.length === 0) return;
 		foreignNotified = true;
 		notifyLoop(
 			ctx,
-			`Loop：${count} 个进行中的 run 属于其他会话（本会话可能是 fork），已登记取消（不投递、不杀进程）；已投递/已取消的不受影响。`,
+			`Loop：${taskIds.length} 个任务的 run 属于其他会话（本会话可能是 fork）；对应任务已在本地取消、不再追踪，磁盘不受影响。`,
 			"info",
 		);
+		options.onForeignTasks?.(taskIds);
 	};
 	const catalog: RunCatalog =
 		options.catalog ??
 		createRunCatalog({
 			runsRoot: join(ctx.cwd, ".pi", "scheduled-wakeup", "v2", "runs"),
 			ownerSessionId: ctx.sessionManager.getSessionId(),
-			onForeign,
-			...(options.lineageTask === undefined
-				? {}
-				: { lineage: options.lineageTask }),
+			onForeignTasks,
 		});
 	const coordinator: DeliveryCoordinator = createDeliveryCoordinator(
 		pi,
