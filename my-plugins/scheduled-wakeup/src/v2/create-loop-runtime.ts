@@ -27,6 +27,21 @@ export function createLoopRuntime(
 	const core = createLoopCore(pi, ctx);
 	core.reconcileSharedRegistrations();
 	core.resumeSchedules();
+	// Boulder sync fires on every mutation/afterRun/settle; on huge sessions a
+	// full state snapshot per sync is too costly — cache the inhibiting set briefly.
+	let inhibitingCache: { at: number; ids: Set<string> } | undefined;
+	const inhibitingIds = (): Set<string> => {
+		if (inhibitingCache === undefined || Date.now() - inhibitingCache.at > 5000) {
+			inhibitingCache = {
+				at: Date.now(),
+				ids: inhibitingIdsFromSnapshot(
+					core.snapshotSessionState(),
+					(id) => core.registrationInhibition(id),
+				),
+			};
+		}
+		return inhibitingCache.ids;
+	};
 	const dispatcher = createTaskDispatcher(pi, ctx, {
 		onForeignTasks: (taskIds) => {
 			// A real fork inherited the task entries: cancel them locally so this
@@ -63,10 +78,7 @@ export function createLoopRuntime(
 		poller: undefined,
 		boulderSync: createBoulderSync(pi, ctx, core, {
 			liveInhibitingRun: () => {
-				const inhibiting = inhibitingIdsFromSnapshot(
-					core.snapshotSessionState(),
-					(id) => core.registrationInhibition(id),
-				);
+				const inhibiting = inhibitingIds();
 				return dispatcher
 					.liveRuns()
 					.some((view) => inhibiting.has(view.taskId));
