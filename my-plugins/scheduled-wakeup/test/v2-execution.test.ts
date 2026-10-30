@@ -10,7 +10,7 @@ import type { SessionEntryLike, SessionEntryPort } from "../src/v2/session-entry
 const NOW = 50_000;
 
 describe("Loop 2.0 execution", () => {
-	it("excludes a concurrent process from executing the same registration and restores completed progress", async () => {
+	it("excludes a concurrent process from executing the same registration and restores completed progress", () => {
 		const roots = createRoots();
 		const journal = createJournal();
 		const first = createCore("same-session", journal.port, roots);
@@ -40,7 +40,7 @@ describe("Loop 2.0 execution", () => {
 		assert.deepEqual(restored.listActive(), []);
 	});
 
-	it("runs due session work once, leaves failed delivery retryable, and supports explicit cancellation", async () => {
+	it("runs due session work once, leaves failed delivery retryable, and supports explicit cancellation", () => {
 		const roots = createRoots();
 		const journal = createJournal();
 		const core = createCore("session-local", journal.port, roots);
@@ -57,7 +57,7 @@ describe("Loop 2.0 execution", () => {
 		assert.equal(core.executeSessionTask(cancellable.id, () => undefined).kind, "missing");
 	});
 
-	it("returns busy when cancellation meets another task's state lock", async () => {
+	it("returns busy when cancellation meets another task's state lock", () => {
 		const roots = createRoots();
 		const journal = createJournal();
 		const core = createCore("session-cancellation", journal.port, roots);
@@ -70,17 +70,15 @@ describe("Loop 2.0 execution", () => {
 		const registration = core.registerSharedDefinition("workspace", definition.id);
 		const ai = new AiSessionActions(core);
 
-		let aiCancel: Promise<{ ok: boolean; message: string }> | undefined;
 		const execution = core.executeSessionTask(blocker.id, () => {
 			assert.equal(core.cancelSessionTask(cancellable.id), "busy");
 			assert.equal(core.unregisterSharedDefinition(registration.id), "busy");
-			aiCancel = ai.execute({ action: "cancel", id: cancellable.id });
+			const response = ai.execute({ action: "cancel", id: cancellable.id });
+			assert.equal(response.ok, false);
+			assert.match(response.message, /busy/);
 		});
 
 		assert.equal(execution.kind, "executed");
-		const response = await aiCancel;
-		assert.equal(response?.ok, false);
-		assert.match(response?.message ?? "", /busy/);
 		assert.equal(core.cancelSessionTask(cancellable.id), "cancelled");
 		assert.equal(core.unregisterSharedDefinition(registration.id), "cancelled");
 	});

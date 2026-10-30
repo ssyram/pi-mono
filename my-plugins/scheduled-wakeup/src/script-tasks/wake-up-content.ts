@@ -23,13 +23,7 @@ export function buildWakeUpContent(
 				? []
 				: [`error: ${escapeMarkup(result.error)}`]),
 			...(result.stdout === "" ? [] : [`stdout:\n${escapeMarkup(result.stdout)}`]),
-			...(result.stdoutLog === undefined
-				? []
-				: [`stdout-log: ${escapeMarkup(result.stdoutLog)}`]),
 			...(result.stderr === "" ? [] : [`stderr:\n${escapeMarkup(result.stderr)}`]),
-			...(result.stderrLog === undefined
-				? []
-				: [`stderr-log: ${escapeMarkup(result.stderrLog)}`]),
 			"</script>",
 		].join("\n"),
 	);

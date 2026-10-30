@@ -151,21 +151,3 @@ test("no-wake deliveries omit prompts and empty result fields", () => {
 	assert.doesNotMatch(quiet, /params:|signal:|error:|stdout:|stderr:/);
 	assert.equal(quiet.split("</script>").length - 1, 1);
 });
-
-test("timestamped content carries completed-at and sent-at lines", () => {
-	const content = buildWakeUpContent(
-		task,
-		[result("success", 0)],
-		true,
-		{ completedAt: 1793172000000, sentAt: 1793172005000 },
-	);
-	assert.match(content, /completed-at: 2026-10-28T/);
-	assert.match(content, /sent-at: 2026-10-28T/);
-	assert.ok(content.indexOf("completed-at:") < content.indexOf("<prompts>"));
-});
-
-test("content without timestamps keeps the existing format", () => {
-	const content = buildWakeUpContent(task, [result("success", 0)], true);
-	assert.doesNotMatch(content, /completed-at:/);
-	assert.doesNotMatch(content, /sent-at:/);
-});

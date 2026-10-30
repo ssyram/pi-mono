@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Box, MouseRegion, Text } from "@earendil-works/pi-tui";
 import { renderTaskRun } from "./script-tasks/render-task-run.js";
 import type { TaskRun } from "./script-tasks/task-spec.js";
-import { TASK_RUN_MESSAGE } from "./v2/task-run-message.js";
+import { TASK_RUN_MESSAGE } from "./task-dispatcher.js";
 
 export function registerTaskRunRenderer(pi: ExtensionAPI): void {
 	const views = new WeakMap<

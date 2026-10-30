@@ -6,10 +6,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { createEventBus } from "../../../packages/coding-agent/src/core/event-bus.ts";
 import { registerBoulderInhibitionAdapter } from "../../oh-my-pi-v2/hooks/boulder-inhibition-adapter.js";
-import {
-	createBoulderSync,
-	inhibitingIdsFromSnapshot,
-} from "../src/v2/boulder-sync.js";
+import { createBoulderSync } from "../src/v2/boulder-sync.js";
 import type { LoopV2Core } from "../src/v2/loop-core.js";
 
 interface Harness {
@@ -122,34 +119,6 @@ describe("boulder-sync bridge", () => {
 		});
 	});
 
-	it("a live run of a non-inhibiting task never holds the signal", () => {
-		const state: Parameters<typeof createHarness>[0] = {
-			tasks: [{ inhibitBoulder: false, status: "completed" }],
-		};
-		const harness = createHarness(state);
-		const bridge = createBoulderSync(harness.pi, harness.context, harness.core, {
-			liveInhibitingRun: () => false,
-		});
-		bridge.sync();
-		assert.deepEqual(lastSignal(harness.entries)?.data, { type: "loop", value: false });
-	});
-
-	it("holds loop=true while an inhibiting task's live run is undelivered, then clears", () => {
-		const state: Parameters<typeof createHarness>[0] = {
-			tasks: [{ inhibitBoulder: true, status: "completed" }],
-		};
-		const harness = createHarness(state);
-		let held = true;
-		const bridge = createBoulderSync(harness.pi, harness.context, harness.core, {
-			liveInhibitingRun: () => held,
-		});
-		bridge.sync();
-		assert.deepEqual(lastSignal(harness.entries)?.data, { type: "loop", value: true });
-		held = false;
-		bridge.sync();
-		assert.deepEqual(lastSignal(harness.entries)?.data, { type: "loop", value: false });
-	});
-
 	it("writes loop=false on the first sync when no special task exists", () => {
 		const harness = createHarness({ tasks: [] });
 		const bridge = createBoulderSync(harness.pi, harness.context, harness.core);
@@ -204,18 +173,4 @@ describe("boulder-sync bridge", () => {
 		const bridge = createBoulderSync(pi, context, core);
 		assert.doesNotThrow(() => bridge.sync());
 	});
-});
-
-it("inhibitingIdsFromSnapshot covers registrations via the resolver", () => {
-	const ids = inhibitingIdsFromSnapshot(
-		{
-			tasks: [{ definition: { id: "session:t1", inhibitBoulder: true } }],
-			registrations: [{ id: "registration:workspace:r1" }, { id: "registration:workspace:r2" }],
-		},
-		(id) =>
-			id === "registration:workspace:r1"
-				? { kind: "resolved", inhibitBoulder: true }
-				: { kind: "resolved", inhibitBoulder: false },
-	);
-	assert.deepEqual([...ids].sort(), ["registration:workspace:r1", "session:t1"]);
 });

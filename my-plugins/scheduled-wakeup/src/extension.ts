@@ -94,27 +94,18 @@ export default function scheduledWakeup(pi: ExtensionAPI): void {
 			try {
 				ensure(ctx);
 				registerLoopAutocomplete(ctx, {
-					taskLabels: () => {
-						const labels =
-							runtime?.core.listActive().map((item) =>
-								item.kind === "session"
-									? {
-											id: item.task.definition.id,
-											name: item.task.definition.name,
-										}
+					taskLabels: () =>
+						runtime?.core.listActive().map((item) =>
+							item.kind === "session"
+								? {
+										id: item.task.definition.id,
+										name: item.task.definition.name,
+									}
 									: {
-											id: item.registration.id,
-											name: item.definition?.name,
-										},
-							) ?? [];
-						// Live runs outlive their schedule (once tasks complete at
-						// dispatch): stop must tab-complete them too.
-						const seen = new Set(labels.map((label) => label.id));
-						for (const view of runtime?.dispatcher.liveRuns() ?? [])
-							if (!seen.has(view.taskId))
-								labels.push({ id: view.taskId, name: undefined });
-						return labels;
-					},
+										id: item.registration.id,
+										name: item.definition?.name,
+									},
+						) ?? [],
 					definitionLabels: (scopes) =>
 						runtime?.core
 							.listDefinitions(scopes)

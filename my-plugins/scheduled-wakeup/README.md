@@ -26,10 +26,10 @@ Creation (`add`, `define`, `register`, and tool `action=add`) requires an existi
 /loop available [ws|workspace|global]          Unregistered shared definitions (default: both)
 /loop register <ws|workspace|global> <id|name>  Register a shared definition
 /loop unregister <registration-id|name>         Remove this session's registration
-/loop list                                     Show active set, live runs and pending deliveries
+/loop list                                     Show this session's active set
 /loop running                                  Toggle inline details (fullscreen only)
 /loop show off|on                              Hide/show widget; does not stop tasks
-/loop stop <id|name|all>                       Stop tasks, runs and pending deliveries
+/loop stop <id|name|all>                       Stop active tasks and registrations
 /loop delete [--force] <definition-id|name>    Delete a shared definition (scope from id prefix)
 /loop run <id|name>                            Deliver the prompt now, progress unchanged
 /loop defer <id|name> <duration|time...>         Postpone only the next scheduled delivery
@@ -55,17 +55,17 @@ Put script options before the schedule; repeat `--script` with a JSON object for
 /loop running
 ```
 
-`--wake` is `always` (default), `on-error`, or `never`; `--error-mode` is `or` (default) or `and` and requires on-error. Each script defaults to cwd `.` / params `[]` / timeoutSeconds `1800`; null has no deadline. Paths are prepared against the creating context's cwd and stored absolute, including current-user `~/` expansion. Executables must be executable, or explicitly invoke `/bin/sh`; there is no PATH lookup, shell expansion, dependency inference or fail-fast. All scripts run sequentially, ordinary failures included, then one result card/custom message is sent. The delivered body carries the `<prompts>` block only when this run actually wakes (omitted for `never`, or `on-error` with no triggering failure); script blocks omit empty fields (`params: []`, null `signal`/`error`, empty `stdout`/`stderr`) while raw results keep every value. A never policy does not start a new AI run. Its result is appended at a safe message boundary and may become visible to an already-running AI before its final reply.
+`--wake` is `always` (default), `on-error`, or `never`; `--error-mode` is `or` (default) or `and` and requires on-error. Each script defaults to cwd `.` / params `[]` / timeoutSeconds `1800`; null has no deadline. Paths are prepared against the creating context's cwd and stored absolute, including current-user `~/` expansion. Executables must be executable, or explicitly invoke `/bin/sh`; there is no PATH lookup, shell expansion, dependency inference or fail-fast. All scripts run sequentially, ordinary failures included, then one result card/custom message is sent. The delivered body carries the `<prompts>` block only when this run actually wakes (`never`, or `on-error` with no triggering failure); script blocks omit empty fields (`params: []`, null `signal`/`error`, empty `stdout`/`stderr`) while raw results keep every value. A never policy does not start a new AI run. Its result is appended at a safe message boundary and may become visible to an already-running AI before its final reply.
 
 In fullscreen TUI, left-click anywhere on a `Loop ·` result card — title, body, or padding rows — to expand/collapse its model-facing body. Cards are independent; global Expand still works. Legacy TUI keeps keyboard Expand and does not receive fullscreen mouse events. This changes presentation only: no message is resent and no AI turn starts.
 
 Default runtime text is short English: ` ◓ Loop · N scheduled`, `Waiting`, `Running`, `wake` / `no wake`. User prompts, paths and script output are never translated. In TUI modes the summary glyph slowly cycles `◓ ◑ ◒ ◐` (upper→right→lower→left, clockwise) every 600ms (cached lines only; rpc output stays static).
 
-The above-editor widget summarizes current-session Loop items: scheduled prompts/scripts, live wrapper batches, and pending deliveries, merged by item ID; named items show `name · id`. Detail rows are `Running (I/K/M) <command>`, `Pending delivery (wake|no wake)`, or `Waiting <remaining>` with a queued-deliveries suffix; running and pending rows sort above waiting ones. Recurring items are not double-counted. N > 0 displays one summary line; N = 0 hides it. Fullscreen click (or `/loop running`) toggles inline details, never a separate dialog: at most 10 total lines including the summary, one item per detail row. Waiting rows count down; executing rows show I/K/M (successes / ended attempts, including failures and timeouts / total) plus the current command on the same truncated line. Legacy TUI is always one line and cannot expand, even through the command.
+The above-editor widget summarizes current-session Loop items: scheduled prompts/scripts plus in-flight script batches, merged by item ID; named items show `name · id`. Running once-items remain until their batch ends; recurring items are not double-counted. N > 0 displays one summary line; N = 0 hides it. Fullscreen click (or `/loop running`) toggles inline details, never a separate dialog: at most 10 total lines including the summary, one item per detail row. Waiting rows count down; executing rows show I/K/M (successes / ended attempts, including failures and timeouts / total) plus the current command on the same truncated line. Legacy TUI is always one line and cannot expand, even through the command.
 
 `/loop show off|on` changes only this session branch's display preference (default on), recorded in a custom entry and restored on reload/tree changes. It does not cancel or pause work; no persistent/global flags or settings-service dependency are added. Countdown repaint runs only while expanded waiting rows are visible, uses cached UI data and is cleaned on hide/close. Verified official Pi 1.2/1.3 public input-dock components are measured before expansion, leaving editor/footer plus a transcript row intact; insufficient or unrecognized layouts stay collapsed.
 
-A scheduled dispatch increments runCount and advances the next deadline when it starts, not after the batch completes. Same-ID overlap is refused; missed intervals do not build a queue. Manual run leaves the schedule unchanged. Script batches execute in a detached wrapper process under `.pi/scheduled-wakeup/v2/runs/<taskId>/<runId>/` (task.json, live.sock, status.json, output/NN-*.log, result.json, delivered.json, cancelled.json, wrapper.pid); a run's lifecycle spans `running → pendingDelivery → done | cancelled`, terminating only on successful delivery. Output is persisted to the per-script logs; delivered bodies carry an 8 KiB tail plus the log paths. Closing or reloading the session never kills a run: the wrapper finishes on disk and the result waits for its owning session to return; ownership is exact session-id equality (compact and `pi -c` keep the id, forks do not) — a forked or bystander session fully disconnects from foreign runs (no display, delivery, synthesis, stop, GC, or disk contact): on seeing an active foreign run it cancels that task locally — its own tracking stops — and prints one info notice; the foreign run directory is never touched and lost wrappers are synthesized as failed results by the owner per the registered wake policy. Stop/cancel removes future scheduling and terminates live runs: running batches get SIGTERM (fallback SIGKILL plus a cancelled outcome), pending deliveries are retracted before they are ever sent; once a delivery action has executed it cannot be retracted. Idle sessions deliver immediately (wake starts a turn, no-wake appends); busy sessions hold deliveries in Loop's own queue and flush them at `agent_before_settle` (wake requests one final continuation; no-wake only appends entries), falling back to `agent_settled`. Crash windows redeliver at most once (send-then-mark ordering); terminal runs are garbage-collected after the newest 5 per task or 7 days, whichever keeps them.
+A scheduled dispatch increments runCount and advances the next deadline when it starts, not after the batch completes. Same-ID overlap is refused; missed intervals do not build a queue. Manual run leaves the schedule unchanged. Stop/cancel removes future scheduling but lets the already-started batch finish, including its final wake decision. Session close/reload aborts owned processes and suppresses late results; it does not resume a partial batch or provide exactly-once after a crash.
 
 ## Boulder inhibition
 
@@ -87,7 +87,7 @@ action=add     prompt=<text> interval=10m        # recurring
 action=add     prompt=<text> interval=10m inhibitBoulder=true # hold loop inhibition
 action=add     prompt=<text> interval=10m name="nightly check"  # optional display name
 action=list
-action=cancel  id=<active task id or unique name; also terminates its live runs>
+action=cancel  id=<active task id or unique name>
 action=delete  id=<registration id or unique definition name>   # ordinary deletion via your own registration
 ```
 
@@ -95,7 +95,7 @@ For script tasks, use `scriptTask: {wakeUp: {kind: "on-error", aggregation: "or"
 
 ## Delivery and modes
 
-The poller arms one timer at the nearest active `nextRunAt`, dispatches due work through a session-owned runner, and re-arms; waits longer than ~24.8 days are chunked. Delivery is self-managed: Loop never parks results in Pi's follow-up queue. Wake-enabled results `sendMessage` with `triggerTurn: true` the moment the session is idle; while an agent run is busy they wait in Loop's own pending set and join the run's final continuation through `agent_before_settle` entries (`continue: true` only when waking and the run did not abort); `agent_settled` flushes whatever remains. NoWake results append without starting a new run. Official Pi's visible pending-message list never includes these queued deliveries; cancelling a pending delivery is trivial because the message is still in Loop's hands. Failed, locked, or unavailable poller dispatches retry after a 60-second backoff instead of hot-looping; result delivery retries on the next scan tick (about once per second), and a failed prompt send stays pending for the next pump.
+The poller arms one timer at the nearest active `nextRunAt`, dispatches due work through a session-owned runner, and re-arms; waits longer than ~24.8 days are chunked. Wake-enabled results use `deliverAs: "followUp"`: when busy they enter the agent follow-up queue; when idle they start a turn directly. Official Pi's visible pending-message list does not include these custom-message queues. NoWake results do not enter the AI follow-up queue; they append without starting a new run, deferred to a safe tool/turn boundary if busy—not necessarily until the whole response ends. Failed, locked, or unavailable deliveries retry after a 60-second backoff instead of hot-looping.
 
 Commands and the tool are registered in every mode. The poller starts in `tui`/`rpc` mode. In `print`/`json` mode it starts only with `PI_SCHEDULED_WAKEUP_RUNNER=1`; in that runner mode timers stay referenced so `pi -p` stays alive until work completes. Otherwise timers are unref'd.
 
@@ -115,9 +115,4 @@ cd my-plugins/scheduled-wakeup
 PI_LOOP_TEST_SDK_ROOT="$HOME/.pi/agent/install/releases/1.2.0/node_modules/@earendil-works/pi-coding-agent" node --import ./test/script-task-register.mjs --test test/*.test.ts
 PI_LOOP_TEST_SDK_ROOT="$HOME/.pi/agent/install/releases/1.2.0/node_modules/@earendil-works/pi-coding-agent" node test/check-types.mjs
 # The checker binds the installed official SDK/TUI declarations, not stale workspace dist.
-
-# True TUI end-to-end (tmux-driven real pi, real wrapper, real delivery):
-PI_LOOP_E2E=1 PI_LOOP_TEST_SDK_ROOT="$HOME/.pi/agent/install/releases/1.4.0/node_modules/@earendil-works/pi-coding-agent" \
-  node --import ./test/script-task-register.mjs --test --test-force-exit test/e2e-tui.test.ts
-# Skipped without PI_LOOP_E2E=1 or when tmux/pi are unavailable.
 ```

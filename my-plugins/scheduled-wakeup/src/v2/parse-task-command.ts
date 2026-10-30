@@ -87,10 +87,7 @@ export function parseTaskCommand(
 			message:
 				"Usage: /loop add <interval> <prompt> | once <delay> <prompt> | at <future time> -- <prompt>",
 		};
-	const metadata = {
-		schedule,
-		...(inhibit !== undefined ? { inhibitBoulder: inhibit } : {}),
-	};
+	const metadata = { schedule, ...(inhibit ? { inhibitBoulder: true } : {}) };
 	const location =
 		scope === undefined
 			? { kind: "add" as const }

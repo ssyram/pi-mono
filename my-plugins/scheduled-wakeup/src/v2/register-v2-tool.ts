@@ -56,7 +56,7 @@ export function registerScheduledWakeupV2Tool(
 						isError: true,
 					};
 				}
-				result = await runAction(
+				result = runAction(
 					toolParams,
 					options.getActions(ctx),
 					options,
@@ -93,12 +93,12 @@ export function registerScheduledWakeupV2Tool(
 	});
 }
 
-async function runAction(
+function runAction(
 	params: ToolParams,
 	actions: AiSessionActions,
 	options: ScheduledWakeupV2ToolOptions,
 	cwd: string,
-): Promise<AiSessionActionResult> {
+): AiSessionActionResult {
 	if (params.action === "add") {
 		const converted = convertSchedule(params, options.now?.() ?? Date.now());
 		if (typeof converted === "string") return failure(actions, converted);
@@ -110,15 +110,15 @@ async function runAction(
 				);
 			const prepared = prepareScriptTask(params.scriptTask, cwd);
 			if (!prepared.ok) return failure(actions, `Error: ${prepared.error}`);
-			return await actions.execute({
+			return actions.execute({
 				...params,
 				scriptTask: prepared.task,
 				schedule: converted,
 			});
 		}
-		return await actions.execute({ ...params, schedule: converted });
+		return actions.execute({ ...params, schedule: converted });
 	}
-	return await actions.execute({ ...params });
+	return actions.execute({ ...params });
 }
 
 /** Returns the TaskSchedule, or an error message string when the time input is unusable. */
@@ -149,14 +149,13 @@ function convertSchedule(
 		: { kind: "once", runAt };
 }
 
-async function failure(
+function failure(
 	actions: AiSessionActions,
 	message: string,
-): Promise<AiSessionActionResult> {
-	const list = await actions.execute({ action: "list" });
+): AiSessionActionResult {
 	return {
 		ok: false,
 		message,
-		active: list.active,
+		active: actions.execute({ action: "list" }).active,
 	};
 }

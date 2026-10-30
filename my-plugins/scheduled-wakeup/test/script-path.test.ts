@@ -158,17 +158,3 @@ test("script validation covers every field and preserves null timeout", () => {
 		assert.equal(result.task.scripts[0]?.timeoutSeconds, timeoutSeconds);
 	}
 });
-
-test("liveSocketPath stays direct when short and hashes into tmpdir when the run dir is deep", async () => {
-	const { liveSocketPath } = await import("../src/script-tasks/live-socket.js");
-	const { isAbsolute, join: pathJoin } = await import("node:path");
-	const shortDir = resolve("/w/.pi/scheduled-wakeup/v2/runs/t1/r1");
-	assert.equal(liveSocketPath(shortDir), pathJoin(shortDir, "live.sock"));
-
-	const deepDir = resolve("/Users/ssyram/workspace/ai-tools/pi-mono/.pi/scheduled-wakeup/v2/runs/session:01234567-89ab-cdef-0123-456789abcdef/1793333959533-2438366f");
-	const hashed = liveSocketPath(deepDir);
-	assert.ok(hashed.length <= 100, `hashed path must stay bindable, got ${hashed.length}`);
-	assert.ok(isAbsolute(hashed) && hashed.includes("pi-sw-live-"), "deep run dirs relocate under tmpdir with a marked name");
-	assert.equal(hashed, liveSocketPath(deepDir), "hashing is deterministic for both runner and prober");
-	assert.notEqual(hashed, liveSocketPath(`${deepDir}x`), "different run dirs hash to different sockets");
-});

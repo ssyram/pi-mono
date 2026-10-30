@@ -1,18 +1,21 @@
-import { join } from "node:path";
-import { notifyLoop } from "./loop-notification.js";
+import { randomUUID } from "node:crypto";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import type { ScriptSpec } from "./script-tasks/task-spec.js";
-import { isRunnerEnabled } from "./runner-mode.js";
-import {
-	createDeliveryCoordinator,
-	type DeliveryCoordinator,
-} from "./v2/delivery-coordinator.js";
-import { createRunCatalog, type RunCatalog } from "./v2/run-catalog.js";
-import type { RunView } from "./v2/run-catalog-state.js";
+import { loopErrorMessage } from "./loop-error-message.js";
+import { notifyLoop } from "./loop-notification.js";
+import { executeScriptTask } from "./script-tasks/execute-task.js";
+import { runScript } from "./script-tasks/run-script.js";
+import type {
+	ScriptSpec,
+	ScriptTask,
+	TaskRun,
+} from "./script-tasks/task-spec.js";
+import { buildWakeUpContent } from "./script-tasks/wake-up-content.js";
+import { shouldWakeUp } from "./script-tasks/wake-up-policy.js";
 import type { ExecutionTarget } from "./v2/model.js";
+import { cloneTaskContent } from "./v2/task-content.js";
 
 export type RunningTask = {
 	id: string;
@@ -20,223 +23,234 @@ export type RunningTask = {
 	success: number;
 	completed: number;
 	total: number;
-	current?: ScriptSpec | undefined;
+	current?: ScriptSpec;
 };
-
 export type DeliveryStatus = { wakeUps: number; noWakes: number };
-
 export type TaskDispatcher = {
 	dispatch(target: ExecutionTarget): void;
 	list(): readonly RunningTask[];
-	liveRuns(): readonly RunView[];
 	deliveryStatus(): ReadonlyMap<string, DeliveryStatus>;
-	retractPending(taskId: string): number;
-	requestRunTermination(taskId: string): { signalled: number; retracted: number };
-	cancelRun(view: RunView): Promise<"cancelled" | "already-finished">;
-	terminateTaskRuns(taskId: string): Promise<RunTermination>;
-	runsOverview(): string[];
-	refresh(): Promise<void>;
 	dispose(): void;
 };
-
-export type RunTermination = { killed: number; retracted: number };
-
-const SCAN_INTERVAL_MS = 1000;
+export type DispatcherOptions = {
+	runner?: typeof runScript;
+	onChange?: () => void;
+	onSettled?: () => void;
+};
+export const TASK_RUN_MESSAGE = "loop-task-run";
 
 export function createTaskDispatcher(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
-	options: {
-		onChange(): void;
-		onSettled(): void;
-		catalog?: RunCatalog;
-		intervalMs?: number;
-		onForeignTasks?: (taskIds: string[]) => void;
-	},
+	options: DispatcherOptions = {},
 ): TaskDispatcher {
-	let foreignNotified = false;
-	const onForeignTasks = (taskIds: string[]): void => {
-		if (foreignNotified || taskIds.length === 0) return;
-		foreignNotified = true;
-		notifyLoop(
-			ctx,
-			`Loop：${taskIds.length} 个任务的 run 属于其他会话（本会话可能是 fork）；对应任务已在本地取消、不再追踪，磁盘不受影响。`,
-			"info",
-		);
-		options.onForeignTasks?.(taskIds);
-	};
-	const catalog: RunCatalog =
-		options.catalog ??
-		createRunCatalog({
-			runsRoot: join(ctx.cwd, ".pi", "scheduled-wakeup", "v2", "runs"),
-			ownerSessionId: ctx.sessionManager.getSessionId(),
-			onForeignTasks,
-		});
-	const coordinator: DeliveryCoordinator = createDeliveryCoordinator(
-		pi,
-		ctx,
-		catalog,
-	);
-	let views: RunView[] = [];
-	let refreshing = false;
-	let refreshQueued = false;
+	const running = new Map<
+		string,
+		{ progress: RunningTask; abort: AbortController }
+	>();
+	const deliveryQueue: {
+		taskId: string;
+		run: TaskRun;
+		task: ScriptTask;
+		includeTimestamp: boolean;
+	}[] = [];
+	const wakeInFlight = new Map<string, number>();
 	let closed = false;
-	const starting = new Set<string>();
-	const refresh = async (): Promise<void> => {
-		if (closed) return;
-		if (refreshing) {
-			refreshQueued = true;
+	let agentBusy = false;
+	const report = (error: unknown): void => {
+		if (!closed)
+			notifyLoop(
+				ctx,
+				`Loop execution failed: ${loopErrorMessage(error)}`,
+				"error",
+			);
+	};
+	const changed = (): void => {
+		try {
+			options.onChange?.();
+		} catch (error) {
+			report(error);
+		}
+	};
+	const sendMessageNow = (
+		taskId: string,
+		run: TaskRun,
+		task: ScriptTask,
+		includeTimestamp: boolean,
+	): void => {
+		if (run.shouldWake)
+			wakeInFlight.set(taskId, (wakeInFlight.get(taskId) ?? 0) + 1);
+		pi.sendMessage(
+			{
+				customType: TASK_RUN_MESSAGE,
+				content: includeTimestamp
+					? buildWakeUpContent(task, run.results, run.shouldWake, {
+							completedAt: run.completedAt,
+							sentAt: Date.now(),
+						})
+					: run.content,
+				display: true,
+				details: run,
+			},
+			{ triggerTurn: run.shouldWake, deliverAs: "followUp" },
+		);
+	};
+	// pi flushes pending no-trigger custom messages at every turn_end boundary,
+	// which injects them into the live run. Hold no-wake reports until agent_settled
+	// so they only append to history once the session is idle.
+	const flushDeliveries = (): void => {
+		if (deliveryQueue.length === 0) return;
+		const pending = deliveryQueue.splice(0, deliveryQueue.length);
+		for (const entry of pending) {
+			if (closed) break;
+			sendMessageNow(entry.taskId, entry.run, entry.task, entry.includeTimestamp);
+		}
+		changed();
+	};
+	const publish = (
+		taskId: string,
+		run: TaskRun,
+		task: ScriptTask,
+		includeTimestamp: boolean,
+	): void => {
+		if (run.shouldWake || !agentBusy) {
+			sendMessageNow(taskId, run, task, includeTimestamp);
 			return;
 		}
-		refreshing = true;
+		deliveryQueue.push({ taskId, run, task, includeTimestamp });
+		changed();
+	};
+	const unsubscribeAgentStart = pi.on("agent_start", () => {
+		agentBusy = true;
+	});
+	const unsubscribeAgentSettled = pi.on("agent_settled", () => {
+		agentBusy = false;
+		// pi's followUp queue is guaranteed empty once settled: the post-run
+		// continuation loop has drained every queued message by then.
+		if (wakeInFlight.size > 0) {
+			wakeInFlight.clear();
+			changed();
+		}
+		flushDeliveries();
+	});
+	const execute = async (
+		task: ScriptTask,
+		job: { progress: RunningTask; abort: AbortController },
+		includeTimestamp: boolean,
+	): Promise<void> => {
 		try {
-			do {
-				refreshQueued = false;
-				views = await catalog.scan();
-				if (closed) break;
-				for (const view of views) coordinator.enqueueRun(view);
-				options.onChange();
-			} while (refreshQueued && !closed);
+			const run = await executeScriptTask(
+				task,
+				job.progress.wakeUpId,
+				async (script) => {
+					if (!job.abort.signal.aborted) {
+						job.progress.current = script;
+						changed();
+					}
+					const result = await (options.runner ?? runScript)(
+						script,
+						job.abort.signal,
+					);
+					job.progress.completed++;
+					if (result.status === "success") job.progress.success++;
+					delete job.progress.current;
+					changed();
+					return result;
+				},
+			);
+			if (!closed) publish(job.progress.id, run, task, includeTimestamp);
+		} catch (error) {
+			report(error);
 		} finally {
-			refreshing = false;
+			running.delete(job.progress.id);
+			if (!closed) {
+				changed();
+				try {
+					options.onSettled?.();
+				} catch (error) {
+					report(error);
+				}
+			}
 		}
 	};
-	const timer = setInterval(() => {
-		void refresh().catch(() => undefined);
-	}, options.intervalMs ?? SCAN_INTERVAL_MS);
-	// E31: headless runner mode must keep the process alive until delivery.
-	if (!isRunnerEnabled()) timer.unref?.();
-	void refresh().catch(() => undefined);
 	return {
 		dispatch(target) {
 			if (closed) throw new Error("Loop dispatcher is inactive");
-			if (
-				starting.has(target.id) ||
-				views.some(
-					(view) => view.taskId === target.id && view.state === "running",
-				)
-			)
+			if (running.has(target.id))
 				throw new Error(`Loop task ${target.id} is already running`);
-			if (
-				target.scriptTask !== undefined &&
-				target.scriptTask.scripts.length > 0
-			) {
-				starting.add(target.id);
-				catalog.startRun(target);
-				void refresh().catch(() => undefined);
-			} else if (target.scriptTask !== undefined) {
-				coordinator.enqueuePrompt({
+			const content = cloneTaskContent(target);
+			if (content.scriptTask === undefined) {
+				const task: ScriptTask = {
+					wakeUp: { kind: "always", prompt: content.prompt },
+					scripts: [],
+				};
+				publish(
+					target.id,
+					{
+						wakeUpId: `${target.id}/${randomUUID()}`,
+						results: [],
+						successCount: 0,
+						shouldWake: true,
+						completedAt: Date.now(),
+						content: buildWakeUpContent(task, [], shouldWakeUp(task.wakeUp, [])),
+					},
+					task,
+					content.includeTimestamp === true,
+				);
+				return;
+			}
+			const task = content.scriptTask;
+			const job = {
+				progress: {
 					id: target.id,
-					scope: target.scope,
-					prompt:
-						target.scriptTask.wakeUp.kind === "never"
-							? ""
-							: target.scriptTask.wakeUp.prompt,
-					...(target.includeTimestamp === true
-						? { includeTimestamp: true }
+					wakeUpId: `${target.id}/${randomUUID()}`,
+					success: 0,
+					completed: 0,
+					total: task.scripts.length,
+				},
+				abort: new AbortController(),
+			};
+			running.set(target.id, job);
+			changed();
+			void execute(task, job, content.includeTimestamp === true);
+		},
+		list: () =>
+			[...running.values()]
+				.filter((job) => job.progress.total > 0)
+				.map(({ progress }) => ({
+					...progress,
+					...(progress.current
+						? {
+								current: {
+									...progress.current,
+									params: [...progress.current.params],
+								},
+							}
 						: {}),
-				});
-			} else {
-				coordinator.enqueuePrompt(target);
+				})),
+		deliveryStatus: () => {
+			const status = new Map<string, DeliveryStatus>();
+			for (const [taskId, count] of wakeInFlight)
+				status.set(taskId, { wakeUps: count, noWakes: 0 });
+		for (const entry of deliveryQueue) {
+				const current = status.get(entry.taskId) ?? {
+					wakeUps: 0,
+					noWakes: 0,
+				};
+				current.noWakes++;
+				status.set(entry.taskId, current);
 			}
-			options.onSettled();
+			return status;
 		},
-		list() {
-			return views
-				.filter((view) => view.state === "running")
-				.map((view) => {
-					const scripts = view.record.payload.scriptTask?.scripts ?? [];
-					const status = view.status;
-					return {
-						id: view.taskId,
-						wakeUpId: view.taskId,
-						success: status?.success ?? 0,
-						completed: status?.completed ?? 0,
-						total: status?.total ?? scripts.length,
-						current: scripts[status?.currentIndex ?? 0],
-					};
-				});
-		},
-		liveRuns() {
-			return views.filter(
-				(view) =>
-					view.state === "running" || view.state === "pendingDelivery",
-			);
-		},
-		deliveryStatus() {
-			return coordinator.deliveryStatus();
-		},
-		retractPending(taskId) {
-			return coordinator.cancelPending(taskId);
-		},
-		requestRunTermination(taskId) {
-			const runs = views.filter(
-				(view) =>
-					view.taskId === taskId &&
-					(view.state === "running" || view.state === "pendingDelivery"),
-			);
-			const retracted = coordinator.cancelPending(taskId);
-			let signalled = 0;
-			for (const view of runs) {
-				if (view.state !== "running") continue;
-				const pid = view.status?.pid;
-				if (pid === undefined) continue;
-				try {
-					process.kill(pid, "SIGTERM");
-					signalled += 1;
-				} catch {
-					/* Already dead; the scan tick records the terminal state. */
-				}
-			}
-			void refresh().catch(() => undefined);
-			return { signalled, retracted };
-		},
-		async cancelRun(view) {
-			if (view.state === "pendingDelivery") {
-				coordinator.cancelPending(view.taskId);
-				await refresh();
-				return "cancelled";
-			}
-			const result = await catalog.cancelRunning(view);
-			await refresh();
-			return result;
-		},
-		async terminateTaskRuns(taskId) {
-			const runs = views.filter(
-				(view) =>
-					view.taskId === taskId &&
-					(view.state === "running" || view.state === "pendingDelivery"),
-			);
-			let killed = 0;
-			let retracted = coordinator.cancelPending(taskId);
-			for (const view of runs) {
-				if (view.state !== "running") continue;
-				await catalog.cancelRunning(view);
-				killed += 1;
-			}
-			await refresh();
-			retracted += coordinator.cancelPending(taskId);
-			return { killed, retracted };
-		},
-		runsOverview() {
-			return views
-				.filter(
-					(view) =>
-						view.state === "running" || view.state === "pendingDelivery",
-				)
-				.map((view) => {
-					const status = view.status;
-					if (view.state === "running")
-						return `${view.taskId} | running (${status?.completed ?? 0}/${status?.total ?? 0} scripts, pid ${status?.pid ?? "?"})`;
-					return `${view.taskId} | pending delivery (${view.outcome?.shouldWake === true ? "wake" : "no wake"})`;
-				});
-		},
-		refresh,
 		dispose() {
 			if (closed) return;
 			closed = true;
-			clearInterval(timer);
-			coordinator.dispose();
+			unsubscribeAgentStart();
+			unsubscribeAgentSettled();
+			deliveryQueue.length = 0;
+			wakeInFlight.clear();
+			for (const job of running.values()) job.abort.abort();
+			running.clear();
 		},
 	};
 }

@@ -72,16 +72,7 @@ export function handleLoopCommand(
 			void rt.widget.show();
 			return;
 		case "list":
-			notify(
-				ctx,
-				formatActiveTasks(
-					rt.core.listActive(),
-					rt.dispatcher.list(),
-					rt.dispatcher.deliveryStatus(),
-					Date.now(),
-				),
-				"info",
-			);
+			notify(ctx, formatActiveTasks(rt.core.listActive()), "info");
 			return;
 		case "available":
 			notify(
@@ -164,13 +155,11 @@ export function handleLoopCommand(
 			break;
 		}
 		case "stop":
-			void (async () => {
-				const message =
-					command.target === "all"
-						? await stopAll(rt)
-						: await stopOne(rt, command.target);
-				notify(ctx, message, "info");
-			})();
+			notify(
+				ctx,
+				command.target === "all" ? stopAll(rt) : stopOne(rt, command.target),
+				"info",
+			);
 			break;
 		case "delete": {
 			const resolution =
@@ -268,53 +257,21 @@ export function handleLoopCommand(
 	if (typeof refreshError === "string") notify(ctx, refreshError, "error");
 }
 
-async function stopAll(rt: LoopV2Runtime): Promise<string> {
+function stopAll(rt: LoopV2Runtime): string {
 	let stopped = 0;
 	for (const id of [...rt.core.activeIds()]) {
 		if (rt.core.cancelActive(id) === "cancelled") stopped += 1;
 	}
-	let killed = 0;
-	let retracted = 0;
-	for (const taskId of new Set(rt.dispatcher.liveRuns().map((view) => view.taskId))) {
-		const termination = await rt.dispatcher.terminateTaskRuns(taskId);
-		killed += termination.killed;
-		retracted += termination.retracted;
-	}
-	return `Stopped ${stopped} active task${stopped === 1 ? "" : "s"}.${terminationSuffix(killed, retracted)}`;
+	return `Stopped ${stopped} active task${stopped === 1 ? "" : "s"}.`;
 }
 
-async function stopOne(rt: LoopV2Runtime, target: string): Promise<string> {
-	const activeIds = new Set(
-		activeTaskCandidates(rt.core).map((candidate) => candidate.id),
-	);
-	const runCandidates = [...new Set(rt.dispatcher.liveRuns().map((view) => view.taskId))]
-		.filter((id) => !activeIds.has(id))
-		.map((id) => ({ id }));
-	const resolution = resolveTarget(target, [
-		...activeTaskCandidates(rt.core),
-		...runCandidates,
-	]);
+function stopOne(rt: LoopV2Runtime, target: string): string {
+	const resolution = resolveTarget(target, activeTaskCandidates(rt.core));
 	if (!resolution.ok) return `Cannot stop ${target}: ${resolution.message}.`;
 	const outcome = rt.core.cancelActive(resolution.id);
-	const termination = await rt.dispatcher.terminateTaskRuns(resolution.id);
-	if (outcome !== "cancelled" && termination.killed + termination.retracted === 0)
-		return `Cannot stop ${target}: ${outcome}.`;
-	const head =
-		outcome === "cancelled"
-			? `Stopped ${resolution.id}.`
-			: `Stopped runs of ${resolution.id}.`;
-	return `${head}${terminationSuffix(termination.killed, termination.retracted)}`;
-}
-
-function terminationSuffix(killed: number, retracted: number): string {
-	const parts: string[] = [];
-	if (killed > 0)
-		parts.push(`Killed ${killed} running batch${killed === 1 ? "" : "es"}.`);
-	if (retracted > 0)
-		parts.push(
-			`Retracted ${retracted} pending deliver${retracted === 1 ? "y" : "ies"}.`,
-		);
-	return parts.length === 0 ? "" : ` ${parts.join(" ")}`;
+	return outcome === "cancelled"
+		? `Stopped ${resolution.id}.`
+		: `Cannot stop ${target}: ${outcome}.`;
 }
 
 function renameTarget(

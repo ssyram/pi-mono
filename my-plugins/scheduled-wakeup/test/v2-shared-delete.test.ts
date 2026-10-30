@@ -12,7 +12,7 @@ import { UserLoopV2Commands } from "../src/v2/user-commands.js";
 const NOW = 20_000;
 
 describe("Loop 2.0 shared registration index and deletion", () => {
-	it("indexes two sessions independently and blocks ordinary deletion while another session remains", async () => {
+	it("indexes two sessions independently and blocks ordinary deletion while another session remains", () => {
 		const roots = createRoots();
 		const first = createCore("first", createJournal().port, roots);
 		const definition = first.createSharedDefinition("global", { prompt: "shared", schedule: { kind: "once", runAt: NOW } });
@@ -26,7 +26,7 @@ describe("Loop 2.0 shared registration index and deletion", () => {
 		assert.equal(second.executeRegistration(secondRegistration.id, () => undefined).kind, "executed");
 	});
 
-	it("lets AI cancel only its registration, rejects force, and applies ordinary deletion rules", async () => {
+	it("lets AI cancel only its registration, rejects force, and applies ordinary deletion rules", () => {
 		const roots = createRoots();
 		const first = createCore("first", createJournal().port, roots);
 		const definition = first.createSharedDefinition("workspace", { prompt: "shared", schedule: { kind: "once", runAt: NOW } });
@@ -34,16 +34,16 @@ describe("Loop 2.0 shared registration index and deletion", () => {
 		const second = createCore("second", createJournal().port, roots);
 		second.registerSharedDefinition("workspace", definition.id);
 		const ai = new AiSessionActions(first);
-		assert.equal((await ai.execute({ action: "delete", id: registration.id })).ok, false);
-		assert.match((await ai.execute({ action: "delete", id: registration.id })).message, /registered-by-others/);
-		assert.equal((await ai.execute({ action: "delete", id: registration.id, force: true })).ok, false);
-		assert.match((await ai.execute({ action: "delete", id: registration.id, force: true })).message, /scope or force/);
-		assert.equal((await ai.execute({ action: "cancel", id: registration.id })).ok, true);
+		assert.equal(ai.execute({ action: "delete", id: registration.id }).ok, false);
+		assert.match(ai.execute({ action: "delete", id: registration.id }).message, /registered-by-others/);
+		assert.equal(ai.execute({ action: "delete", id: registration.id, force: true }).ok, false);
+		assert.match(ai.execute({ action: "delete", id: registration.id, force: true }).message, /scope or force/);
+		assert.equal(ai.execute({ action: "cancel", id: registration.id }).ok, true);
 		assert.equal(first.snapshotSessionState().registrations.length, 0);
 		assert.equal(second.snapshotSessionState().registrations.length, 1);
 	});
 
-	it("force delete invalidates remote old references and reconciliation removes them later", async () => {
+	it("force delete invalidates remote old references and reconciliation removes them later", () => {
 		const roots = createRoots();
 		const first = createCore("first", createJournal().port, roots);
 		const definition = first.createSharedDefinition("global", { prompt: "shared", schedule: { kind: "once", runAt: NOW } });
@@ -59,7 +59,7 @@ describe("Loop 2.0 shared registration index and deletion", () => {
 		assert.equal(first.executeRegistration(firstRegistration.id, () => undefined).kind, "missing");
 	});
 
-	it("keeps an index after a failed first session append and removes it only after session removal persists", async () => {
+	it("keeps an index after a failed first session append and removes it only after session removal persists", () => {
 		const roots = createRoots();
 		const definitionOwner = createCore("owner", createJournal().port, roots);
 		const definition = definitionOwner.createSharedDefinition("workspace", { prompt: "shared", schedule: { kind: "once", runAt: NOW } });

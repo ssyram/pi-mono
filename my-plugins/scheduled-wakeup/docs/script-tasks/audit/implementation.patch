@@ -1,0 +1,443 @@
+diff --git a/my-plugins/file-path/resolve-user-path.ts b/my-plugins/file-path/resolve-user-path.ts
+new file mode 100644
+index 000000000..cc6fa9ccd
+--- /dev/null
++++ b/my-plugins/file-path/resolve-user-path.ts
+@@ -0,0 +1,12 @@
++import { homedir } from "node:os";
++import { resolve } from "node:path";
++
++export function resolveUserPath(
++	path: string,
++	cwd: string,
++	home: string = homedir(),
++): string {
++	if (path === "~") return resolve(home);
++	if (path.startsWith("~/")) return resolve(home, `.${path.slice(1)}`);
++	return resolve(cwd, path);
++}
+diff --git a/my-plugins/scheduled-wakeup/src/script-tasks/execute-task.ts b/my-plugins/scheduled-wakeup/src/script-tasks/execute-task.ts
+new file mode 100644
+index 000000000..288e9c380
+--- /dev/null
++++ b/my-plugins/scheduled-wakeup/src/script-tasks/execute-task.ts
+@@ -0,0 +1,27 @@
++import { runScript } from "./run-script.js";
++import type {
++	ScriptResult,
++	ScriptRunner,
++	ScriptTask,
++	TaskRun,
++} from "./task-spec.js";
++import { buildWakeUpContent } from "./wake-up-content.js";
++import { shouldWakeUp } from "./wake-up-policy.js";
++
++export async function executeScriptTask(
++	task: ScriptTask,
++	wakeUpId: string,
++	runner: ScriptRunner = runScript,
++): Promise<TaskRun> {
++	const results: ScriptResult[] = [];
++	// Step P2: Each result, including failure, is retained before running the next script.
++	for (const script of task.scripts) results.push(await runner(script));
++	// Step P3: Aggregate only after all script executions finish.
++	const successCount = results.filter(
++		(result) => result.status === "success",
++	).length;
++	const shouldWake = shouldWakeUp(task.wakeUp, results);
++	// Step P4: Model input and expanded display share this one content value.
++	const content = buildWakeUpContent(task, results);
++	return { wakeUpId, results, successCount, shouldWake, content };
++}
+diff --git a/my-plugins/scheduled-wakeup/src/script-tasks/kill-script-group.ts b/my-plugins/scheduled-wakeup/src/script-tasks/kill-script-group.ts
+new file mode 100644
+index 000000000..d07a28553
+--- /dev/null
++++ b/my-plugins/scheduled-wakeup/src/script-tasks/kill-script-group.ts
+@@ -0,0 +1,16 @@
++export function killScriptGroup(pid: number | undefined): string | null {
++	if (pid === undefined) return null;
++	try {
++		process.kill(-pid, "SIGKILL");
++		return null;
++	} catch (error) {
++		if (
++			typeof error === "object" &&
++			error !== null &&
++			"code" in error &&
++			error.code === "ESRCH"
++		)
++			return null;
++		return error instanceof Error ? error.message : String(error);
++	}
++}
+diff --git a/my-plugins/scheduled-wakeup/src/script-tasks/prepare-task.ts b/my-plugins/scheduled-wakeup/src/script-tasks/prepare-task.ts
+new file mode 100644
+index 000000000..afef42e35
+--- /dev/null
++++ b/my-plugins/scheduled-wakeup/src/script-tasks/prepare-task.ts
+@@ -0,0 +1,111 @@
++import { homedir } from "node:os";
++import { resolveUserPath } from "../../../file-path/resolve-user-path.js";
++import {
++	DEFAULT_SCRIPT_TIMEOUT_SECONDS,
++	type PreparationResult,
++	type ScriptSpec,
++	type WakeUpSetting,
++} from "./task-spec.js";
++
++export function prepareScriptTask(
++	input: unknown,
++	baseCwd: string,
++	home: string = homedir(),
++): PreparationResult {
++	if (typeof input !== "object" || input === null || Array.isArray(input)) {
++		return { ok: false, error: "Task must be an object." };
++	}
++	const record = input as Record<string, unknown>;
++	if (!Array.isArray(record.scripts))
++		return { ok: false, error: "scripts must be an array." };
++	if (
++		typeof record.wakeUp !== "object" ||
++		record.wakeUp === null ||
++		Array.isArray(record.wakeUp)
++	) {
++		return { ok: false, error: "wakeUp must be an object." };
++	}
++	const setting = record.wakeUp as Record<string, unknown>;
++	let wakeUp: WakeUpSetting;
++	if (setting.kind === "never") wakeUp = { kind: "never" };
++	else {
++		if (setting.kind !== "always" && setting.kind !== "on-error") {
++			return { ok: false, error: "Unknown wakeUp kind." };
++		}
++		if (typeof setting.prompt !== "string")
++			return { ok: false, error: "prompt must be a string." };
++		if (setting.kind === "always")
++			wakeUp = { kind: "always", prompt: setting.prompt };
++		else {
++			const aggregation =
++				setting.aggregation === undefined ? "or" : setting.aggregation;
++			if (aggregation !== "and" && aggregation !== "or") {
++				return { ok: false, error: "aggregation must be and or or." };
++			}
++			wakeUp = { kind: "on-error", aggregation, prompt: setting.prompt };
++		}
++	}
++	if (record.scripts.length === 0 && wakeUp.kind !== "always") {
++		return {
++			ok: false,
++			error: "A task without scripts requires always wakeUp.",
++		};
++	}
++	const scripts: ScriptSpec[] = [];
++	for (const inputScript of record.scripts) {
++		const prepared = prepareScript(inputScript, baseCwd, home);
++		if (!prepared.ok) return prepared;
++		scripts.push(prepared.script);
++	}
++	return { ok: true, task: { wakeUp, scripts } };
++}
++
++function prepareScript(
++	input: unknown,
++	baseCwd: string,
++	home: string,
++): { ok: true; script: ScriptSpec } | { ok: false; error: string } {
++	if (typeof input !== "object" || input === null || Array.isArray(input)) {
++		return { ok: false, error: "Script must be an object." };
++	}
++	const record = input as Record<string, unknown>;
++	if (typeof record.path !== "string" || record.path.length === 0) {
++		return { ok: false, error: "Script path must be a non-empty string." };
++	}
++	const cwd = record.cwd === undefined ? "." : record.cwd;
++	if (typeof cwd !== "string" || cwd.length === 0)
++		return { ok: false, error: "cwd must be a non-empty string." };
++	const params = record.params === undefined ? [] : record.params;
++	if (
++		!Array.isArray(params) ||
++		params.some((param) => typeof param !== "string")
++	) {
++		return { ok: false, error: "params must be an array of strings." };
++	}
++	const timeoutSeconds =
++		record.timeoutSeconds === undefined
++			? DEFAULT_SCRIPT_TIMEOUT_SECONDS
++			: record.timeoutSeconds;
++	if (
++		timeoutSeconds !== null &&
++		(typeof timeoutSeconds !== "number" ||
++			!Number.isFinite(timeoutSeconds) ||
++			timeoutSeconds <= 0 ||
++			timeoutSeconds * 1000 > Number.MAX_SAFE_INTEGER)
++	) {
++		return {
++			ok: false,
++			error: "timeoutSeconds must be positive finite seconds or null.",
++		};
++	}
++	const resolvedCwd = resolveUserPath(cwd, baseCwd, home);
++	return {
++		ok: true,
++		script: {
++			cwd: resolvedCwd,
++			path: resolveUserPath(record.path, resolvedCwd, home),
++			params: [...params],
++			timeoutSeconds,
++		},
++	};
++}
+diff --git a/my-plugins/scheduled-wakeup/src/script-tasks/render-task-run.ts b/my-plugins/scheduled-wakeup/src/script-tasks/render-task-run.ts
+new file mode 100644
+index 000000000..209db7602
+--- /dev/null
++++ b/my-plugins/scheduled-wakeup/src/script-tasks/render-task-run.ts
+@@ -0,0 +1,6 @@
++import type { TaskRun } from "./task-spec.js";
++
++export function renderTaskRun(run: TaskRun, expanded: boolean): string {
++	const label = `Loop · 唤醒 ID: ${run.wakeUpId} · 成功 ${run.successCount}/${run.results.length} · ${run.shouldWake ? "触发唤醒" : "不触发唤醒"}`;
++	return expanded ? `${label}\n${run.content}` : label;
++}
+diff --git a/my-plugins/scheduled-wakeup/src/script-tasks/run-script.ts b/my-plugins/scheduled-wakeup/src/script-tasks/run-script.ts
+new file mode 100644
+index 000000000..3b6882d49
+--- /dev/null
++++ b/my-plugins/scheduled-wakeup/src/script-tasks/run-script.ts
+@@ -0,0 +1,92 @@
++import { type ChildProcessByStdio, spawn } from "node:child_process";
++import type { Readable } from "node:stream";
++import { killScriptGroup } from "./kill-script-group.js";
++import { armScriptTimeout } from "./script-timeout.js";
++import type { ScriptResult, ScriptSpec } from "./task-spec.js";
++
++export function runScript(script: ScriptSpec): Promise<ScriptResult> {
++	if (process.platform === "win32")
++		return Promise.resolve(
++			startFailure(script, "POSIX process groups are required."),
++		);
++	return new Promise((resolve) => {
++		let child: ChildProcessByStdio<null, Readable, Readable>;
++		try {
++			child = spawn(script.path, [...script.params], {
++				cwd: script.cwd,
++				shell: false,
++				detached: true,
++				stdio: ["ignore", "pipe", "pipe"],
++			});
++		} catch (error) {
++			resolve(
++				startFailure(
++					script,
++					error instanceof Error ? error.message : String(error),
++				),
++			);
++			return;
++		}
++		let stdout = "";
++		let stderr = "";
++		let settled = false;
++		let timedOut = false;
++		let terminationError: string | null = null;
++		let cancelTimeout: (() => void) | undefined;
++		const finish = (
++			status: ScriptResult["status"],
++			exitCode: number | null,
++			signal: string | null,
++			error: string | null,
++		): void => {
++			if (settled) return;
++			settled = true;
++			cancelTimeout?.();
++			child.stdout.destroy();
++			child.stderr.destroy();
++			resolve({ script, status, exitCode, signal, stdout, stderr, error });
++		};
++		child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
++			stdout += chunk;
++		});
++		child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
++			stderr += chunk;
++		});
++		child.once("spawn", () => {
++			cancelTimeout = armScriptTimeout(script.timeoutSeconds, () => {
++				timedOut = true;
++				terminationError = killScriptGroup(child.pid);
++			});
++		});
++		child.once("error", (error) => {
++			const cleanupError = killScriptGroup(child.pid);
++			const message =
++				cleanupError === null
++					? error.message
++					: `${error.message}; cleanup: ${cleanupError}`;
++			finish(timedOut ? "timeout" : "start-failed", null, null, message);
++		});
++		child.once("close", (code, signal) => {
++			if (settled) return;
++			const error = timedOut ? terminationError : killScriptGroup(child.pid);
++			const status = timedOut
++				? "timeout"
++				: code === 0 && signal === null && error === null
++					? "success"
++					: "failed";
++			finish(status, code, signal, error);
++		});
++	});
++}
++
++function startFailure(script: ScriptSpec, error: string): ScriptResult {
++	return {
++		script,
++		status: "start-failed",
++		exitCode: null,
++		signal: null,
++		stdout: "",
++		stderr: "",
++		error,
++	};
++}
+diff --git a/my-plugins/scheduled-wakeup/src/script-tasks/script-timeout.ts b/my-plugins/scheduled-wakeup/src/script-tasks/script-timeout.ts
+new file mode 100644
+index 000000000..93695459c
+--- /dev/null
++++ b/my-plugins/scheduled-wakeup/src/script-tasks/script-timeout.ts
+@@ -0,0 +1,25 @@
++const MAX_TIMEOUT_MS = 2_147_483_647;
++
++export function armScriptTimeout(
++	seconds: number | null,
++	onTimeout: () => void,
++): () => void {
++	if (seconds === null) return () => {};
++	let remaining = seconds * 1000;
++	let cancelled = false;
++	let timer: ReturnType<typeof setTimeout>;
++	const arm = (): void => {
++		const slice = Math.min(remaining, MAX_TIMEOUT_MS);
++		timer = setTimeout(() => {
++			if (cancelled) return;
++			remaining -= slice;
++			if (remaining > 0) arm();
++			else onTimeout();
++		}, slice);
++	};
++	arm();
++	return () => {
++		cancelled = true;
++		clearTimeout(timer);
++	};
++}
+diff --git a/my-plugins/scheduled-wakeup/src/script-tasks/task-spec.ts b/my-plugins/scheduled-wakeup/src/script-tasks/task-spec.ts
+new file mode 100644
+index 000000000..34d5a19c1
+--- /dev/null
++++ b/my-plugins/scheduled-wakeup/src/script-tasks/task-spec.ts
+@@ -0,0 +1,42 @@
++export const DEFAULT_SCRIPT_TIMEOUT_SECONDS = 1800;
++
++export type WakeUpSetting =
++	| { kind: "never" }
++	| { kind: "always"; prompt: string }
++	| { kind: "on-error"; aggregation: "and" | "or"; prompt: string };
++
++export type ScriptSpec = {
++	cwd: string;
++	path: string;
++	params: readonly string[];
++	timeoutSeconds: number | null;
++};
++
++export type ScriptTask = {
++	wakeUp: WakeUpSetting;
++	scripts: readonly ScriptSpec[];
++};
++
++export type PreparationResult =
++	| { ok: true; task: ScriptTask }
++	| { ok: false; error: string };
++
++export type ScriptResult = {
++	script: ScriptSpec;
++	status: "success" | "failed" | "timeout" | "start-failed";
++	exitCode: number | null;
++	signal: string | null;
++	stdout: string;
++	stderr: string;
++	error: string | null;
++};
++
++export type ScriptRunner = (script: ScriptSpec) => Promise<ScriptResult>;
++
++export type TaskRun = {
++	wakeUpId: string;
++	results: readonly ScriptResult[];
++	successCount: number;
++	shouldWake: boolean;
++	content: string;
++};
+diff --git a/my-plugins/scheduled-wakeup/src/script-tasks/wake-up-content.ts b/my-plugins/scheduled-wakeup/src/script-tasks/wake-up-content.ts
+new file mode 100644
+index 000000000..a9ffb4342
+--- /dev/null
++++ b/my-plugins/scheduled-wakeup/src/script-tasks/wake-up-content.ts
+@@ -0,0 +1,39 @@
++import type { ScriptResult, ScriptTask } from "./task-spec.js";
++
++export function buildWakeUpContent(
++	task: ScriptTask,
++	results: readonly ScriptResult[],
++): string {
++	const prompt = task.wakeUp.kind === "never" ? "" : task.wakeUp.prompt;
++	const blocks = results.map((result) =>
++		[
++			`<script="${escapeMarkup(result.script.path)}", exit-code="${result.exitCode ?? "unavailable"}">`,
++			...(result.status === "success" ? [] : ["*** FAILED ***"]),
++			`status: ${result.status}`,
++			`cwd: ${escapeMarkup(result.script.cwd)}`,
++			`params: ${escapeMarkup(JSON.stringify(result.script.params))}`,
++			`signal: ${escapeMarkup(result.signal ?? "none")}`,
++			`error: ${escapeMarkup(result.error ?? "none")}`,
++			`stdout:\n${escapeMarkup(result.stdout)}`,
++			`stderr:\n${escapeMarkup(result.stderr)}`,
++			"</script>",
++		].join("\n"),
++	);
++	return [
++		"<SYSTEM:loop-wakeup>",
++		"This reminder was generated automatically by the system, NOT sent by the user.",
++		"<prompts>",
++		escapeMarkup(prompt),
++		"</prompts>",
++		...blocks,
++		"</SYSTEM:loop-wakeup>",
++	].join("\n");
++}
++
++function escapeMarkup(text: string): string {
++	return text
++		.replaceAll("&", "&amp;")
++		.replaceAll("<", "&lt;")
++		.replaceAll(">", "&gt;")
++		.replaceAll('"', "&quot;");
++}
+diff --git a/my-plugins/scheduled-wakeup/src/script-tasks/wake-up-policy.ts b/my-plugins/scheduled-wakeup/src/script-tasks/wake-up-policy.ts
+new file mode 100644
+index 000000000..b42de4230
+--- /dev/null
++++ b/my-plugins/scheduled-wakeup/src/script-tasks/wake-up-policy.ts
+@@ -0,0 +1,13 @@
++import type { ScriptResult, WakeUpSetting } from "./task-spec.js";
++
++export function shouldWakeUp(
++	setting: WakeUpSetting,
++	results: readonly ScriptResult[],
++): boolean {
++	if (setting.kind === "never") return false;
++	if (setting.kind === "always") return true;
++	if (results.length === 0) return false;
++	return setting.aggregation === "or"
++		? results.some((result) => result.status !== "success")
++		: results.every((result) => result.status !== "success");
++}

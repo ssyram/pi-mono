@@ -141,7 +141,6 @@ function createSetup() {
 		mode: "tui",
 		hasUI: false,
 		isIdle: () => true,
-		hasPendingMessages: () => false,
 		sessionManager: {
 			getSessionId: () => "restart-session",
 			getSessionFile: () => sessionFile,

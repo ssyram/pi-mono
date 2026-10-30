@@ -23,27 +23,15 @@ export type PreparationResult =
 
 export type ScriptResult = {
 	script: ScriptSpec;
-	status: "success" | "failed" | "timeout" | "start-failed" | "cancelled";
+	status: "success" | "failed" | "timeout" | "start-failed";
 	exitCode: number | null;
 	signal: string | null;
 	stdout: string;
 	stderr: string;
-	stdoutLog?: string;
-	stderrLog?: string;
 	error: string | null;
 };
 
-export type RunnerOptions = {
-	abortSignal?: AbortSignal;
-	logDir?: string;
-	index?: number;
-	onSpawn?: (pid: number | undefined) => void;
-};
-
-export type ScriptRunner = (
-	script: ScriptSpec,
-	options?: RunnerOptions,
-) => Promise<ScriptResult>;
+export type ScriptRunner = (script: ScriptSpec) => Promise<ScriptResult>;
 
 export type TaskRun = {
 	wakeUpId: string;
@@ -53,18 +41,3 @@ export type TaskRun = {
 	completedAt: number;
 	content: string;
 };
-
-export function scriptStartFailure(
-	script: ScriptSpec,
-	error: string,
-): ScriptResult {
-	return {
-		script,
-		status: "start-failed",
-		exitCode: null,
-		signal: null,
-		stdout: "",
-		stderr: "",
-		error,
-	};
-}

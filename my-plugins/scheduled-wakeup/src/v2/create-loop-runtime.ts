@@ -12,12 +12,8 @@ import { readLoopWidgetVisibility } from "../loop-widget-visibility.js";
 import { isRunnerEnabled, pollerEnabled } from "../runner-mode.js";
 import { createTaskDispatcher } from "../task-dispatcher.js";
 import { AiSessionActions } from "./ai-session-actions.js";
-import {
-	createBoulderSync,
-	inhibitingIdsFromSnapshot,
-} from "./boulder-sync.js";
+import { createBoulderSync } from "./boulder-sync.js";
 import { DuePoller } from "./due-poller.js";
-import { formatActiveTasks } from "./format-list.js";
 import { UserLoopV2Commands } from "./user-commands.js";
 
 export function createLoopRuntime(
@@ -27,27 +23,7 @@ export function createLoopRuntime(
 	const core = createLoopCore(pi, ctx);
 	core.reconcileSharedRegistrations();
 	core.resumeSchedules();
-	// Boulder sync fires on every mutation/afterRun/settle; on huge sessions a
-	// full state snapshot per sync is too costly — cache the inhibiting set briefly.
-	let inhibitingCache: { at: number; ids: Set<string> } | undefined;
-	const inhibitingIds = (): Set<string> => {
-		if (inhibitingCache === undefined || Date.now() - inhibitingCache.at > 5000) {
-			inhibitingCache = {
-				at: Date.now(),
-				ids: inhibitingIdsFromSnapshot(
-					core.snapshotSessionState(),
-					(id) => core.registrationInhibition(id),
-				),
-			};
-		}
-		return inhibitingCache.ids;
-	};
 	const dispatcher = createTaskDispatcher(pi, ctx, {
-		onForeignTasks: (taskIds) => {
-			// A real fork inherited the task entries: cancel them locally so this
-			// session stops scheduling/tracking work whose runs belong elsewhere.
-			for (const taskId of taskIds) core.cancelActive(taskId);
-		},
 		onChange: () => widget.refresh(),
 		onSettled: () => {
 			const result = runtime.poller?.reschedule();
@@ -64,26 +40,9 @@ export function createLoopRuntime(
 		dispatcher,
 		widget,
 		user: new UserLoopV2Commands(core),
-		actions: new AiSessionActions(core, {
-			formatOverview: (active) =>
-				formatActiveTasks(
-					active,
-					dispatcher.list(),
-					dispatcher.deliveryStatus(),
-					Date.now(),
-				),
-			liveRunIds: () => dispatcher.liveRuns().map((view) => view.taskId),
-			terminateTaskRuns: (taskId) => dispatcher.terminateTaskRuns(taskId),
-		}),
+		actions: new AiSessionActions(core),
 		poller: undefined,
-		boulderSync: createBoulderSync(pi, ctx, core, {
-			liveInhibitingRun: () => {
-				const inhibiting = inhibitingIds();
-				return dispatcher
-					.liveRuns()
-					.some((view) => inhibiting.has(view.taskId));
-			},
-		}),
+		boulderSync: createBoulderSync(pi, ctx, core),
 		cwd: ctx.cwd,
 		sessionManager: ctx.sessionManager,
 		sessionId: ctx.sessionManager.getSessionId(),

@@ -8,7 +8,7 @@ export type ScriptOptionsResult =
 			ok: true;
 			rest: string;
 			options: ScriptOptions | undefined;
-			inhibit: boolean | undefined;
+			inhibit: boolean;
 	  }
 	| { ok: false; error: string };
 
@@ -20,14 +20,14 @@ export function readScriptOptions(input: string): ScriptOptionsResult {
 	let seenWake = false;
 	let seenAggregation = false;
 	let used = false;
-	let inhibit: boolean | undefined;
+	let inhibit = false;
 	try {
 		while (rest.startsWith("--")) {
 			const match = /^(--[\w-]+)(?:\s+|$)/.exec(rest);
 			if (!match) break;
 			const flag = match[1];
 			if (
-				!["--script", "--wake", "--error-mode", "--no-boulder", "--boulder"].includes(
+				!["--script", "--wake", "--error-mode", "--no-boulder"].includes(
 					flag ?? "",
 				)
 			)
@@ -35,10 +35,6 @@ export function readScriptOptions(input: string): ScriptOptionsResult {
 			rest = rest.slice(match[0].length).trimStart();
 			if (flag === "--no-boulder") {
 				inhibit = true;
-				continue;
-			}
-			if (flag === "--boulder") {
-				inhibit = false;
 				continue;
 			}
 			used = true;

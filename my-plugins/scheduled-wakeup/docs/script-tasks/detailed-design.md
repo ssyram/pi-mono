@@ -34,15 +34,15 @@ prepareScript(script:unknown,baseCwd:string,home:string):ScriptPreparationResult
 
 ## 单脚本执行
 
-### D.process / runScript(script:ScriptSpec,options:RunnerOptions={}):Promise<ScriptResult>
+### D.process / runScript(script:ScriptSpec,abortSignal?:AbortSignal):Promise<ScriptResult>
 
-implemented-by `src/script-tasks/run-script.ts`（无 logDir 时管道内存模式，保留供直接单测）；落盘模式由 `run-script-logged.ts` 实现；callees Node spawn、armScriptTimeout、killScriptGroup、readTail；caller executeScriptTask（wrapper 传入 logDir）。
+implemented-by `src/script-tasks/run-script.ts`；callees Node spawn、armScriptTimeout、killScriptGroup；caller executeScriptTask（dispatcher可提供所属会话的abort signal）。
 
-Pre：prepare建立规格，执行期间不可修改；Node正常工作；宿主事件循环能推进。POSIX支持进程组；子孙未自行setsid脱组。Post：正常code=0为success；非零/信号为failed；spawn失败为start-failed；timeout一旦置位终态必timeout。stdout/stderr口径：管道模式为已接收流的UTF-8全文；落盘模式为 `output/NN-stdout.log`/`NN-stderr.log` 文件（全量持久），result 携带末尾 OUTPUT_TAIL_BYTES=8192 字节 tail 与 stdoutLog/stderrLog 绝对路径。普通失败不reject。资源副作用仅本次子进程、日志文件、pipes和timer。
+Pre：prepare建立规格，执行期间不可修改；Node正常工作、输出适合内存、宿主事件循环能推进。POSIX支持进程组；子孙未自行setsid脱组。Post：正常code=0为success；非零/信号为failed；spawn失败为start-failed；timeout一旦置位终态必timeout。stdout/stderr是已接收流的UTF-8文字，不将信号/null编码成0。普通失败不reject。资源副作用仅本次子进程、pipes和timer。
 
 步骤：Windows早退start-failed且无spawn；POSIX直接spawn(path,[...params],{cwd,shell:false,detached:true,stdio:['ignore','pipe','pipe']})；同步throw转start-failed；设置stdout/stderr UTF-8解码并累积；error事件以start-failed结束；close事件取得code/signal，超时路径复用已记录的terminationError，普通结束则同步清理剩余group，再构造结果；唯一finish guard防止多事件双重结算。
 
-spawn事件启动本项timer；null不建timer。timeout回调先置timedOut=true，再kill本次group；若pid缺失则终止函数no-op，spawn错误路径仍返回失败。close/error结算取消timer、销毁pipes。group cleanup错误存error，并令非timeout结果failed，不伪装success；若OS拒绝终止，不能保证仍活进程消失，必须可见。没有自动重试或长期全局PID表。loop-2 起 abort 仅供 wrapper 内部取消（SIGTERM 取消路径）；会话关闭不再向脚本传递 abort，也不抑制结果——run 在磁盘上独立完成，由任意活会话按注册策略投递。
+spawn事件启动本项timer；null不建timer。timeout回调先置timedOut=true，再kill本次group；若pid缺失则终止函数no-op，spawn错误路径仍返回失败。close/error结算取消timer、销毁pipes。group cleanup错误存error，并令非timeout结果failed，不伪装success；若OS拒绝终止，不能保证仍活进程消失，必须可见。没有自动重试或长期全局PID表。后续接线增加可选AbortSignal：已取消则不spawn并返回start-failed，运行中取消只杀本次group，正常close返回failed且说明session关闭；已发生timeout仍优先。finish移除abort监听器。调用者会话结束后不得再发布结果，剩余脚本的已取消调用不再spawn。
 
 闭包不变量：settled只从false到true；timedOut只从false到true；stdout/stderr仅追加；拥有child/timer不泄漏到别次调用；终止结果由timeout回调记录并由close出口消费；成功不能有error或signal。Rely：Node的spawn/error/close事件与stdio关闭契约；Guarantee：自己的监听器不投递消息，不改变任何session。没有跨会话共享锁。
 
@@ -76,7 +76,7 @@ implemented-by `src/script-tasks/execute-task.ts`。Pre：task来自prepare；ID
 
 implemented-by `src/script-tasks/wake-up-content.ts`。Pre：规格及结果合法，results同序对应task，shouldWake为调用方用shouldWakeUp(task.wakeUp,results)算得的同一值；Post：Boulder来源外层 `<SYSTEM:loop-wakeup>`，明确自动生成非用户；`<prompts>`块存在当且仅当shouldWake且kind≠never（never、on-error未触发等no-wake投递不携带prompts）；每项script块固定含script头（path、exit-code，null为unavailable）、status、cwd与（非success时）FAILED行，仅当有值时含params（length>0）、signal（非null）、error（非null）、stdout（非空）、stderr（非空）——空栏目不打印，原始值仍完整保存在results。
 
-用户指定标签是展示分隔协议，不是合法XML；不新增XML parser。动态path、prompt、输出和元数据文本转义&<>及属性引号，防止正文中的闭合标记改变分块；results 携带 8192 字节 tail（stdoutLog/stderrLog 指向全量日志），转义不额外截断。内部escapeMarkup(text:string):string是确定替换，无副作用、不生成模型请求。循环每个结果恰生成一块，有限n保证终止，失败与正常分支均有closing tag。共同正文在TaskRun唯一生成。
+用户指定标签是展示分隔协议，不是合法XML；不新增XML parser。动态path、prompt、输出和元数据文本转义&<>及属性引号，防止正文中的闭合标记改变分块；原始stdout/stderr仍完整保存于results，转义不截断。内部escapeMarkup(text:string):string是确定替换，无副作用、不生成模型请求。循环每个结果恰生成一块，有限n保证终止，失败与正常分支均有closing tag。共同正文在TaskRun唯一生成。
 
 ### renderTaskRun(run:TaskRun,expanded:boolean):string
 

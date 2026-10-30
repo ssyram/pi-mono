@@ -26,7 +26,7 @@ test(
 				],
 				timeoutSeconds: null,
 			},
-			{ abortSignal: controller.signal },
+			controller.signal,
 		);
 		for (let i = 0; i < 300 && !existsSync(ready); i++) await setTimeout(10);
 		assert.ok(existsSync(ready), "child must reach its running state");
@@ -49,7 +49,7 @@ test("already-aborted session never starts the script", async () => {
 			params: ["-e", "process.exit(99)"],
 			timeoutSeconds: null,
 		},
-		{ abortSignal: controller.signal },
+		controller.signal,
 	);
 	assert.equal(result.status, "start-failed");
 	assert.equal(result.exitCode, null);

@@ -1,27 +1,17 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
 import { test } from "node:test";
 import { setTimeout } from "node:timers/promises";
 import type { TaskRun } from "../src/script-tasks/task-spec.js";
 import { createBoundaryFixture } from "./outer-boundary-fixture.js";
 
 async function until(predicate: () => boolean): Promise<void> {
-	for (let i = 0; i < 1500 && !predicate(); i++) await setTimeout(20);
+	for (let i = 0; i < 500 && !predicate(); i++) await setTimeout(10);
 	assert.ok(predicate(), "expected asynchronous result");
 }
 
-const readJson = (path: string): unknown => {
-	try {
-		return JSON.parse(readFileSync(path, "utf8"));
-	} catch {
-		return undefined;
-	}
-};
-
 test(
 	"CLI manual script run uses real processes, custom NoWake output, and leaves schedule progress unchanged",
-	{ timeout: 60_000 },
+	{ timeout: 10_000 },
 	async (t) => {
 		const setup = createBoundaryFixture(t);
 		await setup.start();
@@ -56,7 +46,7 @@ test(
 
 test(
 	"tool script preparation, actual timer dispatch and immediate run-count advancement work together",
-	{ timeout: 60_000 },
+	{ timeout: 10_000 },
 	async (t) => {
 		const setup = createBoundaryFixture(t);
 		setup.ctx.mode = "tui";
@@ -90,7 +80,7 @@ test(
 		assert.match(run.content, /second ran/);
 		assert.equal(run.successCount, 1);
 		assert.ok(widgets.some((value) => typeof value === "function"));
-		await until(() => widgets.at(-1) === undefined);
+		assert.equal(widgets.at(-1), undefined);
 		assert.equal(
 			(await setup.execute({ action: "list" })).details.active?.length,
 			0,
@@ -108,8 +98,8 @@ test(
 );
 
 test(
-	"stop terminates the running batch and suppresses its delivery (loop-2)",
-	{ timeout: 60_000 },
+	"stop cancels future schedule but does not terminate the batch already started",
+	{ timeout: 10_000 },
 	async (t) => {
 		const setup = createBoundaryFixture(t);
 		await setup.start();
@@ -123,43 +113,22 @@ test(
 						path: process.execPath,
 						params: [
 							"-e",
-							"process.stdout.write('waiting'); setInterval(() => {}, 1000); setTimeout(() => process.exit(0), 30000)",
+							"setTimeout(() => process.stdout.write('finished after stop'), 80)",
 						],
 					},
-					],
+				],
 			},
 		});
 		const active = (await setup.execute({ action: "list" })).details
 			.active?.[0];
 		assert.ok(active?.kind === "session");
-		const taskId = active.task.definition.id;
-		await setup.run(`run ${taskId}`);
-		const runsRoot = join(
-			setup.cwd,
-			".pi",
-			"scheduled-wakeup",
-			"v2",
-			"runs",
-			taskId,
-		);
-		await until(() => existsSync(runsRoot));
-		const runDir = readdirSync(runsRoot, { withFileTypes: true }).filter(
-			(entry) => entry.isDirectory(),
-		)[0];
-		assert.ok(runDir);
-		const dir = join(runsRoot, runDir.name);
-		await until(() => existsSync(join(dir, "status.json")));
-		await setup.run(`stop ${taskId}`);
+		await setup.run(`run ${active.task.definition.id}`);
+		await setup.run(`stop ${active.task.definition.id}`);
 		assert.equal(
 			(await setup.execute({ action: "list" })).details.active?.length,
 			0,
 		);
-		await until(() =>
-			readJson(join(dir, "result.json")) !== undefined &&
-			(readJson(join(dir, "result.json")) as { cancelled?: boolean })
-				.cancelled === true,
-		);
-		await setTimeout(1000);
-		assert.equal(setup.messages.length, 0);
+		await until(() => setup.messages.length === 1);
+		assert.match(String(setup.messages[0]?.content), /finished after stop/);
 	},
 );
