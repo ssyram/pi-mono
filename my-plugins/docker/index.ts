@@ -8,8 +8,8 @@
  *
  * Keyboard shortcuts:
  *   ctrl+shift+t      - toggle sidebar visibility
- *   ctrl+shift+up     - scroll sidebar up
- *   ctrl+shift+down   - scroll sidebar down
+ *   ctrl+shift+p      - scroll sidebar up
+ *   ctrl+shift+n      - scroll sidebar down
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";

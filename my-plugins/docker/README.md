@@ -17,8 +17,8 @@ No configuration needed. Starts hidden by default.
 | Key | Action |
 |---|---|
 | `Ctrl+Shift+T` | Toggle sidebar visibility |
-| `Ctrl+Shift+↑` | Scroll sidebar up |
-| `Ctrl+Shift+↓` | Scroll sidebar down |
+| `Ctrl+Shift+P` | Scroll sidebar up |
+| `Ctrl+Shift+N` | Scroll sidebar down |
 
 Scrolling works without stealing keyboard focus — the editor stays active.
 
