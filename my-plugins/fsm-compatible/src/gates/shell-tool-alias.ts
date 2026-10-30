@@ -4,7 +4,11 @@ import { Type } from "typebox";
 /** HC shell.ts parity: aborted/timed-out commands resolve normally with a
  * <shell_metadata> envelope instead of an error status. */
 function shellMetadataResult(text: string, meta: string) {
-	const body = text.replace(/\n\nCommand aborted$/, "").replace(/^Command aborted$/, "") || "(no output)";
+	const body = text
+		.replace(/\n\nCommand aborted$/, "")
+		.replace(/^Command aborted$/, "")
+		.replace(/\n?\n?Command timed out after [0-9.]+ seconds$/, "")
+		|| "(no output)";
 	const output = `${body}\n\n<shell_metadata>\n${meta}\n</shell_metadata>`;
 	// HC durable part carries the killed shell's absent exit code as null.
 	return { content: [{ type: "text" as const, text: output }], details: { metadata: { output, exit: null, truncated: false } } };
@@ -18,6 +22,9 @@ export function registerShellToolAlias(pi: ExtensionAPI, cwd = process.cwd(), en
 			try {
 				// HC's wire contract declares timeout in milliseconds and an
 				// optional workdir; the host takes seconds and a fixed cwd.
+				if (input.timeout !== undefined && !(input.timeout > 0)) {
+					return { content: [{ type: "text", text: `The bash tool was called with invalid arguments: SchemaError(Expected a value greater than 0, got ${input.timeout}\n  at ["timeout"]).\nPlease rewrite the input so it satisfies the expected schema.` }], isError: true } as never;
+				}
 				const quoted = input.workdir ? `'${input.workdir.replaceAll("'", `'\''`)}'` : undefined;
 				const command = quoted ? `cd ${quoted} && ${input.command}` : input.command;
 				const normalized = input.timeout === undefined ? { command }
@@ -32,7 +39,19 @@ export function registerShellToolAlias(pi: ExtensionAPI, cwd = process.cwd(), en
 							return (update as (p: Patch) => void)(patch);
 						}) as unknown as Parameters<typeof base.execute>[3]
 					: update;
-				return await base.execute(id, normalized as never, signal, streamingUpdate, ctx as Parameters<typeof base.execute>[4]);
+				const raw = await base.execute(id, normalized as never, signal, streamingUpdate, ctx as Parameters<typeof base.execute>[4]) as { content?: { type: string; text?: string }[]; isError?: boolean };
+				// HC's bash receipt carries pure stdout; the exit code rides in
+				// metadata, never as a suffix line.
+				const rawText = (raw.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join("");
+				const m = /\n?\nCommand exited with code (\d+)$/.exec(rawText);
+				if (m) {
+					const exit = Number(m[1]);
+					// Non-zero exits are completed results: stdout only, exit
+					// code in metadata (no error status, no suffix line).
+					const body = rawText.slice(0, m.index) || "(no output)";
+					return { content: [{ type: "text", text: body }], details: { metadata: { exit, output: body } } } as never;
+				}
+				return raw as never;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				if (/^Command aborted$|\n\nCommand aborted$/.test(message)) return shellMetadataResult(message, "User aborted the command") as never;

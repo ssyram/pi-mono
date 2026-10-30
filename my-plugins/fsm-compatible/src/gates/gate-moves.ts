@@ -1,7 +1,7 @@
 import type { DaemonRequester } from "../broker/daemon-request.ts";
 import { RuntimeError } from "../runtime/runtime-error.ts";
 
-const QUESTION_TOOL = "question";
+const QUESTION_TOOL = "AskUserQuestion";
 
 /** Hook gate bisection (main.rs:435-449): only an allowed question tool suppresses; everything else releases. */
 export function gateShouldSuppress(allowed: boolean, toolName: string): boolean {

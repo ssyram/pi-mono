@@ -20,8 +20,9 @@ function ctx(): ExtensionContext {
 }
 
 test("gate bisection: only an allowed AskUserQuestion suppresses; everything else releases", () => {
-	assert.equal(gateShouldSuppress(true, "question"), true);
-	assert.equal(gateShouldSuppress(false, "question"), false);
+	// The wire name is `question`; the gate sees the canonical AskUserQuestion.
+	assert.equal(gateShouldSuppress(true, "AskUserQuestion"), true);
+	assert.equal(gateShouldSuppress(false, "AskUserQuestion"), false);
 	assert.equal(gateShouldSuppress(true, "bash"), false);
 	assert.equal(gateShouldSuppress(false, "read"), false);
 });
@@ -40,7 +41,7 @@ test("permission verdicts ride the main gate best-effort; children and failures 
 	};
 	installPermissionGate(pi, request, () => ({ sessionId: "r", agentId: "main" }), 5000);
 	const gate = handlers.get("tool_call")!;
-	assert.equal(await gate({ toolName: "question", input: { question: "q" } }, ctx()), undefined);
+	assert.equal(await gate({ toolName: "question", input: { questions: [{ question: "q" }] } }, ctx()), undefined);
 	assert.equal(await gate({ toolName: "bash", input: { command: "ls" } }, ctx()), undefined);
 	await new Promise((resolve) => setTimeout(resolve, 20));
 	assert.deepEqual(posts, [

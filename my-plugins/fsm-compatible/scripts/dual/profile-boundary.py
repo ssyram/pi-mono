@@ -422,23 +422,21 @@ def _check_tool_definitions(plot, run, mode, request, state):
     raw_dir = run / 'raw-tools'
     if not raw_dir.exists():
         return
-    import hashlib
-    messages = request.get('request', {}).get('context', {}).get('messages', [])
-    mh = hashlib.sha256(json.dumps(messages[-6:], ensure_ascii=False).encode()).hexdigest()[:16]
     state.setdefault('toolsConsumed', [])
-    candidates = [p for p in sorted(raw_dir.glob('*.json')) if p.name not in state['toolsConsumed']]
-    path = None
-    for candidate in candidates:
-        try:
-            if json.loads(candidate.read_text()).get('mh') == mh:
-                path = candidate
-                break
-        except Exception:
-            continue
+    # Pair each request with the first unconsumed snapshot; concurrent
+    # actors interleave, but each snapshot is consumed exactly once and the
+    # engine settles requests in arrival order.
+    unconsumed = [p2 for p2 in sorted(raw_dir.glob('*.json')) if p2.name not in state['toolsConsumed']]
+    path = unconsumed[0] if unconsumed else None
     if path is None:
         return
+    state.setdefault('actorSnapshots', {}).setdefault(actor, []).append(path.name)
     state['toolsConsumed'].append(path.name)
     definitions = json.loads(path.read_text())['tools']
+    # HC declares tools in its own stable order (agent* first, fsm_*, then
+    # builtins alphabetically); the host's registration order differs, so
+    # sort both sides by name before every comparison.
+    definitions.sort(key=lambda t: t.get('function', {}).get('name', ''))
     names = [tool.get('function', {}).get('name') for tool in definitions]
     strict = os.environ.get('PLOT_TOOL_DEFS_STRICT') == '1'
     if strict and (len(names) != spec.get('count') or len(names) != len(set(names))):
@@ -477,7 +475,7 @@ def _check_tool_definitions(plot, run, mode, request, state):
         # Evidence mode: keep the last observed set per actor for inspection.
         out.write_text(json.dumps(normalized, ensure_ascii=False, indent=2))
     if mode != 'collect' and strict:
-        baseline = json.loads(Path(plot['golden']).read_text())['tool_definitions'][actor]
+        baseline = sorted(json.loads(Path(plot['golden']).read_text())['tool_definitions'][actor], key=lambda t: t.get('function', {}).get('name', ''))
         if not exact_json(normalized, baseline):
             raise ValueError(f'tool definitions golden mismatch for {actor}')
 

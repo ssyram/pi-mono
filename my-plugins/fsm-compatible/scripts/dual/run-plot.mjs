@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, rm, writeFile, readFile, appendFile, access, readdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
-import { createWriteStream } from "node:fs";
+import { createWriteStream, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startPiRoots } from "./pi-roots.mjs";
@@ -31,12 +31,42 @@ const work = join(run, "work"), agentDir = join(run, "agent"),
 for (const d of ["home", "tmp", "config", "cache", "state", "model-inputs", "hooks", "captures", "hc-tool-parts", "fsm-states", "api-observations", "managed"]) await mkdir(join(run, d), { recursive: true });
 for (const d of [work, agentDir, fsmData, dataDir]) await mkdir(d, { recursive: true });
 
+const fixturePort = 23000 + (process.pid % 20000);
+{ const srv = (await import("node:http")).createServer((q, a) => {
+	if (q.url === "/fixture") { a.writeHead(200, { "content-type": "text/html; charset=utf-8" }); a.end("<h1>V5 local fixture</h1><p>value=42</p>"); return; }
+	a.writeHead(404).end();
+});
+await new Promise((r) => srv.listen(fixturePort, "127.0.0.1", r)); }
 const env = { LANG: process.env.LANG ?? "en_US.UTF-8", LC_ALL: "C", SHELL: "/bin/bash", USER: process.env.USER ?? "ssyram",
 	HOME: join(run, "home"), TMPDIR: join(run, "tmp"), XDG_CONFIG_HOME: join(run, "config"), XDG_DATA_HOME: join(run, "data"),
 	XDG_CACHE_HOME: join(run, "cache"), XDG_STATE_HOME: join(run, "state"),
 	FSM_DATA_DIR: fsmData, FSM_STOP_ANALYSIS: stopAnalysis, FSM_CLIENT_LOG: join(run, "fsm-client.log"),
 	PLOT_RUN: run, PLOT_REAL_HOOK: join(FSM, "mcp-server-fsm-hook"),
-	PLOT_BINDINGS: JSON.stringify({ run, work, package: engineRoot, ...(plot.bindings ?? {}) }), PLOT_HC_PORT: String(facadePort), PATH: `${FSM}:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin`,
+	// Deterministic dual answers for question tools, derived from the plot's
+	// expected receipts (the v5 harness fixture's own replies).
+	PLOT_SKILL_DIR: (() => {
+		try {
+			const dir = join(run, "config", "opencode", "skills");
+			const probeDir = join(dir, "v5-probe");
+			mkdirSync(probeDir, { recursive: true });
+			writeFileSync(join(probeDir, "SKILL.md"), "---\nname: v5-probe\ndescription: Deterministic v5 local skill\n---\nV5_SKILL_BODY: inspect, change, verify.\n");
+			return dir;
+		} catch { return ""; }
+	})(),
+	PLOT_QUESTION_REPLIES: (() => {
+		const replies = {};
+		for (const actor of Object.values(plot.actors ?? {})) {
+			for (const step of (actor?.steps ?? [])) {
+				if (step?.tool !== "question") continue;
+				for (const e of (step.expect ?? [])) {
+					if (e?.path !== "/text" || typeof e.equals !== "string") continue;
+					for (const m of e.equals.matchAll(/"([^"]+)"="([^"]*)"/g)) replies[m[1]] = m[2];
+				}
+			}
+		}
+		return JSON.stringify(replies);
+	})(),
+	PLOT_BINDINGS: JSON.stringify({ run, work, package: engineRoot, "url.fixture": `http://127.0.0.1:${fixturePort}/fixture`, ...(plot.bindings ?? {}) }), PLOT_HC_PORT: String(facadePort), PATH: `${FSM}:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin`,
 	PLOT_TOOL_DEFS_STRICT: process.env.PLOT_TOOL_DEFS_STRICT ?? "1",
 	RUST_LOG: process.env.FSM_DUAL_DEBUG ? "debug" : process.env.RUST_LOG ?? "" };
 
@@ -95,7 +125,10 @@ const proxy = (await import("node:http")).createServer(async (req, res) => {
 				for (const tool of parsed.tools) {
 					const name = tool?.function?.name;
 					const hc = hcSchemas[name];
-					if (hc) tool.function.parameters = hc.parameters;
+					if (hc) {
+						tool.function.parameters = hc.parameters;
+						if (name === "bash") tool.function.description = hc.description;
+					}
 				}
 			} catch { /* keep raw tools */ }
 			const seq = toolsSeq++;
@@ -155,11 +188,12 @@ try {
 	await new Promise((r) => facade.listen(facadePort, "127.0.0.1", r));
 	// v5 shell_barrier: a blocked FIFO opens only after its command's printf
 	// output has stabilized — release by writing one byte into the FIFO.
+	const releasedBarriers = new Set();
 	const barrierWatch = setInterval(() => {
 		void (async () => {
 			const entries = await readdir(join(run, "tmp")).catch(() => []);
 			for (const fifo of entries) {
-				if (!fifo.startsWith("barrier-")) continue;
+				if (!fifo.startsWith("barrier-") || releasedBarriers.has(fifo)) continue;
 				const [actor, idx] = fifo.replace("barrier-", "").split("-");
 				const callId = `plot_${actor}_${String(Number(idx)).padStart(3, "0")}`;
 				const partial = join(run, "tmp", `bash-${callId}.partial`);
@@ -168,7 +202,12 @@ try {
 				await new Promise((r) => setTimeout(r, 250));
 				const again = await readFile(partial, "utf8").catch(() => null);
 				if (again === bytes) {
+					// Releasing once is enough: a later open(O_WRONLY) on the
+					// reader-less FIFO would pin an fs-pool thread forever and
+					// starve the facade.
+					releasedBarriers.add(fifo);
 					await (await import("node:fs/promises")).writeFile(join(run, "tmp", fifo), "x").catch(() => {});
+					await (await import("node:fs/promises")).rm(partial, { force: true }).catch(() => {});
 				}
 			}
 		})();

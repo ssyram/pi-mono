@@ -27,6 +27,7 @@ const NAME_TO_CC: Record<string, string> = {
 	subagent: "Agent",
 	task: "Agent",
 	agent: "Agent",
+	question: "AskUserQuestion",
 	dispatch_subagent: "Agent",
 	websearch: "WebSearch",
 	webfetch: "WebFetch",
@@ -94,6 +95,10 @@ export function normalizeToolCall(call: ToolCallLike): NormalizedToolCall {
 			return { toolName: "LS", toolInput: renamed(input, {}) };
 		case "Agent":
 			return { toolName: "Agent", toolInput: clone(input) };
+		case "AskUserQuestion":
+			return { toolName: "AskUserQuestion", toolInput: clone(input) };
+		case "WebFetch":
+			return { toolName: "WebFetch", toolInput: clone(input) };
 		default:
 			return { toolName: name, toolInput: clone(input) };
 	}

@@ -308,7 +308,7 @@ for (const { source, lines, calls } of scanned) {
 			sessionID: source.sid,
 			id: stableIds?.partId ?? `prt_${rid()}`,
 			messageID: stableIds?.messageId ?? `msg_${rid()}`,
-			state: m.isError
+			state: m.details?.partStatus === "error" || m.isError
 				? { status: "error", input: call.args, error: output, time: { start: Math.min(start, end), end: Math.max(start, end) } }
 				: {
 					status: "completed",
@@ -322,7 +322,7 @@ for (const { source, lines, calls } of scanned) {
 					: "",				metadata: isStructured
 					? { valid: true }
 					: m.details && m.details.metadata !== undefined
-						? m.details.metadata
+						? { truncated: false, ...m.details.metadata }
 					: toolName === "write"
 						? { diagnostics: {}, filepath: call.args?.filePath, exists: false, truncated: false }
 					: isBash && m.details && typeof m.details.metadata === "object" && m.details.metadata !== null && "exit" in m.details.metadata

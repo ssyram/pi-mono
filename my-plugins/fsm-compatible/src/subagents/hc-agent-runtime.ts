@@ -16,6 +16,7 @@ import { findHcAgentDefinition, HC_NATIVE_AGENT_DEFINITIONS, type HcAgentDefinit
 import { renderAgentMessage } from "./hc-agent-message.ts";
 import { recordInboxSidecar } from "./hc-inbox-sidecar.ts";
 import { classifyFromRun, recheckDeferredHcReports, reportHcRunEnd } from "./hc-agent-report.ts";
+import { classifyHcRunOutcome } from "./hc-agent-delegation.ts";
 import type { HcAgentMessage, HcAgentModel } from "./hc-agent-types.ts";
 import type { HcAgentRuntimeServices } from "./hc-agent-services.ts";
 import { HcNicoSessionHost, hcModelRef, type HcNicoLaunchPlan } from "./hc-nico-host.ts";
@@ -198,6 +199,26 @@ export async function openHcAgentRuntime(deps: HcRuntimeDeps): Promise<HcRuntime
 				void reportHcRunEnd(services, deferred, record, outcome).finally(() => {
 					void recheckDeferredHcReports(services, deferred);
 				});
+			} else if (event.type === "turn_end") {
+				// HC prompt.ts reports to the parent at the end of EVERY run:
+				// a Stop-blocked turn ends (parts-only), reports "completed"
+				// with the pause text, and the continuation is a NEW run. Pi
+				// continues the same agent run, so the per-turn boundary is
+				// the closest observable equivalent. The boundary carries the
+				// turn's assistant message and tool results — classify those.
+				if (record.parent_id !== undefined && record.notify) {
+					const turn = event as unknown as { message?: unknown; toolResults?: unknown[] };
+					const message = turn.message as { role?: string } | undefined;
+					if (message && (message as { role?: string }).role === "assistant") {
+						const outcome = classifyHcRunOutcome({
+							finalAssistant: message as never,
+							toolResults: (turn.toolResults ?? []) as never[],
+						}, record.session_id);
+						if (outcome.kind !== "cancelled") {
+							void reportHcRunEnd(services, deferred, record, outcome);
+						}
+					}
+				}
 			} else if (event.type === "message_end") {
 				notifyFleet(record.session_id, event);
 			}

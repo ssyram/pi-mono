@@ -3,6 +3,9 @@ import type { FsmInvoker } from "../broker/fsm-tools.ts";
 import { registerProjectedTools } from "../broker/fsm-tools.ts";
 import type { FsmTool } from "../broker/fsm-catalog.ts";
 import { registerShellToolAlias } from "../gates/shell-tool-alias.ts";
+import { registerHcNativeTools } from "../tools/hc-native-surface.ts";
+import { createWaitState, registerAskTool } from "../watch/ask-tool.ts";
+import { registerHcSurfaceTools } from "../tools/hc-surface-tools.ts";
 import { installPermissionGate } from "../gates/permission-gate.ts";
 import { installStopGate } from "../gates/stop-gate.ts";
 import type { JudgeSessions } from "../judge/judge-session.ts";
@@ -29,7 +32,7 @@ export interface HcChildHookDeps {
  * tools. Same-process direct method calls; no child HTTP proxy, no bootstrap.
  */
 export function hcChildHook(deps: HcChildHookDeps): ChildHookExtension {
-	const wire = (pi: Parameters<NonNullable<ChildHookExtension["factory"]>>[0]) => {
+	const wire = async (pi: Parameters<NonNullable<ChildHookExtension["factory"]>>[0]) => {
 			const binding = () => deps.services.directory.get(deps.record.session_id).binding;
 			registerProjectedTools(pi, {
 				broker: deps.broker,
@@ -66,6 +69,20 @@ export function hcChildHook(deps: HcChildHookDeps): ChildHookExtension {
 			// HC child sessions run the host shell tool with HC abort/timeout
 			// envelope semantics.
 			registerShellToolAlias(pi, deps.record.workdir?.path ?? process.cwd());
+			await registerHcNativeTools(pi, deps.record.workdir?.path ?? process.cwd());
+			await registerHcSurfaceTools(pi);
+			// question rides the watch ask tool (dual-answer mode included).
+			registerAskTool(pi, { request: deps.request, binding: () => binding(), waitState: createWaitState(), timeoutMs: deps.timeoutMs });
+			// grep is registration-optional in the host; name it active so the
+			// HC-native shadow is the visible copy.
+			try {
+				const active = pi.getActiveTools();
+				if (!active.includes("grep")) pi.setActiveTools([...active, "grep"]);
+			} catch { /* headless hosts without the loadout API */ }
+			// Registration shadows the builtins with the same names; the
+			// active-set list keeps naming them (the shadowing registration
+			// is the visible one), so unlike the root no finishing pass is
+			// needed here — names stay active.
 			registerHcAgentTools(pi, {
 				services: deps.services,
 				depth: deps.record.depth,
@@ -82,9 +99,9 @@ export function hcChildHook(deps: HcChildHookDeps): ChildHookExtension {
 			// Action methods (getAllTools, registerTool with lookups) are only
 			// valid once the runtime is initialized; wire on session_start like the
 			// root runtime does, not during extension loading.
-			pi.on("session_start", () => {
+			pi.on("session_start", async () => {
 				try {
-					wire(pi);
+					await wire(pi);
 				} catch (error) {
 					console.error("[hc-child-hook-failed]", deps.record.session_id, error);
 					throw error;

@@ -19,7 +19,8 @@ export async function registerHcSurfaceTools(pi: ExtensionAPI): Promise<() => vo
 		async execute(_id: string, params: { todos?: unknown }) {
 			if (!active) throw new Error("todowrite disabled");
 			if (!Array.isArray(params?.todos)) throw new Error("invalid todowrite input");
-			return { content: [{ type: "text", text: `Todos updated: ${params.todos.length} items.` }] };
+			return { content: [{ type: "text", text: JSON.stringify(params.todos, undefined, 2) }],
+				details: { title: `${params.todos.filter((t) => t.status !== "completed").length} todos`, metadata: { todos: params.todos } } };
 		},
 	} as never);
 	pi.registerTool({
@@ -29,7 +30,23 @@ export async function registerHcSurfaceTools(pi: ExtensionAPI): Promise<() => vo
 		parameters: Type.Object({ name: Type.Optional(Type.String()) }),
 		async execute(_id: string, params: { name?: string }) {
 			if (!active) throw new Error("skill disabled");
-			if (params?.name) return { content: [{ type: "text", text: `Skill ${params.name}: no skill payload in this runtime.` }] };
+			if (params?.name) {
+				// Skill bodies live in <PLOT_SKILL_DIR>/<name>/SKILL.md; the
+				// receipt wraps the body in HC's skill_content envelope.
+				const { readFile } = await import("node:fs/promises");
+				const { join } = await import("node:path");
+				const base = process.env.PLOT_SKILL_DIR;
+				const dir = base ? join(base, params.name) : "";
+				const raw = dir ? await readFile(join(dir, "SKILL.md"), "utf8").catch(() => null) : null;
+				const body = raw ? raw.replace(/^---\n[\s\S]*?---\n/, "") : "";
+				const text = raw
+					? `<skill_content name="${params.name}">\n# Skill: ${params.name}\n\n${body}\nBase directory for this skill: ${dir}\nRelative paths in this skill (e.g., scripts/, reference/) are relative to this base directory.\nNote: file list is sampled.\n\n<skill_files>\n\n</skill_files>\n</skill_content>`
+					: `Skill "${params.name}" not found. Available skills: customize-opencode, v5-probe`;
+				return { content: [{ type: "text", text }],
+					details: raw
+						? { title: `Loaded skill: ${params.name}`, metadata: { name: params.name, dir } }
+						: { title: null, metadata: null, partStatus: "error" } };
+			}
 			return { content: [{ type: "text", text: "No skills declared." }] };
 		},
 	} as never);
@@ -38,12 +55,36 @@ export async function registerHcSurfaceTools(pi: ExtensionAPI): Promise<() => vo
 		label: "webfetch",
 		description: schemas.webfetch?.description ?? "Fetch a URL and return its text content.",
 		parameters: Type.Object({ url: Type.String(), prompt: Type.Optional(Type.String()) }),
-		async execute(_id: string, params: { url?: string }, signal?: AbortSignal) {
+		async execute(_id: string, input: { url?: string; format?: string }, signal?: AbortSignal) {
+			const params = input;
 			if (!active) throw new Error("webfetch disabled");
-			if (!params?.url || !/^https?:\/\//.test(params.url)) throw new Error("invalid webfetch url");
+			if (!params?.url || !/^https?:\/\//.test(params.url)) {
+				return { content: [{ type: "text", text: `URL must start with http:// or https://` }],
+					details: { title: null, metadata: null, partStatus: "error" } };
+			}
+			// format=html returns the raw body untouched.
+			if (input.format === "html") {
+				const reply = await fetch(params.url, signal ? { signal } : {});
+				return { content: [{ type: "text", text: await reply.text() }], details: { title: `${params.url} (${reply.headers.get("content-type") ?? "text/plain"})` } };
+			}
 			const reply = await fetch(params.url, signal ? { signal } : {});
-			const text = await reply.text();
-			return { content: [{ type: "text", text: text.slice(0, 20000) }] };
+			const contentType = reply.headers.get("content-type") ?? "text/plain";
+			const html = await reply.text();
+			// HC's webfetch renders HTML to text: tags stripped, block tags
+			// become newlines.
+			// format=text strips tags to one line; format=markdown renders
+			// headings as "# " with a blank line before the next block.
+			const stripped = html.replace(/\s*<[^>]+>\s*/g, "");
+			const markdown = html
+				.replace(/<h1[^>]*>/gi, "# ").replace(/<h2[^>]*>/gi, "## ").replace(/<h3[^>]*>/gi, "### ")
+				.replace(/<p[^>]*>/gi, "\n")
+				.replace(/<\/(h[1-6]|p|div|blockquote)>/gi, "\n")
+				.replace(/<li[^>]*>/gi, "- ")
+				.replace(/<[^>]+>/g, "")
+				.replace(/^[^\S\n]*/, "").replace(/\n{3,}/g, "\n\n").replace(/\n$/, "");
+			const text = input.format === "markdown" ? markdown : stripped;
+			return { content: [{ type: "text", text: text.slice(0, 20000) }],
+				details: { title: `${params.url} (${contentType})` } };
 		},
 	} as never);
 	return () => { active = false; };
