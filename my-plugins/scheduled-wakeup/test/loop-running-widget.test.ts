@@ -69,6 +69,24 @@ test("waiting items keep a nonzero summary; zero and show off hide it", async ()
 	assert.equal(setup.header, undefined);
 	widget.setVisible(true);
 	assert.ok(setup.header);
+	items = [
+		{ id: "future", nextRunAt: Date.now() + 60000 },
+		{
+			id: "busy",
+			running: {
+				id: "busy",
+				wakeUpId: "busy",
+				success: 0,
+				completed: 0,
+				total: 2,
+			},
+		},
+	];
+	widget.refresh();
+	assert.match(
+		setup.header?.render(80)[0] ?? "",
+		/\u25D3 Loop · 2 scheduled · 1 running/,
+	);
 	items = [];
 	widget.refresh();
 	assert.equal(setup.header, undefined);

@@ -54,6 +54,7 @@ export function createLoopRuntime(
 					dispatcher.deliveryStatus(),
 					Date.now(),
 				),
+			liveRunIds: () => dispatcher.liveRuns().map((view) => view.taskId),
 			terminateTaskRuns: (taskId) => dispatcher.terminateTaskRuns(taskId),
 		}),
 		poller: undefined,

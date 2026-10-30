@@ -349,3 +349,21 @@ function createJournal(): {
 		},
 	};
 }
+
+it("inhibitBoulder defaults to true at creation and honors explicit false", () => {
+	const roots = createRoots();
+	const journal = createJournal();
+	const core = createCore("inhibit-default", journal.port, roots);
+	void journal;
+	const on = core.createSessionTask({
+		prompt: "default inhibition",
+		schedule: { kind: "once", runAt: NOW },
+	});
+	assert.equal(on.inhibitBoulder, true);
+	const off = core.createSessionTask({
+		prompt: "opted out",
+		schedule: { kind: "once", runAt: NOW },
+		inhibitBoulder: false,
+	});
+	assert.equal(off.inhibitBoulder, false);
+});

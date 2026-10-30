@@ -193,6 +193,11 @@ run(
 		});
 		await runCommand(`/loop add --script ${quick} --wake never once 1h e2e quick`);
 		await waitFor(/Loop · 1 scheduled/, 30_000, "widget shows 1 scheduled");
+		await waitFor(
+			/Boulder signal loop=true/,
+			30_000,
+			"inhibitBoulder now defaults to true",
+		);
 
 		// 2. run it now: wrapper spawns, widget shows Running, then the result card
 		let taskId = "";
@@ -357,7 +362,11 @@ run(
 		await runCommand(`/loop stop ${taskId}`);
 		await waitFor(/Killed 1 running batch/, 60_000, "stop kills batch");
 		await sleep(1500);
-		assert.doesNotMatch(capture(), /stopbody/, "cancelled run must not deliver");
+		assert.doesNotMatch(
+			captureHistory(),
+			new RegExp(`Loop · ${taskId}`),
+			"cancelled run must not deliver a result card",
+		);
 		const runsRoot = join(cwd, ".pi", "scheduled-wakeup", "v2", "runs", taskId);
 		let terminal = false;
 		for (let i = 0; i < 100 && !terminal; i++) {

@@ -112,6 +112,7 @@ describe("registerScheduledWakeupV2Tool", () => {
 		const terminated: string[] = [];
 		const setup = createSetup({
 			formatOverview: () => "overview",
+			liveRunIds: () => [],
 			terminateTaskRuns: async (taskId) => {
 				terminated.push(taskId);
 				return { killed: 1, retracted: 0 };
@@ -149,7 +150,7 @@ type CapturedTool = {
 	execute(toolCallId: string, params: Record<string, unknown>, signal: undefined, onUpdate: undefined, ctx: ExtensionContext): Promise<ToolResult>;
 };
 
-function createSetup(runs?: { formatOverview(active: readonly ActiveTask[]): string; terminateTaskRuns(taskId: string): Promise<{ killed: number; retracted: number }> }): { core: LoopV2Core; mutations: number; execute(params: Record<string, unknown>): Promise<ToolResult> } {
+function createSetup(runs?: { formatOverview(active: readonly ActiveTask[]): string; liveRunIds(): string[]; terminateTaskRuns(taskId: string): Promise<{ killed: number; retracted: number }> }): { core: LoopV2Core; mutations: number; execute(params: Record<string, unknown>): Promise<ToolResult> } {
 	const root = mkdtempSync(join(tmpdir(), "scheduled-wakeup-tool-"));
 	const entries: SessionEntryLike[] = [];
 	const port: SessionEntryPort = {
@@ -193,3 +194,17 @@ function createSetup(runs?: { formatOverview(active: readonly ActiveTask[]): str
 		execute: (params) => tool.execute("tool-call", params, undefined, undefined, ctx),
 	};
 }
+
+it("cancel resolves a run-only target whose schedule already completed", async () => {
+	const setup = createSetup({
+		formatOverview: () => "overview",
+		liveRunIds: () => ["session:runonly-0000-0000-0000-000000000000"],
+		terminateTaskRuns: async () => ({ killed: 1, retracted: 0 }),
+	});
+	const cancelled = await setup.execute({
+		action: "cancel",
+		id: "session:runonly-0000-0000-0000-000000000000",
+	});
+	assert.equal(cancelled.details.ok, true);
+	assert.match(cancelled.details.message, /Killed 1 running batch/);
+});

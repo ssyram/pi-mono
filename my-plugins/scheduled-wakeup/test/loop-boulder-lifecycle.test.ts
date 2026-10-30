@@ -43,11 +43,14 @@ test("same cwd session replacement cannot reuse the previous core or client", as
 	await fixture.switch("second");
 	assert.equal(fixture.inhibition().inhibited, false);
 	assert.equal(first.length, firstLength);
-	await fixture.run("add 1h ordinary second session");
+	await fixture.run("add --boulder 1h ordinary second session");
 	const snapshot = [...fixture.entries()].reverse().find((entry) => entry.customType === SESSION_LOOP_STATE_ENTRY_TYPE)?.data as SessionLoopState;
 	assert.equal(snapshot.tasks.length, 1);
 	assert.equal(snapshot.tasks[0]?.definition.prompt, "ordinary second session");
 	assert.equal(fixture.inhibition().inhibited, false);
+	// New default: a task without flags inhibits Boulder now.
+	await fixture.run("add 1h default inhibition");
+	assert.equal(fixture.inhibition().inhibited, true);
 });
 
 test("branch refresh recalculates the signal from the new branch state", async (t) => {

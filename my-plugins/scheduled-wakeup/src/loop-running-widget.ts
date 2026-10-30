@@ -35,6 +35,11 @@ const queuedSuffix = (list: readonly LoopWidgetItem[]): string => {
 	return formatQueuedSuffix(wakeUps, noWakes);
 };
 
+const runningSegment = (list: readonly LoopWidgetItem[]): string => {
+	const running = list.filter((item) => item.running !== undefined).length;
+	return running > 0 ? ` · ${running} running` : "";
+};
+
 export function createRunningWidget(
 	ctx: ExtensionContext,
 	source: () => readonly LoopWidgetItem[],
@@ -145,7 +150,7 @@ export function createRunningWidget(
 			if (ctx.mode === "rpc") {
 				ctx.ui.setWidget(
 					KEY,
-					[` ${SPINNER_FRAMES[0]} Loop · ${items.length} scheduled${queuedSuffix(items)}`],
+					[` ${SPINNER_FRAMES[0]} Loop · ${items.length} scheduled${runningSegment(items)}${queuedSuffix(items)}`],
 					{
 						placement: "aboveEditor",
 					},
@@ -174,7 +179,7 @@ export function createRunningWidget(
 										expanded = false;
 										updateTimer();
 									}
-									const label = ` ${SPINNER_FRAMES[spinnerFrame]} Loop · ${items.length} scheduled${queuedSuffix(items)}`;
+									const label = ` ${SPINNER_FRAMES[spinnerFrame]} Loop · ${items.length} scheduled${runningSegment(items)}${queuedSuffix(items)}`;
 									const summary = theme.fg(
 										"accent",
 										truncateToWidth(label, columns),

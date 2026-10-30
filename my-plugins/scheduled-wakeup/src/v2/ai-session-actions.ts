@@ -19,6 +19,7 @@ export type AiSessionActionResult = {
 
 export type RunTerminationPort = {
 	formatOverview(active: readonly ActiveTask[]): string;
+	liveRunIds(): string[];
 	terminateTaskRuns(taskId: string): Promise<{ killed: number; retracted: number }>;
 };
 
@@ -98,7 +99,18 @@ export class AiSessionActions {
 	private async cancel(input: Record<string, unknown>): Promise<AiSessionActionResult> {
 		if (!text(input.id))
 			return this.result(false, "Error: cancel requires an active task id.");
-		const resolution = resolveTarget(input.id, activeTaskCandidates(this.core));
+		// Run-only targets: a once task completes its schedule at dispatch, so a
+		// live wrapper may exist with no active entry left to resolve against.
+		const activeIds = new Set(
+			activeTaskCandidates(this.core).map((candidate) => candidate.id),
+		);
+		const runCandidates = (this.runs?.liveRunIds() ?? [])
+			.filter((id) => !activeIds.has(id))
+			.map((id) => ({ id }));
+		const resolution = resolveTarget(input.id, [
+			...activeTaskCandidates(this.core),
+			...runCandidates,
+		]);
 		if (!resolution.ok)
 			return this.result(false, `Error: cancel ${resolution.message}.`);
 		const outcome = this.core.cancelActive(resolution.id);
@@ -165,7 +177,8 @@ function parseTaskInput(input: Record<string, unknown>): TaskInput | undefined {
 		return undefined;
 	const schedule = parseSchedule(input.schedule);
 	if (schedule === undefined) return undefined;
-	const inhibitBoulder = input.inhibitBoulder === true ? true : undefined;
+	const inhibitBoulder =
+		typeof input.inhibitBoulder === "boolean" ? input.inhibitBoulder : undefined;
 	const name = readTaskName(input.name);
 	return {
 		...content,
