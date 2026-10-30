@@ -199,7 +199,7 @@ export default function scheduledWakeup(pi: ExtensionAPI): void {
 						}
 					}
 					handleLoopCommand(pi, command, ensure(ctx), ctx, reschedule);
-					runtime?.boulderSync?.sync();
+					runtime?.invalidateInhibitionCache();
 				} catch (error) {
 					notifyLoop(
 						ctx,
@@ -217,7 +217,7 @@ export default function scheduledWakeup(pi: ExtensionAPI): void {
 				return ensure(ctx).actions;
 			},
 			onMutation: () => {
-				runtime?.boulderSync?.sync();
+				runtime?.invalidateInhibitionCache();
 				return reschedule();
 			},
 		});

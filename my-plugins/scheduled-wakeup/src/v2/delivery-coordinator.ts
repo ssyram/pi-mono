@@ -21,6 +21,7 @@ import {
 
 export type DeliveryCoordinator = {
 	enqueueRun(view: RunView): void;
+	setDeliveryBarrier(taskId: string, on: boolean): void;
 	enqueuePrompt(target: ExecutionTarget): void;
 	pending(): readonly DeliveryItem[];
 	deliveryStatus(): Map<string, { wakeUps: number; noWakes: number }>;
@@ -36,9 +37,12 @@ export function createDeliveryCoordinator(
 	now: () => number = Date.now,
 ): DeliveryCoordinator {
 	const pending = new Map<string, DeliveryItem>();
+	// R5: stop sets a per-task barrier so a completing run cannot be pumped
+	// out while its termination is in flight.
+	const deliveryBarriers = new Set<string>();
 	// E19: boundary deliveries are marked delivered only after the host settled;
 	// a crash before that redelivers (at-least-once) instead of losing the message.
-	const boundarySent: DeliveryItem[] = [];
+	const boundarySent = new Map<string, DeliveryItem>();
 	let promptSeq = 0;
 	let closed = false;
 	const retractable = (item: DeliveryItem): boolean =>
@@ -58,7 +62,8 @@ export function createDeliveryCoordinator(
 		return true;
 	};
 	const markBoundaryDelivered = (): void => {
-		for (const item of boundarySent.splice(0)) {
+		for (const [key, item] of [...boundarySent]) {
+			boundarySent.delete(key);
 			if (item.runDir !== undefined)
 				catalog.markDelivered(item.runDir, "boundary-entries");
 		}
@@ -77,6 +82,7 @@ export function createDeliveryCoordinator(
 		if (!ctx.isIdle() || ctx.hasPendingMessages()) return;
 		for (const item of [...pending.values()]) {
 			if (!ctx.isIdle() || ctx.hasPendingMessages()) break;
+			if (deliveryBarriers.has(item.taskId)) continue;
 			if (!deliverIdle(item)) break;
 		}
 	};
@@ -91,7 +97,7 @@ export function createDeliveryCoordinator(
 			const entries = mine.map((item) => boundaryEntry(item.render(now())));
 			for (const item of mine) {
 				pending.delete(item.key);
-				boundarySent.push(item);
+				boundarySent.set(item.key, item);
 			}
 			scheduleBoundaryMarker();
 			// exactOptionalPropertyTypes: conditional construction instead of `continue: undefined`
@@ -105,11 +111,16 @@ export function createDeliveryCoordinator(
 		pump();
 	});
 	return {
+		setDeliveryBarrier(taskId, on) {
+			if (on) deliveryBarriers.add(taskId);
+			else deliveryBarriers.delete(taskId);
+		},
 		enqueueRun(view) {
 			if (closed || view.state !== "pendingDelivery" || view.outcome === undefined)
 				return;
 			const key = `run:${view.dir}`;
-			if (pending.has(key)) return;
+			// R6: in-flight boundary items are still undelivered; do not requeue.
+			if (pending.has(key) || boundarySent.has(key)) return;
 			pending.set(key, {
 				key,
 				taskId: view.taskId,

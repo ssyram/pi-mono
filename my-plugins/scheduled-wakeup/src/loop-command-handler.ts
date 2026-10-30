@@ -3,6 +3,7 @@ import type {
 	ExtensionCommandContext,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { loopErrorMessage } from "./loop-error-message.js";
 import { notifyLoop as notify } from "./loop-notification.js";
 import type { RunningWidget } from "./loop-running-widget.js";
 import { LOOP_WIDGET_VISIBILITY } from "./loop-widget-visibility.js";
@@ -35,6 +36,7 @@ import type { UserLoopV2Commands } from "./v2/user-commands.js";
 export type LoopV2Runtime = {
 	core: LoopV2Core;
 	dispatcher: TaskDispatcher;
+	invalidateInhibitionCache: () => void;
 	widget: RunningWidget;
 	dispose(): void;
 	user: UserLoopV2Commands;
@@ -165,11 +167,19 @@ export function handleLoopCommand(
 		}
 		case "stop":
 			void (async () => {
-				const message =
-					command.target === "all"
-						? await stopAll(rt)
-						: await stopOne(rt, command.target);
-				notify(ctx, message, "info");
+				try {
+					const message =
+						command.target === "all"
+							? await stopAll(rt)
+							: await stopOne(rt, command.target);
+					notify(ctx, message, "info");
+				} catch (error) {
+					notify(
+						ctx,
+						`Loop stop failed: ${loopErrorMessage(error)}`,
+						"error",
+					);
+				}
 			})();
 			break;
 		case "delete": {

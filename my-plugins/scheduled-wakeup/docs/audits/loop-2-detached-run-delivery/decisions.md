@@ -63,3 +63,25 @@
 | D13 | fork 发现活跃外会话 run 时的动作：**在本地会话状态登记任务 cancelled（停止追踪/调度）** + 一次性 info；对对方 run 目录零写入 | 接受（用户两次纠偏） | 初版误写为向对方 run 目录写 cancelled.json（越界，用户否决："登记我 session 内部"）；再限定只有任务在本会话状态中的真 fork 才本地取消。owner 视角对方 run 原样不动；测试 41/41。 |
 
 | D14 | E19 的 boundary 投递标记不再依赖 agent_settled：投递后 2 秒定时器兜底写 delivered.json（settled 路径保留，幂等） | 接受（F1b 生产事故） | 真机上 settled 未触发 → 标记缺席 → 唯一 run 被重复投递两次+。止血：手动补标；回归测试"无 settled 也落标记"通过。崩溃于 2 秒窗口内仍满足 at-least-once。 |
+
+## 审查处置（dispatcher-fix-review.md：10 ❌ R1–R10 / 5 ⚠️ W1–W5）
+
+| 项 | 处置 |
+|---|---|
+| R1 旧扫描清掉新 run 的 starting | **已修**：starting/spawned 记录派生代际（epoch），扫描只能释放先于自己启动的占位（`scanEpoch >= spawnEpoch` 且无 running） |
+| R2 null 无限超时被强杀 | **已修**：isWedged 对任一 `timeoutSeconds: null` 直接 false（无限=永不强杀）；有限预算取 max+120s |
+| R3 tick 无限 dirty 链 | **已修**：tick 在 refreshing 时跳过（不 queue）；`await refresh()` 等待完整排空（drainWaiters） |
+| R4 初扫前重复启动/stop 漏杀 | **已修**：booted 门（仅脚本派发）；startRun 返回值同步登记 spawned，liveRuns/stop/dispatch 共享 |
+| R5 stop 的 refresh 先投递 | **已修**：terminateTaskRuns 入口设 delivery barrier（只挡 pump 不挡 enqueue），取消完成后释放 |
+| R6 boundarySent 未去重 | **已修**：enqueueRun 去重覆盖 pending ∪ boundarySent（Map，落标时移除） |
+| R7 Boulder 同步依赖 widget 可见性 | **已修**：同步改挂 dispatcher onChange（每次扫描）；抑制缓存 invalidate 钩子（命令/工具 mutation 触发） |
+| R8 e2e 双会话接线错误 | **已修**：tmuxAt/waitForAt 显式 target，SECOND 阶段全用第二会话 |
+| R9 两个 stub 缺 isStarting | **已修** |
+| R10 stop IIFE 无 catch | **已修**：显式 try/catch + 错误通知 |
+| W1 watchdog 边界 | 文档化（isWedged 是派发时逃生，非独立 watchdog；预算取整批 max 是保守迟判——明确记录） |
+| W2 旧 running 迟发 60s | 接受（下一轮重试恢复；booted 门+代际已消除永久变体） |
+| W3 测试盲区 | 部分修（新增 starting-clears 回归）；快照隔离类交错用例记入后续 |
+| W4 关闭后在途副作用 | 接受并文档化（boundary marker timer 跨 dispose 落标属 at-least-once 语义） |
+| W5 文档漂移 | **已修**：默认抑制、owner-only 投递、isWedged 边界三处 |
+
+验证：确定性 221/221、E2E 7/7、check-types 通过。

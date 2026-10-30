@@ -352,3 +352,80 @@ test("E21a: a run that completes during stop is retracted, not delivered", async
 	dispatcher.dispose();
 });
 
+
+test("a wedged run (status stale past its timeout budget) is killed and retried, a fresh one just refuses", async () => {
+	const stale = view("session:wedge", "running");
+	stale.status = {
+		pid: 111,
+		currentIndex: 0,
+		success: 0,
+		completed: 0,
+		total: 1,
+		updatedAt: Date.now() - (1800 * 1000 + 130_000),
+	};
+	stale.record.payload = {
+		scriptTask: {
+			wakeUp: { kind: "never" },
+			scripts: [{ cwd: "/w", path: "/w/s", params: [], timeoutSeconds: 1800 }],
+		},
+	} as never;
+	const fresh = view("session:wedge", "running");
+	fresh.dir = "/tmp/runs/wedge/fresh";
+	fresh.status = { pid: 222, currentIndex: 0, success: 0, completed: 0, total: 1, updatedAt: Date.now() };
+	fresh.record.payload = {
+		scriptTask: {
+			wakeUp: { kind: "never" },
+			scripts: [{ cwd: "/w", path: "/w/s", params: [], timeoutSeconds: 1800 }],
+		},
+	} as never;
+	const setup = fixture([]);
+	const cancelled: string[] = [];
+	setup.catalog.cancelRunning = async (target) => {
+		cancelled.push(target.dir);
+		target.state = "cancelled";
+		return "cancelled" as const;
+	};
+	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
+		onChange: () => undefined,
+		onSettled: () => undefined,
+		catalog: setup.catalog,
+	});
+	// fresh run: refusal without unstick
+	setup.views.push(fresh);
+	await dispatcher.refresh();
+	assert.throws(() => dispatcher.dispatch(scriptTarget("session:wedge")), /already running/);
+	assert.deepEqual(cancelled, [], "fresh run must not be killed");
+	// wedged run: refusal triggers unstick so the next retry proceeds
+	fresh.state = "running";
+	setup.views.length = 0;
+	setup.views.push(stale);
+	await dispatcher.refresh();
+	assert.throws(() => dispatcher.dispatch(scriptTarget("session:wedge")), /already running/);
+	assert.deepEqual(cancelled, [stale.dir], "wedged run must be terminated");
+	for (let i = 0; i < 50 && cancelled.length === 1; i++) await new Promise((r) => setTimeout(r, 20));
+	assert.equal(stale.state, "cancelled", "view state refreshed after unstick");
+	dispatcher.dispose();
+});
+
+test("starting clears after the run completes, so the next cycle dispatches again", async () => {
+	const setup = fixture([]);
+	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
+		onChange: () => undefined,
+		onSettled: () => undefined,
+		catalog: setup.catalog,
+	});
+	await dispatcher.refresh();
+	dispatcher.dispatch(scriptTarget("session:cycle"));
+	assert.throws(
+		() => dispatcher.dispatch(scriptTarget("session:cycle")),
+		/already running/,
+	);
+	// run completes and a later scan observes it terminal -> starting must clear
+	const spawned = setup.views.find((view) => view.taskId === "session:cycle");
+	assert.ok(spawned);
+	spawned.state = "done";
+	await dispatcher.refresh();
+	dispatcher.dispatch(scriptTarget("session:cycle"));
+	assert.equal(setup.started.length, 2, "second cycle must dispatch");
+	dispatcher.dispose();
+});

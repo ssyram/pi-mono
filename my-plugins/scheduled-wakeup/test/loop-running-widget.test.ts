@@ -83,8 +83,10 @@ test("waiting items keep a nonzero summary; zero and show off hide it", async ()
 		},
 	];
 	widget.refresh();
+	const header = setup.header as { render(w: number): string[] } | undefined;
+	assert.ok(header, "header must exist");
 	assert.match(
-		setup.header?.render(80)[0] ?? "",
+		header.render(80)[0] ?? "",
 		/\u25D3 Loop · 2 scheduled · 1 running/,
 	);
 	items = [];

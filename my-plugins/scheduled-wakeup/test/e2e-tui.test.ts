@@ -30,6 +30,10 @@ function tmux(args: string[]): string {
 	return execFileSync("tmux", args, { encoding: "utf8" });
 }
 
+function tmuxAt(target: string, args: string[]): string {
+	return execFileSync("tmux", [...args.slice(0, 1), "-t", target, ...args.slice(1)], { encoding: "utf8" });
+}
+
 function rmRetry(path: string): void {
 	for (let i = 0; i < 6; i++) {
 		try {
@@ -82,6 +86,23 @@ async function waitForHistory(
 		if (pattern.test(last)) return last;
 		if (Date.now() > deadline)
 			assert.fail(`timed out waiting for ${what}; last history:\n${last.split("\n").slice(-40).join("\n")}`);
+		await sleep(300);
+	}
+}
+
+async function waitForAt(
+	target: string,
+	pattern: RegExp,
+	timeoutMs: number,
+	what: string,
+): Promise<string> {
+	const deadline = Date.now() + timeoutMs;
+	let last = "";
+	for (;;) {
+		last = execFileSync("tmux", ["capture-pane", "-t", target, "-p"], { encoding: "utf8" });
+		if (pattern.test(last)) return last;
+		if (Date.now() > deadline)
+			assert.fail(`timed out waiting for ${what}; last pane:\n${last.split("\n").slice(-20).join("\n")}`);
 		await sleep(300);
 	}
 }
@@ -494,7 +515,7 @@ run(
 			"second session load (extension banner or fork notice)",
 		);
 		await sleep(15000);
-		const secondPane = capture();
+		const secondPane = execFileSync("tmux", ["capture-pane", "-t", SECOND, "-p"], { encoding: "utf8" });
 		assert.doesNotMatch(secondPane, /1\/1 OK/, "second session must not receive the card");
 		assert.equal(
 			existsSync(join(runsRoot, "..", "runs")) &&
@@ -502,8 +523,14 @@ run(
 			true,
 			"nobody may deliver while the owner is away",
 		);
-		await runCommand("/loop list");
-		assert.doesNotMatch(capture(), /own probe/, "foreign task invisible to second session");
+		tmuxAt(SECOND, ["send-keys", "-l", "/loop list"]);
+		tmuxAt(SECOND, ["send-keys", "Enter"]);
+		await sleep(1500);
+		assert.doesNotMatch(
+			execFileSync("tmux", ["capture-pane", "-t", SECOND, "-p"], { encoding: "utf8" }),
+			/own probe/,
+			"foreign task invisible to second session",
+		);
 		tmux(["kill-session", "-t", SECOND]);
 
 		tmux(["new-session", "-d", "-s", SESSION, "-x", "120", "-y", "34"]);

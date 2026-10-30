@@ -31,6 +31,7 @@ export type TaskDispatcher = {
 	liveRuns(): readonly RunView[];
 	deliveryStatus(): ReadonlyMap<string, DeliveryStatus>;
 	retractPending(taskId: string): number;
+	isStarting(taskId: string): boolean;
 	requestRunTermination(taskId: string): { signalled: number; retracted: number };
 	cancelRun(view: RunView): Promise<"cancelled" | "already-finished">;
 	terminateTaskRuns(taskId: string): Promise<RunTermination>;
@@ -81,48 +82,112 @@ export function createTaskDispatcher(
 	let refreshing = false;
 	let refreshQueued = false;
 	let closed = false;
-	const starting = new Set<string>();
+	let booted = false;
+	let epoch = 0;
+	// R1: a scan may only release placeholders spawned before that scan began.
+	const starting = new Map<string, number>();
+	// R4: runs spawned locally but not yet observed by any completed scan.
+	const spawned = new Map<string, { view: RunView; epoch: number }>();
+	let drainWaiters: Array<() => void> = [];
 	const refresh = async (): Promise<void> => {
 		if (closed) return;
 		if (refreshing) {
 			refreshQueued = true;
+			// Await refresh() must observe a scan generation that started
+			// after this call, not return while one is still draining.
+			await new Promise<void>((resolve) => drainWaiters.push(resolve));
 			return;
 		}
 		refreshing = true;
 		try {
 			do {
 				refreshQueued = false;
+				// R3: a tick may skip instead of queueing an endless drain.
+				const scanEpoch = ++epoch;
 				views = await catalog.scan();
 				if (closed) break;
 				for (const view of views) coordinator.enqueueRun(view);
+				for (const [id, spawnEpoch] of starting)
+					if (
+						scanEpoch >= spawnEpoch &&
+						!views.some(
+							(view) => view.taskId === id && view.state === "running",
+						)
+					)
+						starting.delete(id);
+				for (const [id, record] of spawned)
+					if (
+						scanEpoch >= record.epoch ||
+						views.some(
+							(view) =>
+								view.taskId === id && view.state === "running",
+						)
+					)
+						spawned.delete(id);
+				if (!booted) {
+					booted = true;
+					options.onSettled();
+				}
 				options.onChange();
 			} while (refreshQueued && !closed);
 		} finally {
 			refreshing = false;
+			const waiters = drainWaiters;
+			drainWaiters = [];
+			for (const resolve of waiters) resolve();
+		}
+	};
+	const stabilized = async (): Promise<void> => {
+		for (let i = 0; i < 500; i++) {
+			if (!refreshing && !refreshQueued) return;
+			await new Promise((resolve) => setTimeout(resolve, 10));
 		}
 	};
 	const timer = setInterval(() => {
-		void refresh().catch(() => undefined);
+		// R3: never queue from the tick; only mutations may request a drain.
+		if (!refreshing) void refresh().catch(() => undefined);
 	}, options.intervalMs ?? SCAN_INTERVAL_MS);
 	// E31: headless runner mode must keep the process alive until delivery.
 	if (!isRunnerEnabled()) timer.unref?.();
 	void refresh().catch(() => undefined);
-	return {
+	const runtimeExports: TaskDispatcher = {
 		dispatch(target) {
 			if (closed) throw new Error("Loop dispatcher is inactive");
-			if (
-				starting.has(target.id) ||
-				views.some(
+			const blocking =
+				spawned.get(target.id)?.view ??
+				views.find(
 					(view) => view.taskId === target.id && view.state === "running",
-				)
-			)
+				);
+			if (starting.has(target.id) || blocking !== undefined) {
+				// A wedged run (no progress past its timeout budget) would block
+				// this task forever: kill it and let the next poller retry take
+				// over instead of spinning on refusals ("Waiting 0s" deadlock).
+				if (blocking !== undefined && isWedged(blocking)) {
+					notifyLoop(
+						ctx,
+						`Loop：${target.id} 的上一轮 run 已超时无进展，正在终止；下一轮（≤60s）自动重试。`,
+						"info",
+					);
+					void catalog
+						.cancelRunning(blocking)
+						.then(() => refresh())
+						.catch(() => undefined);
+				}
 				throw new Error(`Loop task ${target.id} is already running`);
+			}
 			if (
 				target.scriptTask !== undefined &&
 				target.scriptTask.scripts.length > 0
 			) {
-				starting.add(target.id);
-				catalog.startRun(target);
+				if (!booted)
+					throw new Error(
+						"Loop dispatcher is still performing its initial scan",
+					);
+				starting.set(target.id, epoch + 1);
+				spawned.set(target.id, {
+					view: catalog.startRun(target),
+					epoch: epoch + 1,
+				});
 				void refresh().catch(() => undefined);
 			} else if (target.scriptTask !== undefined) {
 				coordinator.enqueuePrompt({
@@ -141,6 +206,9 @@ export function createTaskDispatcher(
 			}
 			options.onSettled();
 		},
+		isStarting(taskId: string): boolean {
+			return starting.has(taskId) || spawned.has(taskId);
+		},
 		list() {
 			return views
 				.filter((view) => view.state === "running")
@@ -158,10 +226,16 @@ export function createTaskDispatcher(
 				});
 		},
 		liveRuns() {
-			return views.filter(
-				(view) =>
-					view.state === "running" || view.state === "pendingDelivery",
-			);
+			const merged = new Map<string, RunView>();
+			for (const view of views)
+				if (
+					view.state === "running" ||
+					view.state === "pendingDelivery"
+				)
+					merged.set(view.taskId, view);
+			for (const record of spawned.values())
+				merged.set(record.view.taskId, record.view);
+			return [...merged.values()];
 		},
 		deliveryStatus() {
 			return coordinator.deliveryStatus();
@@ -202,21 +276,31 @@ export function createTaskDispatcher(
 			return result;
 		},
 		async terminateTaskRuns(taskId) {
-			const runs = views.filter(
-				(view) =>
-					view.taskId === taskId &&
-					(view.state === "running" || view.state === "pendingDelivery"),
-			);
-			let killed = 0;
-			let retracted = coordinator.cancelPending(taskId);
-			for (const view of runs) {
-				if (view.state !== "running") continue;
-				await catalog.cancelRunning(view);
-				killed += 1;
+			// R5: block delivery for this task before the first await so a
+			// completing run cannot be pumped out mid-stop.
+			coordinator.setDeliveryBarrier(taskId, true);
+			try {
+				const runs = [...views, ...[...spawned.values()].map((r) => r.view)]
+					.filter(
+						(view) =>
+							view.taskId === taskId &&
+							(view.state === "running" ||
+								view.state === "pendingDelivery"),
+					);
+				let killed = 0;
+				let retracted = coordinator.cancelPending(taskId);
+				for (const view of runs) {
+					if (view.state !== "running") continue;
+					await catalog.cancelRunning(view);
+					killed += 1;
+				}
+				await refresh();
+				await stabilized();
+				retracted += coordinator.cancelPending(taskId);
+				return { killed, retracted };
+			} finally {
+				coordinator.setDeliveryBarrier(taskId, false);
 			}
-			await refresh();
-			retracted += coordinator.cancelPending(taskId);
-			return { killed, retracted };
 		},
 		runsOverview() {
 			return views
@@ -239,4 +323,18 @@ export function createTaskDispatcher(
 			coordinator.dispose();
 		},
 	};
+	return runtimeExports;
+}
+
+function isWedged(view: RunView): boolean {
+	const scripts = view.record.payload.scriptTask?.scripts ?? [];
+	// null means unlimited: a legal long run must never be force-cancelled.
+	if (scripts.some((script) => script.timeoutSeconds === null)) return false;
+	const timeoutSeconds = Math.max(
+		0,
+		...scripts.map((script) => script.timeoutSeconds ?? 1800),
+		1800,
+	);
+	const lastUpdate = view.status?.updatedAt ?? view.startedAt;
+	return Date.now() - lastUpdate > timeoutSeconds * 1000 + 120_000;
 }

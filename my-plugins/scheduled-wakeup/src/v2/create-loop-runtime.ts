@@ -15,6 +15,7 @@ import { AiSessionActions } from "./ai-session-actions.js";
 import {
 	createBoulderSync,
 	inhibitingIdsFromSnapshot,
+	type BoulderSyncBridge,
 } from "./boulder-sync.js";
 import { DuePoller } from "./due-poller.js";
 import { formatActiveTasks } from "./format-list.js";
@@ -42,13 +43,27 @@ export function createLoopRuntime(
 		}
 		return inhibitingCache.ids;
 	};
+	// R7: business sync must not ride on widget visibility; it runs on every
+	// dispatcher state change (each scan) and on explicit invalidation.
+	let inhibitCacheDirty = true;
+	const runtimeRef: { boulderSync: BoulderSyncBridge | undefined } = { boulderSync: undefined };
+	const syncBoulder = (): void => {
+		if (inhibitCacheDirty) {
+			inhibitingCache = undefined;
+			inhibitCacheDirty = false;
+		}
+		runtimeRef.boulderSync?.sync();
+	};
 	const dispatcher = createTaskDispatcher(pi, ctx, {
 		onForeignTasks: (taskIds) => {
 			// A real fork inherited the task entries: cancel them locally so this
 			// session stops scheduling/tracking work whose runs belong elsewhere.
 			for (const taskId of taskIds) core.cancelActive(taskId);
 		},
-		onChange: () => widget.refresh(),
+		onChange: () => {
+			syncBoulder();
+			widget.refresh();
+		},
 		onSettled: () => {
 			const result = runtime.poller?.reschedule();
 			if (result?.ok === false) notifyLoop(ctx, result.message, "error");
@@ -62,6 +77,10 @@ export function createLoopRuntime(
 	const runtime: LoopV2Runtime = {
 		core,
 		dispatcher,
+		invalidateInhibitionCache: () => {
+			inhibitCacheDirty = true;
+			syncBoulder();
+		},
 		widget,
 		user: new UserLoopV2Commands(core),
 		actions: new AiSessionActions(core, {
@@ -79,9 +98,14 @@ export function createLoopRuntime(
 		boulderSync: createBoulderSync(pi, ctx, core, {
 			liveInhibitingRun: () => {
 				const inhibiting = inhibitingIds();
-				return dispatcher
-					.liveRuns()
-					.some((view) => inhibiting.has(view.taskId));
+				if (inhibiting.size === 0) return false;
+				// `starting` closes the zero-latency window between dispatch and
+				// the first scan tick observing the new run; without it a once
+				// task (completed at dispatch) drops the signal mid-run.
+				const live = new Set(dispatcher.liveRuns().map((view) => view.taskId));
+				for (const id of inhibiting)
+					if (live.has(id) || dispatcher.isStarting(id)) return true;
+				return false;
 			},
 		}),
 		cwd: ctx.cwd,
@@ -99,6 +123,7 @@ export function createLoopRuntime(
 			}
 		},
 	};
+	runtimeRef.boulderSync = runtime.boulderSync;
 	if (pollerEnabled(ctx)) {
 		const poller = new DuePoller({
 			core,

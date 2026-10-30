@@ -178,7 +178,7 @@ runScript 改造：spawn stdio 直连日志文件 fd（追加），close 后从�
 2. 超时：脚本级 timeoutSeconds（静态）；扫描间隔 1s；SIGTERM 后 kill 兜底无额外等待承诺。
 3. 重试与幂等：投递 at-least-once（发送先行、标记随后的崩溃窗口）；run 启动不重试（lost → 按失败投递）；标记文件原子写幂等。
 4. 交付与顺序：无跨 run 顺序保证；单 run 内脚本严格顺序（既有）。
-5. 失败模式：wrapper fail-stop（SIGKILL → live.sock 不可连接 → lost 合成）；会话崩溃 → run 留存；慢 wrapper → 恒 running，无超时强杀。
+5. 失败模式：wrapper fail-stop（SIGKILL → live.sock 不可连接 → lost 合成）；会话崩溃 → run 留存；慢 wrapper → running；有限 timeoutSeconds 预算 +120s 无进展时由下一次派发触发 isWedged 终止并重试（timeoutSeconds: null = 无限，永不强杀）。
 6. 状态与会话：全部状态在磁盘 run 目录；ownerSessionId 是投递归属键。
 7. 背压：N/A（文件系统，无队列容量）。
 
