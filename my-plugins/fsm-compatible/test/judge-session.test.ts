@@ -25,7 +25,7 @@ function input(overrides: { parts?: unknown[] } = {}) {
 	});
 }
 
-async function harness(maxJudges?: number) {
+async function harness(maxJudges?: number, turnBudgetMs?: number) {
 	const faux = registerFauxProvider({ models: [{ id: "faux-1" }] });
 	faux.setResponses([]);
 	const cwd = await mkdtemp(join(tmpdir(), "fsm-judge-session-"));
@@ -33,7 +33,7 @@ async function harness(maxJudges?: number) {
 	const store = new RecordStore(rootBinding("root-9"));
 	store.publishExecution(rootBinding("root-9"), { title: "root", lifecycle: "idle", updatedAt: Date.now(),
 		header: manager.getHeader(), branch: manager.getBranch(), sessionFile: null, errorMessage: null });
-	const sessions = new JudgeSessions(store, cwd, { model: faux.getModel(), getApiKey: () => "faux-key", streamFn: streamSimple }, maxJudges);
+	const sessions = new JudgeSessions(store, cwd, { model: faux.getModel(), getApiKey: () => "faux-key", streamFn: streamSimple }, maxJudges, turnBudgetMs);
 	return { faux, store, sessions, cleanup: () => { sessions.close(); return rm(cwd, { recursive: true, force: true }); } };
 }
 
@@ -126,11 +126,29 @@ test("abort during a live turn waits for real termination before reporting idle"
 	assert.equal(context.store.getJudge(sid)?.lifecycle, "idle");
 });
 
-test("judge capacity is bounded", async (t) => {
+test("a hung provider stream is bounded: run rejects not-ready and the agent is aborted", async (t) => {
+	const faux = registerFauxProvider({ models: [{ id: "faux-1" }] });
+	const cwd = await mkdtemp(join(tmpdir(), "fsm-judge-hang-"));
+	const manager = SessionManager.inMemory(cwd, { id: "root-9" });
+	const store = new RecordStore(rootBinding("root-9"));
+	store.publishExecution(rootBinding("root-9"), { title: "root", lifecycle: "idle", updatedAt: Date.now(),
+		header: manager.getHeader(), branch: manager.getBranch(), sessionFile: null, errorMessage: null });
+	const never: Promise<never> = new Promise(() => {});
+	const hangingStream = (): Promise<never> => never;
+	const sessions = new JudgeSessions(store, cwd, { model: faux.getModel(), getApiKey: () => "k", streamFn: hangingStream as never }, 4, 150);
+	t.after(() => { sessions.close(); return rm(cwd, { recursive: true, force: true }); });
+	const sid = sessions.create();
+	await assert.rejects(sessions.run(sid, input()), { code: "not-ready" });
+});
+
+test("judge capacity recycles idle sessions instead of failing the boundary", async (t) => {
 	const context = await harness(1);
 	t.after(context.cleanup);
 	assert.ok(context.sessions.create());
-	assert.throws(() => context.sessions.create(), { code: "queue-full" });
+	assert.ok(context.sessions.create(), "capacity pressure evicts the oldest idle judge slot");
+	const sid = context.sessions.create();
+	context.sessions.release(sid);
+	assert.ok(context.sessions.create(), "explicit release frees the slot immediately");
 });
 
 test("same-sid repair continues in one transcript without reusing stale captures", async (t) => {

@@ -37,6 +37,8 @@ export interface HcSessionRecord {
 	lastOutcome: HcRunOutcomeFact | undefined;
 	/** Runtime-only: agent profile of the current turn's wake origin ("build" after a Stop continuation). Not persisted. */
 	turnProfile?: string;
+	/** Runtime-only: this run already reported to the parent (turn_end beat agent_settled to it). Not persisted. */
+	reportedRun?: boolean;
 }
 
 /** JSON snapshot persisted into the owning root session before the first background run. */

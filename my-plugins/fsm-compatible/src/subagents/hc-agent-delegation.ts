@@ -64,7 +64,11 @@ function toolResultText(result: ToolResultMessage): string {
 
 function hasUsableOutput(message: AssistantMessage, toolResults: readonly ToolResultMessage[]): boolean {
 	if (message.content.some((block) => block.type === "text" && block.text.trim().length > 0)) return true;
-	return toolResults.some((result) => result.content.length > 0);
+	// OC counts any non-pending tool part as usable: a finished tool call with
+	// empty content still proves the run produced work (OC delegation.ts
+	// hasUsableOutput). A result message existing for the final assistant's call
+	// is the Pi-visible equivalent of "not pending".
+	return toolResults.length > 0;
 }
 
 function formatIncompleteResponse(sessionId: string, finish: "missing" | "unknown"): string {

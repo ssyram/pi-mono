@@ -15,7 +15,7 @@ import { createHcAgent } from "./hc-agent-create.ts";
 import { findHcAgentDefinition, HC_NATIVE_AGENT_DEFINITIONS, type HcAgentDefinition } from "./hc-agent-definitions.ts";
 import { renderAgentMessage } from "./hc-agent-message.ts";
 import { recordInboxSidecar } from "./hc-inbox-sidecar.ts";
-import { classifyFromRun, recheckDeferredHcReports, reportHcRunEnd } from "./hc-agent-report.ts";
+import { classifyFromRun, recheckDeferredHcReports, reportHcRunEnd, turnBoundaryReportable } from "./hc-agent-report.ts";
 import { classifyHcRunOutcome } from "./hc-agent-delegation.ts";
 import type { HcAgentMessage, HcAgentModel } from "./hc-agent-types.ts";
 import type { HcAgentRuntimeServices } from "./hc-agent-services.ts";
@@ -178,6 +178,7 @@ export async function openHcAgentRuntime(deps: HcRuntimeDeps): Promise<HcRuntime
 			if (event.type === "agent_start") {
 				record.status = "busy";
 				record.lastOutcome = undefined;
+				delete record.turnProfile;
 				publishHcExecution(store, record, config.cwd);
 				notifyFleet(record.session_id, event);
 			} else if (event.type === "auto_retry_start") {
@@ -192,24 +193,26 @@ export async function openHcAgentRuntime(deps: HcRuntimeDeps): Promise<HcRuntime
 				const outcome = aborted ? { kind: "cancelled" as const } : classifyFromRun(record.lastRunMessages ?? [], record.session_id);
 				record.lastRunMessages = undefined;
 				record.lastOutcome = { kind: outcome.kind, text: outcome.kind === "cancelled" ? "" : outcome.text,
-					summary: outcome.kind === "completed" ? `Agent completed: ${record.description || record.title}`
-						: outcome.kind === "failed" ? `Agent failed: ${record.description || record.title}` : "" };
+					summary: outcome.kind === "completed" ? `Agent completed: ${record.description ?? record.title}`
+						: outcome.kind === "failed" ? `Agent failed: ${record.description ?? record.title}` : "" };
 				publishHcExecution(store, record, config.cwd);
 				notifyFleet(record.session_id, event);
 				void reportHcRunEnd(services, deferred, record, outcome).finally(() => {
 					void recheckDeferredHcReports(services, deferred);
 				});
 			} else if (event.type === "turn_end") {
-				// HC prompt.ts reports to the parent at the end of EVERY run:
-				// a Stop-blocked turn ends (parts-only), reports "completed"
-				// with the pause text, and the continuation is a NEW run. Pi
-				// continues the same agent run, so the per-turn boundary is
-				// the closest observable equivalent. The boundary carries the
-				// turn's assistant message and tool results — classify those.
-				if (record.parent_id !== undefined && record.notify) {
+				// HC prompt.ts reports at run ends. A Stop-blocked turn ends an HC
+				// run (parts-only pause text, reports "completed", continuation is
+				// a NEW run); Pi continues the same agent run, so the only HC run
+				// boundary inside a Pi run is a turn the stop gate blocked — the
+				// gate marks exactly those with turnProfile="build"
+				// (markStopContinuation). Plain tool turns are mid-run in HC too
+				// and must stay silent, or every tool round reports an empty notice.
+				if (turnBoundaryReportable(record)) {
 					const turn = event as unknown as { message?: unknown; toolResults?: unknown[] };
 					const message = turn.message as { role?: string } | undefined;
 					if (message && (message as { role?: string }).role === "assistant") {
+						delete record.turnProfile;
 						const outcome = classifyHcRunOutcome({
 							finalAssistant: message as never,
 							toolResults: (turn.toolResults ?? []) as never[],

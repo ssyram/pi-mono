@@ -15,5 +15,8 @@
 		"outDir": "../.build/nico",
 		"rootDir": "../vendor/pi-subagents/src"
 	},
-	"files": ["../vendor/pi-subagents/src/runs/shared/child-session.ts"]
+	"files": [
+		"../vendor/pi-subagents/src/runs/shared/child-session.ts",
+		"../vendor/pi-subagents/src/tui/fleet.ts"
+	]
 }

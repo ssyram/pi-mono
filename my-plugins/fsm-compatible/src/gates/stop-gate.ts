@@ -1,5 +1,5 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { DaemonRequester } from "../broker/daemon-request.ts";
 import { appendFileSync } from "node:fs";
 import { isAdmissionObject } from "../admission/parse-policy-input.ts";
@@ -10,6 +10,46 @@ import { collectStopEvidence, planStopRoute, reduceStop, resetStopGate, runStopA
 export interface StopDecision {
 	readonly allowed: boolean;
 	readonly reason?: string;
+}
+
+const REVIEWER_WIDGET_KEY = "fsm-compatible-stop-reviewer";
+const REVIEWER_FRAME_MS = 800;
+
+/** Reviewer line frame: 1–3 dots cycling every 800ms (`.`, `..`, `...`). */
+export function stopReviewerLine(startedAt: number, now: number): string {
+	const frame = Math.floor(Math.max(0, now - startedAt) / REVIEWER_FRAME_MS) % 3;
+	return `Stop Reviewer Is Running (Esc to stop)${".".repeat(frame + 1)}`;
+}
+
+/** Shows the animated reviewer line and routes Esc to `onEscape`; no-op without a UI. */
+function mountReviewerUI(ctx: ExtensionContext, onEscape: () => void): () => void {
+	const ui = (ctx as { ui?: Partial<ExtensionContext["ui"]> }).ui;
+	if (!ui || typeof ui.setWidget !== "function" || typeof ui.onTerminalInput !== "function") return () => {};
+	const started = Date.now();
+	let tuiRef: { requestRender(): void } | undefined;
+	const component = {
+		render(_width: number): string[] {
+			return [stopReviewerLine(started, Date.now())];
+		},
+		invalidate(): void {},
+	};
+	try {
+		ui.setWidget(REVIEWER_WIDGET_KEY, (tui: unknown) => {
+			tuiRef = tui as { requestRender(): void };
+			return component;
+		}, { placement: "belowEditor" });
+	} catch { return () => {}; }
+	const timer = setInterval(() => { tuiRef?.requestRender(); }, REVIEWER_FRAME_MS);
+	timer.unref?.();
+	const offInput = ui.onTerminalInput((data: string) => {
+		if (data === "\x1b") { onEscape(); return { consume: true }; }
+		return undefined;
+	});
+	return () => {
+		clearInterval(timer);
+		offInput();
+		try { ui.setWidget!(REVIEWER_WIDGET_KEY, undefined); } catch { /* host gone */ }
+	};
 }
 
 function lastAssistantText(messages: readonly AgentMessage[]): string | undefined {
@@ -89,7 +129,21 @@ export function installStopGate(pi: ExtensionAPI, request: DaemonRequester, bind
 	const off = pi.on("agent_before_settle", async (event, ctx) => {
 		const current = binding();
 		if (!current) return undefined;
+		// Every blocked stop forces a continuation turn, so every arm marks the
+		// acting session — sessionId for root (agentId "main" is a title, not a
+		// directory key), agentId for a child.
+		const blockStop = (content: string) => {
+			deps?.markStopContinuation?.(current.agentId && current.agentId !== "main" ? current.agentId : current.sessionId);
+			return { entries: [{ type: "custom_message" as const, customType: "fsm-compatible:stop",
+				content, display: true }], continue: true };
+		};
 		if (event.outcome !== "completed" || event.continue) return undefined;
+		// Pending steering/follow-up means this boundary is not a stop: the queued
+		// input starts the next turn regardless, so judging here would block a
+		// turn that is not even trying to stop (OC prompt.ts defers on unconsumed
+		// input, OC-P:1535–1547). The real stop route runs at the boundary after
+		// the queue drains.
+		if ((event.context.pendingMessages?.length ?? 0) > 0) return undefined;
 		let check: StopCheckReply;
 		try { check = await runStopCheck(request, current, event.context.contextMessages, Date.now() + timeoutMs); }
 		catch (error) {
@@ -100,8 +154,7 @@ export function installStopGate(pi: ExtensionAPI, request: DaemonRequester, bind
 				ctx.ui.notify("FSM Stop gate unreachable; soft-gate pass-through", "warning");
 				return undefined;
 			}
-			return { entries: [{ type: "custom_message" as const, customType: "fsm-compatible:stop",
-				content: `FSM Stop：stop-check 协议错误，已保守阻止停止（${message}）。`, display: true }], continue: true };
+			return blockStop(`FSM Stop：stop-check 协议错误，已保守阻止停止（${message}）。`);
 		}
 		if (check.isTerminal) {
 			// HC plan_stop_route Allow still ran the hook and emitted a
@@ -131,24 +184,47 @@ export function installStopGate(pi: ExtensionAPI, request: DaemonRequester, bind
 		const plan = planStopRoute(facts);
 		if (plan.kind === "allow") return undefined;
 		if (plan.kind === "block-malformed") {
-			return { entries: [{ type: "custom_message" as const, customType: "fsm-compatible:stop",
-				content: "FSM Stop：状态数据缺失，已保守阻止停止。", display: true }], continue: true };
+			return blockStop("FSM Stop：状态数据缺失，已保守阻止停止。");
 		}
 		if (plan.kind === "deterministic") {
-			return { entries: [{ type: "custom_message" as const, customType: "fsm-compatible:stop",
-				content: plan.reason, display: true }], continue: true };
+			return blockStop(plan.reason);
 		}
 		// HC plan_stop_route never short-circuits on live work: the judge sees
 		// the live-work evidence and decides (wait_for_async_work).
 		if (!deps?.judges) {
 			ctx.ui.notify("FSM Stop analysis unavailable (no judge model); deterministic fallback", "warning");
-			return { entries: [{ type: "custom_message" as const, customType: "fsm-compatible:stop",
-				content: "FSM Stop：软门评审不可用，按确定性规则阻止停止。", display: true }], continue: true };
+			return blockStop("FSM Stop：软门评审不可用，按确定性规则阻止停止。");
 		}
-		const sid = deps.judges.create();
+		let sid: string;
 		try {
-			const verdict = await runStopAnalysis(deps.judges, sid, facts, evidence.dir);
-			const decision = reduceStop(facts, verdict);
+			sid = deps.judges.create();
+		} catch {
+			// Judge pool exhausted or unavailable: fail closed on the deterministic rule
+			// instead of crashing the settle boundary.
+			ctx.ui.notify("FSM Stop judge unavailable; deterministic fallback", "warning");
+			return blockStop("FSM Stop：软门评审不可用，按确定性规则阻止停止。");
+		}
+		const judges = deps.judges;
+		try {
+			let interrupted = false;
+			const dismount = mountReviewerUI(ctx, () => {
+				// Esc is the human overruling the reviewer: abort the analysis,
+				// notify the FSM, and ALLOW the stop — any verdict the reviewer
+				// still produces is void.
+				interrupted = true;
+				void judges.abort(sid).catch(() => undefined);
+				void request({ method: "POST", path: "/log", deadline: Date.now() + timeoutMs,
+					body: { kind: "stop_review_interrupted_human_override" } }).catch(() => { /* best-effort */ });
+			});
+			try {
+				const verdict = await runStopAnalysis(deps.judges, sid, facts, evidence.dir);
+				if (interrupted) {
+					dualStopLog({ session_id: current.sessionId, agent_id: current.agentId,
+						last_assistant_message: facts.lastAssistantMessage, decision: "allow",
+						reason: "用户打断评审（Esc）：允许停止。", agent: current.agentId === "main" ? "stop" : "subagent-stop" });
+					return undefined;
+				}
+				const decision = reduceStop(facts, verdict);
 			dualStopLog({ session_id: current.sessionId, agent_id: current.agentId,
 				last_assistant_message: facts.lastAssistantMessage, decision: decision.allowed ? "allow" : "block",
 				action: "action" in verdict ? verdict.action : undefined,
@@ -161,11 +237,12 @@ export function installStopGate(pi: ExtensionAPI, request: DaemonRequester, bind
 				return undefined;
 			}
 			// HC hook identity: sessionId is the root sid, agentId the acting
-			// child sid — the acting session is the one whose turn continues.
-			deps?.markStopContinuation?.(current.agentId ?? current.sessionId);
-			return { entries: [{ type: "custom_message" as const, customType: "fsm-compatible:stop",
-				content: decision.reason, display: true }], continue: true };
-		} finally { void sid; }
+			// child sid — the acting session is the one whose turn continues. Root
+			// stops carry agentId "main", which is a title, not a directory key.
+			if (interrupted) return undefined;
+			return blockStop(decision.reason);
+		} finally { dismount(); }
+		} finally { deps.judges.release(sid); }
 	});
 	return off;
 }

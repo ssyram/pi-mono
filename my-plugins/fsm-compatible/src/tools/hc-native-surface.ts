@@ -1,4 +1,5 @@
 import { createWriteTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { hcEditRenderers, hcWriteRenderers } from "./hc-edit-renderers.ts";
 import { readFile, stat, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -217,6 +218,7 @@ export async function registerHcNativeTools(pi: ExtensionAPI, cwd: string): Prom
 			label: name,
 			description: schema.description,
 			parameters: schema.parameters as never,
+			...(name === "edit" ? hcEditRenderers : name === "write" ? hcWriteRenderers : {}),
 			async execute(_id: string, input: Record<string, unknown>) {
 				return adapter.run(input, cwd);
 			},

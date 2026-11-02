@@ -1,7 +1,12 @@
 import { open, type FileHandle } from "node:fs/promises";
 
 export interface ChildStats {
-	readonly totalTokens: number;
+	/** Cumulative tokens spent (sum of per-turn totalTokens). */
+	readonly spentTokens: number;
+	/** Cumulative cost in currency units, when the provider reports it. */
+	readonly costTotal: number;
+	/** Current context-window tokens from the latest usage entry. */
+	readonly windowTokens: number | null;
 	readonly ctxPercent: number | null;
 	readonly firstTs: number | null;
 	readonly lastTs: number | null;
@@ -16,7 +21,7 @@ interface AssistantUsage {
 	cost?: { total?: number };
 }
 
-const EMPTY: ChildStats = { totalTokens: 0, ctxPercent: null, firstTs: null, lastTs: null };
+const EMPTY: ChildStats = { spentTokens: 0, costTotal: 0, windowTokens: null, ctxPercent: null, firstTs: null, lastTs: null };
 
 function timestampOf(value: unknown): number | null {
 	if (typeof value === "number" && Number.isFinite(value) && value > 1_000_000_000_000) return value;
@@ -31,13 +36,13 @@ function applyMessage(stats: ChildStats, message: Record<string, unknown>, conte
 	if (role !== "assistant") return { ...stats, firstTs, lastTs };
 	const usage = message.usage as AssistantUsage | undefined;
 	if (!usage) return { ...stats, firstTs, lastTs };
-	const totalTokens = stats.totalTokens + (usage.cost?.total !== undefined ? usage.cost.total : usage.totalTokens ?? 0);
-	let ctxPercent = stats.ctxPercent;
-	if (contextWindow && contextWindow > 0) {
-		const window = (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0) + (usage.output ?? 0);
-		ctxPercent = Math.max(0, Math.min(100, Math.round((window / contextWindow) * 100)));
-	}
-	return { totalTokens, ctxPercent, firstTs, lastTs };
+	const spentTokens = stats.spentTokens + (usage.totalTokens ?? 0);
+	const costTotal = stats.costTotal + (usage.cost?.total ?? 0);
+	const window = (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0) + (usage.output ?? 0);
+	const ctxPercent = contextWindow && contextWindow > 0
+		? Math.max(0, Math.min(100, Math.round((window / contextWindow) * 100)))
+		: stats.ctxPercent;
+	return { spentTokens, costTotal, windowTokens: window, ctxPercent, firstTs, lastTs };
 }
 
 /** Incremental per-child session reader: parses only newly appended bytes. */

@@ -53,14 +53,16 @@ export class JudgeSessions {
 	private readonly store: RecordStore;
 	private readonly cwd: string;
 	private readonly maxJudges: number;
+	private readonly turnBudgetMs: number;
 	private readonly configuredSource: JudgeModelSource | undefined;
 
-	constructor(store: RecordStore, cwd: string, source?: JudgeModelSource, maxJudges = 64) {
+	constructor(store: RecordStore, cwd: string, source?: JudgeModelSource, maxJudges = 64, turnBudgetMs = 60_000) {
 		if (!store || !cwd || !Number.isSafeInteger(maxJudges) || maxJudges < 1) throw new RuntimeError("protocol-invalid");
 		this.store = store;
 		this.cwd = cwd;
 		this.configuredSource = source;
 		this.maxJudges = maxJudges;
+		this.turnBudgetMs = turnBudgetMs;
 	}
 
 	// The bridge and gates never need the judge model; validate lazily on first real turn.
@@ -71,7 +73,16 @@ export class JudgeSessions {
 	}
 
 	create(): string {
-		if (this.entries.size >= this.maxJudges) throw new RuntimeError("queue-full");
+		if (this.entries.size >= this.maxJudges) {
+			// Long runs leak finished judge sessions via every gate verdict; evict
+			// the oldest idle one instead of failing the settle boundary.
+			for (const [idleId, entry] of this.entries) {
+				if (entry.agent !== undefined) continue;
+				this.entries.delete(idleId);
+				break;
+			}
+			if (this.entries.size >= this.maxJudges) throw new RuntimeError("queue-full");
+		}
 		// HC judge sessions carry the ses_ protocol prefix; the FSM stop hook
 		// addresses judges by this id on the bridge surface.
 		const sessionId = `ses_${randomUUID().replace(/-/g, "").slice(0, 24)}`;
@@ -85,6 +96,11 @@ export class JudgeSessions {
 		this.store.registerJudge({ sessionId, title: "fsm-gate", createdAt: Date.now(), updatedAt: Date.now(),
 			sessionFile, lifecycle: "idle" });
 		return sessionId;
+	}
+
+	/** Frees the queue slot after the verdict; the durable transcript and store record stay. */
+	release(sessionId: string): void {
+		this.entries.delete(sessionId);
 	}
 
 	async run(sessionId: string, input: JudgeInput): Promise<OcMessage> {
@@ -114,8 +130,19 @@ export class JudgeSessions {
 				},
 			});
 			entry.agent = agent;
-			await agent.prompt(input.user);
-			await agent.waitForIdle();
+			const turn = agent.prompt(input.user);
+			// A hung provider stream must not hang the caller's settle boundary:
+			// bound the wait, tear the agent down, and surface not-ready so the
+			// gate degrades to its deterministic rule. prompt() itself resolves
+			// only when the run ends, so it is awaited only after the budget check.
+			const idle = await waitForIdleBounded(agent, this.turnBudgetMs);
+			if (!idle) {
+				agent.abort();
+				// The stream promise itself may never settle; do not wait for it.
+				void turn.catch(() => undefined);
+				throw new RuntimeError("not-ready");
+			}
+			await turn;
 			const updated = agent.state.messages;
 			entry.transcript = [...updated];
 			if (entry.sessionFile) {

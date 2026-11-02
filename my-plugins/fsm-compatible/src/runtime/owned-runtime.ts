@@ -23,7 +23,7 @@ import { RecordStore } from "../records/record-store.ts";
 import { installPermissionGate } from "../gates/permission-gate.ts";
 import { installStopGate } from "../gates/stop-gate.ts";
 import { createWaitState, registerAskTool } from "../watch/ask-tool.ts";
-import { registerFleetUI } from "../tui/fleet-ui.ts";
+import { registerNicoFleetStatus } from "../tui/nico-fleet-adapter.ts";
 import { registerSubagentCommand } from "../children/subagent-command.ts";
 import { AdvisoryQueue } from "../watch/advisory-queue.ts";
 import { drainOnce } from "../watch/drain-advisories.ts";
@@ -149,19 +149,28 @@ export async function openOwnedRuntime(pi: ExtensionAPI, ctx: ExtensionContext, 
 		offs.push(installPermissionGate(pi, request, bindingRef, config.timeoutMs));
 		offs.push(installStopGate(pi, request, bindingRef, config.timeoutMs, { hasBusyChild: (id) => hc!.busy(id),
 			judges, analysisEnabled: config.stopAnalysis ?? true, sourcePassword: bridgePassword,
-			markStopContinuation: (id) => { const r = hc!.services.directory.get(id); if (r) r.turnProfile = "build"; } }));
+			markStopContinuation: (id) => { const r = hc!.services.directory.find(id); if (r) r.turnProfile = "build"; } }));
 		if (ctx.hasUI) offs.push(registerAskTool(pi, { request, binding: bindingRef, waitState, timeoutMs: config.timeoutMs, ...(config.askTimeoutMs !== undefined ? { askTimeoutMs: config.askTimeoutMs } : {}) }));
 		if (ctx.hasUI && (config.fleetWidgetPlacement ?? "belowEditor") !== "off") {
+			const actors = async (): Promise<ReadonlyArray<{ agentId: string; fsmName: string; stateId: string; noProgress: number }>> => {
+				const reply = await request({ method: "GET", path: "/actors", deadline: Date.now() + config.timeoutMs });
+				const body = reply.body as { actors?: { agent_id?: string; fsm_name?: string; state_id?: string; no_progress_count?: number }[] };
+				return (body.actors ?? []).map((actor) => ({ agentId: actor.agent_id ?? "", fsmName: actor.fsm_name ?? "_default",
+					stateId: actor.state_id ?? "?", noProgress: actor.no_progress_count ?? 0 })); };
+			const abortChild = (id: string): Promise<void> => {
+				const record = hc!.services.directory.get(id);
+				if (!record?.handle) return Promise.reject(new Error(`child ${id} has no live handle`));
+				return record.handle.abort();
+			};
 			const model = ctx.model;
-			offs.push(registerFleetUI(pi, ctx, { placement: config.fleetWidgetPlacement === "aboveEditor" ? "aboveEditor" : "belowEditor",
+			const contextWindowOf = (ref: string): number | null => {
+				const [provider, ...rest] = ref.split("/");
+				const found = provider && rest.length ? ctx.modelRegistry.find(provider, rest.join("/")) : undefined;
+				return found?.contextWindow ?? model?.contextWindow ?? null;
+			};
+			offs.push(registerNicoFleetStatus(pi, ctx, { placement: config.fleetWidgetPlacement === "aboveEditor" ? "aboveEditor" : "belowEditor",
 				fleet: () => hc!.fleet, rootSessionId: sessionId, rootSessionFile: () => ctx.sessionManager.getSessionFile() ?? undefined,
-				actors: async () => { const reply = await request({ method: "GET", path: "/actors", deadline: Date.now() + config.timeoutMs });
-					const body = reply.body as { actors?: { agent_id?: string; fsm_name?: string; state_id?: string; no_progress_count?: number }[] };
-					return (body.actors ?? []).map((actor) => ({ agentId: actor.agent_id ?? "", fsmName: actor.fsm_name ?? "_default",
-						stateId: actor.state_id ?? "?", noProgress: actor.no_progress_count ?? 0 })); },
-				contextWindowOf: (ref) => { const [provider, ...rest] = ref.split("/");
-					const found = provider && rest.length ? ctx.modelRegistry.find(provider, rest.join("/")) : undefined;
-					return found?.contextWindow ?? model?.contextWindow ?? null; } }));
+				actors, baseCwd: config.cwd, contextWindowOf, abortChild }));
 		}
 		offs.push(registerSubagentCommand(pi, ctx, {
 			dispatch: async (fsmName) => { await pool.invoke(binding, "fsm_dispatch_subagent", { fsm: fsmName },

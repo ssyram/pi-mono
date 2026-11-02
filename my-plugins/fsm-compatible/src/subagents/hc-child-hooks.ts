@@ -64,7 +64,7 @@ export function hcChildHook(deps: HcChildHookDeps): ChildHookExtension {
 				},
 				judges: deps.judges,
 				analysisEnabled: deps.analysisEnabled,
-				markStopContinuation: (id) => { const r = deps.services.directory.get(id); if (r) r.turnProfile = "build"; },
+				markStopContinuation: (id) => { const r = deps.services.directory.find(id); if (r) r.turnProfile = "build"; },
 			});
 			// HC child sessions run the host shell tool with HC abort/timeout
 			// envelope semantics.

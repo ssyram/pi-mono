@@ -21,19 +21,24 @@ test("SessionStatsReader accumulates incrementally, skips corrupt lines and surv
 	].join("\n") + "\n");
 	const reader = new SessionStatsReader(100_000);
 	const first = await reader.advance(file);
-	assert.equal(first.totalTokens, 0.01);
+	assert.ok(Math.abs(first.costTotal - 0.01) < 1e-9);
+	assert.equal(first.spentTokens, 1100);
+	assert.equal(first.windowTokens, 1100);
 	assert.equal(first.ctxPercent, 1);
 	assert.notEqual(first.firstTs, null);
 	await writeFile(file, assistantLine("second", { input: 60_000, output: 50, cacheRead: 30_000, cacheWrite: 0, totalTokens: 90_050, cost: { total: 0.9 } }) + "\n", { flag: "a" });
 	const second = await reader.advance(file);
-	assert.ok(Math.abs(second.totalTokens - 0.91) < 1e-9);
+	assert.ok(Math.abs(second.costTotal - 0.91) < 1e-9);
+	assert.equal(second.spentTokens, 91_150);
+	assert.equal(second.windowTokens, 90_050);
 	assert.equal(second.ctxPercent, 90);
 	await writeFile(file, [
 		JSON.stringify({ type: "compaction", summary: "compact" }),
 		assistantLine("third", { input: 500, output: 10, cacheRead: 0, cacheWrite: 0, totalTokens: 510, cost: { total: 0.005 } }),
 	].join("\n") + "\n", { flag: "a" });
 	const third = await reader.advance(file);
-	assert.ok(Math.abs(third.totalTokens - 0.915) < 1e-9);
+	assert.ok(Math.abs(third.costTotal - 0.915) < 1e-9);
+	assert.equal(third.spentTokens, 91_660);
 	assert.equal(third.ctxPercent, 1);
 	assert.equal(reader.error, null);
 });
@@ -52,15 +57,15 @@ test("ctxPercent stays within bounds and null without a window", async (t) => {
 test("missing file yields empty stats without advancing", async () => {
 	const reader = new SessionStatsReader(1000);
 	const stats = await reader.advance("/nonexistent/fleet-session.jsonl");
-	assert.equal(stats.totalTokens, 0);
+	assert.equal(stats.spentTokens, 0);
 	assert.equal(stats.firstTs, null);
 	assert.equal(reader.error, "unreadable");
 });
 
 test("elapsedTextMs formats running and terminal spans", () => {
 	const base = Date.UTC(2026, 9, 22, 0, 0, 0);
-	const stats = { totalTokens: 0, ctxPercent: null, firstTs: base, lastTs: base + 65_000 };
+	const stats = { spentTokens: 0, costTotal: 0, windowTokens: null, ctxPercent: null, firstTs: base, lastTs: base + 65_000 };
 	assert.equal(elapsedTextMs(stats, base + 65_000, true), "1m05s");
 	assert.equal(elapsedTextMs(stats, base + 4_000, false), "4s");
-	assert.equal(elapsedTextMs({ totalTokens: 0, ctxPercent: null, firstTs: null, lastTs: null }, base, false), "—");
+	assert.equal(elapsedTextMs({ spentTokens: 0, costTotal: 0, windowTokens: null, ctxPercent: null, firstTs: null, lastTs: null }, base, false), "—");
 });

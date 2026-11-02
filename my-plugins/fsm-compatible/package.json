@@ -23,10 +23,11 @@
     "test:children": "node --test test/child-launch.test.ts test/child-bootstrap.test.ts test/child-inbox.test.ts",
     "test:watch": "node --test test/gate-moves.test.ts test/watch.test.ts",
     "test:assembly": "node --test test/assembly.test.ts",
-    "test:hc": "node --test test/hc-nico-message.test.ts test/hc-nico-tree.test.ts test/hc-nico-output.test.ts test/hc-nico-model-toolset.test.ts test/hc-session-registry.test.ts",
-    "test:fleet": "node --test test/fleet-tree.test.ts test/fleet-stats.test.ts test/fleet-row-format.test.ts test/fleet-ui.test.ts test/subagent-command.test.ts",
+    "test:hc": "node --test test/hc-nico-message.test.ts test/hc-nico-tree.test.ts test/hc-nico-output.test.ts test/hc-nico-model-toolset.test.ts test/hc-session-registry.test.ts test/hc-agent-report.test.ts",
+    "test:fleet": "node --test test/fleet-stats.test.ts test/nico-fleet-adapter.test.ts test/subagent-command.test.ts",
     "test:commands": "node --test test/command-aliases.test.ts",
-    "test": "npm run test:admission && npm run test:runtime && npm run test:protocol && npm run test:judge && npm run test:gates && npm run test:children && npm run test:watch && npm run test:assembly && npm run test:hc && npm run test:commands && npm run test:fleet"
+    "test": "npm run test:admission && npm run test:runtime && npm run test:protocol && npm run test:judge && npm run test:gates && npm run test:children && npm run test:watch && npm run test:assembly && npm run test:hc && npm run test:commands && npm run test:fleet",
+    "test:surface": "node --test test/hc-native-surface.test.ts test/hc-edit-renderers.test.ts"
   },
   "dependencies": {
     "ajv": "8.20.0"

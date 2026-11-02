@@ -3,7 +3,7 @@ import test from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { DaemonReply, DaemonRequest, DaemonRequester } from "../src/broker/daemon-request.ts";
 import { installPermissionGate } from "../src/gates/permission-gate.ts";
-import { installStopGate, runStopCheck } from "../src/gates/stop-gate.ts";
+import { installStopGate, runStopCheck, stopReviewerLine } from "../src/gates/stop-gate.ts";
 
 type Handler = (event: unknown, ctx: ExtensionContext) => unknown;
 
@@ -73,12 +73,15 @@ test("stop gate blocks with a continuation draft and soft-gates transport failur
 	const { pi, handlers } = fakePi();
 	const { request } = requester({ "POST /stop-check": ok({ is_terminal: false, reason: "review pending",
 		state: { fsm_name: "S", state_id: "work", is_exit_state: false }, no_progress_count: 0, recent_plans: [] }) });
-	installStopGate(pi, request, () => ({ sessionId: "r", agentId: "main" }), 5000, { analysisEnabled: false });
+	const continued: string[] = [];
+	installStopGate(pi, request, () => ({ sessionId: "r", agentId: "main" }), 5000, { analysisEnabled: false,
+		markStopContinuation: (id) => { continued.push(id); } });
 	const gate = handlers.get("agent_before_settle")!;
 	const completed = { outcome: "completed", continue: false,
 		context: { contextMessages: [{ role: "assistant", content: [{ type: "text", text: "turn output" }] }] } };
 	assert.deepEqual(await gate(completed, fakeCtx()), { entries: [{ type: "custom_message",
 		customType: "fsm-compatible:stop", content: "FSM Stop：S/work 不允许停止（无 allow_user_interaction）。", display: true }], continue: true });
+	assert.deepEqual(continued, ["r"], "root stops mark the root session id, never the 'main' title id");
 	const { request: allowed } = requester({ "POST /stop-check": { status: 200, body: { is_terminal: true } } });
 	const { handlers: h2 } = fakePi();
 	installStopGate(piAs(h2), allowed, () => ({ sessionId: "r", agentId: "main" }), 5000, { analysisEnabled: false });
@@ -89,6 +92,59 @@ test("stop gate blocks with a continuation draft and soft-gates transport failur
 	assert.equal(await h3.get("agent_before_settle")!(completed, fakeCtx()), undefined);
 	assert.equal(await handlers.get("agent_before_settle")!({ outcome: "aborted", continue: false, context: { contextMessages: [] } }, fakeCtx()), undefined);
 	assert.equal(await handlers.get("agent_before_settle")!({ outcome: "completed", continue: true, context: { contextMessages: [] } }, fakeCtx()), undefined);
+	const { handlers: h4 } = fakePi();
+	installStopGate(piAs(h4), requester({ "POST /stop-check": ok({ is_terminal: false,
+		state: { fsm_name: "S", state_id: "work", is_exit_state: false }, no_progress_count: 0, recent_plans: [] }) })!.request as never,
+		() => ({ sessionId: "r", agentId: "main" }), 5000, { analysisEnabled: false });
+	const steered = await h4.get("agent_before_settle")!({ outcome: "completed", continue: false,
+		context: { contextMessages: [{ role: "assistant", content: [{ type: "text", text: "x" }] }], pendingMessages: [{ role: "user", content: "queued", timestamp: 0 }] } } as never, fakeCtx());
+	assert.equal(steered, undefined, "pending steering/follow-up means the boundary is not a stop: no judge, no block");
+});
+
+test("stop reviewer line cycles three dot frames every 800ms", () => {
+	const t0 = 1_000_000;
+	assert.equal(stopReviewerLine(t0, t0), "Stop Reviewer Is Running (Esc to stop).");
+	assert.equal(stopReviewerLine(t0, t0 + 800), "Stop Reviewer Is Running (Esc to stop)..");
+	assert.equal(stopReviewerLine(t0, t0 + 1_600), "Stop Reviewer Is Running (Esc to stop)...");
+	assert.equal(stopReviewerLine(t0, t0 + 2_400), "Stop Reviewer Is Running (Esc to stop).", "cycle restarts");
+});
+
+test("Esc during the judge review aborts it and allows the stop", async () => {
+	const { pi, handlers } = fakePi();
+	const { request } = requester({ "POST /stop-check": ok({ is_terminal: false,
+		state: { fsm_name: "S", state_id: "work", is_exit_state: false }, no_progress_count: 0, recent_plans: [] }) });
+	let releaseReview!: () => void;
+	const review = new Promise<void>((resolve) => { releaseReview = resolve; });
+	const aborted: string[] = [];
+	let escapeHandler: ((data: string) => unknown) | undefined;
+	const ctxWithUi = { signal: undefined, ui: { notify: () => {},
+		setWidget: () => {},
+		onTerminalInput: (h: (data: string) => unknown) => { escapeHandler = h; return () => { escapeHandler = undefined; }; } } } as never;
+	installStopGate(pi, request, () => ({ sessionId: "r", agentId: "main" }), 5000, { analysisEnabled: true,
+		judges: { create: () => "ses_j", run: async () => { await review; return { error: "aborted" }; },
+			abort: async (id: string) => { aborted.push(id); releaseReview(); }, release: () => {} } as never });
+	const gate = handlers.get("agent_before_settle")!;
+	const pending = gate({ outcome: "completed", continue: false, context: { contextMessages: [{ role: "assistant", content: [{ type: "text", text: "x" }] }] } }, ctxWithUi);
+	await new Promise((r) => setTimeout(r, 0));
+	assert.deepEqual(escapeHandler?.("\x1b"), { consume: true }, "Esc is consumed by the reviewer");
+	assert.deepEqual(aborted, ["ses_j"], "Esc aborts the judge session");
+	assert.equal(await pending, undefined, "an interrupted review allows the stop instead of blocking");
+});
+
+test("stop gate degrades to the deterministic block when the judge pool fails", async () => {
+	const { pi, handlers } = fakePi();
+	const { request } = requester({ "POST /stop-check": ok({ is_terminal: false,
+		state: { fsm_name: "S", state_id: "work", is_exit_state: false }, no_progress_count: 0, recent_plans: [] }) });
+	const continued: string[] = [];
+	installStopGate(pi, request, () => ({ sessionId: "r", agentId: "main" }), 5000, { analysisEnabled: true,
+		judges: { create: () => { throw new Error("queue-full"); }, run: async () => { throw new Error("unreachable"); }, release: () => {} } as never,
+		markStopContinuation: (id) => { continued.push(id); } });
+	const gate = handlers.get("agent_before_settle")!;
+	const blocked = (await gate({ outcome: "completed", continue: false, context: { contextMessages: [{ role: "assistant", content: [{ type: "text", text: "turn output" }] }] } }, fakeCtx())) as
+		{ continue?: boolean; entries?: Array<{ content?: string }> } | undefined;
+	assert.equal(blocked?.continue, true, "judge pool exhaustion must not crash the settle boundary");
+	assert.match(JSON.stringify(blocked?.entries), /软门评审不可用/);
+	assert.deepEqual(continued, ["r"]);
 });
 
 test("repeated same-name permission checks use explicit root/child IDs without writing identity slots", async () => {

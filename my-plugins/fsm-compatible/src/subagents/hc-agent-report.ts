@@ -16,7 +16,13 @@ function isToolResult(message: AgentMessage): message is ToolResultMessage {
 /** Split a finished run's messages into the final assistant and its tool results (HC parts projection). */
 export function classifyFromRun(messages: readonly AgentMessage[], sessionId: string): HcDelegationOutcome {
 	const finalAssistant = messages.findLast(isAssistant);
-	const toolResults = messages.filter(isToolResult);
+	// OC classifies from the returned final assistant only (OC delegation.ts
+	// classifyOutput): tool results outside that message's own tool calls — e.g.
+	// an earlier recovered failure — must not turn a successful final answer
+	// into an error report.
+	const callIds = new Set((finalAssistant?.content ?? []).filter((block): block is Extract<typeof block, { type: "toolCall" }> => block.type === "toolCall")
+		.map((block) => block.id));
+	const toolResults = messages.filter(isToolResult).filter((message) => callIds.has(message.toolCallId));
 	return classifyHcRunOutcome({ finalAssistant, toolResults }, sessionId);
 }
 
@@ -36,11 +42,20 @@ function reportableWhy(services: HcAgentRuntimeServices, record: HcSessionRecord
 	return liveDescendantExists(services, record) ? "live-descendant" : "ok";
 }
 
+/**
+ * The only HC run boundary inside a Pi run is a turn the stop gate blocked
+ * (marked turnProfile="build" by markStopContinuation). Plain tool turns are
+ * mid-run in HC too and must stay silent.
+ */
+export function turnBoundaryReportable(record: HcSessionRecord): boolean {
+	return record.parent_id !== undefined && record.notify && record.turnProfile === "build";
+}
+
 async function deliverParentNotice(services: HcAgentRuntimeServices, record: HcSessionRecord, outcome: HcDelegationOutcome): Promise<void> {
 	const parentId = record.parent_id;
 	if (parentId === undefined) return;
 	const state = outcome.kind === "completed" ? "completed" : "error";
-	const description = record.description || record.title;
+	const description = record.description ?? record.title;
 	const summary = outcome.kind === "completed" ? `Agent completed: ${description}` : `Agent failed: ${description}`;
 	const text = outcome.kind === "cancelled" ? "" : renderAgentNotification({ sessionId: record.session_id, state, summary, text: outcome.text });
 	const parent = services.directory.get(parentId);
