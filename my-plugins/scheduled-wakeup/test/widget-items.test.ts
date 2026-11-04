@@ -5,6 +5,7 @@ import {
 	collectLoopWidgetItems,
 	formatQueuedSuffix,
 	loopWidgetLines,
+	waitingSegment,
 } from "../src/loop-widget-items.js";
 
 function activeTask(
@@ -71,4 +72,48 @@ test("formatQueuedSuffix omits zero components and returns empty when both zero"
 	assert.equal(formatQueuedSuffix(1, 0), " (1 wake-up)");
 	assert.equal(formatQueuedSuffix(0, 2), " (2 no-wake)");
 	assert.equal(formatQueuedSuffix(3, 4), " (3 wake-up, 4 no-wake)");
+});
+
+
+test("waiting segment shows the earliest due countdown only when idle", () => {
+	const now = Date.now();
+	assert.equal(waitingSegment([], now), "");
+	assert.equal(
+		waitingSegment([{ id: "a", nextRunAt: now + 90_000 }], now),
+		" (waiting 1m30s)",
+	);
+	assert.equal(
+		waitingSegment(
+			[
+				{ id: "a", nextRunAt: now + 90_000 },
+				{ id: "b", nextRunAt: now + 30_000 },
+			],
+			now,
+		),
+		" (waiting 30s)",
+	);
+	assert.equal(
+		waitingSegment([{ id: "a", nextRunAt: now - 5_000 }], now),
+		" (waiting 0s)",
+	);
+	assert.equal(
+		waitingSegment(
+			[
+				{ id: "a", nextRunAt: now + 60_000 },
+				{ id: "run", running: { id: "run", wakeUpId: "r1", success: 0, completed: 0, total: 1 } },
+			],
+			now,
+		),
+		"",
+	);
+	assert.equal(
+		waitingSegment(
+			[
+				{ id: "a", nextRunAt: now + 60_000, pausedRemaining: 30_000 },
+				{ id: "b" },
+			],
+			now,
+		),
+		"",
+	);
 });

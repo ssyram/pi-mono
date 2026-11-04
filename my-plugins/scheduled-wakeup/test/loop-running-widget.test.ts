@@ -158,9 +158,9 @@ test("summary spinner advances on its own interval and stops when hidden or disp
 	const header = setup.header;
 	assert.ok(header);
 	assert.match(header.render(80)[0] ?? "", /\u25D3 Loop · 1 scheduled/);
-	t.mock.timers.tick(600);
+	t.mock.timers.tick(1000);
 	assert.match(header.render(80)[0] ?? "", /\u25D1 Loop · 1 scheduled/);
-	t.mock.timers.tick(1200);
+	t.mock.timers.tick(2000);
 	assert.match(header.render(80)[0] ?? "", /\u25D0 Loop · 1 scheduled/);
 	widget.setVisible(false);
 	const stopped = setup.renders;
@@ -221,4 +221,38 @@ test("invalid context and failing diagnostics do not escape widget operations", 
 	assert.doesNotThrow(() => widget.refresh());
 	await assert.doesNotReject(widget.show());
 	assert.doesNotThrow(() => widget.dispose());
+});
+
+
+test("collapsed header carries the earliest waiting countdown and ticks at 1s", (t) => {
+	t.mock.timers.enable({ apis: ["Date", "setInterval"], now: 1000 });
+	const setup = fixture("fullscreen");
+	const widget = createRunningWidget(setup.ctx, () => [
+		{ id: "far", nextRunAt: 61_000 },
+		{ id: "near", nextRunAt: 10_000 },
+	]);
+	widget.refresh();
+	const header = setup.header;
+	assert.ok(header);
+	assert.match(header.render(80)[0] ?? "", /Loop · 2 scheduled \(waiting 9s\)/);
+	t.mock.timers.tick(1000);
+	assert.match(header.render(80)[0] ?? "", /\(waiting 8s\)/);
+	t.mock.timers.tick(8000);
+	assert.match(header.render(80)[0] ?? "", /\(waiting 0s\)/);
+	widget.dispose();
+});
+
+test("running items suppress the waiting segment", () => {
+	const setup = fixture("fullscreen");
+	const widget = createRunningWidget(setup.ctx, () => [
+		{ id: "far", nextRunAt: Date.now() + 60_000 },
+		{ id: "run", running: { id: "run", wakeUpId: "r1", success: 0, completed: 0, total: 1 } },
+	]);
+	widget.refresh();
+	assert.doesNotMatch(
+		setup.header?.render(80)[0] ?? "",
+		/waiting/,
+		"running present means no waiting segment",
+	);
+	widget.dispose();
 });

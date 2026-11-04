@@ -11,6 +11,7 @@ import {
 	formatQueuedSuffix,
 	type LoopWidgetItem,
 	loopWidgetLines,
+	waitingSegment,
 } from "./loop-widget-items.js";
 import { createWidgetSpaceProbe } from "./loop-widget-space.js";
 
@@ -23,7 +24,7 @@ export type RunningWidget = {
 export const LOOP_WIDGET_MAX_LINES = 10;
 const KEY = "loop-running-scripts";
 const SPINNER_FRAMES = ["◓", "◑", "◒", "◐"] as const;
-const SPINNER_INTERVAL_MS = 600;
+const TICK_MS = 1000;
 
 const queuedSuffix = (list: readonly LoopWidgetItem[]): string => {
 	let wakeUps = 0;
@@ -52,9 +53,8 @@ export function createRunningWidget(
 	let items: readonly LoopWidgetItem[] = [];
 	let tui: TUI | undefined;
 	let width = 0;
-	let timer: ReturnType<typeof setInterval> | undefined;
 	let spinnerFrame = 0;
-	let spinnerTimer: ReturnType<typeof setInterval> | undefined;
+	let timer: ReturnType<typeof setInterval> | undefined;
 	const report = (error: unknown): void =>
 		notifyLoop(
 			ctx,
@@ -71,39 +71,21 @@ export function createRunningWidget(
 			tui?.requestRender();
 		} catch (error) {
 			clearTimer();
-			clearSpinnerTimer();
 			report(error);
 		}
 	};
+	// One 1s tick drives the spinner, the collapsed (waiting N) countdown
+	// and the expanded per-item Waiting lines.
 	const updateTimer = (): void => {
-		if (
-			!closed &&
-			installed &&
-			visible &&
-			expanded &&
-			items.some((item) => !item.running)
-		) {
+		if (!closed && installed && visible && tui !== undefined) {
 			if (timer === undefined) {
-				timer = setInterval(requestRender, 1000);
+				timer = setInterval(() => {
+					spinnerFrame = (spinnerFrame + 1) % SPINNER_FRAMES.length;
+					requestRender();
+				}, TICK_MS);
 				timer.unref?.();
 			}
 		} else clearTimer();
-	};
-	const clearSpinnerTimer = (): void => {
-		if (spinnerTimer !== undefined) clearInterval(spinnerTimer);
-		spinnerTimer = undefined;
-	};
-	const advanceSpinner = (): void => {
-		spinnerFrame = (spinnerFrame + 1) % SPINNER_FRAMES.length;
-		requestRender();
-	};
-	const updateSpinnerTimer = (): void => {
-		if (!closed && installed && visible && tui !== undefined) {
-			if (spinnerTimer === undefined) {
-				spinnerTimer = setInterval(advanceSpinner, SPINNER_INTERVAL_MS);
-				spinnerTimer.unref?.();
-			}
-		} else clearSpinnerTimer();
 	};
 	const toggle = (): void => {
 		try {
@@ -129,7 +111,6 @@ export function createRunningWidget(
 	};
 	const hide = (): void => {
 		clearTimer();
-		clearSpinnerTimer();
 		expanded = false;
 		if (installed) ctx.ui.setWidget(KEY, undefined);
 		installed = false;
@@ -150,7 +131,9 @@ export function createRunningWidget(
 			if (ctx.mode === "rpc") {
 				ctx.ui.setWidget(
 					KEY,
-					[` ${SPINNER_FRAMES[0]} Loop · ${items.length} scheduled${runningSegment(items)}${queuedSuffix(items)}`],
+					[
+						` ${SPINNER_FRAMES[0]} Loop · ${items.length} scheduled${runningSegment(items)}${waitingSegment(items)}${queuedSuffix(items)}`,
+					],
 					{
 						placement: "aboveEditor",
 					},
@@ -179,7 +162,7 @@ export function createRunningWidget(
 										expanded = false;
 										updateTimer();
 									}
-									const label = ` ${SPINNER_FRAMES[spinnerFrame]} Loop · ${items.length} scheduled${runningSegment(items)}${queuedSuffix(items)}`;
+									const label = ` ${SPINNER_FRAMES[spinnerFrame]} Loop · ${items.length} scheduled${runningSegment(items)}${waitingSegment(items)}${queuedSuffix(items)}`;
 									const summary = theme.fg(
 										"accent",
 										truncateToWidth(label, columns),
@@ -216,7 +199,6 @@ export function createRunningWidget(
 				installed = true;
 			}
 			updateTimer();
-			updateSpinnerTimer();
 			requestRender();
 		} catch (error) {
 			report(error);

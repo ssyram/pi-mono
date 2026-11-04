@@ -76,6 +76,22 @@ export function collectLoopWidgetItems(
 	);
 }
 
+export function waitingSegment(
+	items: readonly LoopWidgetItem[],
+	now = Date.now(),
+): string {
+	if (items.some((item) => item.running !== undefined)) return "";
+	let earliest: number | undefined;
+	for (const item of items) {
+		if (item.nextRunAt === undefined || item.pausedRemaining !== undefined)
+			continue;
+		if (earliest === undefined || item.nextRunAt < earliest)
+			earliest = item.nextRunAt;
+	}
+	if (earliest === undefined) return "";
+	return ` (waiting ${formatDuration(Math.max(0, earliest - now))})`;
+}
+
 export function loopWidgetLines(
 	items: readonly LoopWidgetItem[],
 	width: number,
