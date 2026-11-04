@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { DuePoller, type DuePollerTimers, type TimerHandle } from "../src/v2/due-poller.js";
+import { LoopTaskActiveError } from "../src/task-dispatcher.js";
 import { LoopV2Core } from "../src/v2/loop-core.js";
 import type { SessionEntryLike, SessionEntryPort } from "../src/v2/session-entry-adapter.js";
 
@@ -11,6 +12,53 @@ const NOW = 1_000_000;
 const MAX_TIMEOUT_MS = 2_147_483_647;
 
 describe("DuePoller", () => {
+	it("benign already-running blocks only 1s instead of the 60s failure backoff", () => {
+		const clock = { value: NOW };
+		const timers = createManualTimers();
+		const core = createCore(createJournal().port, clock);
+		core.createSessionTask({ prompt: "busy loop", schedule: { kind: "interval", intervalMs: 1_000 } });
+		let busy = true;
+		const poller = new DuePoller({
+			core,
+			deliver: () => {
+				if (busy) throw new LoopTaskActiveError("session:busy");
+			},
+			now: () => clock.value,
+			timers: timers.timers,
+		});
+		poller.start();
+		assert.equal(timers.lastDelay(), 1_000);
+		clock.value = NOW + 1_000;
+		timers.fire();
+		assert.equal(timers.pending(), true);
+		assert.equal(timers.lastDelay(), 1_000, "soft retry, not 60s");
+		assert.equal(core.snapshotSessionState().tasks[0]?.progress.runCount, 0, "no schedule advance while blocked");
+		busy = false;
+		clock.value = NOW + 2_000;
+		timers.fire();
+		assert.equal(core.snapshotSessionState().tasks[0]?.progress.runCount, 1, "retry after the run freed");
+		poller.dispose();
+	});
+
+	it("hard failures still back off 60s", () => {
+		const clock = { value: NOW };
+		const timers = createManualTimers();
+		const core = createCore(createJournal().port, clock);
+		core.createSessionTask({ prompt: "boom", schedule: { kind: "interval", intervalMs: 1_000 } });
+		const poller = new DuePoller({
+			core,
+			deliver: () => {
+				throw new Error("disk exploded");
+			},
+			now: () => clock.value,
+			timers: timers.timers,
+		});
+		poller.start();
+		clock.value = NOW + 1_000;
+		timers.fire();
+		assert.equal(timers.lastDelay(), 60_000, "systemic failure keeps the long backoff");
+		poller.dispose();
+	});
 	it("arms the nearest nextRunAt, delivers due work, and re-arms recurring tasks", () => {
 		const clock = { value: NOW };
 		const timers = createManualTimers();

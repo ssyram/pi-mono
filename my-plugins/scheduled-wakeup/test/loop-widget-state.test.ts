@@ -30,6 +30,7 @@ test("scheduled and running items merge by id, retaining a running once item unt
 	const running = {
 		id: "recurring",
 		wakeUpId: "run",
+		startedAt: 0,
 		success: 1,
 		completed: 1,
 		total: 2,

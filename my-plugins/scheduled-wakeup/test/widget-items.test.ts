@@ -100,7 +100,7 @@ test("waiting segment shows the earliest due countdown only when idle", () => {
 		waitingSegment(
 			[
 				{ id: "a", nextRunAt: now + 60_000 },
-				{ id: "run", running: { id: "run", wakeUpId: "r1", success: 0, completed: 0, total: 1 } },
+				{ id: "run", running: { id: "run", wakeUpId: "r1", startedAt: 0, success: 0, completed: 0, total: 1 } },
 			],
 			now,
 		),

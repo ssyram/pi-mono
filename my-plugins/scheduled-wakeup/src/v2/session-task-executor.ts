@@ -8,6 +8,7 @@ import {
 import type { RegistrationExecutionLock } from "./registration-execution-lock.js";
 import type { SessionEntryAdapter } from "./session-entry-adapter.js";
 import type { DeliverTask } from "./registration-executor.js";
+import { LoopTaskActiveError } from "../task-dispatcher.js";
 import { resumeProgress } from "./resume-progress.js";
 import { cloneTaskContent } from "./task-content.js";
 
@@ -60,6 +61,8 @@ export class SessionTaskExecutor {
 			deliver(target);
 			return undefined;
 		} catch (error) {
+			if (error instanceof LoopTaskActiveError)
+				return { kind: "already-running", id: task.definition.id };
 			return { kind: "failed", id: task.definition.id, message: errorMessage(error) };
 		}
 	}

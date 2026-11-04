@@ -3,6 +3,7 @@ import type { DeliverTask } from "./registration-executor.js";
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
 const FAILURE_RETRY_MS = 60_000;
+const BLOCKED_RETRY_MS = 1_000;
 
 export type DuePollerRefreshResult =
 	| { ok: true }
@@ -51,6 +52,7 @@ export class DuePoller {
 	private running = false;
 	private disposed = false;
 	private backoff = false;
+	private blocked = false;
 
 	constructor(options: DuePollerOptions) {
 		this.core = options.core;
@@ -132,6 +134,7 @@ export class DuePoller {
 		if (nextRunAt === undefined) return;
 		let delay = Math.max(0, nextRunAt - now);
 		if (delay === 0 && this.backoff) delay = FAILURE_RETRY_MS;
+		else if (delay < BLOCKED_RETRY_MS && this.blocked) delay = BLOCKED_RETRY_MS;
 		delay = Math.min(delay, MAX_TIMEOUT_MS);
 		const handle = this.timers.set(() => this.fire(), delay);
 		if (!this.keepAlive) handle.unref?.();
@@ -142,13 +145,25 @@ export class DuePoller {
 		this.handle = undefined;
 		if (!this.running || this.disposed) return;
 		let backoff = true;
+		let blocked = false;
 		try {
 			const results = this.core.runDue(this.deliver);
-			backoff = results.some((result) => result.kind !== "executed");
+			// Hard failures (disk/systemic) back off 60s; benign blocks such as
+			// already-running only need a short retry — a global 60s backoff here
+			// starved every independent task whenever one overlapped its run.
+			backoff = results.some(
+				(result) =>
+					result.kind === "failed" ||
+					result.kind === "unavailable" ||
+					result.kind === "compromised",
+			);
+			blocked = results.some((result) => result.kind !== "executed");
 		} catch {
 			backoff = true;
+			blocked = true;
 		}
 		this.backoff = backoff;
+		this.blocked = blocked;
 		try {
 			this.afterRun?.();
 		} catch {

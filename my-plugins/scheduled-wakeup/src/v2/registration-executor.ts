@@ -1,4 +1,5 @@
 import type { SharedDefinitionStore } from "./definition-store.js";
+import { LoopTaskActiveError } from "../task-dispatcher.js";
 import { advanceProgress, isDue, type ExecutionResult, type ExecutionTarget, type Registration, type SharedDefinition } from "./model.js";
 import type { RegistrationExecutionLock } from "./registration-execution-lock.js";
 import type { RegistrationStore } from "./registration-store.js";
@@ -58,6 +59,8 @@ export class RegistrationExecutor {
 			deliver({ id: registration.id, scope: definition.scope, ...cloneTaskContent(definition) });
 			return undefined;
 		} catch (error) {
+			if (error instanceof LoopTaskActiveError)
+				return { kind: "already-running", id: registration.id };
 			return { kind: "failed", id: registration.id, message: errorMessage(error) };
 		}
 	}

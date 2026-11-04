@@ -63,6 +63,11 @@ export function createLoopRuntime(
 		onChange: () => {
 			syncBoulder();
 			widget.refresh();
+			// Run-state changes (completion/cancel) must re-arm the poller now;
+			// its previous timer may be sitting on a stale long delay while a
+			// due task waits for the finished run (the "waiting 0s" window).
+			const result = runtime.poller?.reschedule();
+			if (result?.ok === false) notifyLoop(ctx, result.message, "error");
 		},
 		onSettled: () => {
 			const result = runtime.poller?.reschedule();

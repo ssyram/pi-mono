@@ -104,11 +104,15 @@ export function loopWidgetLines(
 			: "";
 		let line: string;
 		if (item.running) {
-			const { success, completed, total, current } = item.running;
+			const { success, completed, total, current, startedAt, budgetMs } =
+				item.running;
 			const command = current
 				? `${current.path} ${current.params.map((param) => JSON.stringify(param)).join(" ")}`
 				: "Finishing";
-			line = `Running (${success}/${completed}/${total}) ${command} · ${label}${queued}`;
+			const elapsed = formatDuration(Math.max(0, now - startedAt));
+			const budget =
+				budgetMs === undefined ? "" : `/${formatDuration(budgetMs)}`;
+			line = `Running (${success}/${completed}/${total}) ${command} · ${elapsed}${budget} · ${label}${queued}`;
 		} else if (item.pendingDelivery !== undefined && item.nextRunAt === undefined) {
 			line = `Pending delivery (${item.pendingDelivery.shouldWake ? "wake" : "no wake"}) · ${label}${queued}`;
 		} else {

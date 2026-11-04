@@ -5,6 +5,7 @@ import {
 	type TUI,
 	truncateToWidth,
 } from "@earendil-works/pi-tui";
+import { formatDuration } from "./format-duration.js";
 import { loopErrorMessage } from "./loop-error-message.js";
 import { notifyLoop } from "./loop-notification.js";
 import {
@@ -36,9 +37,13 @@ const queuedSuffix = (list: readonly LoopWidgetItem[]): string => {
 	return formatQueuedSuffix(wakeUps, noWakes);
 };
 
-const runningSegment = (list: readonly LoopWidgetItem[]): string => {
-	const running = list.filter((item) => item.running !== undefined).length;
-	return running > 0 ? ` · ${running} running` : "";
+const runningSegment = (list: readonly LoopWidgetItem[], now: number): string => {
+	const started = list
+		.map((item) => item.running?.startedAt)
+		.filter((value): value is number => value !== undefined);
+	if (started.length === 0) return "";
+	const elapsed = formatDuration(Math.max(0, now - Math.min(...started)));
+	return ` · ${started.length} running (${elapsed})`;
 };
 
 export function createRunningWidget(
@@ -132,7 +137,7 @@ export function createRunningWidget(
 				ctx.ui.setWidget(
 					KEY,
 					[
-						` ${SPINNER_FRAMES[0]} Loop · ${items.length} scheduled${runningSegment(items)}${waitingSegment(items)}${queuedSuffix(items)}`,
+						` ${SPINNER_FRAMES[0]} Loop · ${items.length} scheduled${runningSegment(items, Date.now())}${waitingSegment(items)}${queuedSuffix(items)}`,
 					],
 					{
 						placement: "aboveEditor",
@@ -162,7 +167,7 @@ export function createRunningWidget(
 										expanded = false;
 										updateTimer();
 									}
-									const label = ` ${SPINNER_FRAMES[spinnerFrame]} Loop · ${items.length} scheduled${runningSegment(items)}${waitingSegment(items)}${queuedSuffix(items)}`;
+									const label = ` ${SPINNER_FRAMES[spinnerFrame]} Loop · ${items.length} scheduled${runningSegment(items, Date.now())}${waitingSegment(items)}${queuedSuffix(items)}`;
 									const summary = theme.fg(
 										"accent",
 										truncateToWidth(label, columns),

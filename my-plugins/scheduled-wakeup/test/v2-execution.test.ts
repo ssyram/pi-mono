@@ -9,6 +9,8 @@ import type { SessionEntryLike, SessionEntryPort } from "../src/v2/session-entry
 
 const NOW = 50_000;
 
+import { LoopTaskActiveError } from "../src/task-dispatcher.js";
+
 describe("Loop 2.0 execution", () => {
 	it("excludes a concurrent process from executing the same registration and restores completed progress", async () => {
 		const roots = createRoots();
@@ -55,6 +57,21 @@ describe("Loop 2.0 execution", () => {
 		const cancellable = core.createSessionTask({ prompt: "cancel me", schedule: { kind: "interval", intervalMs: 100 } });
 		assert.equal(core.cancelSessionTask(cancellable.id), "cancelled");
 		assert.equal(core.executeSessionTask(cancellable.id, () => undefined).kind, "missing");
+	});
+
+	it("maps an active-run overlap to already-running without advancing the schedule", async () => {
+		const journal = createJournal();
+		const core = createCore("session-local", journal.port, createRoots());
+		const task = core.createSessionTask({ prompt: "overlap", schedule: { kind: "once", runAt: NOW } });
+		let active = true;
+		const deliver = (): void => {
+			if (active) throw new LoopTaskActiveError(task.id);
+		};
+		assert.equal(core.executeSessionTask(task.id, deliver).kind, "already-running");
+		assert.equal(core.snapshotSessionState().tasks[0]?.progress.runCount, 0, "stays due for retry");
+		active = false;
+		assert.equal(core.executeSessionTask(task.id, deliver).kind, "executed");
+		assert.equal(core.snapshotSessionState().tasks[0]?.progress.runCount, 1);
 	});
 
 	it("returns busy when cancellation meets another task's state lock", async () => {

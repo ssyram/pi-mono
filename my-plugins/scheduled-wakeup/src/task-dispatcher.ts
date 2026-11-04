@@ -17,11 +17,22 @@ import type { ExecutionTarget } from "./v2/model.js";
 export type RunningTask = {
 	id: string;
 	wakeUpId: string;
+	startedAt: number;
+	/** Wedged-escape budget in ms; undefined means unlimited (null timeout). */
+	budgetMs?: number | undefined;
 	success: number;
 	completed: number;
 	total: number;
 	current?: ScriptSpec | undefined;
 };
+
+/** Thrown by dispatch() when the task's previous run is still active;
+ * executors map it to a benign ExecutionResult instead of a failure. */
+export class LoopTaskActiveError extends Error {
+	constructor(taskId: string) {
+		super(`Loop task ${taskId} is already running`);
+	}
+}
 
 export type DeliveryStatus = { wakeUps: number; noWakes: number };
 
@@ -173,7 +184,7 @@ export function createTaskDispatcher(
 						.then(() => refresh())
 						.catch(() => undefined);
 				}
-				throw new Error(`Loop task ${target.id} is already running`);
+				throw new LoopTaskActiveError(target.id);
 			}
 			if (
 				target.scriptTask !== undefined &&
@@ -218,6 +229,8 @@ export function createTaskDispatcher(
 					return {
 						id: view.taskId,
 						wakeUpId: view.taskId,
+						startedAt: view.startedAt,
+						budgetMs: runBudgetMs(view),
 						success: status?.success ?? 0,
 						completed: status?.completed ?? 0,
 						total: status?.total ?? scripts.length,
@@ -326,15 +339,22 @@ export function createTaskDispatcher(
 	return runtimeExports;
 }
 
-function isWedged(view: RunView): boolean {
+/** Shared with the widget so the displayed max always equals the enforced one. */
+export function runBudgetMs(view: RunView): number | undefined {
 	const scripts = view.record.payload.scriptTask?.scripts ?? [];
 	// null means unlimited: a legal long run must never be force-cancelled.
-	if (scripts.some((script) => script.timeoutSeconds === null)) return false;
+	if (scripts.some((script) => script.timeoutSeconds === null)) return undefined;
 	const timeoutSeconds = Math.max(
 		0,
 		...scripts.map((script) => script.timeoutSeconds ?? 1800),
 		1800,
 	);
+	return timeoutSeconds * 1000 + 120_000;
+}
+
+function isWedged(view: RunView): boolean {
+	const budget = runBudgetMs(view);
+	if (budget === undefined) return false;
 	const lastUpdate = view.status?.updatedAt ?? view.startedAt;
-	return Date.now() - lastUpdate > timeoutSeconds * 1000 + 120_000;
+	return Date.now() - lastUpdate > budget;
 }

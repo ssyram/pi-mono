@@ -82,6 +82,7 @@ export type ExecutionResult =
 	| { kind: "missing"; id: string }
 	| { kind: "unavailable"; id: string }
 	| { kind: "not-due"; id: string }
+	| { kind: "already-running"; id: string }
 	| { kind: "failed"; id: string; message: string }
 	| { kind: "compromised"; id: string };
 export type SharedDeleteResult =

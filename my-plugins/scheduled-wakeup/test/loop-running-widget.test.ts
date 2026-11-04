@@ -14,6 +14,7 @@ const row: LoopWidgetItem = {
 	running: {
 		id: "session:example",
 		wakeUpId: "run",
+		startedAt: 0,
 		success: 2,
 		completed: 3,
 		total: 5,
@@ -76,6 +77,7 @@ test("waiting items keep a nonzero summary; zero and show off hide it", async ()
 			running: {
 				id: "busy",
 				wakeUpId: "busy",
+				startedAt: 0,
 				success: 0,
 				completed: 0,
 				total: 2,
@@ -87,7 +89,7 @@ test("waiting items keep a nonzero summary; zero and show off hide it", async ()
 	assert.ok(header, "header must exist");
 	assert.match(
 		header.render(80)[0] ?? "",
-		/\u25D3 Loop · 2 scheduled · 1 running/,
+		/\u25D3 Loop · 2 scheduled · 1 running \(\d+[yMdhms][0-9yMdhms]*\)/,
 	);
 	items = [];
 	widget.refresh();
@@ -246,7 +248,7 @@ test("running items suppress the waiting segment", () => {
 	const setup = fixture("fullscreen");
 	const widget = createRunningWidget(setup.ctx, () => [
 		{ id: "far", nextRunAt: Date.now() + 60_000 },
-		{ id: "run", running: { id: "run", wakeUpId: "r1", success: 0, completed: 0, total: 1 } },
+		{ id: "run", running: { id: "run", wakeUpId: "r1", startedAt: 0, success: 0, completed: 0, total: 1 } },
 	]);
 	widget.refresh();
 	assert.doesNotMatch(
@@ -255,4 +257,80 @@ test("running items suppress the waiting segment", () => {
 		"running present means no waiting segment",
 	);
 	widget.dispose();
+});
+
+
+test("collapsed header counts up the longest running entry at 1s", (t) => {
+	t.mock.timers.enable({ apis: ["Date", "setInterval"], now: 10_000 });
+	const setup = fixture("fullscreen");
+	const widget = createRunningWidget(setup.ctx, () => [
+		{
+			id: "older",
+			running: {
+				id: "older",
+				wakeUpId: "r1",
+				startedAt: 4_000,
+				budgetMs: 300_000,
+				success: 0,
+				completed: 0,
+				total: 1,
+			},
+		},
+		{
+			id: "newer",
+			running: {
+				id: "newer",
+				wakeUpId: "r2",
+				startedAt: 7_000,
+				budgetMs: 600_000,
+				success: 0,
+				completed: 0,
+				total: 1,
+			},
+		},
+	]);
+	widget.refresh();
+	const header = setup.header;
+	assert.ok(header);
+	assert.match(header.render(80)[0] ?? "", /· 2 running \(6s\)/);
+	t.mock.timers.tick(1000);
+	assert.match(header.render(80)[0] ?? "", /· 2 running \(7s\)/);
+	widget.dispose();
+});
+
+test("running per-item line shows elapsed over budget, unlimited has no cap", () => {
+	const now = 100_000;
+	const lines = loopWidgetLines(
+		[
+			{
+				id: "capped",
+				running: {
+					id: "capped",
+					wakeUpId: "r1",
+					startedAt: now - 90_000,
+					budgetMs: 302_000,
+					success: 1,
+					completed: 1,
+					total: 2,
+					current: { cwd: "/w", path: "/w/one", params: [], timeoutSeconds: 180 },
+				},
+			},
+			{
+				id: "free",
+				running: {
+					id: "free",
+					wakeUpId: "r2",
+					startedAt: now - 60_000,
+					success: 0,
+					completed: 0,
+					total: 1,
+				},
+			},
+		],
+		80,
+		now,
+	);
+	assert.match(lines[0] ?? "", /Running \(1\/1\/2\).* · 1m30s\/5m2s · /);
+	assert.match(lines[1] ?? "", /Running \(0\/0\/1\).* · 1m · /);
+	assert.doesNotMatch(lines[1] ?? "", /1m\//);
 });
