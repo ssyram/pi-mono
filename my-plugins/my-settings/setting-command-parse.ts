@@ -51,7 +51,7 @@ function scanFlags(body: string, allowScopes: boolean): FlagScan {
 	const matches = [...body.matchAll(/\S+/g)];
 	let restStart = body.length;
 	for (let index = 0; index < matches.length; index++) {
-		const token = matches[index][0];
+		const token = matches[index]![0]!;
 		if (token === "--session" && !scopes.includes("session")) {
 			scopes.push("session");
 			continue;
@@ -78,7 +78,7 @@ function scanFlags(body: string, allowScopes: boolean): FlagScan {
 			index++;
 			continue;
 		}
-		restStart = matches[index].index ?? 0;
+		restStart = matches[index]!.index ?? 0;
 		break;
 	}
 	return { scopes, paths, restStart };
@@ -96,13 +96,13 @@ function rejectFlagTokens(sub: string, args: ParsedArg[]): string | undefined {
 
 function sortedScopes(scopes: SettingScopeFlag[]): SettingScopeFlag[] {
 	const order: Record<string, number> = { global: 0, local: 1, session: 2 };
-	return [...scopes].sort((left, right) => order[left] - order[right]);
+	return [...scopes].sort((left, right) => (order[left] ?? 0) - (order[right] ?? 0));
 }
 
 export function parseSettingCommand(args: string): ParsedSettingCommand {
 	const tokens = args.trim().split(/\s+/).filter(Boolean);
-	if (tokens.length === 0 || tokens[0] === "help") return { kind: "help" };
 	const sub = tokens[0];
+	if (sub === undefined || sub === "help") return { kind: "help" };
 	const body = args.trim().slice(sub.length).trim();
 	if (sub === "set") {
 		const scan = scanFlags(body, true);
@@ -116,7 +116,7 @@ export function parseSettingCommand(args: string): ParsedSettingCommand {
 		const outcome = parseArg(body, scan.restStart);
 		if (!outcome.ok) return { kind: "error", message: outcome.message };
 		const { value: key, quoted, end } = outcome.arg;
-		if (quoted && end < body.length && !/\s/.test(body[end])) {
+		if (quoted && end < body.length && !/\s/.test(body.charAt(end))) {
 			return {
 				kind: "error",
 				message: `KEY 引号后必须跟空白：${body.slice(scan.restStart, end + 1)}`,

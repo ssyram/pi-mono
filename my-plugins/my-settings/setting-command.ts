@@ -49,8 +49,8 @@ async function runSet(
 	const client = createMySettingsClient(bus, identity);
 	const save = {
 		values: { [command.key]: parsed },
-		globalPath: command.paths.globalFile,
-		localPath: command.paths.localFile,
+		...(command.paths.globalFile === undefined ? {} : { globalPath: command.paths.globalFile }),
+		...(command.paths.localFile === undefined ? {} : { localPath: command.paths.localFile }),
 	};
 	const lines: string[] = [];
 	for (const scope of command.scopes) {
@@ -77,8 +77,8 @@ async function runUnset(
 	const client = createMySettingsClient(bus, identity);
 	const unset = {
 		keys: command.keys,
-		globalPath: command.paths.globalFile,
-		localPath: command.paths.localFile,
+		...(command.paths.globalFile === undefined ? {} : { globalPath: command.paths.globalFile }),
+		...(command.paths.localFile === undefined ? {} : { localPath: command.paths.localFile }),
 	};
 	const lines: string[] = [];
 	for (const scope of command.scopes) {

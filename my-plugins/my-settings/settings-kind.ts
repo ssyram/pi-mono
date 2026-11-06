@@ -21,7 +21,7 @@ export function pickValidFields(source: string, defaults: Settings, raw: Setting
 		const picked: Settings = {};
 		for (const key of Object.keys(defaults)) {
 			if (!(key in raw)) continue;
-			const expected = kindOf(defaults[key]);
+			const expected = kindOf(defaults[key]!);
 			const actualRaw: unknown = raw[key];
 			const actual = kindOf(actualRaw as SettingValue);
 			if (actual !== expected) {

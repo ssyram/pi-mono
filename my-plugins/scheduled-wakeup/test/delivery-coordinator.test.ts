@@ -47,15 +47,33 @@ function pendingView(
 	};
 }
 
+function runViewUrgency(
+	taskId: string,
+	urgency: "followUp" | "steering" | "onceReady",
+	shouldWake = false,
+): RunView {
+	const view = pendingView(taskId, shouldWake, undefined);
+	view.record.payload.urgency = urgency;
+	return view;
+}
+
 function fixture(options: { failSends?: number; idleSequence?: boolean[] } = {}) {
 	const state = { idle: true };
 	let failSends = options.failSends ?? 0;
 	const idleSequence = [...(options.idleSequence ?? [])];
-	const messages: { customType: string; content: unknown; options?: { triggerTurn?: boolean } }[] = [];
+	const messages: {
+		customType: string;
+		content: unknown;
+		options?: { triggerTurn?: boolean; deliverAs?: string };
+	}[] = [];
+	const aborts: number[] = [];
 	const handlers = new Map<string, (event: unknown) => unknown>();
 	const markers: { dir: string; how?: string; stage?: string }[] = [];
 	const catalog = {
-		markDelivered(dir: string, how: "idle-send" | "boundary-entries") {
+		markDelivered(
+			dir: string,
+			how: "idle-send" | "boundary-entries" | "steer-send",
+		) {
 			markers.push({ dir, how });
 		},
 		markCancelled(dir: string, stage: "running" | "pendingDelivery") {
@@ -65,7 +83,7 @@ function fixture(options: { failSends?: number; idleSequence?: boolean[] } = {})
 	const pi = {
 		sendMessage: (
 			message: { customType: string; content: unknown },
-			options?: { triggerTurn?: boolean },
+			options?: { triggerTurn?: boolean; deliverAs?: string },
 		) => {
 			if (failSends > 0) {
 				failSends -= 1;
@@ -80,10 +98,12 @@ function fixture(options: { failSends?: number; idleSequence?: boolean[] } = {})
 		},
 	} as unknown as ExtensionAPI;
 	let now = 1000;
+	const streamingFlags: boolean[] = [];
 	const ctx = {
 		isIdle: () =>
 			idleSequence.length > 0 ? (idleSequence.shift() as boolean) : state.idle,
 		hasPendingMessages: () => false,
+		abort: () => aborts.push(now),
 	} as unknown as ExtensionContext;
 	const coordinator = createDeliveryCoordinator(pi, ctx, catalog, () => now);
 	return {
@@ -91,6 +111,13 @@ function fixture(options: { failSends?: number; idleSequence?: boolean[] } = {})
 		messages,
 		handlers,
 		markers,
+		aborts,
+		setStreaming(value: boolean) {
+			const name = value ? "message_start" : "message_end";
+			(handlers.get(name) as ((event: { message: { role: string } }) => void) | undefined)?.(
+				{ message: { role: "assistant" } },
+			);
+		},
 		setIdle(value: boolean) {
 			state.idle = value;
 		},
@@ -344,4 +371,62 @@ test("E19-fix: boundary markers land via timer without agent_settled", async () 
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
+});
+
+test("busy steering injects only inside a streaming window, waits mid-tool", () => {
+	const setup = fixture();
+	setup.setIdle(false);
+	setup.coordinator.enqueueRun(runViewUrgency("s:steer", "steering"));
+	assert.equal(setup.messages.length, 0, "mid-tool: not streaming, stays pending");
+	assert.deepEqual(setup.aborts, []);
+	setup.setStreaming(true);
+	assert.equal(setup.messages.length, 1, "message_start pumps the window open");
+	assert.equal(setup.messages[0]?.options?.deliverAs, "steer");
+	assert.deepEqual(
+		setup.markers.map((marker) => marker.how),
+		["steer-send"],
+	);
+	setup.coordinator.dispose();
+});
+
+test("busy onceReady aborts once, delivers after the turn ends, no repeat aborts", () => {
+	const setup = fixture();
+	setup.setIdle(false);
+	setup.coordinator.enqueueRun(runViewUrgency("s:urgent", "onceReady"));
+	assert.deepEqual(setup.aborts.length, 1, "abort the active turn exactly once");
+	assert.equal(setup.messages.length, 0, "nothing sent while the turn is still up");
+	setup.coordinator.pump();
+	assert.deepEqual(setup.aborts.length, 1, "no repeated abort while waiting");
+	const settled = setup.handlers.get("agent_settled");
+	assert.ok(settled);
+	setup.setIdle(true);
+	(settled as (event: unknown) => void)({ type: "agent_settled" });
+	assert.equal(setup.messages.length, 1);
+	assert.equal(setup.messages[0]?.options?.deliverAs, "followUp");
+	setup.coordinator.dispose();
+});
+
+test("delivery barriers hold urgent deliveries too", () => {
+	const setup = fixture();
+	setup.coordinator.setDeliveryBarrier("s:urgent", true);
+	setup.coordinator.enqueueRun(runViewUrgency("s:urgent", "onceReady"));
+	assert.equal(setup.messages.length, 0);
+	assert.deepEqual(setup.aborts, []);
+	setup.coordinator.setDeliveryBarrier("s:urgent", false);
+	setup.coordinator.pump();
+	assert.equal(setup.messages.length, 1);
+	setup.coordinator.dispose();
+});
+
+test("steering send failure keeps the item pending like idle sends", () => {
+	const setup = fixture({ failSends: 1 });
+	setup.setIdle(false);
+	setup.setStreaming(true);
+	setup.coordinator.enqueueRun(runViewUrgency("s:steer", "steering"));
+	assert.equal(setup.messages.length, 0);
+	setup.setIdle(true);
+	const settled = setup.handlers.get("agent_settled");
+	(settled as (event: unknown) => void)({ type: "agent_settled" });
+	assert.equal(setup.messages.length, 1);
+	setup.coordinator.dispose();
 });

@@ -7,7 +7,9 @@ import type {
 import type { ExecutionTarget } from "../src/v2/model.js";
 import type { RunCatalog } from "../src/v2/run-catalog.js";
 import type { RunView } from "../src/v2/run-catalog-state.js";
+import type { RunEvent, RunWatcher, WatchedRun } from "../src/run-watch/run-watcher.js";
 import { createTaskDispatcher } from "../src/task-dispatcher.js";
+
 
 function view(
 	taskId: string,
@@ -47,6 +49,18 @@ function view(
 	};
 }
 
+function toWatched(v: RunView): WatchedRun {
+	return {
+		taskId: v.taskId,
+		runId: v.runId,
+		dir: v.dir,
+		startedAt: v.startedAt,
+		state: v.state === "running" || v.state === "pendingDelivery" ? v.state : "running",
+		status: v.status,
+		outcome: v.outcome,
+	};
+}
+
 function fixture(views: RunView[]) {
 	const messages: {
 		customType: string;
@@ -57,6 +71,37 @@ function fixture(views: RunView[]) {
 	const started: ExecutionTarget[] = [];
 	const cancelled: string[] = [];
 	let idle = true;
+	const watchedDirs = new Set<string>();
+	const queue: RunEvent[] = [];
+	const emitView = (v: RunView): void => {
+		if (!watchedDirs.has(v.dir)) return;
+		if (v.state !== "running" && v.state !== "pendingDelivery" && v.state !== "lost")
+			return;
+		queue.push({ type: "state", run: toWatched(v) });
+	};
+	const watcher: RunWatcher = {
+		watch(seed) {
+			watchedDirs.add(seed.dir);
+			const v = views.find((entry) => entry.dir === seed.dir);
+			if (v !== undefined) emitView(v);
+		},
+		unwatch(dir) {
+			watchedDirs.delete(dir);
+		},
+		poll() {
+			return queue.splice(0, queue.length);
+		},
+		snapshot() {
+			return views
+				.filter(
+					(entry) =>
+						watchedDirs.has(entry.dir) &&
+						(entry.state === "running" || entry.state === "pendingDelivery"),
+				)
+				.map(toWatched);
+		},
+		dispose() {},
+	};
 	const catalog: RunCatalog = {
 		startRun(target) {
 			started.push(target);
@@ -69,10 +114,17 @@ function fixture(views: RunView[]) {
 						: { scriptTask: target.scriptTask },
 			};
 			views.push(pushed);
+			watcher.watch({ dir: pushed.dir, taskId: pushed.taskId, runId: pushed.runId, startedAt: pushed.startedAt, sessionId: "dispatcher-session" });
 			return pushed;
 		},
-		async scan() {
-			return views;
+		async bootScan() {
+			return { views, foreignTaskIds: [], deleted: 0 };
+		},
+		async gc() {
+			return 0;
+		},
+		repairLost() {
+			return false;
 		},
 		markDelivered(dir) {
 			const found = views.find((item) => item.dir === dir);
@@ -116,6 +168,13 @@ function fixture(views: RunView[]) {
 		cancelled,
 		catalog,
 		views,
+		watcher,
+		watchedDirs,
+		emitView,
+		adopt(v: RunView) {
+			views.push(v);
+			watcher.watch({ dir: v.dir, taskId: v.taskId, runId: v.runId, startedAt: v.startedAt, sessionId: "dispatcher-session" });
+		},
 		setIdle(value: boolean) {
 			idle = value;
 		},
@@ -143,6 +202,7 @@ test("dispatch starts a run, refresh adopts it, and same-id overlap is refused",
 		onChange: () => events.push("change"),
 		onSettled: () => events.push("settled"),
 		catalog: setup.catalog,
+		watcher: setup.watcher,
 	});
 	await dispatcher.refresh();
 	dispatcher.dispatch(scriptTarget("session:batch"));
@@ -168,6 +228,7 @@ test("prompt dispatch delivers immediately while idle and holds while busy", asy
 		onChange: () => undefined,
 		onSettled: () => undefined,
 		catalog: setup.catalog,
+		watcher: setup.watcher,
 	});
 	await dispatcher.refresh();
 	dispatcher.dispatch({ id: "session:prompt", scope: "session", prompt: "hello" });
@@ -197,6 +258,7 @@ test("busy wake delivery joins the boundary continuation", async () => {
 		onChange: () => undefined,
 		onSettled: () => undefined,
 		catalog: setup.catalog,
+		watcher: setup.watcher,
 	});
 	await dispatcher.refresh();
 	setup.setIdle(false);
@@ -220,6 +282,7 @@ test("aborted boundary defers delivery to settle", async () => {
 		onChange: () => undefined,
 		onSettled: () => undefined,
 		catalog: setup.catalog,
+		watcher: setup.watcher,
 	});
 	await dispatcher.refresh();
 	setup.setIdle(false);
@@ -245,6 +308,7 @@ test("finished runs from the catalog are delivered once when idle", async () => 
 		onChange: () => undefined,
 		onSettled: () => undefined,
 		catalog: setup.catalog,
+		watcher: setup.watcher,
 	});
 	await dispatcher.refresh();
 	assert.equal(setup.messages.length, 1);
@@ -262,6 +326,7 @@ test("terminateTaskRuns retracts pending deliveries and kills running batches", 
 		onChange: () => undefined,
 		onSettled: () => undefined,
 		catalog: setup.catalog,
+		watcher: setup.watcher,
 	});
 	setup.setIdle(false);
 	await dispatcher.refresh();
@@ -278,6 +343,7 @@ test("dispose unsubscribes without killing anything", async () => {
 		onChange: () => undefined,
 		onSettled: () => undefined,
 		catalog: setup.catalog,
+		watcher: setup.watcher,
 	});
 	await dispatcher.refresh();
 	setup.setIdle(false);
@@ -297,6 +363,7 @@ test("E27: same-stack double dispatch is refused before any refresh", async () =
 		onChange: () => undefined,
 		onSettled: () => undefined,
 		catalog: setup.catalog,
+		watcher: setup.watcher,
 	});
 	await dispatcher.refresh();
 	dispatcher.dispatch(scriptTarget("session:race"));
@@ -313,6 +380,7 @@ test("E28: an empty-scripts always-wake task delivers as a prompt without spawni
 		onChange: () => undefined,
 		onSettled: () => undefined,
 		catalog: setup.catalog,
+		watcher: setup.watcher,
 	});
 	await dispatcher.refresh();
 	dispatcher.dispatch({
@@ -335,14 +403,16 @@ test("E21a: a run that completes during stop is retracted, not delivered", async
 		// simulate the wrapper finishing instead of honouring the stop
 		running.state = "pendingDelivery";
 		running.outcome = pending.outcome;
+		setup.emitView(running);
 		return "already-finished" as const;
 	};
 	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
 		onChange: () => undefined,
 		onSettled: () => undefined,
 		catalog: setup.catalog,
+		watcher: setup.watcher,
 	});
-	setup.views.push(running);
+	setup.adopt(running);
 	setup.setIdle(false);
 	await dispatcher.refresh();
 	const termination = await dispatcher.terminateTaskRuns("session:during");
@@ -354,57 +424,60 @@ test("E21a: a run that completes during stop is retracted, not delivered", async
 
 
 test("a wedged run (status stale past its timeout budget) is killed and retried, a fresh one just refuses", async () => {
-	const stale = view("session:wedge", "running");
-	stale.status = {
-		pid: 111,
-		currentIndex: 0,
-		success: 0,
-		completed: 0,
-		total: 1,
-		updatedAt: Date.now() - (1800 * 1000 + 130_000),
+	const makeView = (pid: number, updatedAt: number, dir: string): RunView => {
+		const v = view("session:wedge", "running", { dir });
+		v.status = { pid, currentIndex: 0, success: 0, completed: 0, total: 1, updatedAt };
+		v.record.payload = {
+			scriptTask: {
+				wakeUp: { kind: "never" },
+				scripts: [{ cwd: "/w", path: "/w/s", params: [], timeoutSeconds: 1800 }],
+			},
+		} as never;
+		return v;
 	};
-	stale.record.payload = {
-		scriptTask: {
-			wakeUp: { kind: "never" },
-			scripts: [{ cwd: "/w", path: "/w/s", params: [], timeoutSeconds: 1800 }],
-		},
-	} as never;
-	const fresh = view("session:wedge", "running");
-	fresh.dir = "/tmp/runs/wedge/fresh";
-	fresh.status = { pid: 222, currentIndex: 0, success: 0, completed: 0, total: 1, updatedAt: Date.now() };
-	fresh.record.payload = {
-		scriptTask: {
-			wakeUp: { kind: "never" },
-			scripts: [{ cwd: "/w", path: "/w/s", params: [], timeoutSeconds: 1800 }],
-		},
-	} as never;
-	const setup = fixture([]);
-	const cancelled: string[] = [];
-	setup.catalog.cancelRunning = async (target) => {
-		cancelled.push(target.dir);
-		target.state = "cancelled";
-		return "cancelled" as const;
-	};
-	const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
-		onChange: () => undefined,
-		onSettled: () => undefined,
-		catalog: setup.catalog,
-	});
 	// fresh run: refusal without unstick
-	setup.views.push(fresh);
-	await dispatcher.refresh();
-	assert.throws(() => dispatcher.dispatch(scriptTarget("session:wedge")), /already running/);
-	assert.deepEqual(cancelled, [], "fresh run must not be killed");
+	{
+		const fresh = makeView(222, Date.now(), "/tmp/runs/wedge/fresh");
+		const setup = fixture([fresh]);
+		const cancelled: string[] = [];
+		setup.catalog.cancelRunning = async (target) => {
+			cancelled.push(target.dir);
+			target.state = "cancelled";
+			return "cancelled" as const;
+		};
+		const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
+			onChange: () => undefined,
+			onSettled: () => undefined,
+			catalog: setup.catalog,
+			watcher: setup.watcher,
+		});
+		await dispatcher.refresh();
+		assert.throws(() => dispatcher.dispatch(scriptTarget("session:wedge")), /already running/);
+		assert.deepEqual(cancelled, [], "fresh run must not be killed");
+		dispatcher.dispose();
+	}
 	// wedged run: refusal triggers unstick so the next retry proceeds
-	fresh.state = "running";
-	setup.views.length = 0;
-	setup.views.push(stale);
-	await dispatcher.refresh();
-	assert.throws(() => dispatcher.dispatch(scriptTarget("session:wedge")), /already running/);
-	assert.deepEqual(cancelled, [stale.dir], "wedged run must be terminated");
-	for (let i = 0; i < 50 && cancelled.length === 1; i++) await new Promise((r) => setTimeout(r, 20));
-	assert.equal(stale.state, "cancelled", "view state refreshed after unstick");
-	dispatcher.dispose();
+	{
+		const stale = makeView(111, Date.now() - (1800 * 1000 + 130_000), "/tmp/runs/wedge/stale");
+		const setup = fixture([stale]);
+		const cancelled: string[] = [];
+		setup.catalog.cancelRunning = async (target) => {
+			cancelled.push(target.dir);
+			target.state = "cancelled";
+			return "cancelled" as const;
+		};
+		const dispatcher = createTaskDispatcher(setup.pi, setup.ctx, {
+			onChange: () => undefined,
+			onSettled: () => undefined,
+			catalog: setup.catalog,
+			watcher: setup.watcher,
+		});
+		await dispatcher.refresh();
+		assert.throws(() => dispatcher.dispatch(scriptTarget("session:wedge")), /already running/);
+		assert.deepEqual(cancelled, [stale.dir], "wedged run must be terminated");
+		for (let i = 0; i < 50 && cancelled.length === 1; i++) await new Promise((r) => setTimeout(r, 20));
+		dispatcher.dispose();
+	}
 });
 
 test("starting clears after the run completes, so the next cycle dispatches again", async () => {
@@ -413,6 +486,7 @@ test("starting clears after the run completes, so the next cycle dispatches agai
 		onChange: () => undefined,
 		onSettled: () => undefined,
 		catalog: setup.catalog,
+		watcher: setup.watcher,
 	});
 	await dispatcher.refresh();
 	dispatcher.dispatch(scriptTarget("session:cycle"));

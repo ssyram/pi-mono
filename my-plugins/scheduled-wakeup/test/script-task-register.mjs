@@ -7,8 +7,29 @@ registerHooks({
 		const sdkRoot = process.env.PI_LOOP_TEST_SDK_ROOT;
 		if (
 			sdkRoot !== undefined &&
-			specifier === "@earendil-works/pi-coding-agent"
+			(specifier === "@earendil-works/pi-coding-agent" ||
+				specifier === "@earendil-works/pi-mcp" ||
+				specifier === "@earendil-works/pi-ai" ||
+				specifier === "@earendil-works/pi-tui")
 		) {
+			if (specifier === "@earendil-works/pi-tui")
+				return nextResolve(
+					pathToFileURL(join(sdkRoot, "..", "pi-tui", "dist", "index.js"))
+						.href,
+					context,
+				);
+			if (specifier === "@earendil-works/pi-ai")
+				return nextResolve(
+					pathToFileURL(join(sdkRoot, "..", "pi-ai", "dist", "index.js"))
+						.href,
+					context,
+				);
+			if (specifier === "@earendil-works/pi-mcp")
+				return nextResolve(
+					pathToFileURL(join(sdkRoot, "..", "pi-mcp", "dist", "index.js"))
+						.href,
+					context,
+				);
 			return nextResolve(
 				pathToFileURL(join(sdkRoot, "dist", "index.js")).href,
 				context,

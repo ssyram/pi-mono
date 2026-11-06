@@ -5,8 +5,11 @@ import {
 	realpathSync,
 	mkdirSync,
 	mkdtempSync,
+	chmodSync,
+	openSync,
 	readFileSync,
 	rmSync,
+	symlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -14,6 +17,8 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { test } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
+import { spawn } from "node:child_process";
+import { connect } from "node:net";
 
 // True end-to-end: drives a real pi TUI inside tmux, through the globally
 // installed extension (live source via ~/.pi/agent/extensions), real wrapper
@@ -599,7 +604,7 @@ run(
 );
 
 run(
-	"TUI GC: expired terminal runs pruned to newest five",
+	"TUI GC: criteria-based pruning via /loop garbage-collect",
 	{ timeout: 240_000 },
 	async (t) => {
 		const cwd = mkdtempSync(join(tmpdir(), "loop-e2e-gc-"));
@@ -655,18 +660,155 @@ run(
 				}),
 			);
 		}
-		let pruned = false;
-		for (let i = 0; i < 60 && !pruned; i++) {
-			await sleep(500);
-			pruned =
-				!existsSync(join(runsRoot, "old-0")) &&
-				!existsSync(join(runsRoot, "old-1")) &&
-				!existsSync(join(runsRoot, "old-2"));
+		// Criteria semantics: boot-time GC deletes terminals past
+		// loop.gcCriteria (default 3d); pendingDelivery and fresh runs stay.
+		// Trigger a manual pass through the command instead of a reload.
+		await runCommand("/loop garbage-collect");
+		await waitFor(/Loop GC/, 30_000, "gc feedback");
+		const criteria = 3 * 24 * 60 * 60 * 1000;
+		for (let i = 0; i < 7; i += 1) {
+			const expired = weekAgo + i * 1000 < Date.now() - criteria;
+			assert.equal(
+				existsSync(join(runsRoot, `old-${i}`)),
+				!expired,
+				`old-${i} ${expired ? "pruned" : "kept"}`,
+			);
 		}
-		assert.ok(pruned, "three oldest expired runs pruned (8 terminals, keep 5)");
-		for (let i = 3; i < 7; i += 1)
-			assert.equal(existsSync(join(runsRoot, `old-${i}`)), true, `old-${i} kept`);
 		key("C-c");
 		await settle();
+	},
+);
+
+// ---------------------------------------------------------------------------
+// Urgency E2E: mock LLM (mock-llm-server) drives steering + onceReady inside
+// the real TUI. Requires the mock binary; skipped otherwise.
+const MOCK_SERVER = join(
+	homedir(),
+	"workspace/ai-tools/mock-with-pi/target/debug/mock-llm-server",
+);
+const MOCK_PORT = 18099;
+
+async function waitForPort(port: number, timeoutMs: number): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
+	for (;;) {
+		const ok = await new Promise<boolean>((resolve) => {
+			const socket = connect(port, "127.0.0.1");
+			socket.once("connect", () => {
+				socket.destroy();
+				resolve(true);
+			});
+			socket.once("error", () => resolve(false));
+		});
+		if (ok) return;
+		if (Date.now() > deadline) assert.fail("mock-llm-server never came up");
+		await sleep(200);
+	}
+}
+
+run(
+	"TUI urgency E2E: steering injects mid-turn, onceReady aborts and delivers",
+	{ timeout: 300_000, skip: !existsSync(MOCK_SERVER) },
+	async (t) => {
+		const cwd = mkdtempSync(join(tmpdir(), "loop-e2e-urg-"));
+		const home = mkdtempSync(join(tmpdir(), "loop-e2e-urg-home-"));
+		const serverLog = openSync(join(home, "server.log"), "a");
+		const server = spawn(
+			MOCK_SERVER,
+			[
+				"--port",
+				String(MOCK_PORT),
+				"--mounts-file",
+				join(home, "mounts.json"),
+			],
+			{ stdio: ["ignore", serverLog, serverLog], detached: true },
+		);
+		t.after(() => {
+			try {
+				process.kill(-server.pid!, "SIGTERM");
+			} catch {
+				/* already gone */
+			}
+			try {
+				tmux(["kill-session", "-t", SESSION]);
+			} catch {
+				/* already gone */
+			}
+			rmRetry(cwd);
+			rmRetry(home);
+		});
+		chmodSync(join(import.meta.dirname, "e2e", "mock-loop-urgency.mjs"), 0o755);
+		await waitForPort(MOCK_PORT, 15_000);
+		execFileSync(MOCK_SERVER, [
+			"add",
+			join(import.meta.dirname, "e2e", "mock-loop-urgency.mjs"),
+			"--name",
+			"loopurg",
+			"--server-url",
+			`http://127.0.0.1:${MOCK_PORT}`,
+		]);
+
+		// Temp agent home: provider points at the mock; extensions reuse the real
+		// set (live plugin source) via symlink.
+		mkdirSync(join(home, ".pi", "agent"), { recursive: true });
+		symlinkSync(
+			join(homedir(), ".pi", "agent", "extensions"),
+			join(home, ".pi", "agent", "extensions"),
+		);
+		writeFileSync(
+			join(home, ".pi", "agent", "models.json"),
+			JSON.stringify(
+				{
+					providers: {
+						loopmock: {
+							baseUrl: `http://127.0.0.1:${MOCK_PORT}/loopurg/v1`,
+							api: "openai-completions",
+							apiKey: "mock",
+							models: [{ id: "mock-urg" }],
+						},
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+
+		// Session bootstrap under the temp home so pi -c finds a session.
+		const real = realpathSync(cwd);
+		const slug = `--${real.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
+		const sessionsDir = join(home, ".pi", "agent", "sessions", slug);
+		mkdirSync(sessionsDir, { recursive: true });
+		const id = randomUUID();
+		const iso = new Date().toISOString();
+		writeFileSync(
+			join(sessionsDir, `${iso.replaceAll(":", "-").replaceAll(".", "-")}_${id}.jsonl`),
+			`${JSON.stringify({ type: "session", version: 3, id, timestamp: iso, cwd: real })}\n`,
+			"utf8",
+		);
+
+		tmux(["new-session", "-d", "-s", SESSION, "-x", "160", "-y", "40"]);
+		send(`cd ${cwd} && env HOME=${home} ${PI_BIN} -c --model loopmock/mock-urg`);
+		enter();
+		await waitFor(/Scheduled wakeup loaded/, 90_000, "extension load notice");
+
+		send("开始 urgency 测试");
+		enter();
+
+		// Phase 1: steering injects while bash sleep 10 runs; the model reacts
+		// on the next in-turn call.
+		await waitFor(/成功完成 steering 测试/, 90_000, "steering success line");
+
+		// Phase 2: onceReady aborts the sleep-30 turn and delivers the message.
+		await waitFor(/成功完成预期的 onceReady 测试/, 60_000, "onceReady success line");
+
+		// The aborted bash must never print. Wait past the full 30s so a
+		// surviving child cannot dodge the assertion.
+		await sleep(32_000);
+		const history = tmux(["capture-pane", "-t", SESSION, "-p", "-S", "-400"]);
+		assert.doesNotMatch(
+			history,
+			/sleep done/,
+			"onceReady aborted the turn before the long bash finished",
+		);
 	},
 );

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { parseAtTime } from "../src/parse-at-time.js";
 import { parseLoopV2Command } from "../src/v2/parse-v2-command.js";
+import { parseTaskCommand } from "../src/v2/parse-task-command.js";
 
 const NOW = 1_700_000_000_000;
 
@@ -111,3 +112,40 @@ function errorOf(command: ReturnType<typeof parseLoopV2Command>): string {
 	if (command.kind !== "error") throw new Error(`expected error, got ${command.kind}`);
 	return command.message;
 }
+
+
+describe("parseTaskCommand --urgency", () => {
+	it("accepts --urgency=steering/onceReady and defaults to absent", () => {
+		const steer = parseTaskCommand("add", "--urgency=steering 1h check logs", 0);
+		assert.ok(steer.kind !== "error" && "urgency" in steer);
+		assert.equal((steer as { urgency?: string }).urgency, "steering");
+
+		const urgent = parseTaskCommand("add", "--urgency=onceReady 1h check logs", 0);
+		assert.ok(urgent.kind !== "error");
+		assert.equal((urgent as { urgency?: string }).urgency, "onceReady");
+
+		const unknown = parseTaskCommand("add", "--urgency=warp 1h check logs", 0);
+		assert.ok(unknown.kind === "error" && unknown.message.includes("--urgency"));
+
+		const plain = parseTaskCommand("add", "1h check logs", 0);
+		assert.ok(plain.kind !== "error" && !("urgency" in plain));
+	});
+});
+
+
+import { parseGcCriteria } from "../src/v2/gc-criteria.js";
+
+describe("parseGcCriteria", () => {
+	it("maps instant aliases to 0 and durations to ms", () => {
+		assert.equal(parseGcCriteria("instant"), 0);
+		assert.equal(parseGcCriteria("0"), 0);
+		assert.equal(parseGcCriteria("now"), 0);
+		assert.equal(parseGcCriteria("10s"), 10_000);
+		assert.equal(parseGcCriteria("10min"), 600_000);
+		assert.equal(parseGcCriteria("3d"), 3 * 86_400_000);
+		assert.equal(parseGcCriteria("1mon"), 30 * 86_400_000);
+		assert.equal(parseGcCriteria("7month"), 7 * 30 * 86_400_000);
+		assert.equal(parseGcCriteria("warp"), undefined);
+		assert.equal(parseGcCriteria(""), undefined);
+	});
+});

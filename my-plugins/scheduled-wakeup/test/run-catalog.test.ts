@@ -15,8 +15,7 @@ import {
 	writeJsonAtomic,
 } from "../src/script-tasks/run-record.js";
 import {
-	KEEP_AGE_MS,
-	KEEP_PER_TASK,
+	DEFAULT_GC_CRITERIA_MS,
 	START_GRACE_MS,
 	failedOutcome,
 	scanRuns,
@@ -212,10 +211,11 @@ test("cancelled outcomes are terminal even without a marker", async (t) => {
 	assert.deepEqual(await states(root), [{ id: "r1", state: "cancelled" }]);
 });
 
-test("gc keeps the newest five terminals and deletes only older ones", async (t) => {
+test("gc deletes terminals past the criteria age; active runs survive it", async (t) => {
 	const root = makeRoot(t);
-	const old = NOW - KEEP_AGE_MS - 1000;
-	for (let i = 0; i < 7; i += 1) {
+	const criteria = 3 * 86_400_000;
+	const old = NOW - criteria - 1000;
+	for (let i = 0; i < 3; i += 1) {
 		const dir = makeRun(root, "session:a", `r${i}`, "owner-session", old + i);
 		writeJsonAtomic(join(dir, RESULT_FILE), {
 			cancelled: true,
@@ -226,12 +226,31 @@ test("gc keeps the newest five terminals and deletes only older ones", async (t)
 			content: "c",
 		});
 	}
-	await states(root);
-	assert.equal(existsSync(join(root, "session:a", "r0")), false);
-	assert.equal(existsSync(join(root, "session:a", "r1")), false);
-	for (let i = 2; i < 7; i += 1)
-		assert.equal(existsSync(join(root, "session:a", `r${i}`)), true);
-	assert.equal(KEEP_PER_TASK, 5);
+	const freshRun = makeRun(root, "session:a", "fresh", "owner-session", NOW);
+	writeJsonAtomic(join(freshRun, RESULT_FILE), {
+		cancelled: true,
+		results: [],
+		successCount: 0,
+		shouldWake: false,
+		completedAt: NOW,
+		content: "c",
+	});
+	const pendingRun = makeRun(root, "session:a", "pending", "owner-session", old);
+	writeJsonAtomic(join(pendingRun, RESULT_FILE), {
+		cancelled: false,
+		results: [],
+		successCount: 0,
+		shouldWake: false,
+		completedAt: old,
+		content: "pending delivery",
+	});
+	const scanOpts = { synthesize: true, sessionId: "owner-session", now: () => NOW, gcCriteriaMs: criteria };
+	await scanRuns(root, scanOpts);
+	for (let i = 0; i < 3; i += 1)
+		assert.equal(existsSync(join(root, "session:a", `r${i}`)), false, `old r${i} gc'd`);
+	assert.equal(existsSync(join(root, "session:a", "fresh")), true, "fresh terminal kept");
+	assert.equal(existsSync(join(root, "session:a", "pending")), true, "pendingDelivery never gc'd");
+	assert.equal(DEFAULT_GC_CRITERIA_MS, 3 * 86_400_000);
 });
 
 test("E9: a result written between read and probe wins over runner-lost synthesis", async (t) => {
@@ -310,7 +329,7 @@ test("bystander sessions never synthesize or GC foreign runs", async (t) => {
 		["lost"],
 	);
 	assert.equal(existsSync(join(dead, RESULT_FILE)), false);
-	const old = NOW - KEEP_AGE_MS - 5000;
+	const old = NOW - DEFAULT_GC_CRITERIA_MS - 5000;
 	for (let i = 0; i < 7; i += 1) {
 		const dir = makeRun(root, "session:gone", `g${i}`, "owner-session", old + i);
 		writeJsonAtomic(join(dir, RESULT_FILE), {
@@ -326,3 +345,6 @@ test("bystander sessions never synthesize or GC foreign runs", async (t) => {
 	for (let i = 0; i < 7; i += 1)
 		assert.equal(existsSync(join(root, "session:gone", `g${i}`)), true);
 });
+
+
+

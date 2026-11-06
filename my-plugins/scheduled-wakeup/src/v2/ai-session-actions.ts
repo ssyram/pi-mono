@@ -90,9 +90,10 @@ export class AiSessionActions {
 				false,
 				"Error: add requires a valid prompt or prepared scriptTask and a valid schedule.",
 			);
+		const id = this.core.createSessionTask(task).id;
 		return this.result(
 			true,
-			`Added session task ${this.core.createSessionTask(task).id}${task.name === undefined ? "" : ` (${task.name})`}.`,
+			`Added session task ${id}${task.name === undefined ? "" : ` (${task.name})`}.${task.urgency === "onceReady" ? " ⚠️ urgency=onceReady：忙时投递会强行中止当前 turn 并丢弃未落盘的生成内容。" : ""}`,
 		);
 	}
 

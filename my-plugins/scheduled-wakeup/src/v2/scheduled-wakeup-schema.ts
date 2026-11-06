@@ -37,6 +37,19 @@ export const ScheduledWakeupParams = Type.Object({
 				"Include run-completed/report-sent timestamps in the delivered loop message. Default false (current behavior).",
 		}),
 	),
+	urgency: Type.Optional(
+		Type.Union(
+			[
+				Type.Literal("followUp"),
+				Type.Literal("steering"),
+				Type.Literal("onceReady"),
+			],
+			{
+				description:
+					"Delivery urgency while the agent is busy. followUp (default): hold until the turn settles, deliver as boundary entries. steering: inject into the running generation immediately without aborting. onceReady: ⚠️ forcibly ABORTS the current turn, delivers the message, restarts the agent loop — discards in-flight generation; only for genuinely urgent tasks, do not use routinely.",
+			},
+		),
+	),
 	action: Type.Union([
 		Type.Literal("add"),
 		Type.Literal("list"),

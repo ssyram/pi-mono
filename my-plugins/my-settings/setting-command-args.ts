@@ -42,9 +42,10 @@ export function parseArg(body: string, start: number): ArgOutcome {
 	}
 	const match = /\S+/.exec(body.slice(start));
 	if (!match || match.index !== 0) return { ok: false, message: "缺少 KEY" };
+	const value = match[0];
 	return {
 		ok: true,
-		arg: { value: match[0], quoted: false, end: start + match[0].length },
+		arg: { value, quoted: false, end: start + value.length },
 	};
 }
 
@@ -55,12 +56,12 @@ export function parseArgs(
 	const args: ParsedArg[] = [];
 	let index = start;
 	for (;;) {
-		while (index < body.length && /\s/.test(body[index])) index++;
+		while (index < body.length && /\s/.test(body.charAt(index))) index++;
 		if (index >= body.length) return { ok: true, args };
 		const outcome = parseArg(body, index);
 		if (!outcome.ok) return outcome;
 		const { arg } = outcome;
-		if (arg.quoted && arg.end < body.length && !/\s/.test(body[arg.end])) {
+		if (arg.quoted && arg.end < body.length && !/\s/.test(body.charAt(arg.end))) {
 			return {
 				ok: false,
 				message: `引号 KEY 后必须跟空白：${body.slice(index, arg.end + 1)}`,

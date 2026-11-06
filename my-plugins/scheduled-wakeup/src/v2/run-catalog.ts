@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
+import { readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { killScriptGroup } from "../script-tasks/kill-script-group.js";
@@ -10,6 +11,7 @@ import {
 	PID_FILE,
 	RESULT_FILE,
 	TASK_FILE,
+	parseTaskRecord,
 	readJson,
 	writeJsonAtomic,
 	type CancelledMarker,
@@ -23,11 +25,26 @@ import {
 	scanRuns,
 	type RunView,
 } from "./run-catalog-state.js";
-import { parseOutcome } from "../script-tasks/run-record.js";
+import {
+	parseOutcome,
+	parseStatus,
+	STATUS_FILE,
+} from "../script-tasks/run-record.js";
+
+export type BootResult = {
+	views: RunView[];
+	foreignTaskIds: string[];
+	deleted: number;
+};
 
 export type RunCatalog = {
 	startRun(target: ExecutionTarget): RunView;
-	scan(): Promise<RunView[]>;
+	/** One full pass at session start: rebuild, repair, foreign notice, GC. */
+	bootScan(gcCriteriaMs: number): Promise<BootResult>;
+	/** Manual GC pass with the configured criteria. */
+	gc(gcCriteriaMs: number): Promise<number>;
+	/** Runtime lost-run repair: synthesize the failed outcome on disk. */
+	repairLost(dir: string): boolean;
 	markDelivered(dir: string, how: DeliveredMarker["how"]): void;
 	markCancelled(dir: string, stage: CancelledMarker["stage"]): void;
 	cancelRunning(view: RunView): Promise<"cancelled" | "already-finished">;
@@ -40,24 +57,31 @@ export function createRunCatalog(options: {
 	onForeignTasks?: (taskIds: string[]) => void;
 }): RunCatalog {
 	const now = options.now ?? Date.now;
-	const synthesizeOptions = () => ({
+	const scanOptions = (gcCriteriaMs: number) => ({
 		synthesize: true,
 		sessionId: options.ownerSessionId,
 		now,
+		gcCriteriaMs,
 	});
 	return {
 		startRun(target) {
 			const runId = `${now()}-${randomUUID().slice(0, 8)}`;
 			const dir = join(options.runsRoot, target.id, runId);
 			mkdirSync(dir, { recursive: true });
+			const urgency =
+				target.urgency === undefined ? {} : { urgency: target.urgency };
 			const payload: RunTaskPayload =
 				target.scriptTask === undefined
 					? target.includeTimestamp === true
-						? { prompt: target.prompt, includeTimestamp: true }
-						: { prompt: target.prompt }
+						? { prompt: target.prompt, includeTimestamp: true, ...urgency }
+						: { prompt: target.prompt, ...urgency }
 					: target.includeTimestamp === true
-						? { scriptTask: target.scriptTask, includeTimestamp: true }
-						: { scriptTask: target.scriptTask };
+						? {
+								scriptTask: target.scriptTask,
+								includeTimestamp: true,
+								...urgency,
+							}
+						: { scriptTask: target.scriptTask, ...urgency };
 			const record = {
 				version: 1 as const,
 				taskId: target.id,
@@ -77,11 +101,28 @@ export function createRunCatalog(options: {
 				writeJsonAtomic(join(dir, PID_FILE), wrapperPid);
 			return viewOf(record, dir, runId, undefined, "running");
 		},
-		async scan() {
-			const result = await scanRuns(options.runsRoot, synthesizeOptions());
+		async bootScan(gcCriteriaMs) {
+			const before = await countRuns(options.runsRoot);
+			const result = await scanRuns(options.runsRoot, scanOptions(gcCriteriaMs));
 			if (result.foreignTaskIds.length > 0)
 				options.onForeignTasks?.(result.foreignTaskIds);
-			return result.views;
+			const deleted = before - (await countRuns(options.runsRoot));
+			return { views: result.views, foreignTaskIds: result.foreignTaskIds, deleted };
+		},
+		async gc(gcCriteriaMs) {
+			const before = await countRuns(options.runsRoot);
+			await scanRuns(options.runsRoot, scanOptions(gcCriteriaMs));
+			const after = await countRuns(options.runsRoot);
+			return before - after;
+		},
+		repairLost(dir) {
+			const record = parseTaskRecord(readJson(join(dir, TASK_FILE)));
+			if (record?.ownerSessionId !== options.ownerSessionId) return false;
+			writeJsonAtomic(
+				join(dir, RESULT_FILE),
+				failedOutcome(record, undefined, "Runner process is gone.", now()),
+			);
+			return true;
 		},
 		markDelivered(dir, how) {
 			const marker: DeliveredMarker = {
@@ -197,6 +238,26 @@ function viewOf(
 		outcome,
 		state,
 	};
+}
+
+async function countRuns(runsRoot: string): Promise<number> {
+	try {
+		const tasks = await readDirSafe(join(runsRoot));
+		let total = 0;
+		for (const taskId of tasks)
+			total += (await readDirSafe(join(runsRoot, taskId))).length;
+		return total;
+	} catch {
+		return 0;
+	}
+}
+
+async function readDirSafe(path: string): Promise<string[]> {
+	try {
+		return await readdir(path);
+	} catch {
+		return [];
+	}
 }
 
 async function waitForCancelled(

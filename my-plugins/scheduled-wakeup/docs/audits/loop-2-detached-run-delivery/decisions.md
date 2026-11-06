@@ -85,3 +85,20 @@
 | W5 文档漂移 | **已修**：默认抑制、owner-only 投递、isWedged 边界三处 |
 
 验证：确定性 221/221、E2E 7/7、check-types 通过。
+
+
+## Watchlist + 永续 worker 架构（2026-11-06）
+
+- **动因**：1241 个 run 目录的会话每秒全量扫描（~6200 次文件读/秒，实测 159ms/scan）令 TUI 冻结；mtime 缓存（23ms→3.95ms）只是止痛，结构性成本仍在。
+- **架构**（用户裁决）：启动一次全扫重建/重连/外来告警/GC；此后永续 worker 线程只扫 running-list（自己的 run 目录），1s 周期；结果只挂主线程邮件队列（worker postMessage），主 tick 非阻塞排空，无事件零成本。worker 崩溃自愈重播种。
+- **消息分类**（用户裁决）：`LoopMessage = Finish | Error(ErrMsg)`，`ErrMsg = not-my | vanished | unreadable`。not-my = 被监控目录归属变为他会话（消失重建的特例 + 持续归属检查），仅 info；fork 断联逻辑保留。
+- **GC criteria**（用户裁决）：纯年龄制（keep-5/7d 移除，pendingDelivery/running 永不删）；配置走 my-settings 协议 `loop.gcCriteria`（instant/Ns/Nmin/Nd/Nmon，默认 3d，项目层覆盖用户层）；boot + `/loop garbage-collect` 两个触发点。loop 仅作消费者不启动 my-settings 服务（服务由 oh-my-pi 等嵌入，缺失时回退默认）。
+- **R1 epoch 机制整体作废**：watch 与 startRun 同步于主线程，无扫描竞态；R3 tick 改为主线程排空邮件队列；R4 booted 门保留（bootScan 完成）。
+- 顺带修复 my-settings 在严格 tsconfig 下的 16 处存量类型错（机械收窄），行为零变化。
+- 验证：确定性 240/240、E2E 8/8（含 criteria 语义改写后的 GC 场景、stop 后 widget 即时刷新）。
+
+- **worker 生命周期（用户裁决迭代）**：曾设计 30s→10s 空闲计时自退；最终收敛为"清零即退"——watchlist 清空（全部终态出队）即公告 idle-exit 并显式 process.exit(0)（parentPort 监听会挂住 worker 事件循环，必须显式退出）。重生只由 main tick 决策（seeds>0 且无注册 worker → spawn+重播种）；退出事件只注销不重生，注册态保持到完全退出，杜绝"收拾行李窗口"双重 spawn 与消息丢失（seed 落在主线程权威表，≤1 tick 内恢复）。
+- 验证（最终）：确定性 242/242；E2E 7/8 + 1 场景因出口 IP 被 Cloudflare 拦截真实模型调用而跳过（同场景在封锁前 8/8 通过；非代码回归）。
+
+- **双信箱终态（用户裁决）**：main→worker 一切 postMessage 寻址废除（"别直接通信"）。in-box = SharedArrayBuffer watch 清单（[version][length][UTF-8 JSON]，单写者无锁，main 只挂载，worker 每 tick 自扫 diff）；out-box = worker postMessage 事件缓冲（worker 挂载，main tick 排空）。信箱寿期长于任何 worker：重生无需重播种（新 worker 读全量清单）；worker 空表即退（退出码 0 = 静默回收，idle-exit 消息降级为尽力而为诊断——紧随 process.exit 可能未冲刷）；spawn 决策只在 main tick（清单非空且无注册 worker）。收拾行李/已死窗口的挂载天然无损——根本不存在"发给谁"。worker 事件循环由 ref'd interval 心跳持有（消息监听删除后 unref interval 会令 loop 空转自然退出，14ms 即夭）。
+- 验证（双信箱）：确定性 245/245、E2E 8/8（含 policy matrix——外部 API 恢复）。

@@ -162,6 +162,7 @@ function createSetup() {
 			cancelRun: async () => "cancelled" as const,
 			terminateTaskRuns: async () => ({ killed: 0, retracted: 0 }),
 			runsOverview: () => [],
+		garbageCollect: async () => ({ deleted: 0, label: "3d" }),
 			refresh: async () => {},
 			dispose() {},
 		},

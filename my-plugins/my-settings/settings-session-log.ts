@@ -88,7 +88,11 @@ export function readSessionPatches(entries: readonly SettingsEntry[]): SettingsO
 				}
 				removed = list;
 			}
-			patches.push({ source: `session log #${index}`, values, removed });
+			patches.push({
+				source: `session log #${index}`,
+				...(values === undefined ? {} : { values }),
+				...(removed === undefined ? {} : { removed }),
+			});
 		}
 		return { ok: true, value: patches };
 	} catch (error) {

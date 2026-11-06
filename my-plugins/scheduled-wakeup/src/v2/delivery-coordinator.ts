@@ -51,14 +51,17 @@ export function createDeliveryCoordinator(
 			!existsSync(join(item.runDir, DELIVERED_FILE)));
 	const deliverIdle = (item: DeliveryItem): boolean => {
 		try {
-			sendNow(pi, item.render(now()));
+			sendNow(pi, item.render(now()), item.urgency);
 		} catch {
 			// E32: a failed send keeps the item pending for the next pump.
 			return false;
 		}
 		pending.delete(item.key);
 		if (item.runDir !== undefined)
-			catalog.markDelivered(item.runDir, "idle-send");
+			catalog.markDelivered(
+				item.runDir,
+				item.urgency === "steering" ? "steer-send" : "idle-send",
+			);
 		return true;
 	};
 	const markBoundaryDelivered = (): void => {
@@ -74,12 +77,41 @@ export function createDeliveryCoordinator(
 	const scheduleBoundaryMarker = (): void => {
 		setTimeout(markBoundaryDelivered, 2000).unref?.();
 	};
+	// onceReady aborts the active turn once; the settled handler re-pumps and
+	// the item goes out through the idle path. Repeated aborts would kill
+	// retried turns before they stream anything.
+	let abortingTurn = false;
 	const pump = (): void => {
 		if (closed) return;
 		for (const item of [...pending.values()]) {
 			if (item.owner && !retractable(item)) pending.delete(item.key);
 		}
-		if (!ctx.isIdle() || ctx.hasPendingMessages()) return;
+		if (!ctx.isIdle() || ctx.hasPendingMessages()) {
+			for (const item of [...pending.values()]) {
+				if (deliveryBarriers.has(item.taskId)) continue;
+				// steering: custom messages only queue into the steer
+				// channel while the model is generating (ctx.signal set).
+				// Mid-tool windows have no safe injection point — appending
+				// there lands between a tool call and its result — so keep
+				// the item pending; the 1s pump retries on every tick and
+				// catches the next streaming window (or the settle path).
+				if (
+					item.urgency === "steering" &&
+					assistantStreaming &&
+					deliverIdle(item)
+				) {
+					continue;
+				} else if (
+					item.urgency === "onceReady" &&
+					!abortingTurn &&
+					!ctx.isIdle()
+				) {
+					abortingTurn = true;
+					ctx.abort();
+				}
+			}
+			return;
+		}
 		for (const item of [...pending.values()]) {
 			if (!ctx.isIdle() || ctx.hasPendingMessages()) break;
 			if (deliveryBarriers.has(item.taskId)) continue;
@@ -106,7 +138,26 @@ export function createDeliveryCoordinator(
 				: { entries };
 		},
 	);
+	// Steering items are only sendable while the model is generating:
+	// pi's steer queue for custom messages is reachable only in that window,
+	// and ctx.signal spans the whole run (tools included), so it cannot gate
+	// this. Track the assistant generation window ourselves and pump at its
+	// open — the window can be milliseconds with fast models, far below the
+	// 1s dispatch tick.
+	let assistantStreaming = false;
+	const unsubscribeMessageStart = pi.on(
+		"message_start",
+		(event) => {
+			if (event.message.role !== "assistant") return;
+			assistantStreaming = true;
+			pump();
+		},
+	);
+	const unsubscribeMessageEnd = pi.on("message_end", (event) => {
+		if (event.message.role === "assistant") assistantStreaming = false;
+	});
 	const unsubscribeSettled = pi.on("agent_settled", () => {
+		abortingTurn = false;
 		markBoundaryDelivered();
 		pump();
 	});
@@ -118,6 +169,7 @@ export function createDeliveryCoordinator(
 		enqueueRun(view) {
 			if (closed || view.state !== "pendingDelivery" || view.outcome === undefined)
 				return;
+
 			const key = `run:${view.dir}`;
 			// R6: in-flight boundary items are still undelivered; do not requeue.
 			if (pending.has(key) || boundarySent.has(key)) return;
@@ -127,6 +179,7 @@ export function createDeliveryCoordinator(
 				runDir: view.dir,
 				owner: true,
 				shouldWake: view.outcome.shouldWake,
+				urgency: view.record.payload.urgency ?? "followUp",
 				render: runDelivery(
 					view.taskId,
 					view.record.payload,
@@ -145,6 +198,7 @@ export function createDeliveryCoordinator(
 				runDir: undefined,
 				owner: true,
 				shouldWake: true,
+				urgency: target.urgency ?? "followUp",
 				render: promptDelivery(
 					target.id,
 					target.prompt,
@@ -184,6 +238,8 @@ export function createDeliveryCoordinator(
 		dispose() {
 			closed = true;
 			unsubscribeBeforeSettle();
+			unsubscribeMessageStart();
+			unsubscribeMessageEnd();
 			unsubscribeSettled();
 		},
 	};

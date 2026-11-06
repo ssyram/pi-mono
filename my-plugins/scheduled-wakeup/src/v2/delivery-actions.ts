@@ -10,6 +10,7 @@ export type DeliveryItem = {
 	runDir: string | undefined;
 	owner: boolean;
 	shouldWake: boolean;
+	urgency: "followUp" | "steering" | "onceReady";
 	render(now: number): TaskRun;
 };
 
@@ -68,7 +69,11 @@ export function promptDelivery(
 	});
 }
 
-export function sendNow(pi: ExtensionAPI, run: TaskRun): void {
+export function sendNow(
+	pi: ExtensionAPI,
+	run: TaskRun,
+	urgency: "followUp" | "steering" | "onceReady" = "followUp",
+): void {
 	pi.sendMessage(
 		{
 			customType: TASK_RUN_MESSAGE,
@@ -76,7 +81,10 @@ export function sendNow(pi: ExtensionAPI, run: TaskRun): void {
 			display: true,
 			details: run,
 		},
-		{ triggerTurn: run.shouldWake, deliverAs: "followUp" },
+		{
+			triggerTurn: run.shouldWake,
+			deliverAs: urgency === "steering" ? "steer" : "followUp",
+		},
 	);
 }
 

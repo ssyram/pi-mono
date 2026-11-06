@@ -5,7 +5,13 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { ScriptSpec } from "./script-tasks/task-spec.js";
+import { parseOutcome, parseStatus } from "./script-tasks/run-record.js";
 import { isRunnerEnabled } from "./runner-mode.js";
+import {
+	createRunWatcher,
+	type RunWatcher,
+	type WatchedRun,
+} from "./run-watch/run-watcher.js";
 import {
 	createDeliveryCoordinator,
 	type DeliveryCoordinator,
@@ -13,6 +19,8 @@ import {
 import { createRunCatalog, type RunCatalog } from "./v2/run-catalog.js";
 import type { RunView } from "./v2/run-catalog-state.js";
 import type { ExecutionTarget } from "./v2/model.js";
+import { DEFAULT_GC_CRITERIA_MS } from "./v2/run-catalog-state.js";
+import { describeGcCriteria } from "./v2/gc-criteria.js";
 
 export type RunningTask = {
 	id: string;
@@ -47,13 +55,22 @@ export type TaskDispatcher = {
 	cancelRun(view: RunView): Promise<"cancelled" | "already-finished">;
 	terminateTaskRuns(taskId: string): Promise<RunTermination>;
 	runsOverview(): string[];
+	/** One GC pass with the configured criteria. */
+	garbageCollect(): Promise<{ deleted: number; label: string }>;
 	refresh(): Promise<void>;
 	dispose(): void;
 };
 
 export type RunTermination = { killed: number; retracted: number };
 
-const SCAN_INTERVAL_MS = 1000;
+const TICK_MS = 1000;
+
+/** Per-run data the worker does not carry; captured at watch time. */
+type RunMeta = {
+	scope: RunView["record"]["scope"];
+	payload: import("./script-tasks/run-record.js").RunTaskPayload;
+	budgetMs: number | undefined;
+};
 
 export function createTaskDispatcher(
 	pi: ExtensionAPI,
@@ -62,7 +79,10 @@ export function createTaskDispatcher(
 		onChange(): void;
 		onSettled(): void;
 		catalog?: RunCatalog;
+		watcher?: RunWatcher;
 		intervalMs?: number;
+		gcCriteriaMs?: number;
+		loadGcCriteria?: () => Promise<{ criteriaMs: number; label: string }>;
 		onForeignTasks?: (taskIds: string[]) => void;
 	},
 ): TaskDispatcher {
@@ -77,111 +97,178 @@ export function createTaskDispatcher(
 		);
 		options.onForeignTasks?.(taskIds);
 	};
+	const sessionId = ctx.sessionManager.getSessionId();
 	const catalog: RunCatalog =
 		options.catalog ??
 		createRunCatalog({
 			runsRoot: join(ctx.cwd, ".pi", "scheduled-wakeup", "v2", "runs"),
-			ownerSessionId: ctx.sessionManager.getSessionId(),
+			ownerSessionId: sessionId,
 			onForeignTasks,
 		});
+	const watcher: RunWatcher = options.watcher ?? createRunWatcher();
 	const coordinator: DeliveryCoordinator = createDeliveryCoordinator(
 		pi,
 		ctx,
 		catalog,
 	);
-	let views: RunView[] = [];
-	let refreshing = false;
-	let refreshQueued = false;
+	const meta = new Map<string, RunMeta>();
 	let closed = false;
 	let booted = false;
-	let epoch = 0;
-	// R1: a scan may only release placeholders spawned before that scan began.
-	const starting = new Map<string, number>();
-	// R4: runs spawned locally but not yet observed by any completed scan.
-	const spawned = new Map<string, { view: RunView; epoch: number }>();
-	let drainWaiters: Array<() => void> = [];
-	const refresh = async (): Promise<void> => {
-		if (closed) return;
-		if (refreshing) {
-			refreshQueued = true;
-			// Await refresh() must observe a scan generation that started
-			// after this call, not return while one is still draining.
-			await new Promise<void>((resolve) => drainWaiters.push(resolve));
-			return;
-		}
-		refreshing = true;
-		try {
-			do {
-				refreshQueued = false;
-				// R3: a tick may skip instead of queueing an endless drain.
-				const scanEpoch = ++epoch;
-				views = await catalog.scan();
-				if (closed) break;
-				for (const view of views) coordinator.enqueueRun(view);
-				for (const [id, spawnEpoch] of starting)
-					if (
-						scanEpoch >= spawnEpoch &&
-						!views.some(
-							(view) => view.taskId === id && view.state === "running",
-						)
-					)
-						starting.delete(id);
-				for (const [id, record] of spawned)
-					if (
-						scanEpoch >= record.epoch ||
-						views.some(
-							(view) =>
-								view.taskId === id && view.state === "running",
-						)
-					)
-						spawned.delete(id);
-				if (!booted) {
-					booted = true;
-					options.onSettled();
-				}
-				options.onChange();
-			} while (refreshQueued && !closed);
-		} finally {
-			refreshing = false;
-			const waiters = drainWaiters;
-			drainWaiters = [];
-			for (const resolve of waiters) resolve();
-		}
+
+	const viewFrom = (run: WatchedRun): RunView => {
+		const record = meta.get(run.dir);
+		return {
+			taskId: run.taskId,
+			runId: run.runId,
+			dir: run.dir,
+			startedAt: run.startedAt,
+			record: {
+				version: 1,
+				taskId: run.taskId,
+				scope: record?.scope ?? "session",
+				payload: record?.payload ?? { prompt: "" },
+				ownerSessionId: sessionId,
+				startedAt: run.startedAt,
+			},
+			status: parseStatus(run.status),
+			outcome: parseOutcome(run.outcome),
+			state: run.state,
+		};
 	};
-	const stabilized = async (): Promise<void> => {
-		for (let i = 0; i < 500; i++) {
-			if (!refreshing && !refreshQueued) return;
+
+	const activeRuns = (taskId?: string): WatchedRun[] =>
+		watcher
+			.snapshot()
+			.filter(
+				(run) =>
+					(run.state === "running" || run.state === "pendingDelivery") &&
+					(taskId === undefined || run.taskId === taskId),
+			);
+
+	const isWedged = (run: WatchedRun): boolean => {
+		const budget = meta.get(run.dir)?.budgetMs;
+		if (budget === undefined) return false;
+		const lastUpdate = run.status?.updatedAt ?? run.startedAt;
+		return Date.now() - lastUpdate > budget;
+	};
+
+	const handleEvents = (events: readonly import("./run-watch/run-watcher.js").RunEvent[]): boolean => {
+		if (events.length === 0) return false;
+		for (const event of events) {
+			if (event.type === "state") {
+				if (event.run.state === "lost") {
+					catalog.repairLost(event.run.dir);
+					continue;
+				}
+				if (event.run.state === "pendingDelivery") {
+					coordinator.enqueueRun(viewFrom(event.run));
+				}
+			} else if (event.type === "error") {
+				if (event.err.kind === "not-my") {
+					onForeignTasks([event.err.taskId]);
+					continue;
+				}
+				if (event.err.kind === "vanished") {
+					notifyLoop(
+						ctx,
+						`Loop：run 目录异常消失（${event.err.taskId} / ${event.err.runId}）。`,
+						"warning",
+					);
+					continue;
+				}
+				notifyLoop(
+					ctx,
+					`Loop：run 监控异常（${event.err.detail}）。`,
+					"warning",
+				);
+			}
+		}
+		return true;
+	};
+
+	const tick = (): void => {
+		if (closed) return;
+		const hadEvents = handleEvents(watcher.poll());
+		if (!hadEvents) return; // nothing new: update nothing, wait zero
+		coordinator.pump();
+		options.onChange();
+	};
+
+	const refresh = async (): Promise<void> => {
+		await bootPromise;
+		tick();
+	};
+
+	const boot = async (): Promise<void> => {
+		const { criteriaMs } = await resolveCriteria();
+		const bootResult = await catalog.bootScan(criteriaMs);
+		if (closed) return;
+		for (const view of bootResult.views) {
+			if (view.state !== "running" && view.state !== "pendingDelivery")
+				continue;
+			meta.set(view.dir, {
+				scope: view.record.scope,
+				payload: view.record.payload,
+				budgetMs: runBudgetMs(view),
+			});
+			watcher.watch({
+				dir: view.dir,
+				taskId: view.taskId,
+				runId: view.runId,
+				startedAt: view.startedAt,
+				sessionId,
+			});
+		}
+		booted = true;
+		options.onSettled();
+		tick();
+	};
+
+	const resolveCriteria =
+		options.loadGcCriteria ??
+		(async (): Promise<{ criteriaMs: number; label: string }> => ({
+			criteriaMs: options.gcCriteriaMs ?? DEFAULT_GC_CRITERIA_MS,
+			label: describeGcCriteria(options.gcCriteriaMs ?? DEFAULT_GC_CRITERIA_MS),
+		}));
+	const bootPromise: Promise<void> = boot().catch((error) => {
+		notifyLoop(ctx, `Loop：启动扫描失败（${String(error)}）。`, "error");
+	});
+	const timer = setInterval(tick, options.intervalMs ?? TICK_MS);
+	// E31: headless runner mode must keep the process alive until delivery.
+	if (!isRunnerEnabled()) timer.unref?.();
+
+	const stabilized = async (taskId: string): Promise<void> => {
+		for (let i = 0; i < 300; i++) {
+			// A completing run's pendingDelivery event must reach the
+			// coordinator (under the stop barrier) before the final retraction.
+			tick();
+			if (activeRuns(taskId).length === 0) return;
 			await new Promise((resolve) => setTimeout(resolve, 10));
 		}
 	};
-	const timer = setInterval(() => {
-		// R3: never queue from the tick; only mutations may request a drain.
-		if (!refreshing) void refresh().catch(() => undefined);
-	}, options.intervalMs ?? SCAN_INTERVAL_MS);
-	// E31: headless runner mode must keep the process alive until delivery.
-	if (!isRunnerEnabled()) timer.unref?.();
-	void refresh().catch(() => undefined);
-	const runtimeExports: TaskDispatcher = {
+
+	return {
 		dispatch(target) {
 			if (closed) throw new Error("Loop dispatcher is inactive");
-			const blocking =
-				spawned.get(target.id)?.view ??
-				views.find(
-					(view) => view.taskId === target.id && view.state === "running",
-				);
-			if (starting.has(target.id) || blocking !== undefined) {
+			const blocking = activeRuns(target.id).find(
+				(run) => run.state === "running",
+			);
+			if (blocking !== undefined) {
 				// A wedged run (no progress past its timeout budget) would block
 				// this task forever: kill it and let the next poller retry take
-				// over instead of spinning on refusals ("Waiting 0s" deadlock).
-				if (blocking !== undefined && isWedged(blocking)) {
+				// over instead of spinning on refusals.
+				if (isWedged(blocking)) {
 					notifyLoop(
 						ctx,
 						`Loop：${target.id} 的上一轮 run 已超时无进展，正在终止；下一轮（≤60s）自动重试。`,
 						"info",
 					);
 					void catalog
-						.cancelRunning(blocking)
-						.then(() => refresh())
+						.cancelRunning(viewFrom(blocking))
+						.then(() => {
+							watcher.unwatch(blocking.dir);
+							options.onChange();
+						})
 						.catch(() => undefined);
 				}
 				throw new LoopTaskActiveError(target.id);
@@ -194,12 +281,19 @@ export function createTaskDispatcher(
 					throw new Error(
 						"Loop dispatcher is still performing its initial scan",
 					);
-				starting.set(target.id, epoch + 1);
-				spawned.set(target.id, {
-					view: catalog.startRun(target),
-					epoch: epoch + 1,
+				const view = catalog.startRun(target);
+				meta.set(view.dir, {
+					scope: target.scope,
+					payload: view.record.payload,
+					budgetMs: runBudgetMs(view),
 				});
-				void refresh().catch(() => undefined);
+				watcher.watch({
+					dir: view.dir,
+					taskId: view.taskId,
+					runId: view.runId,
+					startedAt: view.startedAt,
+					sessionId,
+				});
 			} else if (target.scriptTask !== undefined) {
 				coordinator.enqueuePrompt({
 					id: target.id,
@@ -218,37 +312,28 @@ export function createTaskDispatcher(
 			options.onSettled();
 		},
 		isStarting(taskId: string): boolean {
-			return starting.has(taskId) || spawned.has(taskId);
+			return activeRuns(taskId).some((run) => run.state === "running");
 		},
 		list() {
-			return views
-				.filter((view) => view.state === "running")
-				.map((view) => {
-					const scripts = view.record.payload.scriptTask?.scripts ?? [];
-					const status = view.status;
+			return activeRuns()
+				.filter((run) => run.state === "running")
+				.map((run) => {
+					const record = meta.get(run.dir);
+					const scripts = record?.payload.scriptTask?.scripts ?? [];
 					return {
-						id: view.taskId,
-						wakeUpId: view.taskId,
-						startedAt: view.startedAt,
-						budgetMs: runBudgetMs(view),
-						success: status?.success ?? 0,
-						completed: status?.completed ?? 0,
-						total: status?.total ?? scripts.length,
-						current: scripts[status?.currentIndex ?? 0],
+						id: run.taskId,
+						wakeUpId: run.taskId,
+						startedAt: run.startedAt,
+						budgetMs: record?.budgetMs,
+						success: run.status?.success ?? 0,
+						completed: run.status?.completed ?? 0,
+						total: run.status?.total ?? scripts.length,
+						current: scripts[run.status?.currentIndex ?? 0],
 					};
 				});
 		},
 		liveRuns() {
-			const merged = new Map<string, RunView>();
-			for (const view of views)
-				if (
-					view.state === "running" ||
-					view.state === "pendingDelivery"
-				)
-					merged.set(view.taskId, view);
-			for (const record of spawned.values())
-				merged.set(record.view.taskId, record.view);
-			return [...merged.values()];
+			return activeRuns().map(viewFrom);
 		},
 		deliveryStatus() {
 			return coordinator.deliveryStatus();
@@ -257,25 +342,20 @@ export function createTaskDispatcher(
 			return coordinator.cancelPending(taskId);
 		},
 		requestRunTermination(taskId) {
-			const runs = views.filter(
-				(view) =>
-					view.taskId === taskId &&
-					(view.state === "running" || view.state === "pendingDelivery"),
-			);
+			const runs = activeRuns(taskId);
 			const retracted = coordinator.cancelPending(taskId);
 			let signalled = 0;
-			for (const view of runs) {
-				if (view.state !== "running") continue;
-				const pid = view.status?.pid;
+			for (const run of runs) {
+				if (run.state !== "running") continue;
+				const pid = run.status?.pid;
 				if (pid === undefined) continue;
 				try {
 					process.kill(pid, "SIGTERM");
 					signalled += 1;
 				} catch {
-					/* Already dead; the scan tick records the terminal state. */
+					/* Already dead; the watch worker records the terminal state. */
 				}
 			}
-			void refresh().catch(() => undefined);
 			return { signalled, retracted };
 		},
 		async cancelRun(view) {
@@ -285,7 +365,9 @@ export function createTaskDispatcher(
 				return "cancelled";
 			}
 			const result = await catalog.cancelRunning(view);
-			await refresh();
+			watcher.unwatch(view.dir);
+			meta.delete(view.dir);
+			options.onChange();
 			return result;
 		},
 		async terminateTaskRuns(taskId) {
@@ -293,50 +375,46 @@ export function createTaskDispatcher(
 			// completing run cannot be pumped out mid-stop.
 			coordinator.setDeliveryBarrier(taskId, true);
 			try {
-				const runs = [...views, ...[...spawned.values()].map((r) => r.view)]
-					.filter(
-						(view) =>
-							view.taskId === taskId &&
-							(view.state === "running" ||
-								view.state === "pendingDelivery"),
-					);
 				let killed = 0;
 				let retracted = coordinator.cancelPending(taskId);
-				for (const view of runs) {
-					if (view.state !== "running") continue;
-					await catalog.cancelRunning(view);
+				for (const run of activeRuns(taskId)) {
+					if (run.state !== "running") continue;
+					await catalog.cancelRunning(viewFrom(run));
+					watcher.unwatch(run.dir);
+					meta.delete(run.dir);
 					killed += 1;
 				}
-				await refresh();
-				await stabilized();
+				await stabilized(taskId);
 				retracted += coordinator.cancelPending(taskId);
+				// The mirror changed without a worker event; refresh the widget
+				// now instead of waiting for the next event.
+				options.onChange();
 				return { killed, retracted };
 			} finally {
 				coordinator.setDeliveryBarrier(taskId, false);
 			}
 		},
+		async garbageCollect() {
+			const { criteriaMs, label } = await resolveCriteria();
+			const deleted = await catalog.gc(criteriaMs);
+			return { deleted, label };
+		},
 		runsOverview() {
-			return views
-				.filter(
-					(view) =>
-						view.state === "running" || view.state === "pendingDelivery",
-				)
-				.map((view) => {
-					const status = view.status;
-					if (view.state === "running")
-						return `${view.taskId} | running (${status?.completed ?? 0}/${status?.total ?? 0} scripts, pid ${status?.pid ?? "?"})`;
-					return `${view.taskId} | pending delivery (${view.outcome?.shouldWake === true ? "wake" : "no wake"})`;
-				});
+			return activeRuns().map((run) => {
+				if (run.state === "running")
+					return `${run.taskId} | running (${run.status?.completed ?? 0}/${run.status?.total ?? 0} scripts, pid ${run.status?.pid ?? "?"})`;
+				return `${run.taskId} | pending delivery (${run.outcome?.shouldWake === true ? "wake" : "no wake"})`;
+			});
 		},
 		refresh,
 		dispose() {
 			if (closed) return;
 			closed = true;
 			clearInterval(timer);
+			watcher.dispose();
 			coordinator.dispose();
 		},
 	};
-	return runtimeExports;
 }
 
 /** Shared with the widget so the displayed max always equals the enforced one. */
@@ -350,11 +428,4 @@ export function runBudgetMs(view: RunView): number | undefined {
 		1800,
 	);
 	return timeoutSeconds * 1000 + 120_000;
-}
-
-function isWedged(view: RunView): boolean {
-	const budget = runBudgetMs(view);
-	if (budget === undefined) return false;
-	const lastUpdate = view.status?.updatedAt ?? view.startedAt;
-	return Date.now() - lastUpdate > budget;
 }

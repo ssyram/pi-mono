@@ -23,8 +23,7 @@ import {
 	writeJsonAtomic,
 } from "../script-tasks/run-record.js";
 export const START_GRACE_MS = 30_000;
-export const KEEP_PER_TASK = 5;
-export const KEEP_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+export const DEFAULT_GC_CRITERIA_MS = 3 * 24 * 60 * 60 * 1000;
 
 export type RunState = "running" | "pendingDelivery" | "done" | "cancelled" | "lost";
 
@@ -43,6 +42,8 @@ export type ScanOptions = {
 	synthesize: boolean;
 	sessionId: string;
 	now: () => number;
+	/** Terminal runs older than this are deleted (boot-time GC only). */
+	gcCriteriaMs?: number;
 };
 
 /** Classifies every run directory; the owner session also repairs lost/stale runs and GCs terminals. */
@@ -56,13 +57,13 @@ export async function scanRuns(
 	runsRoot: string,
 	options: ScanOptions,
 ): Promise<ScanResult> {
-	// Ownership is sessionId equality, full stop: a forked session (new id)
-	// disconnects from every run it did not register — no display, delivery,
-	// synthesis, stop, or GC. Dead-owner runs wait on disk for their owner.
+	// Boot-time only: one full pass rebuilds the session's run inventory,
+	// repairs lost runs, reports foreign activity and GCs by criteria. Steady
+	// state watching is the run-watch worker's job, never this scan.
 	const views: RunView[] = [];
 	const foreign: RunView[] = [];
-	const tasks = await readDir(join(runsRoot));
-	for (const taskId of tasks) {
+	const taskIds = await readDir(join(runsRoot));
+	for (const taskId of taskIds) {
 		const runIds = await readDir(join(runsRoot, taskId));
 		const taskViews: RunView[] = [];
 		for (const runId of runIds) {
@@ -200,12 +201,13 @@ export function failedOutcome(
 }
 
 function gcTask(views: RunView[], options: ScanOptions): void {
-	const terminal = views
-		.filter((view) => view.state === "done" || view.state === "cancelled")
-		.sort((a, b) => b.startedAt - a.startedAt);
+	const criteria = options.gcCriteriaMs ?? DEFAULT_GC_CRITERIA_MS;
 	const now = options.now();
-	for (const view of terminal.slice(KEEP_PER_TASK)) {
-		if (now - view.startedAt <= KEEP_AGE_MS) continue;
+	for (const view of views) {
+		// Pure age criteria; running/pendingDelivery runs never reach GC
+		// (cross-restart delivery depends on them surviving).
+		if (view.state !== "done" && view.state !== "cancelled") continue;
+		if (now - view.startedAt < criteria) continue;
 		try {
 			rmSync(view.dir, { recursive: true, force: true });
 		} catch {

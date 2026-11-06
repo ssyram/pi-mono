@@ -14,7 +14,10 @@ export const PID_FILE = "wrapper.pid";
 
 export type RunScope = "session" | "workspace" | "global";
 
-export type RunTaskPayload = { includeTimestamp?: boolean } & (
+export type RunTaskPayload = {
+	includeTimestamp?: boolean;
+	urgency?: "followUp" | "steering" | "onceReady";
+} & (
 	| { prompt: string; scriptTask?: never }
 	| { scriptTask: ScriptTask; prompt?: never }
 );
@@ -50,7 +53,7 @@ export type RunOutcome = {
 export type DeliveredMarker = {
 	sessionId: string;
 	deliveredAt: number;
-	how: "idle-send" | "boundary-entries";
+	how: "idle-send" | "boundary-entries" | "steer-send";
 };
 
 export type CancelledMarker = {

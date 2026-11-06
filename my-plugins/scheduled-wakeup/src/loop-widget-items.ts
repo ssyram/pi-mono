@@ -3,6 +3,7 @@ import { formatDuration } from "./format-duration.js";
 import type { DeliveryStatus, RunningTask } from "./task-dispatcher.js";
 import type { ActiveTask } from "./v2/model.js";
 import { describeTaskContent } from "./v2/task-content.js";
+import type { DeliveryUrgency } from "./v2/task-content.js";
 import type { TaskSchedule } from "./v2/model.js";
 
 export type LoopWidgetItem = {
@@ -17,6 +18,7 @@ export type LoopWidgetItem = {
 	schedule?: TaskSchedule | undefined;
 	runs?: number | undefined;
 	summary?: string | undefined;
+	urgency?: DeliveryUrgency | undefined;
 };
 
 export function formatQueuedSuffix(wakeUps: number, noWakes: number): string {
@@ -43,6 +45,7 @@ export function collectLoopWidgetItems(
 		items.set(id, {
 			id,
 			name,
+			urgency: definition?.urgency,
 			nextRunAt: progress.nextRunAt,
 			...(progress.suspendedAt !== undefined
 				? { pausedRemaining: Math.max(0, progress.nextRunAt - progress.suspendedAt) }

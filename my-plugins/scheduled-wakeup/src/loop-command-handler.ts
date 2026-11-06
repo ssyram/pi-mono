@@ -102,7 +102,7 @@ export function handleLoopCommand(
 			});
 			notify(
 				ctx,
-				`Scheduled session task ${task.id}: ${describeSchedule(task.schedule)}.`,
+				`Scheduled session task ${task.id}: ${describeSchedule(task.schedule)}.${command.urgency === "onceReady" ? " ⚠️ urgency=onceReady：忙时投递会强行中止当前 turn 并丢弃未落盘的生成内容。" : ""}`,
 				"info",
 			);
 			break;
@@ -165,6 +165,20 @@ export function handleLoopCommand(
 			);
 			break;
 		}
+		case "garbage-collect":
+			void (async () => {
+				try {
+					const { deleted, label } = await rt.dispatcher.garbageCollect();
+					notify(
+						ctx,
+						`Loop GC（criteria ${label}）：清理了 ${deleted} 个 run 目录。`,
+						"info",
+					);
+				} catch (error) {
+					notify(ctx, loopErrorMessage(error), "warning");
+				}
+			})();
+			break;
 		case "stop":
 			void (async () => {
 				try {

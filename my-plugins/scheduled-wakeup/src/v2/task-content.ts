@@ -2,7 +2,26 @@ import { basename, isAbsolute } from "node:path";
 import { prepareScriptTask } from "../script-tasks/prepare-task.js";
 import type { ScriptTask } from "../script-tasks/task-spec.js";
 
-export type TaskContent = { includeTimestamp?: boolean } & (
+export type DeliveryUrgency = "followUp" | "steering" | "onceReady";
+
+export const DELIVERY_URGENCIES: readonly DeliveryUrgency[] = [
+	"followUp",
+	"steering",
+	"onceReady",
+];
+
+export function isDeliveryUrgency(value: unknown): value is DeliveryUrgency {
+	return (
+		typeof value === "string" &&
+		(DELIVERY_URGENCIES as readonly string[]).includes(value)
+	);
+}
+
+export type TaskContent = {
+	includeTimestamp?: boolean;
+	/** How urgently a completed run's message is delivered while the agent is busy. */
+	urgency?: DeliveryUrgency;
+} & (
 	| { prompt: string; scriptTask?: never }
 	| { scriptTask: ScriptTask; prompt?: never }
 );
@@ -12,8 +31,11 @@ export function readTaskContent(
 ): TaskContent | undefined {
 	const includeTimestamp =
 		typeof value.includeTimestamp === "boolean" ? value.includeTimestamp : undefined;
-	const extra =
-		includeTimestamp === undefined ? {} : { includeTimestamp };
+	const urgency = isDeliveryUrgency(value.urgency) ? value.urgency : undefined;
+	const extra = {
+		...(includeTimestamp === undefined ? {} : { includeTimestamp }),
+		...(urgency === undefined ? {} : { urgency }),
+	};
 	if (Object.hasOwn(value, "scriptTask")) {
 		if (Object.hasOwn(value, "prompt")) return undefined;
 		const prepared = prepareScriptTask(value.scriptTask, "/");
@@ -37,10 +59,12 @@ export function readTaskContent(
 }
 
 export function cloneTaskContent(value: TaskContent): TaskContent {
-	const extra =
-		value.includeTimestamp === undefined
+	const extra = {
+		...(value.includeTimestamp === undefined
 			? {}
-			: { includeTimestamp: value.includeTimestamp };
+			: { includeTimestamp: value.includeTimestamp }),
+		...(value.urgency === undefined ? {} : { urgency: value.urgency }),
+	};
 	if (value.scriptTask === undefined) return { prompt: value.prompt, ...extra };
 	return {
 			scriptTask: {

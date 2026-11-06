@@ -3,6 +3,10 @@ import { parseDuration } from "../parse-duration.js";
 import { prepareScriptTask } from "../script-tasks/prepare-task.js";
 import type { SharedScope, TaskInput, TaskSchedule } from "./model.js";
 import { readScriptOptions } from "./script-task-options.js";
+import {
+	isDeliveryUrgency,
+	type DeliveryUrgency,
+} from "./task-content.js";
 
 export type TaskCreationCommand = (
 	| { kind: "add" }
@@ -36,6 +40,8 @@ export function parseTaskCommand(
 	const extracted = readScriptOptions(body);
 	if (!extracted.ok) return { kind: "error", message: extracted.error };
 	let inhibit = extracted.inhibit;
+	let urgency: DeliveryUrgency | undefined;
+	let invalidUrgency: string | undefined;
 	let promptStarted = false;
 	let fields: "head" | "clock" | number = "head";
 	const tokens = extracted.rest
@@ -45,6 +51,15 @@ export function parseTaskCommand(
 			if (promptStarted) return true;
 			if (token === "--no-boulder") {
 				inhibit = true;
+				return false;
+			}
+			if (invalidUrgency === undefined && token.startsWith("--urgency=")) {
+				const value = token.slice("--urgency=".length);
+				if (!isDeliveryUrgency(value)) {
+					invalidUrgency = value;
+					return false;
+				}
+				urgency = value;
 				return false;
 			}
 			if (fields === "head")
@@ -81,6 +96,11 @@ export function parseTaskCommand(
 				: { kind: "interval", intervalMs: duration };
 		prompt = tokens.slice(once ? 2 : 1).join(" ");
 	}
+	if (invalidUrgency !== undefined)
+		return {
+			kind: "error",
+			message: `Invalid --urgency value "${invalidUrgency}"; expected followUp, steering or onceReady.`,
+		};
 	if (!schedule)
 		return {
 			kind: "error",
@@ -90,6 +110,7 @@ export function parseTaskCommand(
 	const metadata = {
 		schedule,
 		...(inhibit !== undefined ? { inhibitBoulder: inhibit } : {}),
+		...(urgency !== undefined ? { urgency } : {}),
 	};
 	const location =
 		scope === undefined

@@ -52,7 +52,7 @@ function formatItemLine(item: LoopWidgetItem, now: number): string {
 				? "-"
 				: `next in ${formatDuration(Math.max(0, item.nextRunAt - now))}`;
 	const schedule = item.schedule === undefined ? "-" : describeSchedule(item.schedule);
-	return `${label} | ${item.scope ?? "-"} | ${schedule} | ${next} | runs ${item.runs ?? 0} | ${item.summary ?? "-"}${queued}`;
+	return `${label} | ${item.scope ?? "-"} | ${schedule} | ${next} | runs ${item.runs ?? 0}${item.urgency !== undefined && item.urgency !== "followUp" ? ` | urgency ${item.urgency}` : ""} | ${item.summary ?? "-"}${queued}`;
 }
 
 export function formatAvailableDefinitions(

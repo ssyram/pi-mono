@@ -43,7 +43,8 @@ function readPaths(input: Record<string, unknown>): SettingsOutcome<SettingsPath
 		if (path !== undefined && path !== null && typeof path !== "string") {
 			return settingsFailure("INVALID_REQUEST", `${key} must be a relative file path`);
 		}
-		paths[key] = path;
+		if (path !== undefined) paths[key] = path;
+		else paths[key] = null;
 	}
 	return { ok: true, value: paths };
 }
@@ -95,7 +96,11 @@ export function parseSettingsOperation(value: unknown): SettingsOutcome<Settings
 				ok: true,
 				value: {
 					op,
-					query: { ...paths.value, scope, defaults: defaults.value },
+					query: {
+						...paths.value,
+						...(scope === undefined ? {} : { scope }),
+						defaults: defaults.value,
+					},
 				},
 			};
 		}

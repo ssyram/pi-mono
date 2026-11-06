@@ -81,8 +81,8 @@ export async function runSettingGet(
 		};
 		const merged = await client.query({
 			defaults: fallback,
-			globalPath: paths.globalFile,
-			localPath: paths.localFile,
+			...(paths.globalFile === undefined ? {} : { globalPath: paths.globalFile }),
+			...(paths.localFile === undefined ? {} : { localPath: paths.localFile }),
 		});
 		lines.push(
 			merged.ok

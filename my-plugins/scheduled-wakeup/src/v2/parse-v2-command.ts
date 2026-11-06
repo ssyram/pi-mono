@@ -17,6 +17,7 @@ export type ParsedLoopV2Command =
 	| { kind: "run"; id: string }
 	| { kind: "defer"; id: string; time: DeferTime }
 	| { kind: "rename"; target: string; name: string | undefined }
+	| { kind: "garbage-collect" }
 	| { kind: "help" }
 	| { kind: "error"; message: string };
 
@@ -42,6 +43,10 @@ export function parseLoopV2Command(args: string, now: number = Date.now(), baseC
 			return rest.length === 0 ? { kind: "running" } : { kind: "error", message: "Usage: /loop running" };
 		case "list":
 			return rest.length === 0 ? { kind: "list" } : { kind: "error", message: "Usage: /loop list" };
+		case "gc":
+		case "garbage-collect":
+			if (rest.length > 0) return { kind: "error", message: "Usage: /loop garbage-collect (no arguments; criteria come from loop.gcCriteria)" };
+			return { kind: "garbage-collect" };
 		case "stop":
 			return parseStop(rest);
 		case "delete":
@@ -72,6 +77,7 @@ export function loopV2HelpText(): string {
 		"/loop unregister <registration-id|name>         Remove this session's registration",
 		"/loop list                                    Show active set, live runs and pending deliveries",
 		"/loop stop <id|name|all>                      Stop tasks, runs and pending deliveries",
+		"/loop garbage-collect                         One GC pass using loop.gcCriteria (settings.json)",
 		"/loop delete [--force] <definition-id|name>    Delete a shared definition",
 		"/loop run <id|name>                           Deliver the prompt now, progress unchanged",
 		"/loop defer <id|name> <duration|time...>        Postpone only the next scheduled delivery",

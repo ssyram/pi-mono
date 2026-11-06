@@ -18,6 +18,7 @@ import {
 	type BoulderSyncBridge,
 } from "./boulder-sync.js";
 import { DuePoller } from "./due-poller.js";
+import { loadGcCriteria } from "./gc-criteria.js";
 import { formatActiveTasks } from "./format-list.js";
 import { UserLoopV2Commands } from "./user-commands.js";
 
