@@ -39,7 +39,7 @@ test("renders pure-plugin footer statistics, statuses, and cleanup without an au
 		api: model.api,
 		endpoint: model.baseUrl,
 	};
-	const display: DisplayState = { kind: "ready", selection, result: { kind: "available", text: "已用 34%(week)", compact: "34%(week)" } };
+	const display: DisplayState = { kind: "ready", selection, result: { kind: "available", text: "34%(week) used", compact: "34%(week)" } };
 	assert.equal(formatDisplayState({ kind: "loading", selection }), "(…)");
 	assert.equal(formatDisplayState({ kind: "ready", selection, result: { kind: "unsupported" } }), "(N/S)");
 	assert.equal(formatDisplayState(display), "(34%(week))");

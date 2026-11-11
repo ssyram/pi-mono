@@ -74,7 +74,7 @@ function parseCredit(value: unknown): { valid: boolean; credit?: CodexCredit } {
 function additionalLabel(value: Record<string, unknown>): string {
 	if (typeof value.limit_name === "string" && value.limit_name.trim() !== "") return value.limit_name;
 	if (typeof value.metered_feature === "string" && value.metered_feature.trim() !== "") return value.metered_feature;
-	return "附加额度";
+	return "extra credits";
 }
 
 export function parseCodex(value: unknown): CodexUsage | undefined {

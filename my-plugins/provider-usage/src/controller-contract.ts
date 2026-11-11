@@ -1,5 +1,6 @@
 import type { FooterFactory } from "./footer-component.js";
 import type { ContextUsageSnapshot, QueryResult, Route, Selection, UsageModelRegistry } from "./usage-contract.js";
+import type { UsageQueryWidget } from "./usage-widget.js";
 
 export interface UsageTimer {
 	clear(): void;
@@ -15,6 +16,7 @@ export type UsageQueryRunner = (
 	route: Route,
 	registry: Pick<UsageModelRegistry, "getApiKeyAndHeaders">,
 	signal: AbortSignal,
+	readEntries?: () => readonly unknown[],
 ) => Promise<QueryResult>;
 
 export interface ControllerContext {
@@ -27,6 +29,7 @@ export interface ControllerContext {
 	modelRegistry: UsageModelRegistry;
 	getContextUsage(): ContextUsageSnapshot | undefined;
 	setFooter(factory: FooterFactory): void;
+	queryWidget?: UsageQueryWidget | undefined;
 	scheduler?: UsageScheduler;
 	query?: UsageQueryRunner;
 }

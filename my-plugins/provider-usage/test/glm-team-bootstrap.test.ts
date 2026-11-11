@@ -74,13 +74,18 @@ test("bootstrap uses only global teams for footer and commands and rereads edite
 		registerCommand(name: string, options: { handler(args: string, context: PiExtensionContext): Promise<void> }) {
 			commands.set(name, options);
 		},
-		appendEntry() {
-			throw new Error("credentials must not be saved in session entries");
+		registerEntryRenderer() {},
+		appendEntry(customType: string, data: unknown) {
+			if (customType !== "provider-usage-command-output") {
+				throw new Error("credentials must not be saved in session entries");
+			}
+			entries.push(data as { tone: string; text: string });
 		},
 	};
 	const first = makeModel({ provider: "first", baseUrl: "https://proxy.example/v1" });
 	const second = makeModel({ provider: "second", baseUrl: "https://api.z.ai/api/coding/paas/v4" });
 	const notices: string[] = [];
+	const entries: Array<{ tone: string; text: string }> = [];
 	let footer: UsageFooter | undefined;
 	const context: PiExtensionContext & { cwd: string } = {
 		cwd: project,
@@ -100,6 +105,7 @@ test("bootstrap uses only global teams for footer and commands and rereads edite
 			isUsingOAuth: () => false,
 		},
 		ui: {
+			setWidget: () => {},
 			setFooter(factory) {
 				if (factory)
 					footer = factory(
@@ -135,7 +141,8 @@ test("bootstrap uses only global teams for footer and commands and rereads edite
 		await command.handler("first second", context);
 		assert.deepEqual(requests, ["key-first", "key-first", "key-second"]);
 		assert.deepEqual(projects, ["project", "updated-global-project", "updated-global-project"]);
-		assert.match(notices.at(-1) ?? "", /^first: 额度 已用 23%\(week\)\nsecond: 额度 已用 71%\(week\)$/);
+		assert.match(entries.at(-1)?.text ?? "", /^first: credits 23%\(week\) used\nsecond: credits 71%\(week\) used$/);
+		assert.equal(entries.at(-1)?.tone, "info");
 		context.model = second;
 		for (const handler of handlers.get("model_select") ?? []) await handler({ model: second }, context);
 		for (let tick = 0; tick < 100; tick += 1) {
@@ -152,7 +159,8 @@ test("bootstrap uses only global teams for footer and commands and rereads edite
 			}),
 		);
 		await command.handler("first", context);
-		assert.match(notices.at(-1) ?? "", /first: CONFIG/);
+		assert.match(entries.at(-1)?.text ?? "", /first: CONFIG/);
+		assert.equal(entries.at(-1)?.tone, "warning");
 		assert.equal(requests.length, 4);
 	} finally {
 		for (const handler of handlers.get("session_shutdown") ?? []) await handler({}, context);

@@ -1,3 +1,5 @@
+import { queryClaudeCodeUsage, type ReadSessionEntries } from "./cc-usage.js";
+import { queryClaudeCodeLive } from "./cc-live.js";
 import { resolveAuth } from "./auth.js";
 import { queryCodex } from "./codex-query.js";
 import { queryGlmTeam } from "./glm-team-query.js";
@@ -12,6 +14,8 @@ export async function executeUsageQuery(
 	registry: Pick<UsageModelRegistry, "getApiKeyAndHeaders">,
 	signal: AbortSignal,
 	readTeams?: ReadGlmTeams,
+	readEntries?: ReadSessionEntries,
+	ccLive: (signal: AbortSignal) => Promise<QueryResult | undefined> = queryClaudeCodeLive,
 ): Promise<QueryResult> {
 	if (signal.aborted) return { kind: "cancelled" };
 	if (readTeams) {
@@ -29,6 +33,11 @@ export async function executeUsageQuery(
 	}
 	if (route.kind === "error") return route;
 	if (route.kind === "unsupported") return route;
+	if (route.kind === "claude-code") {
+		const live = await ccLive(signal);
+		if (live) return live;
+		return queryClaudeCodeUsage(readEntries);
+	}
 	const resolved = await resolveAuth(selection, route, registry, signal);
 	if (resolved.kind === "cancelled") return resolved;
 	if (resolved.kind === "unsupported") return resolved;

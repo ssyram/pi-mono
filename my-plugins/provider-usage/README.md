@@ -75,3 +75,10 @@
 完整设计：[Q](docs/principles.md)、[Architecture](docs/architecture.md)、[函数级 Detail](docs/detail.md)、[证据](docs/evidence.md)、[完成门](docs/correctness.md)。
 
 实现或支持范围变化时，应同时更新本节日期、能力状态和证据，不把“有设计”“有外部样例”“本账号实测成功”混为一谈。
+
+## Claude Code usage and query output
+
+- The `claude-code` provider / `process://claude-code` route queries `claude -p "/usage"` with inherited environment, then falls back to the latest session `claude-code.rate-limit` diagnostic when live output is unavailable.
+- The footer shows available 5h/7d windows; expired or status-only diagnostic data is hidden. Missing live and diagnostic data means no applicable plan data, not a successful quota lookup.
+- Querying displays an English spinner widget above the editor. Command results use persistent custom session entries rather than transient info notifications.
+- Plugin-owned labels are English; upstream text is preserved. Parsed numeric reset timestamps use local time; live CLI reset text is preserved as returned.

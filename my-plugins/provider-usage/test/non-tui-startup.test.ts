@@ -9,6 +9,8 @@ test("does not install a footer or resolve authentication outside TUI mode", () 
 	const pi: PiExtensionAPI = {
 		on: (event, handler) => { handlers.set(event, handler); },
 		registerCommand: () => {},
+		registerEntryRenderer: () => {},
+		appendEntry: () => {},
 	};
 	register(pi);
 	assert.equal(handlers.has("turn_end"), true);
@@ -37,6 +39,7 @@ test("does not install a footer or resolve authentication outside TUI mode", () 
 		},
 		ui: {
 			setFooter: () => { footerCalls += 1; },
+			setWidget: () => {},
 			notify: () => {},
 			addAutocompleteProvider: () => {},
 		},

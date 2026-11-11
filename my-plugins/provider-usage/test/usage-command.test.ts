@@ -32,6 +32,7 @@ function context(notices: string[]): PiExtensionContext {
 		},
 		ui: {
 			setFooter: () => {},
+			setWidget: () => {},
 			notify: (text) => { notices.push(text); },
 			addAutocompleteProvider: () => {},
 		},
@@ -76,13 +77,15 @@ test("command queries each requested account independently and leaves details ou
 		] } }), { status: 200 });
 	};
 	try {
-		const notices: string[] = [];
-		const ctx = context(notices);
-		await runUsageCommand("zai-002 missing zai-001", ctx);
+		const outputs: Array<{ tone: string; text: string }> = [];
+		const ctx = context([]);
+		await runUsageCommand("zai-002 missing zai-001", ctx, undefined, undefined, (data) => outputs.push(data));
 		assert.deepEqual(headers, ["Bearer zai-002", "Bearer zai-001"]);
-		assert.match(notices[0] ?? "", /^zai-002: 已用 17%\(5h\) 重置 /);
-		assert.match(notices[0] ?? "", /zai-001: 已用 17%\(5h\) 重置 /);
-		assert.match(notices[0] ?? "", /missing: 未找到 provider$/);
+		assert.equal(outputs.length, 1);
+		assert.equal(outputs[0]?.tone, "info");
+		assert.match(outputs[0]?.text ?? "", /^zai-002: 17%\(5h\) used, resets /);
+		assert.match(outputs[0]?.text ?? "", /zai-001: 17%\(5h\) used, resets /);
+		assert.match(outputs[0]?.text ?? "", /missing: provider not found$/);
 		assert.equal(ctx.model, first);
 	} finally {
 		globalThis.fetch = originalFetch;

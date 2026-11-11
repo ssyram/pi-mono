@@ -1,8 +1,9 @@
+import { formatLocalTime } from "./format-local-time.js";
 import { sanitizeDisplayText } from "./sanitize-display-text.js";
 import type { ZaiQuota, ZaiQuotaLine } from "./zai-quota.js";
 
 function formatPeriod(line: ZaiQuotaLine): string {
-	if (line.period.kind === "unknown") return "周期未知";
+	if (line.period.kind === "unknown") return "unknown period";
 	const { unit, amount } = line.period;
 	if (unit === 3) return `${amount}h`;
 	if (unit === 4) return amount === 1 ? "day" : `${amount}d`;
@@ -11,14 +12,14 @@ function formatPeriod(line: ZaiQuotaLine): string {
 }
 
 function formatLine(line: ZaiQuotaLine): string {
-	const reset = line.resetAt === undefined ? "" : ` 重置 ${new Date(line.resetAt).toISOString()}`;
+	const reset = line.resetAt === undefined ? "" : `, resets ${formatLocalTime(line.resetAt)}`;
 	if (line.kind === "time") {
 		const details = line.details.map((detail) => `${sanitizeDisplayText(detail.modelCode)} ${detail.usage}`).join(", ");
-		return `工具 ${line.currentValue}/${line.usage}(${formatPeriod(line)})${details ? ` ${details}` : ""}${reset}`;
+		return `tools ${line.currentValue}/${line.usage}(${formatPeriod(line)})${details ? ` ${details}` : ""}${reset}`;
 	}
 	return line.kind === "tokens"
-		? `已用 ${line.percentage}%(${formatPeriod(line)})${reset}`
-		: `额度 已用 ${line.percentage}%(${formatPeriod(line)})${reset}`;
+		? `${line.percentage}%(${formatPeriod(line)}) used${reset}`
+		: `credits ${line.percentage}%(${formatPeriod(line)}) used${reset}`;
 }
 
 export function formatZaiCompact(data: ZaiQuota): string {
@@ -27,15 +28,15 @@ export function formatZaiCompact(data: ZaiQuota): string {
 		return percentageLines.map((line) => {
 			const period = formatPeriod(line);
 			const duplicate = percentageLines.some((other) => other !== line && formatPeriod(other) === period);
-			return `${duplicate && line.kind === "credit" ? "额度" : ""}${line.percentage}%(${period})`;
+			return `${duplicate && line.kind === "credit" ? "credit " : ""}${line.percentage}%(${period})`;
 		}).join(", ");
 	}
 	const first = data.lines[0];
-	return first?.kind === "time" ? `工具 ${first.currentValue}/${first.usage}(${formatPeriod(first)})` : "";
+	return first?.kind === "time" ? `tools ${first.currentValue}/${first.usage}(${formatPeriod(first)})` : "";
 }
 
 export function formatZaiQuota(data: ZaiQuota): string {
 	const parts = data.lines.map(formatLine);
-	if (data.partial) parts.push("部分信息未解析");
+	if (data.partial) parts.push("some fields unparsed");
 	return sanitizeDisplayText(parts.join(", "));
 }

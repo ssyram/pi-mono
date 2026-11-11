@@ -12,9 +12,14 @@ export default async function bootstrap(pi: ExtensionAPI & PiExtensionAPI): Prom
 			session: context.sessionManager,
 			sessionId: context.sessionManager.getSessionId(),
 		});
-		return (selection, route, registry, signal) =>
-			executeUsageQuery(selection, route, registry, signal, () =>
-				settings.query({ scope: "global", defaults: { [GLM_TEAMS_SETTING]: [] } }),
+		return (selection, route, registry, signal, readEntries) =>
+			executeUsageQuery(
+				selection,
+				route,
+				registry,
+				signal,
+				() => settings.query({ scope: "global", defaults: { [GLM_TEAMS_SETTING]: [] } }),
+				readEntries,
 			);
 	});
 }

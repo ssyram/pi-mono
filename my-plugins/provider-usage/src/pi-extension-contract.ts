@@ -11,6 +11,7 @@ export interface PiExtensionContext {
 	modelRegistry: ControllerContext["modelRegistry"];
 	ui: {
 		setFooter(factory: FooterFactory | undefined): void;
+		setWidget(key: string, content: string[] | undefined): void;
 		notify(message: string, type?: "info" | "warning" | "error"): void;
 		addAutocompleteProvider(factory: (current: AutocompleteProvider) => AutocompleteProvider): void;
 	};
@@ -28,6 +29,8 @@ export type PiEventHandler = (event: PiEvent, context: PiExtensionContext) => vo
 
 export interface PiExtensionAPI {
 	on(event: PiEventName, handler: PiEventHandler): void;
+	appendEntry<T>(customType: string, data: T): void;
+	registerEntryRenderer(customType: string, renderer: unknown): void;
 	registerCommand(name: string, options: {
 		description?: string;
 		getArgumentCompletions?: (prefix: string) => AutocompleteItem[] | null;

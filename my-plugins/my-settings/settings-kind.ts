@@ -19,9 +19,9 @@ function kindOf(value: SettingValue): ValueKind {
 export function pickValidFields(source: string, defaults: Settings, raw: Settings): SettingsOutcome<Settings> {
 	try {
 		const picked: Settings = {};
-		for (const key of Object.keys(defaults)) {
+		for (const [key, defaultValue] of Object.entries(defaults)) {
 			if (!(key in raw)) continue;
-			const expected = kindOf(defaults[key]!);
+			const expected = kindOf(defaultValue);
 			const actualRaw: unknown = raw[key];
 			const actual = kindOf(actualRaw as SettingValue);
 			if (actual !== expected) {

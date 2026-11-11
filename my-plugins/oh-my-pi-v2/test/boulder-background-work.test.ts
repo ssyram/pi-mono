@@ -34,6 +34,7 @@ describe("Boulder background work", () => {
 		try {
 			const work = createBoulderBackgroundWork();
 			assert.equal(work.isActive(context("session-a")), true);
+			assert.equal(work.isActive(context("session-b")), false);
 			active = false;
 			assert.equal(work.isActive(context("session-a")), false);
 		} finally {

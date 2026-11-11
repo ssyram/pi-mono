@@ -11,6 +11,8 @@ test("uses the host's current thinking level at startup and after model and turn
 	const pi: PiExtensionAPI = {
 		on: (name, handler) => { handlers.set(name, handler); },
 		registerCommand: () => {},
+		registerEntryRenderer: () => {},
+		appendEntry: () => {},
 	};
 	register(pi);
 	const model = makeModel({ provider: "unsupported", baseUrl: "https://example.invalid", reasoning: true });
@@ -28,6 +30,7 @@ test("uses the host's current thinking level at startup and after model and turn
 		},
 		ui: {
 			setFooter: (factory) => { if (factory) factories.push(factory); },
+			setWidget: () => {},
 			notify: () => {}, addAutocompleteProvider: () => {},
 		},
 		getContextUsage: () => undefined,

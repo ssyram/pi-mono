@@ -41,7 +41,7 @@ test("keeps the last successful value during a same-account refresh and clears i
 	const model = makeModel({ provider: "codex-002", api: "openai-codex-responses", baseUrl: "https://chatgpt.com/backend-api" });
 	const controller = createController(context, model);
 	assert.equal(controller.getFooterSnapshot().display.kind, "loading");
-	jobs[0]?.({ kind: "available", text: "已用 72%(week)", compact: "72%(week)" });
+	jobs[0]?.({ kind: "available", text: "72%(week) used", compact: "72%(week)" });
 	await new Promise((resolve) => setImmediate(resolve));
 	controller.requestRefresh(model);
 	assert.equal(controller.getFooterSnapshot().display.kind, "ready");
@@ -59,7 +59,7 @@ test("keeps the last successful value during a same-account refresh and clears i
 	assert.equal(formatDisplayState(display), "(72%(week) (err))");
 	controller.requestRefresh(model);
 	advance(60_000);
-	jobs[2]?.({ kind: "available", text: "已用 75%(week)", compact: "75%(week)" });
+	jobs[2]?.({ kind: "available", text: "75%(week) used", compact: "75%(week)" });
 	await new Promise((resolve) => setImmediate(resolve));
 	display = controller.getFooterSnapshot().display;
 	if (display.kind !== "ready" || display.result.kind !== "available") throw new Error("expected fresh result");

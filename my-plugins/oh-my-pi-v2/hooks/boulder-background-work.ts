@@ -30,6 +30,6 @@ function hasLiveBackgroundWork(sessionId: string): boolean {
 			states: [...ACTIVE_ASYNC_STATES],
 			sessionId,
 			resultsDir: DIRS.results,
-		}).length > 0 || snapshotBackgroundWork(sessionId).items.length > 0
+		}).length > 0 || snapshotBackgroundWork([sessionId]).items.length > 0
 	);
 }

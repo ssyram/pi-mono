@@ -24,6 +24,7 @@ export class UsageController {
 	private readonly getContextUsageFromHost: () => ContextUsageSnapshot | undefined;
 	private readonly scheduler;
 	private readonly query: UsageQueryRunner;
+	private readonly queryWidget: ControllerContext["queryWidget"];
 	private selection: Selection | undefined;
 	private model: UsageModel | undefined;
 	private thinkingLevel: string | undefined;
@@ -42,7 +43,9 @@ export class UsageController {
 		this.modelRegistry = context.modelRegistry;
 		this.getContextUsageFromHost = context.getContextUsage;
 		this.scheduler = context.scheduler ?? systemScheduler();
-		this.query = context.query ?? executeUsageQuery;
+		this.query = context.query ?? ((selection, route, registry, signal, readEntries) =>
+			executeUsageQuery(selection, route, registry, signal, undefined, readEntries));
+		this.queryWidget = context.queryWidget;
 	}
 
 	getContextUsage(): ContextUsageSnapshot | undefined {
@@ -98,6 +101,7 @@ export class UsageController {
 		}
 		this.latestPending = undefined;
 		this.display = { kind: "empty" };
+		this.queryWidget?.clear();
 		this.footer?.dispose();
 		this.footer = undefined;
 		this.requestRender = undefined;
@@ -168,12 +172,13 @@ export class UsageController {
 			result: undefined,
 		};
 		this.activeJob = job;
+		this.queryWidget?.begin(`Querying ${job.selection.providerId} usage…`);
 		job.deadline = this.scheduler.after(15_000, () => this.onDeadline(job));
 		if (!this.hasCurrentDisplay(job.selection)) {
 			this.display = { kind: "loading", selection: job.selection };
 			this.render();
 		}
-		void this.query(job.selection, job.route, this.modelRegistry, job.abort.signal)
+		void this.query(job.selection, job.route, this.modelRegistry, job.abort.signal, () => this.sessionManager.getEntries())
 			.then((result) => {
 				job.result = result;
 			})
@@ -192,6 +197,7 @@ export class UsageController {
 
 	private finishJob(job: ActiveJob): void {
 		job.deadline.clear();
+		this.queryWidget?.end();
 		if (this.activeJob === job) this.activeJob = undefined;
 		const result: QueryResult = job.result ?? { kind: "error", code: "network" };
 		const superseded = this.latestPending?.generation === this.generation;

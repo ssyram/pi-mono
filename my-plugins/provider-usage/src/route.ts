@@ -30,6 +30,9 @@ function normalizeEndpoint(endpoint: string): string | undefined {
 }
 
 export function route(selection: Selection, effectiveUrl = selection.endpoint): Route {
+	if (selection.providerId === "claude-code" || effectiveUrl === "process://claude-code") {
+		return { kind: "claude-code", endpoint: "process://claude-code" };
+	}
 	const endpoint = normalizeEndpoint(effectiveUrl);
 	if (!endpoint) return { kind: "error", code: "invalid-response" };
 	if (selection.api === "openai-codex-responses" && endpoint === codexEndpoint) return { kind: "codex", endpoint };

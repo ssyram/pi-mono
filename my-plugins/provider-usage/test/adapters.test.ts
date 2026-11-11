@@ -4,6 +4,7 @@ import { queryCodex } from "../src/codex-query.js";
 import { parseZaiQuota } from "../src/zai-quota.js";
 import { queryZaiCn } from "../src/zai-cn-query.js";
 import { queryZai } from "../src/zai-query.js";
+import { formatLocalTime } from "../src/format-local-time.js";
 import type { RequestAuth } from "../src/usage-contract.js";
 
 interface FetchCall {
@@ -61,7 +62,7 @@ test("queries Codex once at the fixed endpoint and formats validated windows", a
 		),
 		async (calls) => {
 			const result = await queryCodex(codexAuth, new AbortController().signal);
-			assert.deepEqual(result, { kind: "available", text: "已用 34%(week), Review 已用 12%(5h)", compact: "34%(week)" });
+			assert.deepEqual(result, { kind: "available", text: "34%(week) used, Review 12%(5h) used", compact: "34%(week)" });
 			assert.equal(calls.length, 1);
 			assert.equal(calls[0]?.url, "https://chatgpt.com/backend-api/wham/usage");
 			assert.deepEqual(calls[0]?.init?.headers, {
@@ -92,7 +93,7 @@ test("keeps Z.AI regions separate and preserves their resolved authorization for
 				{ route: "zai", endpoint: "https://api.z.ai/api/coding/paas/v4", headers: { Authorization: "Bearer international" } },
 				new AbortController().signal,
 			);
-			assert.deepEqual(result, { kind: "available", text: "已用 17%(5h) 重置 2027-01-15T08:00:00.000Z, 工具 12/1000(month) glm-test 4", compact: "17%(5h)" });
+			assert.deepEqual(result, { kind: "available", text: `17%(5h) used, resets ${formatLocalTime(1_800_000_000_000)}, tools 12/1000(month) glm-test 4`, compact: "17%(5h)" });
 			assert.equal(calls[0]?.url, "https://api.z.ai/api/monitor/usage/quota/limit");
 			assert.deepEqual(calls[0]?.init?.headers, { Authorization: "Bearer international", Accept: "application/json" });
 		},
@@ -153,7 +154,7 @@ test("queries a CN team quota only with complete account-scoped organization/pro
 		{ type: "CREDIT_LIMIT", percentage: 23, unit: 3, number: 5 },
 	] } }), { status: 200 }), async (calls) => {
 		assert.deepEqual(await queryZaiCn(auth, new AbortController().signal), {
-			kind: "available", text: "额度 已用 23%(5h)", compact: "23%(5h)",
+			kind: "available", text: "credits 23%(5h) used", compact: "23%(5h)",
 		});
 		assert.equal(calls[0]?.url, "https://open.bigmodel.cn/api/monitor/usage/quota/limit?type=2");
 		assert.deepEqual(calls[0]?.init?.headers, { ...auth.headers, Accept: "application/json" });

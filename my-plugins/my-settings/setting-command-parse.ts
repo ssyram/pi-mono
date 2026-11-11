@@ -48,10 +48,10 @@ interface FlagScan {
 function scanFlags(body: string, allowScopes: boolean): FlagScan {
 	const scopes: SettingScopeFlag[] = [];
 	const paths: CommandPaths = {};
-	const matches = [...body.matchAll(/\S+/g)];
+	const matches = body.matchAll(/\S+/g);
 	let restStart = body.length;
-	for (let index = 0; index < matches.length; index++) {
-		const token = matches[index]![0]!;
+	for (const match of matches) {
+		const token = match[0];
 		if (token === "--session" && !scopes.includes("session")) {
 			scopes.push("session");
 			continue;
@@ -65,7 +65,7 @@ function scanFlags(body: string, allowScopes: boolean): FlagScan {
 			continue;
 		}
 		if (token === "--global-file" || token === "--local-file") {
-			const next = matches[index + 1];
+			const next = matches.next().value;
 			if (!next || next[0].startsWith("--") || next[0].startsWith('"')) {
 				return {
 					scopes,
@@ -75,10 +75,9 @@ function scanFlags(body: string, allowScopes: boolean): FlagScan {
 				};
 			}
 			paths[token === "--global-file" ? "globalFile" : "localFile"] = next[0];
-			index++;
 			continue;
 		}
-		restStart = matches[index]!.index ?? 0;
+		restStart = match.index;
 		break;
 	}
 	return { scopes, paths, restStart };
