@@ -8,6 +8,7 @@ import type { UsageController } from "./usage-controller.js";
 import { registerUsageOutputEntryRenderer, USAGE_OUTPUT_ENTRY_TYPE, type UsageOutputEntryData } from "./usage-output-entry.js";
 import { createUsageQueryWidget, type UsageQueryWidget } from "./usage-widget.js";
 import { executeUsageQuery } from "./usage-query.js";
+import { registerUsageTool } from "./usage-tool.js";
 
 function defaultQueryRunner(): UsageQueryRunner {
 	return (selection, route, registry, signal, readEntries) =>
@@ -37,6 +38,7 @@ export default function register(
 	let commandRegistry: UsageModelRegistry | undefined;
 	let queryWidget: UsageQueryWidget | undefined;
 	registerUsageOutputEntryRenderer(pi);
+	registerUsageTool(pi, createQuery);
 	pi.registerCommand("provider-usage", {
 		description: "Query the current provider, --all, or named providers; Tab completes provider names",
 		getArgumentCompletions: (prefix) =>

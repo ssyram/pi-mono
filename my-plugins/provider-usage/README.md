@@ -39,6 +39,12 @@
 
 详情逐账号显示已用方向、实际窗口、重置时刻及服务确有的其他额度信息；支持对多参数中的 provider 名称按 Tab 补全（包括输入空格后直接按 Tab）。命令不更改当前模型，也不把结果发送给模型。
 
+## AI tool：provider_usage
+
+- 模型可自行调用 `provider_usage` tool 查询额度，输出与 `/provider-usage --all` 相同（每 provider 一行），结果作为 tool 返回文本发送给模型。
+- 省略 `provider` 参数查全部（推荐，写入工具描述引导模型优先这样做）；传 `provider` 指定单个 provider id；未知名称返回 `provider not found` 行。
+- 与命令共用同一查询管道与 GLM 团队配置；不显示查询 widget，也不写入命令的 session entry。
+
 ## GLM 团队配置
 
 在全局 `<agent-dir>/settings.json`（默认 `~/.pi/agent/settings.json`）添加一个字段：

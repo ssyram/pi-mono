@@ -11,6 +11,7 @@ test("uses the host's current thinking level at startup and after model and turn
 	const pi: PiExtensionAPI = {
 		on: (name, handler) => { handlers.set(name, handler); },
 		registerCommand: () => {},
+		registerTool: () => {},
 		registerEntryRenderer: () => {},
 		appendEntry: () => {},
 	};

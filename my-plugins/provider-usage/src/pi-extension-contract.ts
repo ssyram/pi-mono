@@ -31,6 +31,7 @@ export interface PiExtensionAPI {
 	on(event: PiEventName, handler: PiEventHandler): void;
 	appendEntry<T>(customType: string, data: T): void;
 	registerEntryRenderer(customType: string, renderer: unknown): void;
+	registerTool(definition: object): void;
 	registerCommand(name: string, options: {
 		description?: string;
 		getArgumentCompletions?: (prefix: string) => AutocompleteItem[] | null;
