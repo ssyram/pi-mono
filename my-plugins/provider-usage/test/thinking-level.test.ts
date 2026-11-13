@@ -13,7 +13,9 @@ test("uses the host's current thinking level at startup and after model and turn
 		registerCommand: () => {},
 		registerTool: () => {},
 		registerEntryRenderer: () => {},
+		registerMessageRenderer: () => {},
 		appendEntry: () => {},
+		sendMessage: () => {},
 	};
 	register(pi);
 	const model = makeModel({ provider: "unsupported", baseUrl: "https://example.invalid", reasoning: true });

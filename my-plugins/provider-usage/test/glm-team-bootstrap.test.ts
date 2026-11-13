@@ -76,6 +76,7 @@ test("bootstrap uses only global teams for footer and commands and rereads edite
 		},
 		registerTool() {},
 		registerEntryRenderer() {},
+		registerMessageRenderer() {},
 		appendEntry(customType: string, data: unknown) {
 			if (customType !== "provider-usage-command-output") {
 				throw new Error("credentials must not be saved in session entries");

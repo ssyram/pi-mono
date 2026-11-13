@@ -1,4 +1,5 @@
 import type { AutocompleteItem, AutocompleteProvider } from "@earendil-works/pi-tui";
+import { SHOW_TO_AI_FLAG } from "./command-targets.js";
 import type { UsageModel, UsageModelRegistry } from "./usage-contract.js";
 
 const command = "/provider-usage";
@@ -25,13 +26,19 @@ export function providerCandidates(
 	const token = /(\S*)$/.exec(argumentPrefix)?.[1] ?? "";
 	const previous = argumentPrefix.slice(0, argumentPrefix.length - token.length);
 	const selected = previous.trim().split(/\s+/).filter(Boolean);
-	if (selected.includes("--all")) return { previous, token, candidates: [] };
-	const names = new Set(registry.getAll().map((model) => model.provider));
-	if (current && !(current.provider === "unknown" && current.id === "unknown" && current.api === "unknown")) {
-		names.add(current.provider);
+	const candidates: string[] = [];
+	if (!selected.includes(SHOW_TO_AI_FLAG) && matches(token, SHOW_TO_AI_FLAG)) candidates.push(SHOW_TO_AI_FLAG);
+	const hasProviderNames = selected.some((name) => !name.startsWith("--"));
+	if (!selected.includes("--all") && !hasProviderNames && matches(token, "--all")) candidates.push("--all");
+	if (!selected.includes("--all")) {
+		const names = new Set(registry.getAll().map((model) => model.provider));
+		if (current && !(current.provider === "unknown" && current.id === "unknown" && current.api === "unknown")) {
+			names.add(current.provider);
+		}
+		candidates.push(
+			...[...names].filter((name) => !selected.includes(name) && matches(token, name)),
+		);
 	}
-	const candidates = [...names].filter((name) => !selected.includes(name) && matches(token, name));
-	if (selected.length === 0 && matches(token, "--all")) candidates.unshift("--all");
 	return { previous, token, candidates };
 }
 

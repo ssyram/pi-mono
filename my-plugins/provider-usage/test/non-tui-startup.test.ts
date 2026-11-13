@@ -11,7 +11,9 @@ test("does not install a footer or resolve authentication outside TUI mode", () 
 		registerCommand: () => {},
 		registerTool: () => {},
 		registerEntryRenderer: () => {},
+		registerMessageRenderer: () => {},
 		appendEntry: () => {},
+		sendMessage: () => {},
 	};
 	register(pi);
 	assert.equal(handlers.has("turn_end"), true);

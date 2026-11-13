@@ -4,6 +4,7 @@
  */
 import type { ExtensionAPI, ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { SHOW_TO_AI_FLAG } from "./command-targets.js";
 import type { UsageQueryRunner } from "./controller-contract.js";
 import type { PiExtensionContext } from "./pi-extension-contract.js";
 import { runUsageCommand } from "./usage-command.js";
@@ -27,7 +28,12 @@ export function registerUsageTool(
 		promptSnippet: "provider_usage: query provider quota/usage; default all providers, one line each.",
 		parameters,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx: ExtensionToolContext) {
-			const args = params.provider?.trim() ? params.provider : "--all";
+			// params.provider is model-controlled text; the UI flag would route output to the no-op sendToAi path.
+			const raw = params.provider?.trim() ? params.provider : "--all";
+			const args = raw
+				.split(/\s+/)
+				.filter((token) => token !== SHOW_TO_AI_FLAG)
+				.join(" ");
 			const lines: string[] = [];
 			await runUsageCommand(args, ctx, createQuery(ctx), undefined, (data) => {
 				lines.push(data.text);

@@ -17,6 +17,7 @@
 | 全 session entries 的 token/cache/cost；sub、context 阈值、费用缺席、窄屏、git branch、扩展 status | 用量为无 NAME 的短格式、在费用后取代 `(sub)`；详细重置/partial 不进入 footer；无用量时原 `(sub)` 条件保持，context/status 与数字不丢 |
 | `/provider-usage`、`--all`、多个显式账号与未知名称 | 默认当前、全部可用去重、指定顺序分别输出详细结果；单项错误不吞后续；不借另一账号的认证，混用 `--all` 与名称报输入错误 |
 | `/provider-usage ` 直接 Tab，以及第二、第三名称补全 | 候选来自当前可用 provider，补全后已有参数保持原样；其它命令的补全不受影响 |
+| `/provider-usage --show-to-ai`（单独/--all/具名，任意位置）及其 Tab 补全 | 结果经 `pi.sendMessage`（triggerTurn:false）注入 `provider-usage-ai-report` custom message：时间戳头行＋逐账号完整结果行＋仅失败时的错误码 legend；不写 TUI 输出块；未知名称与输入错误不进消息；flag 在任意已选位置可补全、与 `--all` 互为第二参数；tool 的 `provider` 参数剥除该 flag；TUI 折叠态为 `[Provider Usage]`＋一行 `name:(compact)`（超宽 `...`），点击/全局展开键切换，简写走 details 不进 LLM，旧会话无 details 的消息回退默认渲染 |
 | 三个目标服务分别真实查询 | Codex 原生/具名曾成功；国内团队四把账号 key 带相同组织/项目分别成功，真实 Pi footer、详细命令及 reload 通过；国际/国内个人套餐成功额度仍待实测 |
 
 ## 未闭合的真实边界

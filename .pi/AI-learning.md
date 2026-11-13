@@ -215,3 +215,9 @@
 - **来源**：实测发现 no-wake（triggerTurn:false）报告在 turn_end 边界被注入进行中的 run（session 文件中落在 toolResult 后 2ms）；第一版修复订阅了 `pi.events.on("agent_start")` 无效——那是跨扩展消息总线，不是生命周期事件。
 - **原则**：pi 中生命周期事件必须用 `pi.on("agent_start"/"agent_settled"/...)` 订阅；`pi.events` 只用于扩展间 pub/sub 频道。`triggerTurn:false` 的自定义消息不是"安静追加"：streaming 时进 `_pendingCustomMessages`，在每个 turn_end（LLM turn 边界，非 run 边界）flush，等于注入当前 run；要真正不打扰必须自己 hold 到 `agent_settled` 再发（此时 idle 路径才只进 history）。
 - **边界**：wake（triggerTurn:true）走 `agent.followUp()` 队列，只在下个 run 开始时 drain，本身安全；`deliverAs` 参数仅在 streaming 且 triggerTurn!==false 时生效。单测 mock 必须与真实 API 表面一致（mock 了错误总线只会让测试陪着 bug 通过）。
+
+## 2026-11-13 — 重构校验条件时逐子句对照，edit 工具写正则的 JSON 双转义
+
+- **来源**：给 resolveUsageTargets 加 --show-to-ai 时，把 `-` 前缀校验从 `startsWith("-") && name !== "--all"` 重构为 `startsWith("-")`，弄丢了 --all 豁免子句，--all 单独使用立即回归报错（被既有测试抓住）。随后三次 edit 失败/测试失败：两次 JSON 转义层级搞错（`\\\\d` 落盘成 `\\d`、漏转义开括号），一次多行字符串匹配漏 `m` 标志。
+- **原则**：改写既有校验条件时，逐子句抄录原条件的每个 && 分支并各自说明去留，不凭"语义等价"印象整体重写；经 edit 工具写正则时，落盘目标永远是单反斜杠，JSON 参数里写 `\\`，成对定界符（括号/方括号）两侧同转，多行输入的 ^/$ 断言默认带 m 标志。
+- **边界**：既有测试抓住回归是最后防线，新分支自身测试不能替代对未改路径的覆盖确认；转义教训适用于一切 JSON 传参再落盘的编辑工具。

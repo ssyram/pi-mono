@@ -30,7 +30,13 @@ export type PiEventHandler = (event: PiEvent, context: PiExtensionContext) => vo
 export interface PiExtensionAPI {
 	on(event: PiEventName, handler: PiEventHandler): void;
 	appendEntry<T>(customType: string, data: T): void;
+	/** Narrowed pi.sendMessage: injects an AI-visible custom message; triggerTurn:false never starts a turn. */
+	sendMessage(
+		message: { customType: string; content: string; display: boolean; details?: unknown },
+		options?: { triggerTurn?: boolean },
+	): void;
 	registerEntryRenderer(customType: string, renderer: unknown): void;
+	registerMessageRenderer(customType: string, renderer: unknown): void;
 	registerTool(definition: object): void;
 	registerCommand(name: string, options: {
 		description?: string;

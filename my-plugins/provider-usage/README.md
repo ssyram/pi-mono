@@ -4,7 +4,7 @@
 
 ## 支持范围 — 2026-11-10
 
-**当前状态：纯插件已实现。GLM 团队全局设置只提供组织/项目，每个 provider 使用自己的原生认证 key 查询独立额度。39 项插件测试通过；openlux 真实 key 已实测中转余额查询（含 billing 双端点交叉验证）；2026-10-15 已在本机安装的真实 Pi 中逐个切换四个账号、运行详细查询及 `/reload`，确认 footer 按账号显示各自的 5h/week。未发起模型推理请求。**
+**当前状态：纯插件已实现。GLM 团队全局设置只提供组织/项目，每个 provider 使用自己的原生认证 key 查询独立额度。2026-11-13 新增 `/provider-usage --show-to-ai`：查询结果经 `pi.sendMessage`（triggerTurn:false）注入为 AI 可见的 custom message，含时间戳头行与失败时的错误码 legend；消息在 TUI 默认折叠为一行 `name:(compact)` 简写（点击/展开键切换，简写走 details 不进 LLM）。解析/补全/分发/折叠渲染均有插件测试，真实 Pi 内 `/reload` 后的注入与点击效果待用户实测。64 项插件测试通过；openlux 真实 key 已实测中转余额查询（含 billing 双端点交叉验证）；2026-10-15 已在本机安装的真实 Pi 中逐个切换四个账号、运行详细查询及 `/reload`，确认 footer 按账号显示各自的 5h/week。未发起模型推理请求。**
 
 | 首版范围 | 服务端点 | 用量内容 | 当前证据 |
 |---|---|---|---|
@@ -45,15 +45,18 @@
 /provider-usage                       # 立即查询当前 provider
 /provider-usage --all                 # 逐个查询运行时可用的 provider
 /provider-usage codex-002 codex-001  # 只查询指定账号
+/provider-usage --show-to-ai [--all | provider ...]  # 查询并把结果注入为 AI 可见的 custom message
 ```
 
 详情逐账号显示已用方向、实际窗口、重置时刻及服务确有的其他额度信息；支持对多参数中的 provider 名称按 Tab 补全（包括输入空格后直接按 Tab）。命令不更改当前模型，也不把结果发送给模型。
+
+`--show-to-ai` 可与 `--all` 或账号名称任意组合（flag 位置不限，Tab 可补全）。指定它时不写 TUI 输出块，改为通过 `pi.sendMessage` 注入一条 `provider-usage-ai-report` custom message：首行为快照时间戳，主体为逐账号完整结果行，含失败行时末尾附错误码 legend；未知账号名属输入错误，不进消息。`triggerTurn: false`——只入上下文，不触发模型回合；流式进行中则推迟到当前回合结束再落盘。wire 层该消息会以 user role 呈现给模型（pi 的固定转换），session/UI 层仍是独立的 custom message，不是用户输入。TUI 默认折叠为 `[Provider Usage]` 标签＋一行简写（`name:(compact)` 逐个逗号连接，compact 与 footer 同款，超宽自动 `...`；错误为 `(AUTH)` 等短码），左键点击展开完整内容、再点折叠，也跟随全局展开快捷键；折叠仅是展示态，模型可见的始终是完整内容（简写经消息 details 传递，不进入 LLM 上下文）。
 
 ## AI tool：provider_usage
 
 - 模型可自行调用 `provider_usage` tool 查询额度，输出与 `/provider-usage --all` 相同（每 provider 一行），结果作为 tool 返回文本发送给模型。
 - 省略 `provider` 参数查全部（推荐，写入工具描述引导模型优先这样做）；传 `provider` 指定单个 provider id；未知名称返回 `provider not found` 行。
-- 与命令共用同一查询管道与 GLM 团队配置；不显示查询 widget，也不写入命令的 session entry。
+- 与命令共用同一查询管道与 GLM 团队配置；不显示查询 widget，也不写入命令的 session entry；`provider` 参数中的 `--show-to-ai` 会被剥除（tool 结果即模型可见，无需再注入）。
 
 ## GLM 团队配置
 

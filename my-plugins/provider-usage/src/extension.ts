@@ -6,6 +6,7 @@ import { runUsageCommand } from "./usage-command.js";
 import type { UsageModelRegistry } from "./usage-contract.js";
 import type { UsageController } from "./usage-controller.js";
 import { registerUsageOutputEntryRenderer, USAGE_OUTPUT_ENTRY_TYPE, type UsageOutputEntryData } from "./usage-output-entry.js";
+import { registerUsageAiMessageRenderer, USAGE_AI_MESSAGE_TYPE } from "./usage-ai-message.js";
 import { createUsageQueryWidget, type UsageQueryWidget } from "./usage-widget.js";
 import { executeUsageQuery } from "./usage-query.js";
 import { registerUsageTool } from "./usage-tool.js";
@@ -39,6 +40,7 @@ export default function register(
 	let commandRegistry: UsageModelRegistry | undefined;
 	let queryWidget: UsageQueryWidget | undefined;
 	registerUsageOutputEntryRenderer(pi);
+	registerUsageAiMessageRenderer(pi);
 	registerUsageTool(pi, createQuery);
 	pi.registerCommand("provider-usage", {
 		description: "Query the current provider, --all, or named providers; Tab completes provider names",
@@ -47,8 +49,18 @@ export default function register(
 				? completeProviderUsageArgs(prefix, commandRegistry, controller?.getFooterSnapshot().model)
 				: null,
 		handler: (args, context) =>
-			runUsageCommand(args, context, createQuery(context), queryWidget, (data: UsageOutputEntryData) =>
-				pi.appendEntry(USAGE_OUTPUT_ENTRY_TYPE, data)),
+			runUsageCommand(
+				args,
+				context,
+				createQuery(context),
+				queryWidget,
+				(data: UsageOutputEntryData) => pi.appendEntry(USAGE_OUTPUT_ENTRY_TYPE, data),
+				(content: string, details: { collapsed: string }) =>
+					pi.sendMessage(
+						{ customType: USAGE_AI_MESSAGE_TYPE, content, display: true, details },
+						{ triggerTurn: false },
+					),
+			),
 	});
 	pi.on("session_start", (_event, context) => {
 		controller?.dispose();
