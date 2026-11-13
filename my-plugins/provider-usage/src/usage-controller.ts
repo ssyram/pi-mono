@@ -44,7 +44,7 @@ export class UsageController {
 		this.getContextUsageFromHost = context.getContextUsage;
 		this.scheduler = context.scheduler ?? systemScheduler();
 		this.query = context.query ?? ((selection, route, registry, signal, readEntries) =>
-			executeUsageQuery(selection, route, registry, signal, undefined, readEntries));
+			executeUsageQuery(selection, route, registry, signal, undefined, undefined, readEntries));
 		this.queryWidget = context.queryWidget;
 	}
 

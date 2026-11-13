@@ -11,7 +11,7 @@ export interface Selection {
 	endpoint: string;
 }
 
-export type SupportedRouteKind = "codex" | "zai" | "zai-cn" | "claude-code";
+export type SupportedRouteKind = "codex" | "zai" | "zai-cn" | "relay" | "claude-code";
 
 export type Route =
 	| { kind: SupportedRouteKind; endpoint: string }

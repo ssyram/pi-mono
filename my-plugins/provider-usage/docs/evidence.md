@@ -1,4 +1,8 @@
-# 设计证据 — 更新至 2026-10-15
+# 设计证据 — 更新至 2026-11-10
+
+## E11 — openlux 中转余额实测（new-api 系）
+
+2026-11-10 用户提供 openlux（`https://api.openlux.ai/v1`）真实 API Key，实测三个端点：`GET /api/usage/token/`（尾斜杠，Bearer）返回 HTTP 200、success=true、object=token_usage，total_granted=108379535、total_used=33536519、total_available=74843016、unlimited_quota=false、token 名 guanyan；同 key 请求 `/v1/dashboard/billing/subscription` 返回 hard_limit_usd=216.75907，`/v1/dashboard/billing/usage` 返回 total_usage=6707.3038 美分。交叉验证：granted/500000=216.759 等于 hard_limit_usd，used/500000=67.073 等于 total_usage/100，故确认 500000 配额 = 1 美元且 total_available 即余额（149.69 美元）。无斜杠的 `/api/usage/token` 返回 301；伪造 key 返回 HTTP 401 与 new_api_error。据此实现 relay 兑底路由（404/结构不符→N/S，401/403→AUTH）。未发起模型推理请求，key 不入仓库/日志。
 
 ## E10 — 当前账号 key 与真实 Pi 验证
 

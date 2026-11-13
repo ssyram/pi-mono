@@ -11,8 +11,9 @@ import { executeUsageQuery } from "./usage-query.js";
 import { registerUsageTool } from "./usage-tool.js";
 
 function defaultQueryRunner(): UsageQueryRunner {
+	const relayMisses = new Set<string>();
 	return (selection, route, registry, signal, readEntries) =>
-		executeUsageQuery(selection, route, registry, signal, undefined, readEntries);
+		executeUsageQuery(selection, route, registry, signal, undefined, relayMisses, readEntries);
 }
 
 function controllerContext(

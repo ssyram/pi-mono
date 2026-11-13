@@ -44,7 +44,9 @@ export async function resolveAuth(
 		return { kind: "unsupported" };
 	}
 	const authorization = findHeader(resolved.headers, "authorization") ?? defaultAuthorization(rerouted.kind, resolved.apiKey);
-	if (!authorization) return { kind: "error", code: "auth" };
+	if (!authorization) {
+		return rerouted.kind === "relay" ? { kind: "unsupported" } : { kind: "error", code: "auth" };
+	}
 	const headers: Record<string, string> = { Authorization: authorization };
 	if (rerouted.kind === "codex") {
 		const accountId = codexAccountId(authorization, resolved.headers);

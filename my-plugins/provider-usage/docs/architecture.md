@@ -7,7 +7,7 @@
 | ID | 可判定要求 | 来源 |
 |---|---|---|
 | P1 同实例 | 名称取当前 `model.provider`，认证用该模型的 registry 解析；旧选择不得覆盖新选择 | Q.I.1/3 |
-| P2 识别 | 显式全局 GLM 团队关联优先；未关联时按模型 API 协议和精确服务端点选择 Codex、Z.AI 国际或国内，不根据实例名猜测 | Q.I.3/7/10 |
+| P2 识别 | 显式全局 GLM 团队关联优先；未关联时按模型 API 协议和精确服务端点选择 Codex、Z.AI 国际或国内，不根据实例名猜测；三家之外的有端点账号按 new-api 系中转探测 key 余额 | Q.I.3/7/10 |
 | P3 内容 | 每家解码、格式化自身响应；窗口由响应确定，不补造零或时间窗 | Q.I.4 |
 | P4 位置 | 费用后只显示不带 NAME 的短格式，有额度状态时取代 `(sub)`；重置时间和解析提示留给命令，原 token/cost/context 数值不变 | Q.I.5 |
 | P5 状态 | 确认无套餐→隐藏；未支持→N/S；认证/查询/格式错误→可见错误，不互相代替 | Q.I.6 |
@@ -42,7 +42,7 @@ ExtensionContext.model → captureSelection → route(api,baseUrl)
 |---|---|---|
 | Selection/router | 同步取得当前 model、providerId、协议及有效端点；精确匹配三路由 | [detail §1](detail.md#1-选择与认证) |
 | Auth/HTTP | 用同模型认证访问固定服务域；国际版业务失败需确认套餐归属时允许同域第二次 GET；认证覆盖地址重判，不跨账号回退 | [detail §1–2](detail.md#2-http-边界) |
-| Adapters | Codex/Z.AI 国际/国内各自返回已格式化用量或明确业务状态 | [detail §3](detail.md#3-供应商适配) |
+| Adapters | Codex/Z.AI 国际/国内/中转余额各自返回已格式化用量或明确业务状态 | [detail §3](detail.md#3-供应商适配) |
 | Controller | TUI 会话生命周期、限频、单查询、取消、当前结果发布 | [detail §4](detail.md#4-控制器与入口) |
 | Footer | `ctx.ui.setFooter()` 重建统计行，用量短格式取代 `(sub)` | [detail §5](detail.md#5-纯插件-footer) |
 | Command | 从运行时枚举 provider，逐个直接查询详细结果；自然参数补全和强制 Tab 共用候选 | [detail §6](detail.md#6-按需查询命令) |
@@ -52,7 +52,7 @@ ExtensionContext.model → captureSelection → route(api,baseUrl)
 | 类型 | 内容、生产者→消费者 | 约束 |
 |---|---|---|
 | `Selection` | sessionId、model 快照、providerId=model.provider、api、endpoint；capture→router/controller | 不含凭据；一次事件同步捕获 |
-| `Route` | codex / zai / zai-cn / unsupported；router→controller | 不按 providerId 匹配；无套餐不是 route |
+| `Route` | codex / zai / zai-cn / relay / unsupported；router→controller | 不按 providerId 匹配；无套餐不是 route；relay 是兑底探测路由，查询证实 token_usage 结构才算支持 |
 | `RequestAuth` | 授权 header、Codex accountId、国内团队可选 organization/project、effectiveEndpoint；auth→query | 临时单 job；显式团队使用当前 model 的 apiKey 和配置的组织/项目；否则认证覆盖地址须复判为相同 route，组织头成对来自模型认证 |
 | `UsageResult` | available(text, compact) / not-applicable / unsupported / error(auth/timeout/network/http/invalid-response)；adapter→controller/command | text 为详细文本，compact 为不含重置/解析提示的短文本；两者不含名称、凭据 |
 | `DisplayState` | empty / loading(selection) / ready(selection,result,staleError?)；controller→footer | 只发布当前世代；失败时若当前账号有 available 则保留其数值并标 err；跨账号清空 |
@@ -66,8 +66,9 @@ ExtensionContext.model → captureSelection → route(api,baseUrl)
 | `openai-codex-responses` | `https://chatgpt.com/backend-api` | `https://chatgpt.com/backend-api/wham/usage` |
 | `openai-completions` | `https://api.z.ai/api/coding/paas/v4` | `https://api.z.ai/api/monitor/usage/quota/limit` |
 | `openai-completions` | `https://open.bigmodel.cn/api/coding/paas/v4` | `https://open.bigmodel.cn/api/monitor/usage/quota/limit` |
+| 任意协议 | 其它 https 端点（兑底） | `{baseUrl 去尾部 /v1 后的根}/api/usage/token/`（尾斜杠） |
 
-HTTPS、host、端口、pathname 规范化后全量匹配；不因同协议、相似域名或具名 provider 猜供应商。国内团队若当前模型认证同时提供 organization/project 头，则额度 URL 加 `?type=2` 并带这两头；缺一头不能当个人套餐查询。当前无头的国内请求维持原端点，未获证的个人 `?type=1` 不自动添加。国际版遇到精确 `code=500, success=false, msg="当前用户不存在coding plan"` 才用同账号 `subscription/list` 成功返回空数组来确认此 API key 不适用；其它失败保留 ERR。
+HTTPS、host、端口、pathname 规范化后全量匹配；不因同协议、相似域名或具名 provider 猜供应商。三家之外的有效 https 端点进入 relay 兕底：用同账号 API Key 以 Bearer 探测服务根的 `/api/usage/token/`（new-api 系，如 openlux；500000 配额 = 1 美元，响应需严格符合 `token_usage` 结构才算支持）。404 或结构不符返回 N/S 且同会话内不再重探同一主机；401/403 返回 AUTH；无 API Key（如 OAuth 订阅账号）不探测，维持 N/S。旧 one-api 的 `/v1/dashboard/billing/*` 端点不涵盖。国内团队若当前模型认证同时提供 organization/project 头，则额度 URL 加 `?type=2` 并带这两头；缺一头不能当个人套餐查询。当前无头的国内请求维持原端点，未获证的个人 `?type=1` 不自动添加。国际版遇到精确 `code=500, success=false, msg="当前用户不存在coding plan"` 才用同账号 `subscription/list` 成功返回空数组来确认此 API key 不适用；其它失败保留 ERR。
 
 ## 原生 footer 数据边界
 

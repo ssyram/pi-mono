@@ -19,6 +19,7 @@ export default async function bootstrap(pi: ExtensionAPI & PiExtensionAPI): Prom
 				registry,
 				signal,
 				() => settings.query({ scope: "global", defaults: { [GLM_TEAMS_SETTING]: [] } }),
+				undefined,
 				readEntries,
 			);
 	});

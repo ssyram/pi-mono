@@ -22,7 +22,7 @@ Caller：session_start/model_select/turn_end 的同步事件体；model_select �
 
 Caller：controller 初选、认证后复判。Callee：URL parser、[三行路由表](architecture.md#供应商路由)。Pre：Selection 存在。
 
-URL 解析失败、缺失、非 HTTPS、有 userinfo/query/fragment、非默认端口→invalid-response；规范化尾 `/` 后比较完整 origin/path＋api。命中唯一项→该 adapter；其它合法地址→unsupported。Post：只依赖 api 与 endpoint，不依赖 providerId、provider.name、profiles 的有无；纯函数。三行互斥、有限比较保证确定性；不对开放代理猜底层公司。
+URL 解析失败、缺失、非 HTTPS、有 userinfo/query/fragment、非默认端口→invalid-response；规范化尾 `/` 后比较完整 origin/path＋api。命中唯一项→该 adapter；其它合法地址→relay 兕底：以去尾部 `/v1` 后的服务根为端点，供 new-api 系中转探测。Post：只依赖 api 与 endpoint，不依赖 providerId、provider.name、profiles 的有无；纯函数。三行互斥加兑底保证确定性；不对开放代理猜底层公司。
 
 ### `resolveAuth(selection, route, registry, signal): Promise<AuthResult>` — `auth.ts`
 
@@ -31,7 +31,7 @@ Caller：`executeQuery`；callees：`registry.getApiKeyAndHeaders(selection.mode
 1. 已 abort→cancelled；否则调用宿主模型认证。拒绝或 ok=false→error(auth)，不传播原错误消息。
 2. await 后再检查 abort；取消则不启动额度 GET。
 3. 认证若给 baseUrl，以此覆盖模型端点并重新 `route`；只有 route 仍是原 adapter 才能继续，否则 unsupported；非法覆盖→invalid-response。
-4. Authorization header 不区分大小写优先使用；否则按 adapter 规则从 apiKey 构造：Codex/Z.AI 国际 Bearer，国内原值。没有→error(auth)。其它自定义 headers 默认不转发到额度端点。
+4. Authorization header 不区分大小写优先使用；否则按 adapter 规则从 apiKey 构造：Codex/Z.AI 国际/中转 Bearer，国内原值。没有→relay 时 unsupported（纯 API Key 路由，OAuth 订阅账号不适用），其余 error(auth)。其它自定义 headers 默认不转发到额度端点。
 5. Codex 必须取得当前 token 的 account id；缺失→error(auth)；发送 `ChatGPT-Account-Id`。国内仅识别当前模型认证的 `bigmodel-organization`、`bigmodel-project`：两者非空才同时保留以查询团队额度；只出现其一→unsupported，不能静默查询个人账号。国际版出现组织/项目选择头仍 unsupported。
 6. 成功返回仅本 job 使用的 RequestAuth：所需 header、accountId（Codex）、复判后的 endpoint；不放进 controller 长期状态。
 
@@ -48,7 +48,7 @@ Caller：resolveAuth；callee：本地 base64url/JSON 解码。Pre：当前选�
 Caller：三个 adapter query。Callee：`fetch`、`Response.json()`。Pre：URL 是路由表固定额度 URL、国内团队该 URL 的 `?type=2`，或国际版固定订阅列表 URL；headers 仅为当前模型认证中对应端点必需的字段；controller 为整 job 设 15 秒截止。
 
 - signal 已取消→cancelled；否则一次 GET，Accept: application/json，redirect: error，no body。不得把 token 放 URL。
-- fetch 抛错：signal.aborted→cancelled，其他→error(network)。HTTP 401/403→error(auth)，其它非 2xx→error(http)；3xx 不跟随。
+- fetch 抛错：signal.aborted→cancelled，其他→error(network)。HTTP 401/403→error(auth)，其它非 2xx→error(http)（附响应 status，供 relay 判定 404 为端点不存在）；3xx 不跟随。
 - 2xx JSON 解码失败→error(invalid-response)；成功→json(unknown)，不能把 200 当作成功套餐。
 
 Post：每次调用最多一次 GET，无登录、重试、地区回退、日志原文；仅国际版额度业务失败且精确匹配时，adapter 可在同一 job 中再发一次同域订阅列表 GET。共享 15 秒截止，失败不再重试；远端是否收到超时请求未知。
@@ -109,6 +109,18 @@ Caller：queryZai。仅当 `success===false`、`code===500` 且 trim 后的 `msg
 
 Caller：executeQuery；callees：requestJson→parseZaiQuota(region)→formatZaiQuota。国际额度 URL 固定、默认 `Bearer <key>`；国内无团队头维持旧额度 URL、默认 key 原值，有完整团队头时加 `?type=2` 并只随该请求发送这两头。显式 Authorization 尊重宿主结果。正常 quota 解码后→available(text,compact)。国际版遇到上述精确业务失败时，再 GET `https://api.z.ai/api/biz/subscription/list`：只有 HTTP/业务成功且 `data` 确认是空数组才 not-applicable；非空/未知结构仍 error(invalid-response)。国内版同文案不判无套餐。两次 GET 共用一个 signal/15 秒截止，不试另一区域或认证形式；任何失败不借另一个账号结果。
 
+### `parseRelayBalance(value: unknown): RelayBalance | undefined` — `relay-balance.ts`
+
+Caller：queryRelayBalance。Pre：任意 JSON。严格 new-api `token_usage` schema：根对象 `success===true`，`data.object==="token_usage"`、`unlimited_quota` 为布尔，`total_available`/`total_used`/`total_granted` 为有限非负数；任一不满足→undefined。配额换算 500000=1 美元（openlux 与 `/v1/dashboard/billing/*` 双端点交叉实测）。token 名取非空 `data.name`。有限字段判断，无副作用。
+
+### `formatRelayText(balance)` / `formatRelayCompact(balance)` — `relay-balance.ts`
+
+Caller：queryRelayBalance。compact 为 `Bal $149.69`（footer 包裹后 `(Bal $149.69)`）；不限量 token 为 `Bal ∞`，不伪造余额。详细文本 `Balance $…, used $… / granted $… (key: …)`，key 名去控制字符；不限量为 `Unlimited balance (key: …)`。输出非空单行，不含凭据。
+
+### `queryRelayBalance(auth, signal): Promise<UsageResult | cancelled>` — `relay-balance.ts`
+
+Caller：executeQuery；callee：requestJson。固定 GET `{relay 端点}/api/usage/token/`（尾斜杠；无斜杠会 301，requestJson 不跟随重定向），Bearer 认证。JSON 严格命中 token_usage→available；error(http) 且 status=404→unsupported（端点不存在即非 new-api 主机）；其它错误直通（401/403→auth）。一次 GET、无重试。
+
 ## 4. 控制器与入口
 
 **私有状态** `Controller`：sessionId、selection?、generation、disposed、display、activeJob?、latestPending?、lastAttemptAt?、wakeTimer?、TUI?。`activeJob` 包含 generation、Selection、AbortController、15 秒 deadline timer、timedOut。state 只在该会话 controller 内；至多一个物理未 settle job 和一个覆盖式 pending。全局没有 session→controller Map。
@@ -138,7 +150,7 @@ Caller：requestRefresh/timer/finishJob。Pre：未 disposed、无 active、有�
 
 ### `executeQuery(job): Promise<UsageResult | cancelled>` — `usage-query.ts`
 
-Caller：startJob/详细命令；callees：global settings query、resolveGlmTeam、resolveAuth、对应 queryCodex/queryZai/queryZaiCn。Pre：job 有固定 Selection、初步 route、私有 signal。先检查取消，读取 global 设置后再次检查；服务失败或条目不合法→configuration。显式团队调用 queryGlmTeam，为当前 model 解析原生 apiKey 并访问国内团队接口；没有关联时按原 route 处理，再解析认证。认证失败/unsupported/cancelled直通；成功后再检查 signal，再调用该 route 唯一 adapter；adapter 结果直通。异常交给 startJob 的 catch。Post：通常一次额度 GET；国际 Z.AI 在精确业务失败后可再查一次同域订阅列表；无 UI 写入、不保存凭据。认证可能触发宿主原生刷新。
+Caller：startJob/详细命令；callees：global settings query、resolveGlmTeam、resolveAuth、对应 queryCodex/queryZai/queryZaiCn/queryRelayBalance。Pre：job 有固定 Selection、初步 route、私有 signal；可选 relayMisses 是本会话内共享的中转探测失败缓存。先检查取消，读取 global 设置后再次检查；服务失败或条目不合法→configuration。显式团队调用 queryGlmTeam，为当前 model 解析原生 apiKey 并访问国内团队接口；没有关联时按原 route 处理（relay 且 relayMisses 已含其端点→直接 unsupported，不发请求），再解析认证。认证失败/unsupported/cancelled直通；成功后再检查 signal，再调用该 route 唯一 adapter；adapter 结果直通，relay 返回 unsupported 时把端点记入 relayMisses，同会话后续刷新不再探测同一主机。异常交给 startJob 的 catch。Post：通常一次额度 GET；国际 Z.AI 在精确业务失败后可再查一次同域订阅列表；无 UI 写入、不保存凭据。认证可能触发宿主原生刷新；relayMisses 由 extension 的会话级 query runner 创建，非跨会话全局状态。
 
 ### `onDeadline(controller, job): void` — `usage-controller.ts`
 

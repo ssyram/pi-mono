@@ -97,6 +97,7 @@ test("executes the claude-code branch without resolving provider auth", async ()
 		registry,
 		new AbortController().signal,
 		undefined,
+		undefined,
 		() => [rateLimitEntry({ five_hour: { used_percentage: 30, resets_at: RESETS_AT } })],
 		async () => undefined,
 	);
@@ -116,6 +117,7 @@ test("prefers the live /usage channel over session diagnostics", async () => {
 		{ kind: "claude-code", endpoint: "process://claude-code" },
 		{ getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "x" }) },
 		new AbortController().signal,
+		undefined,
 		undefined,
 		() => [rateLimitEntry({ five_hour: { used_percentage: 30, resets_at: RESETS_AT } })],
 		async () => ({ kind: "available", text: "live", compact: "live" }),

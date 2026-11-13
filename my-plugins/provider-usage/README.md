@@ -1,16 +1,18 @@
 # provider-usage
 
-纯 Pi 插件：用现有 `ctx.ui.setFooter()` 绘制统计行，在费用段后显示当前 provider 账号的套餐用量。footer 不重复右侧模型旁的 provider 名称；详细命令按当前模型的 provider 标识选账号。显式 GLM 团队配置优先，未关联时路由只看协议与端点；不感知 provider-profiles，不修改宿主。
+纯 Pi 插件：用现有 `ctx.ui.setFooter()` 绘制统计行，在费用段后显示当前 provider 账号的套餐用量或 API Key 余额。footer 不重复右侧模型旁的 provider 名称；详细命令按当前模型的 provider 标识选账号。显式 GLM 团队配置优先，未关联时路由只看协议与端点；不感知 provider-profiles，不修改宿主。
 
-## 支持范围 — 2026-10-15
+## 支持范围 — 2026-11-10
 
-**当前状态：纯插件已实现。GLM 团队全局设置只提供组织/项目，每个 provider 使用自己的原生认证 key 查询独立额度。32 项插件测试通过；2026-10-15 已在本机安装的真实 Pi 中逐个切换四个账号、运行详细查询及 `/reload`，确认 footer 按账号显示各自的 5h/week。未发起模型推理请求。**
+**当前状态：纯插件已实现。GLM 团队全局设置只提供组织/项目，每个 provider 使用自己的原生认证 key 查询独立额度。39 项插件测试通过；openlux 真实 key 已实测中转余额查询（含 billing 双端点交叉验证）；2026-10-15 已在本机安装的真实 Pi 中逐个切换四个账号、运行详细查询及 `/reload`，确认 footer 按账号显示各自的 5h/week。未发起模型推理请求。**
 
 | 首版范围 | 服务端点 | 用量内容 | 当前证据 |
 |---|---|---|---|
 | OpenAI Codex（`openai-codex`） | `chatgpt.com/backend-api` | 服务实际返回的额度窗口、已用百分比与可信额度字段 | 原生账号（无 profiles）与具名账号（有 profiles）各完成一次真实 TUI 查询；本地 mock 覆盖 |
 | Z.AI 国际 Coding Plan（`zai`） | `api.z.ai/api/coding/paas/v4` | 窗口额度、工具调用额度等 | 当前 API key 的额度接口返回业务 500；同账号订阅列表成功为空，按不适用隐藏；有效额度仍仅 mock 覆盖 |
 | Z.AI 国内 Coding Plan（`zai-coding-cn`） | `open.bigmodel.cn/api/coding/paas/v4` | 个人响应按已知 quota schema；团队需 `?type=2`＋当前账号 key/组织/项目 | 四把账号 key 带相同组织/项目已分别实测成功；全局关联的国际模型账号也可查询国内团队额度；个人额度成功响应仍待实测 |
+| 纯 API Key 中转（`relay`，new-api 系如 openlux） | `{服务根}/api/usage/token/`（尾斜杠） | key 余额、已用、授权额度（美元）；不限量 key 显示 ∞ | openlux 真实 key 实测成功，且与 `/v1/dashboard/billing/*` 双端点交叉验证 500000 配额 = 1 美元；其它 new-api 主机仅 mock 覆盖 |
+| Claude Code 订阅（`claude-code`，`process://claude-code`） | 实时：spawn `claude -p "/usage"`（本地拦截、零额度，子进程继承本进程 env 故走代理）；兜底：读 pi-claude-code 挂在 assistant 消息上的 `claude-code.rate-limit` 诊断 | 5h/7d 窗口已用百分比与重置时刻（上游原文透传）；compact 只取 5h/7d，家族窗口仅入详情 | live 通道已在本机实测（登录态）；解析失败/未登录自动回退会话诊断，两者皆无则隐藏 |
 
 表内 provider 标识用于说明服务类别，不是名称匹配规则。普通内置 provider 与任意具名实例走相同路径；例如 `codex-002` 显示自己的名称、使用自己的认证，不要求安装 profiles 插件。
 
@@ -19,8 +21,16 @@
 ## 显示行为
 
 - 支持且查询成功：在费用后用 `(百分比(周期))` **取代 `(sub)`**，例如 `(72%(week))`；右侧已有 provider 名称，左侧不重复，不显示重置时间或解析提示。
+- 纯 API Key 中转（如 openlux）：显示 key 余额 `(Bal $149.69)`，不限量 token 显示 `(Bal ∞)`；详细命令列出余额、已用、授权额度与 key 名称（英文文案 `Balance $…, used $… / granted $… (key: …)`）。
+- 中转探测语义：未知 https 端点用同账号 key 以 Bearer 探测服务根 `/api/usage/token/`，严格命中 new-api `token_usage` 结构才显示；404 或结构不符→N/S（同会话内不再重探同一主机），401/403→AUTH；无 API Key（如 OAuth 订阅账号）不探测，维持 N/S。旧 one-api 的 `/v1/dashboard/billing/*` 不支持。
 - 国际版仅在精确业务失败**且同一账号**订阅列表确认为空时，不显示；其它未知响应仍为错误。国内相同失败文案不足以排除团队套餐，不擅自隐藏。
-- 未支持的服务：显示 `(N/S)`，例如首版范围外的 Claude、DeepSeek。
+- 未支持的服务：显示 `(N/S)`，例如首版范围外的 DeepSeek（中转探测 404/结构不符亦同）。
+- Claude Code 订阅：不联网、不读 Claude 凭据，只读当前会话内 pi-claude-code 已上报的限额诊断；首个 CC 响应前无数据（隐藏），窗口过期自动路藏，仅剩 status 类字段时也隐藏。footer 如 `(62%(5h) 41%(7d))`。
+
+## 查询过程与结果提示
+
+- 查询进行中：editor 上方 widget 显示 spinner 动画（`⠋ Querying <provider> usage…`），footer 自动刷新与 `/provider-usage` 命令共用同一 widget（引用计数，全部结束才消失）。仅在查询真正执行期间出现，60 秒节流等待期不显示。
+- `/provider-usage` 结果输出：自定义 session entry（`provider-usage-command-output`，同 omp-v2 task 系统模式），渲染为聊天块——白色持久，不会被后续 info 通知覆盖；含 ERR/AUTH/TIMEOUT/CONFIG 行时 tone=warning（黄色渲染），否则 info。自有文案为英文，上游返回的数据（模型名、标签、无法 parse 的中文等）原样透传。
 - 已支持但认证缺失或查询失败：显示失败状态，不冒充 `N/S`，也不当成“非套餐”隐藏。
 
 例如，以下仅说明位置与格式，数值不是实时状态：
@@ -81,10 +91,3 @@
 完整设计：[Q](docs/principles.md)、[Architecture](docs/architecture.md)、[函数级 Detail](docs/detail.md)、[证据](docs/evidence.md)、[完成门](docs/correctness.md)。
 
 实现或支持范围变化时，应同时更新本节日期、能力状态和证据，不把“有设计”“有外部样例”“本账号实测成功”混为一谈。
-
-## Claude Code usage and query output
-
-- The `claude-code` provider / `process://claude-code` route queries `claude -p "/usage"` with inherited environment, then falls back to the latest session `claude-code.rate-limit` diagnostic when live output is unavailable.
-- The footer shows available 5h/7d windows; expired or status-only diagnostic data is hidden. Missing live and diagnostic data means no applicable plan data, not a successful quota lookup.
-- Querying displays an English spinner widget above the editor. Command results use persistent custom session entries rather than transient info notifications.
-- Plugin-owned labels are English; upstream text is preserved. Parsed numeric reset timestamps use local time; live CLI reset text is preserved as returned.

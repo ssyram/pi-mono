@@ -12,7 +12,7 @@ export async function queryUsageTarget(
 	model: UsageModel,
 	context: PiExtensionContext,
 	query: UsageQueryRunner = (selection, route, registry, signal, readEntries) =>
-		executeUsageQuery(selection, route, registry, signal, undefined, readEntries),
+		executeUsageQuery(selection, route, registry, signal, undefined, undefined, readEntries),
 ): Promise<string> {
 	const name = model.provider;
 	const selection = captureSelection(context, model);
@@ -44,7 +44,7 @@ export async function runUsageCommand(
 	args: string,
 	context: PiExtensionContext,
 	query: UsageQueryRunner = (selection, route, registry, signal, readEntries) =>
-		executeUsageQuery(selection, route, registry, signal, undefined, readEntries),
+		executeUsageQuery(selection, route, registry, signal, undefined, undefined, readEntries),
 	widget?: UsageQueryWidget,
 	appendOutput: (data: UsageOutputEntryData) => void = () => {},
 ): Promise<void> {

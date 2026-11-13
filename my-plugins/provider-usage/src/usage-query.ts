@@ -4,6 +4,7 @@ import { resolveAuth } from "./auth.js";
 import { queryCodex } from "./codex-query.js";
 import { queryGlmTeam } from "./glm-team-query.js";
 import { GLM_TEAMS_SETTING, type ReadGlmTeams, resolveGlmTeam } from "./glm-team-settings.js";
+import { queryRelayBalance } from "./relay-balance.js";
 import type { QueryResult, Route, Selection, UsageModelRegistry } from "./usage-contract.js";
 import { queryZaiCn } from "./zai-cn-query.js";
 import { queryZai } from "./zai-query.js";
@@ -14,6 +15,7 @@ export async function executeUsageQuery(
 	registry: Pick<UsageModelRegistry, "getApiKeyAndHeaders">,
 	signal: AbortSignal,
 	readTeams?: ReadGlmTeams,
+	relayMisses?: Set<string>,
 	readEntries?: ReadSessionEntries,
 	ccLive: (signal: AbortSignal) => Promise<QueryResult | undefined> = queryClaudeCodeLive,
 ): Promise<QueryResult> {
@@ -38,12 +40,18 @@ export async function executeUsageQuery(
 		if (live) return live;
 		return queryClaudeCodeUsage(readEntries);
 	}
+	if (route.kind === "relay" && relayMisses?.has(route.endpoint)) return { kind: "unsupported" };
 	const resolved = await resolveAuth(selection, route, registry, signal);
 	if (resolved.kind === "cancelled") return resolved;
 	if (resolved.kind === "unsupported") return resolved;
 	if (resolved.kind === "error") return resolved;
 	if (signal.aborted) return { kind: "cancelled" };
 	if (resolved.auth.route === "codex") return queryCodex(resolved.auth, signal);
+	if (resolved.auth.route === "relay") {
+		const result = await queryRelayBalance(resolved.auth, signal);
+		if (result.kind === "unsupported" && relayMisses) relayMisses.add(resolved.auth.endpoint);
+		return result;
+	}
 	if (resolved.auth.route === "zai") return queryZai(resolved.auth, signal);
 	return queryZaiCn(resolved.auth, signal);
 }

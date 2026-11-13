@@ -3,6 +3,7 @@ import type { Route, Selection } from "./usage-contract.js";
 export const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 export const ZAI_USAGE_URL = "https://api.z.ai/api/monitor/usage/quota/limit";
 export const ZAI_CN_USAGE_URL = "https://open.bigmodel.cn/api/monitor/usage/quota/limit";
+export const RELAY_TOKEN_USAGE_PATH = "/api/usage/token/";
 
 const codexEndpoint = "https://chatgpt.com/backend-api";
 const zaiEndpoint = "https://api.z.ai/api/coding/paas/v4";
@@ -29,6 +30,12 @@ function normalizeEndpoint(endpoint: string): string | undefined {
 	}
 }
 
+function relayUsageBase(endpoint: string): string {
+	const { origin, pathname } = new URL(endpoint);
+	const trimmed = pathname.replace(/\/+$/, "");
+	return `${origin}${trimmed.endsWith("/v1") ? trimmed.slice(0, -"/v1".length) : ""}`;
+}
+
 export function route(selection: Selection, effectiveUrl = selection.endpoint): Route {
 	if (selection.providerId === "claude-code" || effectiveUrl === "process://claude-code") {
 		return { kind: "claude-code", endpoint: "process://claude-code" };
@@ -38,5 +45,5 @@ export function route(selection: Selection, effectiveUrl = selection.endpoint): 
 	if (selection.api === "openai-codex-responses" && endpoint === codexEndpoint) return { kind: "codex", endpoint };
 	if (selection.api === "openai-completions" && endpoint === zaiEndpoint) return { kind: "zai", endpoint };
 	if (selection.api === "openai-completions" && endpoint === zaiCnEndpoint) return { kind: "zai-cn", endpoint };
-	return { kind: "unsupported" };
+	return { kind: "relay", endpoint: relayUsageBase(endpoint) };
 }

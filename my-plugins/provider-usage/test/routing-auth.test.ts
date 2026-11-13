@@ -48,7 +48,15 @@ test("routes by exact API and endpoint rather than provider name", () => {
 	assert.equal(route(codex).kind, "codex");
 	assert.equal(route(zai).kind, "zai");
 	assert.equal(route(zaiCn).kind, "zai-cn");
-	assert.equal(route(proxy).kind, "unsupported");
+	assert.equal(route(proxy).kind, "relay");
+	assert.deepEqual(route(selectionFor(makeModel({ api: "openai-completions", baseUrl: "https://api.openlux.ai/v1/" }))), {
+		kind: "relay",
+		endpoint: "https://api.openlux.ai",
+	});
+	assert.deepEqual(route(selectionFor(makeModel({ api: "anthropic-messages", baseUrl: "https://relay.example/subpath" }))), {
+		kind: "relay",
+		endpoint: "https://relay.example",
+	});
 	assert.deepEqual(route(selectionFor(makeModel({ api: "openai-completions", baseUrl: "http://api.z.ai/api/coding/paas/v4" }))), {
 		kind: "error",
 		code: "invalid-response",
@@ -158,4 +166,35 @@ test("marks unsupported Z.AI organization selection instead of silently using a 
 		new AbortController().signal,
 	);
 	assert.deepEqual(result, { kind: "unsupported" });
+});
+
+test("relay routes carry the API key as Bearer and hide keyless accounts", async () => {
+	const selection = selectionFor(makeModel({ provider: "openlux", api: "openai-completions", baseUrl: "https://api.openlux.ai/v1" }));
+	const ready = await resolveAuth(
+		selection,
+		supportedRoute(selection),
+		{ getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "sk-relay" }) },
+		new AbortController().signal,
+	);
+	assert.deepEqual(ready, {
+		kind: "ready",
+		auth: { route: "relay", endpoint: "https://api.openlux.ai", headers: { Authorization: "Bearer sk-relay" } },
+	});
+	const explicit = await resolveAuth(
+		selection,
+		supportedRoute(selection),
+		{ getApiKeyAndHeaders: async () => ({ ok: true, headers: { authorization: "Explicit auth" } }) },
+		new AbortController().signal,
+	);
+	assert.deepEqual(explicit, {
+		kind: "ready",
+		auth: { route: "relay", endpoint: "https://api.openlux.ai", headers: { Authorization: "Explicit auth" } },
+	});
+	const keyless = await resolveAuth(
+		selection,
+		supportedRoute(selection),
+		{ getApiKeyAndHeaders: async () => ({ ok: true }) },
+		new AbortController().signal,
+	);
+	assert.deepEqual(keyless, { kind: "unsupported" });
 });
