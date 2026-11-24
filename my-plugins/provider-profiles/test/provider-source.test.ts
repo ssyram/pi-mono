@@ -4,6 +4,12 @@ import { builtinIds, getBase, isOAuthSource, shouldForwardFilterModels, supporte
 
 const officialById = () => new Map(builtinProviders().map((provider) => [provider.id, provider]));
 
+/** Built-ins that ship only non-chat models (e.g. the classifier-only
+ * `typesafe` added in Pi 1.6.0). They are legitimate clone sources; their
+ * chat list is legitimately empty and must equal the factory product. */
+const chatlessBuiltins = () =>
+	new Set(builtinProviders().filter((provider) => provider.getModels().length === 0).map((provider) => provider.id));
+
 describe("C2 official provider sources", () => {
 	test("T-11 — every dynamically supported source is an official factory product", () => {
 		const official = officialById();
@@ -27,7 +33,11 @@ describe("C2 official provider sources", () => {
 		const allBuiltins = builtinIds();
 		for (const name of supportedSourceIds()) {
 			expect(allBuiltins.has(name)).toBe(true);
-			expect(getBase(name).getModels().length).toBeGreaterThan(0);
+			if (chatlessBuiltins().has(name)) {
+				expect(getBase(name).getModels()).toEqual(officialById().get(name)?.getModels());
+			} else {
+				expect(getBase(name).getModels().length).toBeGreaterThan(0);
+			}
 		}
 		expect(isOAuthSource("openai-codex")).toBe(true);
 		expect(isOAuthSource("zai")).toBe(false);

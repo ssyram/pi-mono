@@ -32,7 +32,11 @@ export default mergeConfig(
 			},
 		],
 		test: {
+			// test/network/*.test.ts are standalone `node <file>` scripts (node:http +
+			// node:assert, no vitest) so they also run inside the Docker fault
+			// network; vitest must not try to collect them.
 			include: ["test/**/*.test.ts"],
+			exclude: ["test/network/**"],
 		},
 		resolve: {
 			alias: [{ find: /^@earendil-works\/pi-coding-agent$/, replacement: hostExports }],
