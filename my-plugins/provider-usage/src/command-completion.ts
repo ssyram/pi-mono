@@ -1,6 +1,6 @@
 import type { AutocompleteItem, AutocompleteProvider } from "@earendil-works/pi-tui";
-import { SHOW_TO_AI_FLAG } from "./command-targets.js";
-import type { UsageModel, UsageModelRegistry } from "./usage-contract.js";
+import { SHOW_TO_AI_FLAG } from "./command-targets.ts";
+import type { UsageModel, UsageModelRegistry } from "./usage-contract.ts";
 
 const command = "/provider-usage";
 

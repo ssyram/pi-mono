@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createController } from "../src/create-controller.js";
-import type { ControllerContext, UsageScheduler } from "../src/controller-contract.js";
-import { formatDisplayState } from "../src/footer-display.js";
-import type { QueryResult } from "../src/usage-contract.js";
-import { makeModel } from "./test-model.js";
+import { createController } from "../src/create-controller.ts";
+import type { ControllerContext, UsageScheduler } from "../src/controller-contract.ts";
+import { formatDisplayState } from "../src/footer-display.ts";
+import type { QueryResult } from "../src/usage-contract.ts";
+import { makeModel } from "./test-model.ts";
 
 test("keeps the last successful value during a same-account refresh and clears it on account change", async () => {
 	let now = 0;

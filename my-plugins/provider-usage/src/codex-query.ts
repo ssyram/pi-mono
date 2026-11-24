@@ -1,8 +1,8 @@
-import { formatCodex, formatCodexCompact } from "./codex-display.js";
-import { parseCodex } from "./codex-usage.js";
-import { CODEX_USAGE_URL } from "./route.js";
-import type { QueryResult, RequestAuth } from "./usage-contract.js";
-import { requestJson } from "./usage-http.js";
+import { formatCodex, formatCodexCompact } from "./codex-display.ts";
+import { parseCodex } from "./codex-usage.ts";
+import { CODEX_USAGE_URL } from "./route.ts";
+import type { QueryResult, RequestAuth } from "./usage-contract.ts";
+import { requestJson } from "./usage-http.ts";
 
 export async function queryCodex(auth: RequestAuth, signal: AbortSignal): Promise<QueryResult> {
 	const response = await requestJson(CODEX_USAGE_URL, auth.headers, signal);

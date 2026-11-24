@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { UsageScheduler } from "../src/controller-contract.js";
-import { createUsageQueryWidget } from "../src/usage-widget.js";
+import type { UsageScheduler } from "../src/controller-contract.ts";
+import { createUsageQueryWidget } from "../src/usage-widget.ts";
 
 interface Painted {
 	key: string;

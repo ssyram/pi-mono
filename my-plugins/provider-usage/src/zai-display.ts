@@ -1,6 +1,6 @@
-import { formatLocalTime } from "./format-local-time.js";
-import { sanitizeDisplayText } from "./sanitize-display-text.js";
-import type { ZaiQuota, ZaiQuotaLine } from "./zai-quota.js";
+import { formatLocalTime } from "./format-local-time.ts";
+import { sanitizeDisplayText } from "./sanitize-display-text.ts";
+import type { ZaiQuota, ZaiQuotaLine } from "./zai-quota.ts";
 
 function formatPeriod(line: ZaiQuotaLine): string {
 	if (line.period.kind === "unknown") return "unknown period";

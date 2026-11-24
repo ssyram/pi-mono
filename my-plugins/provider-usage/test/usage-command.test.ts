@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AutocompleteProvider } from "@earendil-works/pi-tui";
-import { completeProviderUsageArgs, createProviderUsageCompletion } from "../src/command-completion.js";
-import { resolveUsageTargets } from "../src/command-targets.js";
-import type { PiExtensionContext } from "../src/pi-extension-contract.js";
-import { runUsageCommand } from "../src/usage-command.js";
-import type { UsageModel } from "../src/usage-contract.js";
-import { makeModel } from "./test-model.js";
+import { completeProviderUsageArgs, createProviderUsageCompletion } from "../src/command-completion.ts";
+import { resolveUsageTargets } from "../src/command-targets.ts";
+import type { PiExtensionContext } from "../src/pi-extension-contract.ts";
+import { runUsageCommand } from "../src/usage-command.ts";
+import type { UsageModel } from "../src/usage-contract.ts";
+import { makeModel } from "./test-model.ts";
 
 const first = makeModel({ provider: "zai-001", baseUrl: "https://api.z.ai/api/coding/paas/v4" });
 const second = makeModel({ provider: "zai-002", baseUrl: "https://api.z.ai/api/coding/paas/v4" });

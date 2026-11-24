@@ -1,7 +1,7 @@
-import type { GlmTeamContext } from "./glm-team-settings.js";
-import { ZAI_CN_USAGE_URL } from "./route.js";
-import type { QueryResult, ResolvedModelAuth, Selection, UsageModelRegistry } from "./usage-contract.js";
-import { queryZaiCn } from "./zai-cn-query.js";
+import type { GlmTeamContext } from "./glm-team-settings.ts";
+import { ZAI_CN_USAGE_URL } from "./route.ts";
+import type { QueryResult, ResolvedModelAuth, Selection, UsageModelRegistry } from "./usage-contract.ts";
+import { queryZaiCn } from "./zai-cn-query.ts";
 
 export async function queryGlmTeam(
 	selection: Selection,

@@ -1,6 +1,6 @@
-import { formatLocalTime } from "./format-local-time.js";
-import { sanitizeDisplayText } from "./sanitize-display-text.js";
-import type { CodexUsage, CodexUsageWindow } from "./codex-usage.js";
+import { formatLocalTime } from "./format-local-time.ts";
+import { sanitizeDisplayText } from "./sanitize-display-text.ts";
+import type { CodexUsage, CodexUsageWindow } from "./codex-usage.ts";
 
 function formatDuration(windowSeconds: number | undefined, group: CodexUsageWindow["group"]): string {
 	if (windowSeconds === undefined) return group === "primary" ? "main window" : "secondary window";

@@ -1,5 +1,5 @@
-import { findHeader } from "./header-value.js";
-import { isJsonRecord } from "./json-record.js";
+import { findHeader } from "./header-value.ts";
+import { isJsonRecord } from "./json-record.ts";
 
 const accountClaim = "https://api.openai.com/auth";
 

@@ -1,7 +1,7 @@
-import { createUsageFooter } from "./footer-component.js";
-import type { ControllerContext } from "./controller-contract.js";
-import { UsageController } from "./usage-controller.js";
-import type { UsageModel } from "./usage-contract.js";
+import { createUsageFooter } from "./footer-component.ts";
+import type { ControllerContext } from "./controller-contract.ts";
+import { UsageController } from "./usage-controller.ts";
+import type { UsageModel } from "./usage-contract.ts";
 
 export function createController(context: ControllerContext, initialModel: UsageModel | undefined): UsageController {
 	const controller = new UsageController(context);

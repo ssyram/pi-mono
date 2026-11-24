@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { SettingValue } from "../../my-settings/index.ts";
-import { GLM_TEAMS_SETTING, type ReadGlmTeams, resolveGlmTeam } from "../src/glm-team-settings.js";
-import { route } from "../src/route.js";
-import type { Selection } from "../src/usage-contract.js";
-import { executeUsageQuery } from "../src/usage-query.js";
-import { makeModel } from "./test-model.js";
+import { GLM_TEAMS_SETTING, type ReadGlmTeams, resolveGlmTeam } from "../src/glm-team-settings.ts";
+import { route } from "../src/route.ts";
+import type { Selection } from "../src/usage-contract.ts";
+import { executeUsageQuery } from "../src/usage-query.ts";
+import { makeModel } from "./test-model.ts";
 
 const team = { providers: ["first", "second"], organization: "org-id", project: "project-id" };
 const context = { organization: team.organization, project: team.project };

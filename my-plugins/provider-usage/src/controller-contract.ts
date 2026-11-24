@@ -1,6 +1,6 @@
-import type { FooterFactory } from "./footer-component.js";
-import type { ContextUsageSnapshot, QueryResult, Route, Selection, UsageModelRegistry } from "./usage-contract.js";
-import type { UsageQueryWidget } from "./usage-widget.js";
+import type { FooterFactory } from "./footer-component.ts";
+import type { ContextUsageSnapshot, QueryResult, Route, Selection, UsageModelRegistry } from "./usage-contract.ts";
+import type { UsageQueryWidget } from "./usage-widget.ts";
 
 export interface UsageTimer {
 	clear(): void;

@@ -1,4 +1,4 @@
-import type { UsageModel } from "../src/usage-contract.js";
+import type { UsageModel } from "../src/usage-contract.ts";
 
 export function makeModel(options: {
 	id?: string;

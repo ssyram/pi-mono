@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { UsageQueryRunner } from "../src/controller-contract.js";
-import type { PiExtensionContext } from "../src/pi-extension-contract.js";
-import { registerUsageTool } from "../src/usage-tool.js";
-import type { QueryResult, UsageModel } from "../src/usage-contract.js";
-import { makeModel } from "./test-model.js";
+import type { UsageQueryRunner } from "../src/controller-contract.ts";
+import type { PiExtensionContext } from "../src/pi-extension-contract.ts";
+import { registerUsageTool } from "../src/usage-tool.ts";
+import type { QueryResult, UsageModel } from "../src/usage-contract.ts";
+import { makeModel } from "./test-model.ts";
 
 const first = makeModel({ provider: "zai-001", baseUrl: "https://api.z.ai/api/coding/paas/v4" });
 const second = makeModel({ provider: "zai-002", baseUrl: "https://api.z.ai/api/coding/paas/v4" });

@@ -1,9 +1,9 @@
 // new-api 系中转（如 openlux）的纯 API Key 余额查询：GET {base}/api/usage/token/，原始配额 500000 = 1 美元。
-import { isJsonRecord } from "./json-record.js";
-import { sanitizeDisplayText } from "./sanitize-display-text.js";
-import { RELAY_TOKEN_USAGE_PATH } from "./route.js";
-import type { QueryResult, RequestAuth } from "./usage-contract.js";
-import { requestJson } from "./usage-http.js";
+import { isJsonRecord } from "./json-record.ts";
+import { sanitizeDisplayText } from "./sanitize-display-text.ts";
+import { RELAY_TOKEN_USAGE_PATH } from "./route.ts";
+import type { QueryResult, RequestAuth } from "./usage-contract.ts";
+import { requestJson } from "./usage-http.ts";
 
 export interface RelayBalance {
 	unlimited: boolean;

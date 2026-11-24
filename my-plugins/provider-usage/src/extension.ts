@@ -1,15 +1,15 @@
-import { completeProviderUsageArgs, createProviderUsageCompletion } from "./command-completion.js";
-import type { ControllerContext, UsageQueryRunner } from "./controller-contract.js";
-import { createController } from "./create-controller.js";
-import type { PiExtensionAPI, PiExtensionContext } from "./pi-extension-contract.js";
-import { runUsageCommand } from "./usage-command.js";
-import type { UsageModelRegistry } from "./usage-contract.js";
-import type { UsageController } from "./usage-controller.js";
-import { registerUsageOutputEntryRenderer, USAGE_OUTPUT_ENTRY_TYPE, type UsageOutputEntryData } from "./usage-output-entry.js";
-import { registerUsageAiMessageRenderer, USAGE_AI_MESSAGE_TYPE } from "./usage-ai-message.js";
-import { createUsageQueryWidget, type UsageQueryWidget } from "./usage-widget.js";
-import { executeUsageQuery } from "./usage-query.js";
-import { registerUsageTool } from "./usage-tool.js";
+import { completeProviderUsageArgs, createProviderUsageCompletion } from "./command-completion.ts";
+import type { ControllerContext, UsageQueryRunner } from "./controller-contract.ts";
+import { createController } from "./create-controller.ts";
+import type { PiExtensionAPI, PiExtensionContext } from "./pi-extension-contract.ts";
+import { runUsageCommand } from "./usage-command.ts";
+import type { UsageModelRegistry } from "./usage-contract.ts";
+import type { UsageController } from "./usage-controller.ts";
+import { registerUsageOutputEntryRenderer, USAGE_OUTPUT_ENTRY_TYPE, type UsageOutputEntryData } from "./usage-output-entry.ts";
+import { registerUsageAiMessageRenderer, USAGE_AI_MESSAGE_TYPE } from "./usage-ai-message.ts";
+import { createUsageQueryWidget, type UsageQueryWidget } from "./usage-widget.ts";
+import { executeUsageQuery } from "./usage-query.ts";
+import { registerUsageTool } from "./usage-tool.ts";
 
 function defaultQueryRunner(): UsageQueryRunner {
 	const relayMisses = new Set<string>();

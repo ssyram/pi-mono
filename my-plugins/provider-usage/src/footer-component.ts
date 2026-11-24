@@ -1,9 +1,9 @@
 import type { Component } from "@earendil-works/pi-tui";
-import { formatFooterPath } from "./footer-path.js";
-import { layoutFooter } from "./footer-layout.js";
-import { formatStats, type FooterTheme } from "./footer-stats.js";
-import { collectSessionTotals } from "./footer-usage.js";
-import type { ContextUsageSnapshot, DisplayState, UsageModel, UsageModelRegistry } from "./usage-contract.js";
+import { formatFooterPath } from "./footer-path.ts";
+import { layoutFooter } from "./footer-layout.ts";
+import { formatStats, type FooterTheme } from "./footer-stats.ts";
+import { collectSessionTotals } from "./footer-usage.ts";
+import type { ContextUsageSnapshot, DisplayState, UsageModel, UsageModelRegistry } from "./usage-contract.ts";
 
 export interface FooterSnapshot {
 	model: UsageModel | undefined;

@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createUsageFooter, type FooterData, type FooterSource, type FooterTui } from "../src/footer-component.js";
-import { formatDisplayState } from "../src/footer-display.js";
-import type { FooterTheme } from "../src/footer-stats.js";
-import { collectSessionTotals } from "../src/footer-usage.js";
-import type { DisplayState, Selection } from "../src/usage-contract.js";
-import { makeModel } from "./test-model.js";
+import { createUsageFooter, type FooterData, type FooterSource, type FooterTui } from "../src/footer-component.ts";
+import { formatDisplayState } from "../src/footer-display.ts";
+import type { FooterTheme } from "../src/footer-stats.ts";
+import { collectSessionTotals } from "../src/footer-usage.ts";
+import type { DisplayState, Selection } from "../src/usage-contract.ts";
+import { makeModel } from "./test-model.ts";
 
 function usage(input: number, output: number, cacheRead: number, cacheWrite: number, total: number): object {
 	return { input, output, cacheRead, cacheWrite, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total } };

@@ -1,8 +1,8 @@
-import { formatDisplayState } from "./footer-display.js";
-import { isJsonRecord } from "./json-record.js";
-import { sanitizeDisplayText } from "./sanitize-display-text.js";
-import type { SessionTotals } from "./footer-usage.js";
-import type { ContextUsageSnapshot, DisplayState, UsageModel, UsageModelRegistry } from "./usage-contract.js";
+import { formatDisplayState } from "./footer-display.ts";
+import { isJsonRecord } from "./json-record.ts";
+import { sanitizeDisplayText } from "./sanitize-display-text.ts";
+import type { SessionTotals } from "./footer-usage.ts";
+import type { ContextUsageSnapshot, DisplayState, UsageModel, UsageModelRegistry } from "./usage-contract.ts";
 
 export interface FooterTheme {
 	fg(color: "dim" | "error" | "warning", text: string): string;

@@ -1,5 +1,5 @@
-import { isJsonRecord } from "./json-record.js";
-import { parseCodexWindow, type CodexWindow } from "./codex-window.js";
+import { isJsonRecord } from "./json-record.ts";
+import { parseCodexWindow, type CodexWindow } from "./codex-window.ts";
 
 export interface CodexUsageWindow {
 	group: "primary" | "secondary";

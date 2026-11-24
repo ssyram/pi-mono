@@ -4,9 +4,9 @@
  * No network request and no Claude Code credential access: the numbers are
  * whatever Claude Code last reported in-stream for this session.
  */
-import { isJsonRecord, type JsonRecord } from "./json-record.js";
-import { formatLocalTime } from "./format-local-time.js";
-import type { QueryResult } from "./usage-contract.js";
+import { isJsonRecord, type JsonRecord } from "./json-record.ts";
+import { formatLocalTime } from "./format-local-time.ts";
+import type { QueryResult } from "./usage-contract.ts";
 
 const RATE_LIMIT_DIAGNOSTIC = "claude-code.rate-limit";
 

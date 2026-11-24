@@ -4,10 +4,10 @@ import {
 	type PendingJob,
 	systemScheduler,
 	type UsageQueryRunner,
-} from "./controller-contract.js";
-import type { FooterSnapshot, UsageFooter } from "./footer-component.js";
-import { route } from "./route.js";
-import { captureSelection, sameSelection } from "./selection.js";
+} from "./controller-contract.ts";
+import type { FooterSnapshot, UsageFooter } from "./footer-component.ts";
+import { route } from "./route.ts";
+import { captureSelection, sameSelection } from "./selection.ts";
 import type {
 	ContextUsageSnapshot,
 	DisplayState,
@@ -15,8 +15,8 @@ import type {
 	Selection,
 	UsageModel,
 	UsageModelRegistry,
-} from "./usage-contract.js";
-import { executeUsageQuery } from "./usage-query.js";
+} from "./usage-contract.ts";
+import { executeUsageQuery } from "./usage-query.ts";
 
 export class UsageController {
 	readonly sessionManager: ControllerContext["sessionManager"];

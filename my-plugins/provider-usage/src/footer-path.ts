@@ -1,5 +1,5 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { sanitizeDisplayText } from "./sanitize-display-text.js";
+import { sanitizeDisplayText } from "./sanitize-display-text.ts";
 
 export function formatFooterPath(cwd: string, home: string | undefined, branch: string | null, sessionName: string | undefined): string {
 	let path = cwd;

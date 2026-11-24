@@ -4,10 +4,10 @@
  */
 import type { ExtensionAPI, ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { SHOW_TO_AI_FLAG } from "./command-targets.js";
-import type { UsageQueryRunner } from "./controller-contract.js";
-import type { PiExtensionContext } from "./pi-extension-contract.js";
-import { runUsageCommand } from "./usage-command.js";
+import { SHOW_TO_AI_FLAG } from "./command-targets.ts";
+import type { UsageQueryRunner } from "./controller-contract.ts";
+import type { PiExtensionContext } from "./pi-extension-contract.ts";
+import { runUsageCommand } from "./usage-command.ts";
 
 const parameters = Type.Object({
 	provider: Type.Optional(

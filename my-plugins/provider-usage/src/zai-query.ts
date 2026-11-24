@@ -1,9 +1,9 @@
-import { formatZaiCompact, formatZaiQuota } from "./zai-display.js";
-import { isEmptyZaiSubscription, isZaiNoPlanResponse } from "./zai-no-plan.js";
-import { parseZaiQuota } from "./zai-quota.js";
-import { ZAI_USAGE_URL } from "./route.js";
-import type { QueryResult, RequestAuth } from "./usage-contract.js";
-import { requestJson } from "./usage-http.js";
+import { formatZaiCompact, formatZaiQuota } from "./zai-display.ts";
+import { isEmptyZaiSubscription, isZaiNoPlanResponse } from "./zai-no-plan.ts";
+import { parseZaiQuota } from "./zai-quota.ts";
+import { ZAI_USAGE_URL } from "./route.ts";
+import type { QueryResult, RequestAuth } from "./usage-contract.ts";
+import { requestJson } from "./usage-http.ts";
 
 export async function queryZai(auth: RequestAuth, signal: AbortSignal): Promise<QueryResult> {
 	const response = await requestJson(ZAI_USAGE_URL, auth.headers, signal);

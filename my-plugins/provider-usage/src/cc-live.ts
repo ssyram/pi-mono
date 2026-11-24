@@ -5,7 +5,7 @@
  * through whatever proxy the environment provides.
  */
 import { spawn } from "node:child_process";
-import type { QueryResult } from "./usage-contract.js";
+import type { QueryResult } from "./usage-contract.ts";
 
 export interface ClaudeUsageWindow {
 	label: string;

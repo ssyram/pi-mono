@@ -1,4 +1,4 @@
-import type { Route, Selection } from "./usage-contract.js";
+import type { Route, Selection } from "./usage-contract.ts";
 
 export const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 export const ZAI_USAGE_URL = "https://api.z.ai/api/monitor/usage/quota/limit";

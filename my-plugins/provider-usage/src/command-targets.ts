@@ -1,4 +1,4 @@
-import type { UsageModel, UsageModelRegistry } from "./usage-contract.js";
+import type { UsageModel, UsageModelRegistry } from "./usage-contract.ts";
 
 export type TargetResolution =
 	| { kind: "targets"; models: UsageModel[]; unknown: string[]; showToAi: boolean }

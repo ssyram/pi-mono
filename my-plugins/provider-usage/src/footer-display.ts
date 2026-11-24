@@ -1,5 +1,5 @@
-import { sanitizeDisplayText } from "./sanitize-display-text.js";
-import type { DisplayState } from "./usage-contract.js";
+import { sanitizeDisplayText } from "./sanitize-display-text.ts";
+import type { DisplayState } from "./usage-contract.ts";
 
 export function formatDisplayState(state: DisplayState): string | undefined {
 	if (state.kind === "empty") return undefined;

@@ -1,13 +1,13 @@
-import { queryClaudeCodeUsage, type ReadSessionEntries } from "./cc-usage.js";
-import { queryClaudeCodeLive } from "./cc-live.js";
-import { resolveAuth } from "./auth.js";
-import { queryCodex } from "./codex-query.js";
-import { queryGlmTeam } from "./glm-team-query.js";
-import { GLM_TEAMS_SETTING, type ReadGlmTeams, resolveGlmTeam } from "./glm-team-settings.js";
-import { queryRelayBalance } from "./relay-balance.js";
-import type { QueryResult, Route, Selection, UsageModelRegistry } from "./usage-contract.js";
-import { queryZaiCn } from "./zai-cn-query.js";
-import { queryZai } from "./zai-query.js";
+import { queryClaudeCodeUsage, type ReadSessionEntries } from "./cc-usage.ts";
+import { queryClaudeCodeLive } from "./cc-live.ts";
+import { resolveAuth } from "./auth.ts";
+import { queryCodex } from "./codex-query.ts";
+import { queryGlmTeam } from "./glm-team-query.ts";
+import { GLM_TEAMS_SETTING, type ReadGlmTeams, resolveGlmTeam } from "./glm-team-settings.ts";
+import { queryRelayBalance } from "./relay-balance.ts";
+import type { QueryResult, Route, Selection, UsageModelRegistry } from "./usage-contract.ts";
+import { queryZaiCn } from "./zai-cn-query.ts";
+import { queryZai } from "./zai-query.ts";
 
 export async function executeUsageQuery(
 	selection: Selection,

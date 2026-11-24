@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseClaudeCodeRateLimit, queryClaudeCodeUsage } from "../src/cc-usage.js";
-import { formatLocalTime } from "../src/format-local-time.js";
-import { route } from "../src/route.js";
-import { captureSelection } from "../src/selection.js";
-import { executeUsageQuery } from "../src/usage-query.js";
-import type { Selection } from "../src/usage-contract.js";
-import { makeModel } from "./test-model.js";
+import { parseClaudeCodeRateLimit, queryClaudeCodeUsage } from "../src/cc-usage.ts";
+import { formatLocalTime } from "../src/format-local-time.ts";
+import { route } from "../src/route.ts";
+import { captureSelection } from "../src/selection.ts";
+import { executeUsageQuery } from "../src/usage-query.ts";
+import type { Selection } from "../src/usage-contract.ts";
+import { makeModel } from "./test-model.ts";
 
 const RESETS_AT = 4_102_444_800; // 2100-01-01, always in the future for tests
 const EXPIRED_AT = 1; // 1970, always in the past

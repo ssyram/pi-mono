@@ -2,7 +2,7 @@
  * Spinner widget shown while a usage query is actually running. Refcounted so
  * the footer refresh job and the /provider-usage command can share one widget.
  */
-import { systemScheduler, type UsageScheduler } from "./controller-contract.js";
+import { systemScheduler, type UsageScheduler } from "./controller-contract.ts";
 
 const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 const WIDGET_KEY = "provider-usage:query";

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import register from "../src/extension.js";
-import type { FooterFactory } from "../src/footer-component.js";
-import type { PiEventHandler, PiEventName, PiExtensionAPI, PiExtensionContext } from "../src/pi-extension-contract.js";
-import { makeModel } from "./test-model.js";
+import register from "../src/extension.ts";
+import type { FooterFactory } from "../src/footer-component.ts";
+import type { PiEventHandler, PiEventName, PiExtensionAPI, PiExtensionContext } from "../src/pi-extension-contract.ts";
+import { makeModel } from "./test-model.ts";
 
 test("uses the host's current thinking level at startup and after model and turn events", () => {
 	const handlers = new Map<PiEventName, PiEventHandler>();

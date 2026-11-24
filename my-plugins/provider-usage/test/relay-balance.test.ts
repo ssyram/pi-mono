@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatRelayCompact, formatRelayText, parseRelayBalance, queryRelayBalance } from "../src/relay-balance.js";
-import { executeUsageQuery } from "../src/usage-query.js";
-import type { RequestAuth, UsageModel } from "../src/usage-contract.js";
-import { makeModel } from "./test-model.js";
+import { formatRelayCompact, formatRelayText, parseRelayBalance, queryRelayBalance } from "../src/relay-balance.ts";
+import { executeUsageQuery } from "../src/usage-query.ts";
+import type { RequestAuth, UsageModel } from "../src/usage-contract.ts";
+import { makeModel } from "./test-model.ts";
 
 // openlux /api/usage/token/ 的真实响应（2026-11-10 实测）：500000 配额 = 1 美元。
 const openluxResponse = {

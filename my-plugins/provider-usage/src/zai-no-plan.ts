@@ -1,4 +1,4 @@
-import { isJsonRecord } from "./json-record.js";
+import { isJsonRecord } from "./json-record.ts";
 
 export function isZaiNoPlanResponse(value: unknown): boolean {
 	return isJsonRecord(value) && value.success === false && value.code === 500 &&

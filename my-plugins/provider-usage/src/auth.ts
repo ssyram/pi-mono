@@ -1,7 +1,7 @@
-import { codexAccountId } from "./codex-account-id.js";
-import { findHeader } from "./header-value.js";
-import { route as resolveRoute } from "./route.js";
-import type { AuthResolution, Route, Selection, SupportedRouteKind, UsageModelRegistry } from "./usage-contract.js";
+import { codexAccountId } from "./codex-account-id.ts";
+import { findHeader } from "./header-value.ts";
+import { route as resolveRoute } from "./route.ts";
+import type { AuthResolution, Route, Selection, SupportedRouteKind, UsageModelRegistry } from "./usage-contract.ts";
 
 function defaultAuthorization(route: SupportedRouteKind, apiKey: string | undefined): string | undefined {
 	if (!apiKey || apiKey.trim() === "") return undefined;

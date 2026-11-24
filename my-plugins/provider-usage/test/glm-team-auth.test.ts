@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { queryGlmTeam } from "../src/glm-team-query.js";
-import type { ResolvedModelAuth, Selection } from "../src/usage-contract.js";
-import { makeModel } from "./test-model.js";
+import { queryGlmTeam } from "../src/glm-team-query.ts";
+import type { ResolvedModelAuth, Selection } from "../src/usage-contract.ts";
+import { makeModel } from "./test-model.ts";
 
 const model = makeModel({ provider: "account" });
 const selection: Selection = {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Component, TuiMouseEvent } from "@earendil-works/pi-tui";
-import { registerUsageAiMessageRenderer, USAGE_AI_MESSAGE_TYPE, type UsageAiMessageDetails } from "../src/usage-ai-message.js";
+import { registerUsageAiMessageRenderer, USAGE_AI_MESSAGE_TYPE, type UsageAiMessageDetails } from "../src/usage-ai-message.ts";
 
 interface AiReportMessage {
 	content: string;

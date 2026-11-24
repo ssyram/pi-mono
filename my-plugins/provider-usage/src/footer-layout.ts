@@ -1,6 +1,6 @@
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { sanitizeDisplayText } from "./sanitize-display-text.js";
-import type { FooterStats, FooterTheme } from "./footer-stats.js";
+import { sanitizeDisplayText } from "./sanitize-display-text.ts";
+import type { FooterStats, FooterTheme } from "./footer-stats.ts";
 
 export function layoutFooter(
 	path: string,

@@ -1,9 +1,9 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import mySettings, { createMySettingsClient } from "../../my-settings/index.ts";
-import register from "./extension.js";
-import { GLM_TEAMS_SETTING } from "./glm-team-settings.js";
-import type { PiExtensionAPI } from "./pi-extension-contract.js";
-import { executeUsageQuery } from "./usage-query.js";
+import register from "./extension.ts";
+import { GLM_TEAMS_SETTING } from "./glm-team-settings.ts";
+import type { PiExtensionAPI } from "./pi-extension-contract.ts";
+import { executeUsageQuery } from "./usage-query.ts";
 
 export default async function bootstrap(pi: ExtensionAPI & PiExtensionAPI): Promise<void> {
 	await mySettings(pi);

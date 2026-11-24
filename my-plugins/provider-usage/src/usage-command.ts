@@ -1,12 +1,12 @@
-import { resolveUsageTargets } from "./command-targets.js";
-import type { UsageQueryRunner } from "./controller-contract.js";
-import type { PiExtensionContext } from "./pi-extension-contract.js";
-import { route } from "./route.js";
-import { captureSelection } from "./selection.js";
-import type { UsageModel } from "./usage-contract.js";
-import { executeUsageQuery } from "./usage-query.js";
-import type { UsageQueryWidget } from "./usage-widget.js";
-import type { UsageOutputEntryData } from "./usage-output-entry.js";
+import { resolveUsageTargets } from "./command-targets.ts";
+import type { UsageQueryRunner } from "./controller-contract.ts";
+import type { PiExtensionContext } from "./pi-extension-contract.ts";
+import { route } from "./route.ts";
+import { captureSelection } from "./selection.ts";
+import type { UsageModel } from "./usage-contract.ts";
+import { executeUsageQuery } from "./usage-query.ts";
+import type { UsageQueryWidget } from "./usage-widget.ts";
+import type { UsageOutputEntryData } from "./usage-output-entry.ts";
 
 export interface UsageTargetReport {
 	detail: string;

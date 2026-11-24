@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { queryCodex } from "../src/codex-query.js";
-import { parseZaiQuota } from "../src/zai-quota.js";
-import { queryZaiCn } from "../src/zai-cn-query.js";
-import { queryZai } from "../src/zai-query.js";
-import { formatLocalTime } from "../src/format-local-time.js";
-import type { RequestAuth } from "../src/usage-contract.js";
+import { queryCodex } from "../src/codex-query.ts";
+import { parseZaiQuota } from "../src/zai-quota.ts";
+import { queryZaiCn } from "../src/zai-cn-query.ts";
+import { queryZai } from "../src/zai-query.ts";
+import { formatLocalTime } from "../src/format-local-time.ts";
+import type { RequestAuth } from "../src/usage-contract.ts";
 
 interface FetchCall {
 	url: string;

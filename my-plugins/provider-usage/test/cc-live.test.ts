@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatClaudeUsageWindows, parseClaudeUsageOutput } from "../src/cc-live.js";
+import { formatClaudeUsageWindows, parseClaudeUsageOutput } from "../src/cc-live.ts";
 
 const PANEL = `You are currently using your subscription to power your Claude Code usage
 

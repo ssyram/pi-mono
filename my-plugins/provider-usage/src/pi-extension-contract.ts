@@ -1,7 +1,7 @@
 import type { AutocompleteItem, AutocompleteProvider } from "@earendil-works/pi-tui";
-import type { FooterFactory } from "./footer-component.js";
-import type { ControllerContext } from "./controller-contract.js";
-import type { ContextUsageSnapshot, UsageModel } from "./usage-contract.js";
+import type { FooterFactory } from "./footer-component.ts";
+import type { ControllerContext } from "./controller-contract.ts";
+import type { ContextUsageSnapshot, UsageModel } from "./usage-contract.ts";
 
 export interface PiExtensionContext {
 	mode: "tui" | "rpc" | "json" | "print";

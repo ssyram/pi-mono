@@ -1,4 +1,4 @@
-import { isJsonRecord } from "./json-record.js";
+import { isJsonRecord } from "./json-record.ts";
 
 export interface CodexWindow {
 	usedPercent: number;

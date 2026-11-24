@@ -1,5 +1,5 @@
-import { isJsonRecord } from "./json-record.js";
-import type { Selection, UsageModel, UsageModelRegistry } from "./usage-contract.js";
+import { isJsonRecord } from "./json-record.ts";
+import type { Selection, UsageModel, UsageModelRegistry } from "./usage-contract.ts";
 
 export interface SelectionContext {
 	sessionManager: { getSessionId(): string };

@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveAuth } from "../src/auth.js";
-import { route } from "../src/route.js";
-import { captureSelection } from "../src/selection.js";
-import type { Route, Selection, SupportedRouteKind, UsageModel } from "../src/usage-contract.js";
-import { makeModel } from "./test-model.js";
+import { resolveAuth } from "../src/auth.ts";
+import { route } from "../src/route.ts";
+import { captureSelection } from "../src/selection.ts";
+import type { Route, Selection, SupportedRouteKind, UsageModel } from "../src/usage-contract.ts";
+import { makeModel } from "./test-model.ts";
 
 function selectionFor(model: UsageModel): Selection {
 	const selection = captureSelection(

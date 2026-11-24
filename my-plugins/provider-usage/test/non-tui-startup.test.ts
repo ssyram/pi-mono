@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import register from "../src/extension.js";
-import type { PiEventHandler, PiEventName, PiExtensionAPI, PiExtensionContext } from "../src/pi-extension-contract.js";
-import { makeModel } from "./test-model.js";
+import register from "../src/extension.ts";
+import type { PiEventHandler, PiEventName, PiExtensionAPI, PiExtensionContext } from "../src/pi-extension-contract.ts";
+import { makeModel } from "./test-model.ts";
 
 test("does not install a footer or resolve authentication outside TUI mode", () => {
 	const handlers = new Map<PiEventName, PiEventHandler>();

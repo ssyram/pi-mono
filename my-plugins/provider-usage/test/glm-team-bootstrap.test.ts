@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { setImmediate } from "node:timers/promises";
-import bootstrap from "../src/bootstrap.js";
-import type { UsageFooter } from "../src/footer-component.js";
-import type { PiEventHandler, PiExtensionContext } from "../src/pi-extension-contract.js";
-import { makeModel } from "./test-model.js";
+import bootstrap from "../src/bootstrap.ts";
+import type { UsageFooter } from "../src/footer-component.ts";
+import type { PiEventHandler, PiExtensionContext } from "../src/pi-extension-contract.ts";
+import { makeModel } from "./test-model.ts";
 
 test("bootstrap uses only global teams for footer and commands and rereads edited settings", async () => {
 	const root = await mkdtemp(join(tmpdir(), "usage-global-team-"));

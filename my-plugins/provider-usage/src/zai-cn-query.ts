@@ -1,9 +1,9 @@
-import { formatZaiCompact, formatZaiQuota } from "./zai-display.js";
-import { findHeader } from "./header-value.js";
-import { parseZaiQuota } from "./zai-quota.js";
-import { ZAI_CN_USAGE_URL } from "./route.js";
-import type { QueryResult, RequestAuth } from "./usage-contract.js";
-import { requestJson } from "./usage-http.js";
+import { formatZaiCompact, formatZaiQuota } from "./zai-display.ts";
+import { findHeader } from "./header-value.ts";
+import { parseZaiQuota } from "./zai-quota.ts";
+import { ZAI_CN_USAGE_URL } from "./route.ts";
+import type { QueryResult, RequestAuth } from "./usage-contract.ts";
+import { requestJson } from "./usage-http.ts";
 
 export async function queryZaiCn(auth: RequestAuth, signal: AbortSignal): Promise<QueryResult> {
 	const team = findHeader(auth.headers, "bigmodel-organization") && findHeader(auth.headers, "bigmodel-project");

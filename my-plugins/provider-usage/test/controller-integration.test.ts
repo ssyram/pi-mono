@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createController } from "../src/create-controller.js";
-import type { ControllerContext, UsageQueryRunner, UsageScheduler, UsageTimer } from "../src/controller-contract.js";
-import type { QueryResult, UsageModel } from "../src/usage-contract.js";
-import { makeModel } from "./test-model.js";
+import { createController } from "../src/create-controller.ts";
+import type { ControllerContext, UsageQueryRunner, UsageScheduler, UsageTimer } from "../src/controller-contract.ts";
+import type { QueryResult, UsageModel } from "../src/usage-contract.ts";
+import { makeModel } from "./test-model.ts";
 
 class ManualScheduler implements UsageScheduler {
 	private time = 0;
