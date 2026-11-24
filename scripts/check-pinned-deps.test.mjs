@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -60,4 +60,29 @@ test("rejects registry alias ranges", async (t) => {
 	});
 	assert.equal(result.status, 1);
 	assert.match(result.stderr, /dependencies\.alias must be pinned/);
+});
+
+test("skips gitignored manifests when run inside a git repository", async (t) => {
+	const root = await mkdtemp(join(tmpdir(), "pi-pinned-deps-git-"));
+	t.after(() => rm(root, { recursive: true, force: true }));
+	if (spawnSync("git", ["init"], { cwd: root, encoding: "utf8" }).status !== 0) return;
+	await writeFile(join(root, "package.json"), JSON.stringify({ dependencies: { external: "1.0.0" } }));
+	await writeFile(join(root, ".gitignore"), "cache/\n");
+	await mkdir(join(root, "cache"), { recursive: true });
+	await writeFile(join(root, "cache/package.json"), JSON.stringify({ dependencies: { external: "^1.0.0" } }));
+	const result = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
+	assert.equal(result.status, 0, result.stderr);
+});
+
+test("skips submodule and embedded-repo manifests regardless of gitignore rules", async (t) => {
+	const root = await mkdtemp(join(tmpdir(), "pi-pinned-deps-sub-"));
+	t.after(() => rm(root, { recursive: true, force: true }));
+	await writeFile(join(root, "package.json"), JSON.stringify({ dependencies: { external: "1.0.0" } }));
+	const submodule = join(root, "vendor-lib");
+	await mkdir(submodule, { recursive: true });
+	// A registered submodule keeps a .git file pointing at the superproject's modules dir.
+	await writeFile(join(submodule, ".git"), "gitdir: ../.git/modules/vendor-lib\n");
+	await writeFile(join(submodule, "package.json"), JSON.stringify({ dependencies: { external: "^1.0.0" } }));
+	const result = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
+	assert.equal(result.status, 0, result.stderr);
 });

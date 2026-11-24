@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 
 const dependencySections = ["dependencies", "devDependencies", "optionalDependencies"];
 const exactVersionPattern = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -39,7 +40,17 @@ const failures = [];
 
 collectPackageJsonFiles(".");
 
-for (const file of packageJsonFiles.sort()) {
+// Gitignored trees (vendored caches, runtime homes) sit outside the pinning policy.
+// Filter through git itself so nested .gitignore files and negation rules apply.
+// Outside a repository, or if git is unavailable, keep every collected path.
+function dropGitIgnored(paths) {
+	const result = spawnSync("git", ["check-ignore", "--stdin"], { input: paths.join("\n"), encoding: "utf8" });
+	if (result.error || result.status === null || result.status > 1) return paths;
+	const ignored = new Set(result.stdout.split("\n").filter(Boolean));
+	return paths.filter((path) => !ignored.has(path));
+}
+
+for (const file of dropGitIgnored(packageJsonFiles).sort()) {
 	const packageJson = JSON.parse(readFileSync(file, "utf8"));
 
 	for (const section of dependencySections) {
