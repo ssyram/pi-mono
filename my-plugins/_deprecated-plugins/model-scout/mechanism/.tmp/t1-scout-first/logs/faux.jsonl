@@ -1,0 +1,3 @@
+{"t":1795494012941,"event":"registered","provider":"zai-coding","api":"faux-zai"}
+{"t":1795494012949,"event":"transport","fn":"streamSimple","model":"glm-5.3","api":"faux-zai","baseUrl":"https://faux-zai.example/v1","apiKey":"trial-stored-key"}
+{"t":1795494012953,"event":"transport","fn":"streamSimple","model":"glm-5.4","api":"faux-zai","baseUrl":"https://faux-zai.example/v1","apiKey":"trial-stored-key"}

@@ -1,0 +1,69 @@
+{
+  "piVersion": "1.4.0",
+  "publicRuntimeProviderCount": 42,
+  "registeredIdsExcludeBuiltins": true,
+  "runtimeZaiHasRefreshModels": true,
+  "modelRegistryFacade": {
+    "getProvider": "function",
+    "getProviders": "undefined",
+    "login": "undefined"
+  },
+  "standardRegistrationAndStaticAlias": "passed",
+  "loginPersistsUnderAliasInInjectedMemoryStore": "passed",
+  "providerOwnedApiKeyLoginAndExistingProfilePersistence": "passed",
+  "profileKeyRestorationWithoutNativeCredentialWrite": "passed",
+  "aliasContextWindowPreserved": "passed",
+  "dynamicAliasLosesRefreshModels": "confirmed-current-limitation",
+  "dynamicSourceCatalogPublication": "passed",
+  "eventBusSynchronousClaimAsyncResult": "passed",
+  "unclaimedUsageDistinguished": "passed",
+  "metadata": [
+    {
+      "providerId": "zai",
+      "exists": true,
+      "modelIds": [
+        "glm-4.7",
+        "glm-5-turbo",
+        "glm-5.2",
+        "glm-5.2-highspeed",
+        "glm-5.3",
+        "glm-5.3-flash",
+        "glm-5.3-highspeed"
+      ],
+      "glm53": {
+        "contextWindow": 1000000,
+        "maxTokens": 131072
+      }
+    },
+    {
+      "providerId": "zai-coding-cn",
+      "exists": true,
+      "modelIds": [
+        "glm-4.6v",
+        "glm-5.3",
+        "glm-5.3-flash",
+        "glm-5.3-highspeed"
+      ],
+      "glm53": {
+        "contextWindow": 1000000,
+        "maxTokens": 131072
+      }
+    }
+  ],
+  "cachedAlias": {
+    "firstLoginPublishesAliasCatalog": "passed",
+    "restartRestoresAliasWithoutSourceLookup": "passed",
+    "configuredAliasAvailableBeforeSourceBinding": "passed",
+    "limitations": [
+      "Store is in-memory across two isolated runtimes",
+      "Source request delegation not exercised",
+      "Cold or deleted catalog still needs interactive refresh"
+    ]
+  },
+  "networkCalls": 0,
+  "limitations": [
+    "No real auth.json writes",
+    "No extension lifecycle or startup restoration probe",
+    "No real gateway or upstream calls"
+  ]
+}

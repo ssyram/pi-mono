@@ -1,0 +1,10 @@
+2df00eea28813969e36e75bd520e99b858afb527f3149638b69410e94b06fe82  my-plugins/provider-profiles/config-loader.ts
+d1fdc0fa9466c9a46310d7442624ec7497aa0c8805ace5c89c295d3008a827a7  my-plugins/provider-profiles/config-entry.ts
+869134e2cb39c0088da85f5ebfbec5a518afdb9ae4a3617043b932d5a60df424  my-plugins/provider-profiles/config-writer.ts
+838ae6ac079c673442fa829c85a38c9e044010d0a63a8a573611034e89ea294b  my-plugins/provider-profiles/provider-source.ts
+9ccbe4465f3669433be3792fd0c2bf8dedf482398ed4b6c57478449d15ee83cc  my-plugins/provider-profiles/provider-profiles-extension.ts
+2e8e6b63fee19adb5bfbb4218bdb92721561eb141f66aae9b46fa2601db735c2  my-plugins/provider-profiles/commands.ts
+57b20ee95487d73b441f1ba1bc3a530480cd5d3c72325bfc75ee216518760d05  my-plugins/provider-profiles/instantiator.ts
+c63226a56ab2f4f9e4e6c8ea97e4bcb9c71d723b38eba1ee3569559bba21a666  /Users/ssyram/.pi/agent/install/releases/1.4.0/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
+20b7aa4b0657b53fb522ea051df26f72901802e03cc06c89e0a8926388bca601  /Users/ssyram/.pi/agent/install/releases/1.4.0/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session-services.js
+5b7172bd17f1a3c61e4e5187b400966f471e344623389b8876b099b4948ae1b3  /Users/ssyram/.pi/agent/install/releases/1.4.0/node_modules/@earendil-works/pi-coding-agent/dist/core/model-resolver.js

@@ -1,0 +1,8 @@
+2e8e6b63fee19adb5bfbb4218bdb92721561eb141f66aae9b46fa2601db735c2  my-plugins/provider-profiles/commands.ts
+57b20ee95487d73b441f1ba1bc3a530480cd5d3c72325bfc75ee216518760d05  my-plugins/provider-profiles/instantiator.ts
+838ae6ac079c673442fa829c85a38c9e044010d0a63a8a573611034e89ea294b  my-plugins/provider-profiles/provider-source.ts
+9ccbe4465f3669433be3792fd0c2bf8dedf482398ed4b6c57478449d15ee83cc  my-plugins/provider-profiles/provider-profiles-extension.ts
+ac713287c81802e506c98ad6a98c867a79385f050b816c0f3c69a99bc456f3ab  my-plugins/provider-usage/src/bootstrap.ts
+8c6c8ff7305addd931bab962c0f0df3d21e5799f543d9060749162c53f513bf3  my-plugins/provider-usage/src/usage-query.ts
+44d8017928eff6721d5a56b4e71f98bcafb124f5aa6e7d3f016491e11fcf6461  /Users/ssyram/.pi/agent/install/releases/1.4.0/node_modules/@earendil-works/pi-coding-agent/dist/core/model-runtime.js
+de6323034ca216eefecdfc44dd5c93f22713b34a01f2eb21a6d0a5ce85f9bb19  /Users/ssyram/.pi/agent/install/releases/1.4.0/node_modules/@earendil-works/pi-ai/dist/models.js

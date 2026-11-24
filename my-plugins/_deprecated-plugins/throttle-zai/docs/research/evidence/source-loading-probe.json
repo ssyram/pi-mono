@@ -1,0 +1,86 @@
+{
+  "piVersion": "1.4.0",
+  "nodeVersion": "v26.8.1",
+  "cases": [
+    {
+      "label": "provider-first",
+      "result": "passed",
+      "queuedProviderCount": 3,
+      "modelVisibleBeforeSessionStart": true,
+      "unrelatedProfileUnaffected": true,
+      "warnings": [],
+      "errorCount": 0
+    },
+    {
+      "label": "profiles-first",
+      "result": "passed",
+      "queuedProviderCount": 3,
+      "modelVisibleBeforeSessionStart": true,
+      "unrelatedProfileUnaffected": true,
+      "warnings": [],
+      "errorCount": 0
+    },
+    {
+      "label": "declared-source-overrides-native",
+      "result": "passed",
+      "queuedProviderCount": 3,
+      "modelVisibleBeforeSessionStart": true,
+      "unrelatedProfileUnaffected": true,
+      "warnings": [
+        "source override: throttle-zai"
+      ],
+      "errorCount": 0
+    },
+    {
+      "label": "missing-service-does-not-fallback",
+      "result": "passed",
+      "queuedProviderCount": 1,
+      "modelVisibleBeforeSessionStart": false,
+      "unrelatedProfileUnaffected": true,
+      "warnings": [
+        "source override: throttle-zai"
+      ],
+      "errorCount": 0
+    },
+    {
+      "label": "constructor-error-isolated",
+      "result": "passed",
+      "queuedProviderCount": 1,
+      "modelVisibleBeforeSessionStart": false,
+      "unrelatedProfileUnaffected": true,
+      "warnings": [
+        "multiple services for throttle-zai; last synchronous reply wins",
+        "service replaced: throttle-zai"
+      ],
+      "errorCount": 2
+    },
+    {
+      "label": "wrong-instance-id-rejected",
+      "result": "passed",
+      "queuedProviderCount": 1,
+      "modelVisibleBeforeSessionStart": false,
+      "unrelatedProfileUnaffected": true,
+      "warnings": [],
+      "errorCount": 2
+    },
+    {
+      "label": "later-service-replaces-earlier",
+      "result": "passed",
+      "queuedProviderCount": 5,
+      "modelVisibleBeforeSessionStart": true,
+      "unrelatedProfileUnaffected": true,
+      "warnings": [
+        "multiple services for throttle-zai; last synchronous reply wins",
+        "service replaced: throttle-zai"
+      ],
+      "errorCount": 0
+    }
+  ],
+  "networkCalls": 0,
+  "limitations": [
+    "No production plugin changed",
+    "Loader internal entry used only as test instrumentation",
+    "No real gateway, credentials, UI login, disk config mutation or model request",
+    "Provider publishing ready then throwing violates the proposed contract and is not covered"
+  ]
+}

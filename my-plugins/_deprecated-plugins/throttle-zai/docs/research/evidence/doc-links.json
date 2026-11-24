@@ -1,0 +1,8 @@
+{
+  "markdownFiles": 9,
+  "relativeTargets": 18,
+  "missing": [],
+  "limitations": [
+    "No anchor, external URL, semantic or implementation correctness check"
+  ]
+}

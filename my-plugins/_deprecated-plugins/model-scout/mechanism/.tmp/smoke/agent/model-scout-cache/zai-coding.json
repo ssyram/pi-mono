@@ -1,0 +1,11 @@
+{
+	"version": 1,
+	"endpoint": "https://faux-zai.example/v1",
+	"checkedAt": 0,
+	"models": [
+		{
+			"id": "glm-5.4",
+			"name": "GLM-5.4 (scout cache)"
+		}
+	]
+}

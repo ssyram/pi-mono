@@ -1,0 +1,15 @@
+{
+  "piVersion": "1.4.0",
+  "nodeVersion": "v26.8.1",
+  "publicRuntimeLoginWritesCredential": "passed",
+  "mainRuntimeRefreshSeesExternalLogin": "passed",
+  "mainRuntimeLogoutRemovesCredential": "passed",
+  "profileConfigApiKeyFallbackUsed": false,
+  "authFixtureMode": "600",
+  "networkCalls": 0,
+  "limitations": [
+    "Fake credential in research directory only",
+    "No real UI, gateway or user auth.json",
+    "No cross-process concurrent login probe"
+  ]
+}

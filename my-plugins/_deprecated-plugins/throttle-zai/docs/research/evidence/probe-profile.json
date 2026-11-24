@@ -1,0 +1,6 @@
+{
+	"restored-probe": {
+		"provider": "probe-throttle",
+		"apiKey": "dummy-profile-value"
+	}
+}

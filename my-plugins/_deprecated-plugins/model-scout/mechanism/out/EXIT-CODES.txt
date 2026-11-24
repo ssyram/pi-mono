@@ -1,0 +1,4 @@
+t1-load-order.mjs exit=0 (54/54 checks, both orders)  run=2026-11-24T12:20+08:00  raw=out/t1-load-order.log
+smoke.mjs exit=0 (9/9) run=2026-11-24T12:1x+08:00  raw=(inline in session, not persisted)
+t2-restore-visibility.mjs exit=2 (FAILED: session-file never flushed; phase2 fatal at SessionManager.open; pre-bind-invisible check PASSED before fatal)  run=2026-11-24T12:23+08:00  raw=out/t2-restore-visibility.log
+t3..t7 never written, never run

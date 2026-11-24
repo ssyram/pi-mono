@@ -1,0 +1,17 @@
+{"t":1795494012959,"event":"refresh_begin","provider":"zai-coding-real","allowNetwork":false,"aborted":false,"hasStored":false}
+{"t":1795494012959,"event":"refresh_begin","provider":"zai-coding","allowNetwork":false,"aborted":false,"hasStored":false}
+{"t":1795494012959,"event":"cache_restore","provider":"zai-coding-real","restored":false,"count":0}
+{"t":1795494012959,"event":"refresh_restore_only","provider":"zai-coding-real"}
+{"t":1795494012959,"event":"cache_restore","provider":"zai-coding","restored":true,"count":1}
+{"t":1795494012959,"event":"refresh_restore_only","provider":"zai-coding"}
+{"t":1795494012961,"event":"refresh_begin","provider":"zai-coding-real","allowNetwork":false,"aborted":false,"hasStored":false}
+{"t":1795494012961,"event":"refresh_begin","provider":"zai-coding","allowNetwork":false,"aborted":false,"hasStored":false}
+{"t":1795494012961,"event":"cache_restore","provider":"zai-coding-real","restored":false,"count":0}
+{"t":1795494012961,"event":"refresh_restore_only","provider":"zai-coding-real"}
+{"t":1795494012961,"event":"cache_restore","provider":"zai-coding","restored":true,"count":1}
+{"t":1795494012961,"event":"refresh_restore_only","provider":"zai-coding"}
+{"t":1795494013002,"event":"loaded","pid":83915}
+{"t":1795494013008,"event":"session_start","reason":"startup"}
+{"t":1795494013008,"event":"wrapped","id":"zai-coding","authPreserved":true,"streamPreserved":true}
+{"t":1795494013009,"event":"wrapped","id":"zai-coding-real","authPreserved":true,"streamPreserved":true}
+{"t":1795494013009,"event":"saved_selection_restored","provider":"zai-coding","modelId":"glm-5.3","ok":true}

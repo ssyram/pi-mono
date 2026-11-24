@@ -1,0 +1,5 @@
+{"t":1795494012861,"event":"loaded","pid":83915}
+{"t":1795494012952,"event":"session_start","reason":"startup"}
+{"t":1795494012952,"event":"wrapped","id":"zai-coding-real","authPreserved":true,"streamPreserved":true}
+{"t":1795494012953,"event":"wrapped","id":"zai-coding","authPreserved":true,"streamPreserved":true}
+{"t":1795494012953,"event":"saved_selection_restored","provider":"zai-coding-real","modelId":"glm-4.7","ok":true}

@@ -1,0 +1,4 @@
+{"t":1795493914647,"event":"loaded","pid":82550}
+{"t":1795493914704,"event":"session_start","reason":"startup"}
+{"t":1795493914705,"event":"wrapped","id":"zai-coding","authPreserved":true,"streamPreserved":true}
+{"t":1795493914706,"event":"saved_selection_restored","provider":"zai-coding","modelId":"glm-5.3","ok":true}
