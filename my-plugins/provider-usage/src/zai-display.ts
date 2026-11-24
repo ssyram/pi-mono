@@ -38,5 +38,5 @@ export function formatZaiCompact(data: ZaiQuota): string {
 export function formatZaiQuota(data: ZaiQuota): string {
 	const parts = data.lines.map(formatLine);
 	if (data.partial) parts.push("some fields unparsed");
-	return sanitizeDisplayText(parts.join(", "));
+	return parts.map((part) => sanitizeDisplayText(part)).join("\n");
 }

@@ -89,7 +89,7 @@ export function formatClaudeCodeCompact(windows: UsageWindow[]): string {
 export function formatClaudeCodeUsage(windows: UsageWindow[]): string {
 	return windows
 		.map((window) => `${Math.round(window.percent)}%(${window.label}) used${window.resetsAt ? `, resets ${formatReset(window.resetsAt)}` : ""}`)
-		.join(", ");
+		.join("\n");
 }
 
 export function queryClaudeCodeUsage(readEntries: ReadSessionEntries | undefined): QueryResult {

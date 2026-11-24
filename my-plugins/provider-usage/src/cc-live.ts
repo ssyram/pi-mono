@@ -43,7 +43,7 @@ export function formatClaudeUsageWindows(windows: ClaudeUsageWindow[]): { text: 
 		`${window.percent}%(${window.label}) used${window.resetsText ? `, resets ${window.resetsText}` : ""}`,
 	);
 	return {
-		text: parts.join(", "),
+		text: parts.join("\n"),
 		compact: (primary.length > 0 ? primary : windows).map((window) => `${window.percent}%(${window.label})`).join(" "),
 	};
 }

@@ -24,8 +24,8 @@ export function registerUsageTool(
 		name: "provider_usage",
 		label: "Provider Usage",
 		description:
-			"Query remaining quota/usage for providers. Returns one line per provider, same format as /provider-usage --all. Omit `provider` to query all (recommended); pass a provider id only when a single provider is needed.",
-		promptSnippet: "provider_usage: query provider quota/usage; default all providers, one line each.",
+			"Query remaining quota/usage for providers. Returns one block per provider (name header, indented detail lines), sorted by name. Omit `provider` to query all (recommended); pass a provider id only when a single provider is needed.",
+		promptSnippet: "provider_usage: query provider quota/usage; all providers sorted by name, one block each.",
 		parameters,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx: ExtensionToolContext) {
 			// params.provider is model-controlled text; the UI flag would route output to the no-op sendToAi path.

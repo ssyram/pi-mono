@@ -36,5 +36,5 @@ export function formatCodex(data: CodexUsage): string {
 	if (data.credit?.kind === "unlimited") parts.push("credits unlimited");
 	if (data.credit?.kind === "balance") parts.push(`credits ${data.credit.balance}`);
 	if (data.partial) parts.push("some fields unparsed");
-	return sanitizeDisplayText(parts.join(", "));
+	return parts.map((part) => sanitizeDisplayText(part)).join("\n");
 }

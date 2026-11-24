@@ -73,13 +73,13 @@ test("tool defaults to all providers and queries a single named provider", async
 	const every = await tool.execute("call-1", {}, undefined, undefined, context());
 	assert.deepEqual(all, ["zai-001", "zai-002"]);
 	assert.equal(every.content[0]?.type, "text");
-	assert.equal(every.content[0]?.text, "zai-001: ok\nzai-002: ok");
+	assert.match(every.content[0]?.text ?? "", /^Provider usage · \d{4}-\d{2}-\d{2} \d{2}:\d{2}\n\nzai-001:\n  ok\n\nzai-002:\n  ok$/);
 
 	const single: string[] = [];
 	const namedTool = captureTool(single, { kind: "available", text: "ok", compact: "ok" });
 	const one = await namedTool.execute("call-2", { provider: "zai-002" }, undefined, undefined, context());
 	assert.deepEqual(single, ["zai-002"]);
-	assert.equal(one.content[0]?.text, "zai-002: ok");
+	assert.match(one.content[0]?.text ?? "", /\n\nzai-002:\n  ok$/);
 });
 
 test("tool reports unknown provider names as text", async () => {
@@ -88,5 +88,5 @@ test("tool reports unknown provider names as text", async () => {
 
 	const result = await tool.execute("call-3", { provider: "missing" }, undefined, undefined, context());
 	assert.deepEqual(queried, []);
-	assert.equal(result.content[0]?.text, "missing: provider not found");
+	assert.match(result.content[0]?.text ?? "", /\n\nmissing:\n  provider not found$/);
 });

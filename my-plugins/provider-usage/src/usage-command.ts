@@ -8,15 +8,21 @@ import { executeUsageQuery } from "./usage-query.js";
 import type { UsageQueryWidget } from "./usage-widget.js";
 import type { UsageOutputEntryData } from "./usage-output-entry.js";
 
+export interface UsageTargetReport {
+	detail: string;
+	pair: string;
+	failed: boolean;
+}
+
 export async function queryUsageTarget(
 	model: UsageModel,
 	context: PiExtensionContext,
 	query: UsageQueryRunner = (selection, route, registry, signal, readEntries) =>
 		executeUsageQuery(selection, route, registry, signal, undefined, undefined, readEntries),
-): Promise<{ line: string; pair: string }> {
+): Promise<UsageTargetReport> {
 	const name = model.provider;
 	const selection = captureSelection(context, model);
-	if (!selection) return { line: `${name}: ERR`, pair: `${name}:(ERR)` };
+	if (!selection) return { detail: "query error", pair: `${name}:(ERR)`, failed: true };
 	const selectedRoute = route(selection);
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), 15_000);
@@ -25,29 +31,33 @@ export async function queryUsageTarget(
 		const result = await query(selection, selectedRoute, context.modelRegistry, controller.signal, () =>
 			context.sessionManager.getEntries(),
 		);
-		if (controller.signal.aborted || result.kind === "cancelled") return { line: `${name}: TIMEOUT`, pair: `${name}:(TIMEOUT)` };
-		if (result.kind === "available") return { line: `${name}: ${result.text}`, pair: `${name}:(${result.compact})` };
-		if (result.kind === "not-applicable") return { line: `${name}: no applicable plan`, pair: `${name}:(no plan)` };
-		if (result.kind === "unsupported") return { line: `${name}: N/S`, pair: `${name}:(N/S)` };
-		if (result.code === "configuration") {
-			return { line: `${name}: CONFIG (check global provider-usage.glmTeams)`, pair: `${name}:(CONFIG)` };
+		if (controller.signal.aborted || result.kind === "cancelled") {
+			return { detail: "query timeout", pair: `${name}:(TIMEOUT)`, failed: true };
 		}
-		if (result.code === "auth") return { line: `${name}: AUTH`, pair: `${name}:(AUTH)` };
-		if (result.code === "timeout") return { line: `${name}: TIMEOUT`, pair: `${name}:(TIMEOUT)` };
-		return { line: `${name}: ERR`, pair: `${name}:(ERR)` };
+		if (result.kind === "available") return { detail: result.text, pair: `${name}:(${result.compact})`, failed: false };
+		if (result.kind === "not-applicable") return { detail: "no applicable plan", pair: `${name}:(no plan)`, failed: false };
+		if (result.kind === "unsupported") return { detail: "unsupported", pair: `${name}:(N/S)`, failed: false };
+		if (result.code === "configuration") {
+			return { detail: "glmTeams misconfigured (check global provider-usage.glmTeams)", pair: `${name}:(CONFIG)`, failed: true };
+		}
+		if (result.code === "auth") return { detail: "auth failed", pair: `${name}:(AUTH)`, failed: true };
+		if (result.code === "timeout") return { detail: "query timeout", pair: `${name}:(TIMEOUT)`, failed: true };
+		return { detail: "query error", pair: `${name}:(ERR)`, failed: true };
 	} catch {
-		return { line: `${name}: ERR`, pair: `${name}:(ERR)` };
+		return { detail: "query error", pair: `${name}:(ERR)`, failed: true };
 	} finally {
 		clearTimeout(timeout);
 	}
 }
 
-const AI_ERROR_LEGEND =
-	"Codes: AUTH=authentication failed, TIMEOUT=query timeout, CONFIG=provider-usage.glmTeams misconfigured, N/S=unsupported, ERR=query error.";
-
 function localTimestamp(date: Date): string {
 	const pad = (n: number) => String(n).padStart(2, "0");
 	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatBlock(name: string, detail: string): string {
+	const body = detail.trim() === "" ? "no data" : detail;
+	return `${name}:\n${body.split("\n").map((line) => `  ${line}`).join("\n")}`;
 }
 
 export async function runUsageCommand(
@@ -68,25 +78,25 @@ export async function runUsageCommand(
 		appendOutput({ tone: "info", text: "no providers available" });
 		return;
 	}
-	const lines: string[] = [];
+	const blocks: string[] = [];
 	const pairs: string[] = [];
+	let failed = false;
 	widget?.begin("Querying provider usage…");
 	try {
 		for (const model of target.models) {
 			const result = await queryUsageTarget(model, context, query);
-			lines.push(result.line);
+			blocks.push(formatBlock(model.provider, result.detail));
 			pairs.push(result.pair);
+			failed = failed || result.failed;
 		}
 	} finally {
 		widget?.end();
 	}
-	const unknownLines = target.unknown.map((name) => `${name}: provider not found`);
-	const failed = lines.some((line) => /\b(ERR|AUTH|TIMEOUT|CONFIG)\b/.test(line));
+	const unknownBlocks = target.unknown.map((name) => formatBlock(name, "provider not found"));
+	const text = ["Provider usage · " + localTimestamp(new Date()), ...blocks, ...unknownBlocks].join("\n\n");
 	if (target.showToAi) {
-		const header = `Provider usage snapshot (/provider-usage --show-to-ai, ${localTimestamp(new Date())}):`;
-		const content = [header, ...lines, ...(failed ? [AI_ERROR_LEGEND] : [])].join("\n");
-		sendToAi(content, { collapsed: pairs.join(", ") });
+		sendToAi(text, { collapsed: pairs.join(", ") });
 		return;
 	}
-	appendOutput({ tone: failed ? "warning" : "info", text: [...lines, ...unknownLines].join("\n") });
+	appendOutput({ tone: failed ? "warning" : "info", text });
 }

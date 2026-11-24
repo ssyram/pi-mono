@@ -45,7 +45,7 @@ test("resolves current, available deduplicated, and explicitly named providers",
 	assert.deepEqual(resolveUsageTargets("", first, registry), { kind: "targets", models: [first], unknown: [], showToAi: false });
 	assert.deepEqual(resolveUsageTargets("--all", first, registry), { kind: "targets", models: [first, second], unknown: [], showToAi: false });
 	assert.deepEqual(resolveUsageTargets("zai-002 missing zai-001 zai-002", first, registry), {
-		kind: "targets", models: [second, first], unknown: ["missing"], showToAi: false,
+		kind: "targets", models: [first, second], unknown: ["missing"], showToAi: false,
 	});
 	assert.equal(resolveUsageTargets("--all zai-001", first, registry).kind, "error");
 });
@@ -110,12 +110,13 @@ test("command queries each requested account independently and leaves details ou
 		const outputs: Array<{ tone: string; text: string }> = [];
 		const ctx = context([]);
 		await runUsageCommand("zai-002 missing zai-001", ctx, undefined, undefined, (data) => outputs.push(data));
-		assert.deepEqual(headers, ["Bearer zai-002", "Bearer zai-001"]);
+		assert.deepEqual(headers, ["Bearer zai-001", "Bearer zai-002"]);
 		assert.equal(outputs.length, 1);
 		assert.equal(outputs[0]?.tone, "info");
-		assert.match(outputs[0]?.text ?? "", /^zai-002: 17%\(5h\) used, resets /);
-		assert.match(outputs[0]?.text ?? "", /zai-001: 17%\(5h\) used, resets /);
-		assert.match(outputs[0]?.text ?? "", /missing: provider not found$/);
+		assert.match(outputs[0]?.text ?? "", /^Provider usage · \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/m);
+		assert.match(outputs[0]?.text ?? "", /zai-001:\n  17%\(5h\) used, resets /);
+		assert.match(outputs[0]?.text ?? "", /zai-002:\n  17%\(5h\) used, resets /);
+		assert.match(outputs[0]?.text ?? "", /missing:\n  provider not found$/);
 		assert.equal(ctx.model, first);
 	} finally {
 		globalThis.fetch = originalFetch;
@@ -146,12 +147,12 @@ test("--show-to-ai sends the full snapshot as an AI message and skips the TUI ou
 		assert.equal(outputs.length, 0);
 		assert.equal(aiMessages.length, 1);
 		const { content: message, details } = aiMessages[0]!;
-		assert.match(message, /^Provider usage snapshot \(\/provider-usage --show-to-ai, \d{4}-\d{2}-\d{2} \d{2}:\d{2}\):$/m);
-		assert.match(message, /^zai-002: 17%\(5h\) used, resets /m);
-		assert.match(message, /^zai-001: AUTH$/m);
-		assert.match(message, /^Codes: AUTH=authentication failed/m);
-		assert.doesNotMatch(message, /provider not found/);
-		assert.equal(details.collapsed, "zai-002:(17%(5h)), zai-001:(AUTH)");
+		assert.match(message, /^Provider usage · \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/m);
+		assert.match(message, /zai-001:\n  auth failed/);
+		assert.match(message, /zai-002:\n  17%\(5h\) used, resets /);
+		assert.doesNotMatch(message, /Codes:/);
+		assert.match(message, /missing:\n  provider not found$/);
+		assert.equal(details.collapsed, "zai-001:(AUTH), zai-002:(17%(5h))");
 	} finally {
 		globalThis.fetch = originalFetch;
 	}

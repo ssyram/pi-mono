@@ -62,7 +62,7 @@ test("queries Codex once at the fixed endpoint and formats validated windows", a
 		),
 		async (calls) => {
 			const result = await queryCodex(codexAuth, new AbortController().signal);
-			assert.deepEqual(result, { kind: "available", text: "34%(week) used, Review 12%(5h) used", compact: "34%(week)" });
+			assert.deepEqual(result, { kind: "available", text: "34%(week) used\nReview 12%(5h) used", compact: "34%(week)" });
 			assert.equal(calls.length, 1);
 			assert.equal(calls[0]?.url, "https://chatgpt.com/backend-api/wham/usage");
 			assert.deepEqual(calls[0]?.init?.headers, {
@@ -93,7 +93,7 @@ test("keeps Z.AI regions separate and preserves their resolved authorization for
 				{ route: "zai", endpoint: "https://api.z.ai/api/coding/paas/v4", headers: { Authorization: "Bearer international" } },
 				new AbortController().signal,
 			);
-			assert.deepEqual(result, { kind: "available", text: `17%(5h) used, resets ${formatLocalTime(1_800_000_000_000)}, tools 12/1000(month) glm-test 4`, compact: "17%(5h)" });
+			assert.deepEqual(result, { kind: "available", text: `17%(5h) used, resets ${formatLocalTime(1_800_000_000_000)}\ntools 12/1000(month) glm-test 4`, compact: "17%(5h)" });
 			assert.equal(calls[0]?.url, "https://api.z.ai/api/monitor/usage/quota/limit");
 			assert.deepEqual(calls[0]?.init?.headers, { Authorization: "Bearer international", Accept: "application/json" });
 		},

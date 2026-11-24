@@ -6,6 +6,14 @@ export type TargetResolution =
 
 export const SHOW_TO_AI_FLAG = "--show-to-ai";
 
+function compareName(a: string, b: string): number {
+	return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function sortByName(models: UsageModel[]): UsageModel[] {
+	return [...models].sort((a, b) => compareName(a.provider, b.provider));
+}
+
 export function resolveUsageTargets(
 	args: string,
 	current: UsageModel | undefined,
@@ -28,7 +36,7 @@ export function resolveUsageTargets(
 	const available = new Map<string, UsageModel>();
 	if (current) available.set(current.provider, current);
 	for (const model of candidates) if (!available.has(model.provider)) available.set(model.provider, model);
-	if (names[0] === "--all") return { kind: "targets", models: [...available.values()], unknown: [], showToAi };
+	if (names[0] === "--all") return { kind: "targets", models: sortByName([...available.values()]), unknown: [], showToAi };
 	const models: UsageModel[] = [];
 	const unknown: string[] = [];
 	for (const name of new Set(names)) {
@@ -36,5 +44,5 @@ export function resolveUsageTargets(
 		if (model) models.push(model);
 		else unknown.push(name);
 	}
-	return { kind: "targets", models, unknown, showToAi };
+	return { kind: "targets", models: sortByName(models), unknown: [...unknown].sort(compareName), showToAi };
 }

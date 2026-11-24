@@ -143,7 +143,10 @@ test("bootstrap uses only global teams for footer and commands and rereads edite
 		await command.handler("first second", context);
 		assert.deepEqual(requests, ["key-first", "key-first", "key-second"]);
 		assert.deepEqual(projects, ["project", "updated-global-project", "updated-global-project"]);
-		assert.match(entries.at(-1)?.text ?? "", /^first: credits 23%\(week\) used\nsecond: credits 71%\(week\) used$/);
+		assert.match(
+			entries.at(-1)?.text ?? "",
+			/^Provider usage · \d{4}-\d{2}-\d{2} \d{2}:\d{2}\n\nfirst:\n  credits 23%\(week\) used\n\nsecond:\n  credits 71%\(week\) used$/,
+		);
 		assert.equal(entries.at(-1)?.tone, "info");
 		context.model = second;
 		for (const handler of handlers.get("model_select") ?? []) await handler({ model: second }, context);
@@ -161,7 +164,7 @@ test("bootstrap uses only global teams for footer and commands and rereads edite
 			}),
 		);
 		await command.handler("first", context);
-		assert.match(entries.at(-1)?.text ?? "", /first: CONFIG/);
+		assert.match(entries.at(-1)?.text ?? "", /first:\n  glmTeams misconfigured/);
 		assert.equal(entries.at(-1)?.tone, "warning");
 		assert.equal(requests.length, 4);
 	} finally {
