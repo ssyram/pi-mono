@@ -1,5 +1,7 @@
 # provider-profiles — Architecture（D.root）
 
+> 新增正交能力：自动模型发现的当前候选设计见 [model-discovery/architecture.md](model-discovery/architecture.md)。以下描述既有身份实现；新增实例专用刷新只可由该专项论证后组合，不允许直接复制绑定原 id 的 base.refreshModels。当前并未实现发现功能。
+
 本 frame 回答 `principles.md` 的 Q.I.1–Q.I.7：在不改官方源码、不重写模型目录定义的边界内，把内置 provider 的多个认证身份实现为具名实例。叶子设计见 `detailed.md`；独立测试设计及执行证据见 `test-plan.md` / `test-results.md`；历史 Hoare 审计及后续勘误见 `correctness.md`。
 
 ## D.root — provider-profiles 根设计

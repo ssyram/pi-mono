@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { registerAddLoginCommand } from "../commands.js";
 import { wrapApiKeyAuth } from "../instantiator.js";
+import { createCatalogOwner } from "../official-catalog/catalog-owner.js";
 
 interface Notification {
 	text: string;
@@ -59,7 +60,12 @@ afterEach(async () => {
 });
 
 function register(pi: FakePi): void {
-	registerAddLoginCommand(pi as unknown as Parameters<typeof registerAddLoginCommand>[0], configPath, modelsJsonPath);
+	registerAddLoginCommand(
+		pi as unknown as Parameters<typeof registerAddLoginCommand>[0],
+		configPath,
+		modelsJsonPath,
+		createCatalogOwner(tempDir),
+	);
 }
 
 async function run(pi: FakePi, args: string): Promise<Notification[]> {

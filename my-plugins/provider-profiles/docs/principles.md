@@ -1,5 +1,7 @@
 # provider-profiles — Principles
 
+> 当前增量：用户授权将自动模型发现作为 Profiles 的额外正交能力，限定仅本插件创建的实例，不改 Pi 核心。见 [model-discovery/principles.md](model-discovery/principles.md)。下文历史 Q.I.7 的“完全不承担目录扩展”在该专项范围内被显式扩展；身份隔离、不写 models.json、不改原请求等原则不变。本增量尚未实现。
+
 # Task Overview
 
 **问题对象**：Pi 插件 `provider-profiles` 的意图、认知前提与经验材料（Q 层）。

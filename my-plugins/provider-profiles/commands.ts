@@ -13,6 +13,7 @@ import type { ProfileEntry } from "./config-entry.js";
 import { readModelsJsonConflicts, readProfileConfig } from "./config-loader.js";
 import { upsertProfileEntry } from "./config-writer.js";
 import { instanceProvider } from "./instantiator.js";
+import type { CatalogOwner } from "./official-catalog/catalog-owner.js";
 import { getBase } from "./provider-source.js";
 
 const HELP = `[add-login] Usage: /add-login <name> <provider> [apiKey]
@@ -45,7 +46,12 @@ const providerItems = (name: string, partial: string) =>
 		description: `register ${name} with ${provider}`,
 	}));
 
-export function registerAddLoginCommand(pi: ExtensionAPI, configPath: string, modelsJsonPath: string): void {
+export function registerAddLoginCommand(
+	pi: ExtensionAPI,
+	configPath: string,
+	modelsJsonPath: string,
+	catalogOwner: CatalogOwner,
+): void {
 	pi.registerCommand("add-login", {
 		description: "Add a provider-profiles account entry and register it now. /add-login help for details.",
 		getArgumentCompletions(argumentPrefix: string) {
@@ -129,9 +135,12 @@ export function registerAddLoginCommand(pi: ExtensionAPI, configPath: string, mo
 				return;
 			}
 			try {
-				pi.registerProvider(
-					instanceProvider(getBase(providerToken), entry, shouldForwardFilterModels(providerToken)),
+				const original = instanceProvider(
+					getBase(providerToken),
+					entry,
+					shouldForwardFilterModels(providerToken),
 				);
+				pi.registerProvider(await catalogOwner.compose(original, providerToken));
 			} catch (error) {
 				ctx.ui.notify(
 					`[add-login] saved to file but registration failed: ${error instanceof Error ? error.message : String(error)} (effective after next Pi restart)`,

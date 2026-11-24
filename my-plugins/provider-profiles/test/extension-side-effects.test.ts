@@ -34,9 +34,10 @@ const commands: string[] = [];
 			if (typeof provider === "string") throw new Error("unexpected config registration");
 			providers.push(provider);
 		},
-	registerCommand(name: string): void {
-		commands.push(name);
-	},
+registerCommand(name: string): void {
+	commands.push(name);
+},
+on(): void {},
 	};
 	return { pi: api as unknown as ExtensionAPI, providers, commands };
 }

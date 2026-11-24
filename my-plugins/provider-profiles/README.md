@@ -4,6 +4,16 @@
 
 设计与论证见 `docs/`（principles / architecture / detailed / test-plan / correctness）。
 
+## 官方模型目录同步
+
+**此功能只适用于 provider-profiles 创建的账号；不使用 Profiles，就不能使用本插件的目录同步。**
+
+实例启动先恢复缓存，普通刷新时后台同步 Pi 官方在线目录；更新失败告警并保留原模型，不需要给内置 provider 重复登录。它不访问 models.dev 或厂商目录，不发掘 Pi 官方尚未收录的模型，也不改变账号凭据、端点或调用通道。
+
+GLM-5.4 已在真实 Pi 的既有具名账号下调用成功，Shift+Tab 和1.0M上下文显示已试用。测试、尚未覆盖边界及用户亲验状态见 [运行记录](docs/audit/official-catalog-sync/results.md) 与 [路径论证](docs/audit/official-catalog-sync/failure-paths.md)。实施合同见 [docs/official-catalog-sync.md](docs/official-catalog-sync.md)。
+
+如需单独禁用新增同步而保留多账号功能，可在启动时设置 `PI_PROFILE_CATALOG_SYNC=0`。旧外部自动发掘设计仅作历史，不是当前启用功能。
+
 ## 为什么需要它
 
 Pi 原生凭据按 **provider id** 保存：一个内置 id 只能保留一套认证，例如再次 `/login openai-codex` 会替换该 id 的 OAuth 登录；`/model` 只选择 provider/model，没有账号 profile。要在同一 Pi 内同时保留多个 Codex 或 API-key 账号，并在额度耗尽时显式切换，必须让每个账号成为不同的 provider id；本插件提供的就是这个具名实例层。

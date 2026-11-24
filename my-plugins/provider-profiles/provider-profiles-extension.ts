@@ -15,6 +15,7 @@ import { parseEntries } from "./config-entry.js";
 import { readModelsJsonConflicts, readProfileConfig } from "./config-loader.js";
 import { registerAddLoginCommand } from "./commands.js";
 import { instanceProvider } from "./instantiator.js";
+import { createCatalogOwner } from "./official-catalog/catalog-owner.js";
 import { builtinIds, getBase, isOAuthSource, shouldForwardFilterModels, supportedSourceIds } from "./provider-source.js";
 import { type RegistrationItem, registerInstances } from "./registrar.js";
 
@@ -22,8 +23,19 @@ export function profileConfigPath(): string {
 	return join(getAgentDir(), "provider-profiles.json");
 }
 
+/** Safe stderr for print/json modes: warnings never enter the model stdout
+ * protocol, and a failing stderr write must never break the extension. */
+function safeStderr(message: string, level: string): void {
+	try {
+		process.stderr.write(`[provider-profiles] ${level}: ${message}\n`);
+	} catch {
+		// Physical output unavailability is an environment premise, not an error.
+	}
+}
+
 export default async function providerProfilesExtension(pi: ExtensionAPI): Promise<void> {
 	const agentDir = getAgentDir();
+	const catalogOwner = createCatalogOwner(agentDir);
 	const raw = await readProfileConfig(join(agentDir, "provider-profiles.json"));
 	const modelsJsonConflicts = await readModelsJsonConflicts(join(agentDir, "models.json"));
 	const sources = supportedSourceIds();
@@ -38,9 +50,10 @@ export default async function providerProfilesExtension(pi: ExtensionAPI): Promi
 	const constructionErrors: EntryError[] = [];
 	for (const entry of entries) {
 		try {
+			const original = instanceProvider(getBase(entry.provider), entry, shouldForwardFilterModels(entry.provider));
 			items.push({
 				entry,
-				provider: instanceProvider(getBase(entry.provider), entry, shouldForwardFilterModels(entry.provider)),
+				provider: await catalogOwner.compose(original, entry.provider),
 			});
 		} catch (error) {
 			constructionErrors.push({
@@ -50,7 +63,22 @@ export default async function providerProfilesExtension(pi: ExtensionAPI): Promi
 		}
 	}
 	const outcome = registerInstances(pi, items);
-	registerAddLoginCommand(pi, join(agentDir, "provider-profiles.json"), join(agentDir, "models.json"));
+	registerAddLoginCommand(
+		pi,
+		join(agentDir, "provider-profiles.json"),
+		join(agentDir, "models.json"),
+		catalogOwner,
+	);
+	pi.on("session_start", (_event, ctx) => {
+		catalogOwner.attach({
+			notify: (message, level) => {
+				if (ctx.hasUI) ctx.ui.notify(message, level);
+				else safeStderr(message, level);
+			},
+			onUpdated: (ids) => ctx.modelRegistry.refresh({ allowNetwork: false, providers: [...ids] }),
+		});
+	});
+	pi.on("session_shutdown", () => catalogOwner.dispose());
 	for (const error of [...errors, ...constructionErrors, ...outcome.failed] as EntryError[]) {
 		console.error(`[provider-profiles] entry "${error.name}" skipped: ${error.reason}`);
 	}
