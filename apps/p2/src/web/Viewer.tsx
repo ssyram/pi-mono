@@ -1,16 +1,14 @@
 import { createContext, type ReactNode, useEffect, useRef, useState } from "react";
 import { type DownloadInfo, filePreview } from "../runtime/files.ts";
-import type { ArtifactInfo } from "../runtime/schemas.ts";
 import { useScrollMemory, useShownModal } from "../runtime/web.tsx";
 import { CodeBlock } from "./Code.tsx";
 import { CloseIcon, DownloadIcon } from "./icons.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { inPage } from "./navigation.ts";
 
-// One full-screen viewer for everything a conversation hands the user: versioned
-// artifacts and sent files today, workspace files later. Each content type keeps
-// its own policy; only artifacts ever execute, and only in a sandboxed iframe.
-export type ViewerItem = { kind: "artifact"; artifact: ArtifactInfo } | { kind: "file"; file: DownloadInfo };
+// One full-screen viewer for what a conversation hands the user: sent files today. It never executes anything (html
+// artifacts run in their own panes, plugins/artifacts).
+export type ViewerItem = { kind: "file"; file: DownloadInfo };
 /** Opens an item explicitly; tool updates and reconnects never open the viewer. */
 export const OpenViewer = createContext<(item: ViewerItem) => void>(() => {});
 /**
@@ -35,19 +33,10 @@ export function fileUrl(sessionId: string, file: DownloadInfo): string {
 	return `/download?${new URLSearchParams({ session: sessionId, id: file.id })}`;
 }
 
-export function artifactUrls(sessionId: string, artifact: ArtifactInfo) {
-	const query = new URLSearchParams({ session: sessionId, name: artifact.name, version: String(artifact.version) });
-	const extension = artifact.type === "markdown" ? "md" : artifact.type === "text" ? "txt" : artifact.type;
-	return {
-		view: `/artifact?${query}`,
-		download: `/artifact?${query}&download=1`,
-		filename: `${artifact.name}.${extension}`,
-	};
-}
-
 /**
  * Transcript card: the body opens the viewer (a link to `openHref` when there is one, so it also opens in another tab),
- * the separate button downloads.
+ * the separate button downloads. With `thumbnail` (the file's bytes) a raster image or video named `download` shows
+ * above the row, and opens the viewer too.
  */
 export function FileCard({
 	icon,
@@ -55,6 +44,7 @@ export function FileCard({
 	meta,
 	href,
 	download,
+	thumbnail,
 	openHref,
 	onOpen,
 }: {
@@ -63,33 +53,66 @@ export function FileCard({
 	meta: string;
 	href: string;
 	download: string;
+	thumbnail?: string;
 	openHref?: string;
 	onOpen: () => void;
 }) {
-	const body = (
-		<>
-			<span className="file-card-icon">{icon}</span>
-			<span className="file-card-text">
-				<strong>{title}</strong>
-				<small>{meta}</small>
-			</span>
-		</>
-	);
+	const media = thumbnail === undefined ? undefined : filePreview(download)?.kind;
 	return (
 		<div className="file-card">
-			{openHref === undefined ? (
-				<button type="button" className="file-card-main" onClick={onOpen} aria-label={`Open ${title}`}>
-					{body}
-				</button>
-			) : (
-				<a className="file-card-main" href={openHref} onClick={inPage(onOpen)} aria-label={`Open ${title}`}>
-					{body}
-				</a>
+			{(media === "image" || media === "video") && (
+				// The row below opens the same viewer: this second opener stays out of the tab order and the reading.
+				<FileOpener className="file-card-thumbnail" openHref={openHref} onOpen={onOpen}>
+					{media === "image" ? (
+						<img src={thumbnail} alt="" decoding="async" loading="lazy" />
+					) : (
+						// A start offset makes WebKit paint the first frame without playing.
+						<video src={`${thumbnail}#t=0.1`} muted playsInline preload="metadata" />
+					)}
+				</FileOpener>
 			)}
-			<a className="file-card-download" href={href} download={download} aria-label={`Download ${title}`}>
-				<DownloadIcon />
-			</a>
+			<div className="file-card-row">
+				<FileOpener className="file-card-main" openHref={openHref} onOpen={onOpen} label={`Open ${title}`}>
+					<span className="file-card-icon">{icon}</span>
+					<span className="file-card-text">
+						<strong>{title}</strong>
+						<small>{meta}</small>
+					</span>
+				</FileOpener>
+				<a className="file-card-download" href={href} download={download} aria-label={`Download ${title}`}>
+					<DownloadIcon />
+				</a>
+			</div>
 		</div>
+	);
+}
+
+/**
+ * A part of a file card that opens the viewer: a link to `openHref` when there is one, else a button. Without `label`
+ * it is a duplicate opener, hidden from the tab order and screen readers.
+ */
+function FileOpener({
+	className,
+	openHref,
+	onOpen,
+	label,
+	children,
+}: {
+	className: string;
+	openHref?: string;
+	onOpen: () => void;
+	label?: string;
+	children: ReactNode;
+}) {
+	const extra = label === undefined ? { tabIndex: -1, "aria-hidden": true } : { "aria-label": label };
+	return openHref === undefined ? (
+		<button type="button" className={className} onClick={onOpen} {...extra}>
+			{children}
+		</button>
+	) : (
+		<a className={className} href={openHref} onClick={inPage(onOpen)} {...extra}>
+			{children}
+		</a>
 	);
 }
 

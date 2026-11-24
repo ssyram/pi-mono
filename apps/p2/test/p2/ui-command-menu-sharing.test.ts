@@ -2,19 +2,22 @@
 // target): Share session… opens the share sheet over the open session in one step, over a hovered session after opening
 // it (Back closes the sheet, then returns); Copy read-only and Copy read/write link make the link and copy it; Reset
 // share link… (only while a link exists) replaces one; none of them for an archived session or a guest. Artifacts:
-// Open artifact… (only while the open conversation has some) lists every version and opens one in the viewer, also
-// over a hovered session's main conversation; the root's query finds the latest version by title. Fake provider;
-// disposable data, every test makes its own sessions.
+// Open artifact… (only while the open session has some) lists them and opens one as a view beside the chat; the root's
+// query finds one by title; a read-only guest opens one in the side panel instead (it may not change the session's
+// views). A guest's sidebar items as targets: a read/write guest gets Stop run and Archive subagent, a view guest neither.
+// Fake provider; disposable data, every test makes its own sessions.
 
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { BACKGROUND_CONTEXT } from "@p2/app/v1";
-import { ArtifactList } from "../../plugins/artifacts/contract.ts";
+import { Artifacts } from "../../plugins/artifacts/contract.ts";
 import { Chat } from "../../plugins/chat/contract.ts";
 import { Sessions } from "../../plugins/sessions/contract.ts";
 import { Sharing } from "../../plugins/sharing/contract.ts";
+import { SessionStatus } from "../../plugins/status/contract.ts";
+import { Subagents } from "../../plugins/subagents/contract.ts";
 import type { Host, RefIn } from "../../src/runtime/chord.ts";
-import { Browser, browserTests } from "./browser.ts";
+import { Browser, browserTests, COMPOSER } from "./browser.ts";
 import { type Fixture, holdIn, startFixture, until } from "./helpers.ts";
 
 /** What the open menu shows, or null while it is closed. */
@@ -77,14 +80,14 @@ describe("command menu: sharing and artifacts", { skip: !browserTests }, () => {
 	const create = async (title: string) =>
 		(await sessions.create({ cwd: fixture.workspace, title }, BACKGROUND_CONTEXT)).id;
 
-	/** Saves the fake provider's `artifact` call (name "demo", "Demo artifact") `versions` times in `session`. */
+	/** Writes the fake provider's `artifact` script (id "demo", "Demo artifact") `versions` times in `session`. */
 	const makeArtifacts = async (session: string, versions: number) => {
 		const chat = await holdIn(owner, Chat, { session, conversation: 1 }, "participant");
-		const list = owner.hold(ArtifactList, { session, conversation: 1 }, BACKGROUND_CONTEXT);
+		const list = await holdIn(owner, Artifacts, { session }, "editor");
 		try {
 			for (let version = 1; version <= versions; version++) {
 				await chat.send({ text: "artifact", requestId: `artifact-${session}-${version}` }, BACKGROUND_CONTEXT);
-				await until(list.artifacts, (value) => value?.length === version, 30_000);
+				await until(list.artifacts, (value) => value?.[0]?.version === version, 30_000);
 			}
 		} finally {
 			chat.release();
@@ -93,7 +96,7 @@ describe("command menu: sharing and artifacts", { skip: !browserTests }, () => {
 	};
 
 	/** Opens `path` at 1280×800 as a macOS page and waits for the composer while online. */
-	const load = async (path: string, ready = ".composer textarea", page = browser) => {
+	const load = async (path: string, ready = COMPOSER, page = browser) => {
 		await page.metrics(1280, 800);
 		await page.call("Emulation.setUserAgentOverride", { userAgent, platform: "MacIntel" });
 		await page.open(`${base}${path}`);
@@ -138,17 +141,37 @@ describe("command menu: sharing and artifacts", { skip: !browserTests }, () => {
 	const titles = () => browser.evaluate<string[]>(TITLES);
 
 	/** Moves the mouse to the middle of the element `expression` evaluates to, once there is one. */
-	const hover = async (expression: string) => {
-		await browser.wait(expression);
-		const point = await browser.evaluate<{ x: number; y: number }>(
+	const hover = async (expression: string, page = browser) => {
+		await page.wait(expression);
+		const point = await page.evaluate<{ x: number; y: number }>(
 			`(() => { const r = (${expression}).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`,
 		);
-		await browser.call("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
+		await page.call("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
 	};
 
-	/** A session's main row in the sidebar's Recents, as an expression. */
+	/**
+	 * Joins `url` as guest `name` in a fresh browser at 1280×800 (a fresh profile on loopback gets the join form,
+	 * loopback-join.test.ts) and waits for the shared session.
+	 */
+	const join = async (url: string, name: string) => {
+		const guest = await Browser.start();
+		await guest.metrics(1280, 800);
+		await guest.call("Emulation.setUserAgentOverride", { userAgent, platform: "MacIntel" });
+		await guest.open(`${base}${new URL(url).pathname}`);
+		await guest.wait(`document.querySelector('#join #name') && document.querySelector('#join button')`);
+		await guest.evaluate(
+			`(() => { const input = document.querySelector('#name'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(name)}); input.dispatchEvent(new Event('input', { bubbles: true })); })()`,
+		);
+		await guest.click("#join button");
+		await guest.wait(
+			`document.querySelector('nav[aria-label="Shared session"]')?.textContent.includes(${JSON.stringify(`Joined as ${name}`)})`,
+		);
+		return guest;
+	};
+
+	/** A session's item in the sidebar's sessions without a project, as an expression. */
 	const sidebarRow = (id: string) =>
-		`document.querySelector('.sidebar-section[data-key=recent] .nav-row:has(> a.session-main[href="/s/${id}"])')`;
+		`document.querySelector('.sidebar-section[data-key=other] .nav-row:has(> a.session-main[href="/s/${id}"])')`;
 
 	/** The path, whether the share sheet shows, and the viewer's title. */
 	const where = () =>
@@ -277,7 +300,7 @@ describe("command menu: sharing and artifacts", { skip: !browserTests }, () => {
 	});
 
 	describe("artifacts", () => {
-		it("lists the open conversation's artifacts, every version, and opens one in the viewer in one step", async () => {
+		it("lists the open session's artifacts and opens one as a view in one step", async () => {
 			const id = await create("With artifacts");
 			await makeArtifacts(id, 2);
 			await openSession(id, "With artifacts");
@@ -286,28 +309,18 @@ describe("command menu: sharing and artifacts", { skip: !browserTests }, () => {
 			await run("open artifact", "Open artifact…");
 			await browser.wait(`document.querySelector('.command-menu .command-crumb')?.textContent === 'Artifacts'`);
 			await listed("Demo artifact");
-			assert.deepEqual((await menu())?.groups, [
-				[
-					"Artifacts",
-					[
-						["Demo artifact", "html · v2"],
-						["Demo artifact", "html · v1"],
-					],
-				],
-			]);
+			assert.deepEqual((await menu())?.groups, [["Artifacts", [["Demo artifact", "Pages"]]]]);
 			await press("Enter");
-			await browser.wait(`${CLOSED} && document.querySelector('.viewer-panel')`);
-			assert.deepEqual(await where(), { path: `/s/${id}`, sheet: false, viewer: "Demo artifact" });
+			await browser.wait(`${CLOSED} && document.querySelector('.views-pane.kind-html iframe.artifact-frame')`);
 			assert.match(
-				await browser.evaluate<string>(`document.querySelector('.viewer-panel').textContent`),
-				/version 2/,
+				await browser.evaluate<string>(
+					`document.querySelector('.views-pane.kind-html iframe').getAttribute('src')`,
+				),
+				/version=2/,
 			);
-			await back();
-			await browser.wait(`!document.querySelector('.viewer-panel')`);
-			assert.equal((await where()).path, `/s/${id}`);
 		});
 
-		it("offers Open artifact… only while the open conversation has artifacts", async () => {
+		it("offers Open artifact… only while the open session has artifacts", async () => {
 			const id = await create("First artifact");
 			await openSession(id, "First artifact");
 			await openMenu();
@@ -324,52 +337,20 @@ describe("command menu: sharing and artifacts", { skip: !browserTests }, () => {
 			await browser.wait(CLOSED);
 		});
 
-		it("finds the latest version of an artifact at the root by its title", async () => {
+		it("finds an artifact at the root by its title", async () => {
 			const id = await create("Artifact search");
-			await makeArtifacts(id, 2);
+			await makeArtifacts(id, 1);
 			await openSession(id, "Artifact search");
 			await browser.wait(`document.querySelector('.artifact-button')`);
 			await openMenu();
 			await type("demo art");
 			await browser.wait(
-				`[...document.querySelectorAll('.command-menu .command-group')].some((g) => g.querySelector('.command-heading').textContent === 'Artifacts' && g.querySelector('[role=option] .command-suffix-text')?.textContent === 'html · v2')`,
-			);
-			const artifacts = (await menu())?.groups.find(([heading]) => heading === "Artifacts");
-			// The latest version only, beside the command whose group it joins.
-			assert.deepEqual(
-				artifacts?.[1].filter(([title]) => title === "Demo artifact"),
-				[["Demo artifact", "html · v2"]],
+				`[...document.querySelectorAll('.command-menu .command-group')].some((g) => g.querySelector('.command-heading').textContent === 'Artifacts' && [...g.querySelectorAll('[role=option] .command-title')].some((t) => t.textContent === 'Demo artifact'))`,
 			);
 			await browser.evaluate(
-				`[...document.querySelectorAll('.command-menu [role=option]')].find((o) => o.querySelector('.command-suffix-text')?.textContent === 'html · v2').click()`,
+				`[...document.querySelectorAll('.command-menu [role=option]')].find((o) => o.querySelector('.command-title')?.textContent === 'Demo artifact').click()`,
 			);
-			await browser.wait(`${CLOSED} && document.querySelector('.viewer-panel')`);
-			assert.match(
-				await browser.evaluate<string>(`document.querySelector('.viewer-panel').textContent`),
-				/version 2/,
-			);
-		});
-
-		it("opens a hovered session's artifact over its main conversation: Back closes the viewer, then returns", async () => {
-			const open = await create("Artifact from here");
-			const hovered = await create("Artifact over there");
-			await makeArtifacts(hovered, 1);
-			await openSession(open, "Artifact from here");
-			await hover(sidebarRow(hovered));
-			await openMenu();
-			assert.equal((await menu())?.chip, "Session · Artifact over there");
-			await listed("Open artifact…");
-			await run("open artifact", "Open artifact…");
-			await listed("Demo artifact");
-			await press("Enter");
-			await browser.wait(
-				`${CLOSED} && document.querySelector('.viewer-panel') && location.pathname === '/s/${hovered}'`,
-			);
-			await back();
-			await browser.wait(`!document.querySelector('.viewer-panel')`);
-			assert.equal((await where()).path, `/s/${hovered}`);
-			await back();
-			await browser.wait(`location.pathname === '/s/${open}'`);
+			await browser.wait(`${CLOSED} && document.querySelector('.views-pane.kind-html iframe.artifact-frame')`);
 		});
 	});
 
@@ -379,27 +360,102 @@ describe("command menu: sharing and artifacts", { skip: !browserTests }, () => {
 		const sharing = owner.hold(Sharing, { session: id }, BACKGROUND_CONTEXT);
 		await sharing.link({ mode: "view" }, BACKGROUND_CONTEXT);
 		const links = await until(sharing.links, (value) => value?.length === 1);
-		const guest = await Browser.start();
+		const guest = await join(links![0]!.url, "Reader");
 		try {
-			await guest.metrics(1280, 800);
-			await guest.call("Emulation.setUserAgentOverride", { userAgent, platform: "MacIntel" });
-			// A fresh profile on loopback gets the join form and joins as a guest (loopback-join.test.ts).
-			await guest.open(`${base}${new URL(links![0]!.url).pathname}`);
-			await guest.wait(`document.querySelector('#join #name') && document.querySelector('#join button')`);
-			await guest.evaluate(
-				`(() => { const input = document.querySelector('#name'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Reader'); input.dispatchEvent(new Event('input', { bubbles: true })); })()`,
-			);
-			await guest.click("#join button");
-			await guest.wait(`document.querySelector('.subagent-bar')?.textContent.includes('Joined as Reader')`);
 			await guest.wait(`document.querySelector('.artifact-button')`);
 			await openMenu(guest);
 			await guest.wait(`${TITLES}.includes('Open artifact…')`);
 			const shown = await guest.evaluate<string[]>(TITLES);
 			for (const title of ["Share session…", "Copy read-only link", "Copy read/write link", "Reset share link…"])
 				assert.ok(!shown.includes(title), `guest sees ${title}: ${shown}`);
+			// A reader cannot open views of the session: the artifact shows in the side panel, on this device only.
+			await guest.evaluate(
+				`[...document.querySelectorAll('.command-menu [role=option]')].find((o) => o.querySelector('.command-title')?.textContent === 'Open artifact…').click()`,
+			);
+			await guest.wait(`${TITLES}.includes('Demo artifact')`);
+			await guest.evaluate(
+				`[...document.querySelectorAll('.command-menu [role=option]')].find((o) => o.querySelector('.command-title')?.textContent === 'Demo artifact').click()`,
+			);
+			await guest.wait(
+				`${CLOSED} && document.querySelector('[data-testid=artifact-panel] .artifact-local iframe.artifact-frame') && !document.querySelector('.views-pane.kind-html')`,
+			);
 		} finally {
 			await guest.close();
 			sharing.release();
+		}
+	});
+
+	it("lets a read/write guest stop a subagent's run and archive it from its item's menu, a view guest neither", async () => {
+		const id = await create("Guest agents");
+		const main = await holdIn(owner, Chat, { session: id, conversation: 1 }, "participant");
+		const list = await holdIn(owner, Subagents, {}, "reader");
+		const status = await holdIn(owner, SessionStatus, {}, "reader");
+		await main.send({ text: "subagent", requestId: "guest-spawn" }, BACKGROUND_CONTEXT);
+		const helper = (await until(list.children, (value) => value?.[id]?.length === 1))![id]![0]!;
+		await until(status.statuses, (states) => states?.[id]?.busy.length === 0);
+		const sub = await holdIn(owner, Chat, { session: id, conversation: helper.conversationId }, "participant");
+		const sharing = await holdIn(owner, Sharing, { session: id }, "owner");
+		const guests: Browser[] = [];
+		// Long enough to outlast the test: the fake provider echoes it at 200 tokens a second.
+		const long = `slow ${"run ".repeat(4000)}`;
+		const sessionItem = `document.querySelector('.session-row[data-session="${id}"] .session-header')`;
+		const helperItem = `[...document.querySelectorAll('.session-row[data-session="${id}"] .conversation-row')].find((e) => e.querySelector('.session-title')?.textContent === 'helper')`;
+		/** Joins with a link of `mode`, shows the session's subagents and waits until its item shows the helper working. */
+		const joinWith = async (mode: "view" | "full", name: string) => {
+			await sharing.link({ mode }, BACKGROUND_CONTEXT);
+			const links = await until(sharing.links, (value) => Boolean(value?.some((link) => link.mode === mode)));
+			const guest = await join(links!.find((link) => link.mode === mode)!.url, name);
+			guests.push(guest);
+			await guest.click(`.session-row[data-session="${id}"] .subagent-toggle[aria-expanded=false]`);
+			await guest.wait(`${helperItem}?.querySelector('.nav-marker > .pi-dots')`);
+			return guest;
+		};
+		/** Opens the menu on `item` (hovered) in `guest` and returns its titles once its rows settled. */
+		const menuOn = async (guest: Browser, item: string, chip: string) => {
+			await hover(item, guest);
+			await openMenu(guest);
+			await guest.wait(
+				`document.querySelector('.command-menu .command-chip')?.textContent === ${JSON.stringify(chip)}`,
+			);
+			return guest.evaluate<string[]>(TITLES);
+		};
+		try {
+			await main.send({ text: long, requestId: "guest-main" }, BACKGROUND_CONTEXT);
+			await sub.send({ text: long, requestId: "guest-helper" }, BACKGROUND_CONTEXT);
+			await until(status.statuses, (states) => states?.[id]?.busy.length === 2);
+			// A view guest sees them run (the sidebar's data is there) and may stop or archive none of them.
+			const viewer = await joinWith("view", "Viewer");
+			for (const [item, chip] of [
+				[helperItem, "Conversation · helper"],
+				[sessionItem, "Session · Guest agents"],
+			] as const) {
+				const shown = await menuOn(viewer, item, chip);
+				for (const title of ["Stop run", "Archive subagent"])
+					assert.ok(!shown.includes(title), `a view guest sees ${title} on ${chip}: ${shown}`);
+				await press("Escape", {}, viewer);
+				await viewer.wait(CLOSED);
+			}
+			// A read/write guest stops the subagent's run, then archives it.
+			const writer = await joinWith("full", "Writer");
+			await menuOn(writer, helperItem, "Conversation · helper");
+			await writer.wait(`${TITLES}.includes('Stop run') && ${TITLES}.includes('Archive subagent')`);
+			await writer.evaluate(
+				`[...document.querySelectorAll('.command-menu [role=option]')].find((o) => o.querySelector('.command-title')?.textContent === 'Stop run').click()`,
+			);
+			await writer.wait(CLOSED);
+			await until(status.statuses, (states) => states?.[id]?.busy.join() === "1");
+			await menuOn(writer, helperItem, "Conversation · helper");
+			await writer.wait(`${TITLES}.includes('Archive subagent')`);
+			await writer.evaluate(
+				`[...document.querySelectorAll('.command-menu [role=option]')].find((o) => o.querySelector('.command-title')?.textContent === 'Archive subagent').click()`,
+			);
+			await writer.wait(CLOSED);
+			await until(list.children, (value) => value?.[id]?.[0]?.archived === true);
+		} finally {
+			for (const guest of guests) await guest.close();
+			// A failed step leaves the runs going: the fixture would wait for them on close.
+			await Promise.all([main, sub].map((chat) => chat.stop(BACKGROUND_CONTEXT).catch(() => {})));
+			for (const held of [main, sub, list, status, sharing]) held.release();
 		}
 	});
 });

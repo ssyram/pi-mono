@@ -30,6 +30,7 @@ import {
 	type Theme,
 } from "../modes/interactive/theme/theme.ts";
 import { requestTerminalColors } from "../modes/interactive/theme/theme-controller.ts";
+import { flushStdout } from "../utils/flush-stdout.ts";
 
 const OFFICIAL_PACKAGE_NAME = "@earendil-works/pi-coding-agent";
 const OFFICIAL_APP_NAME = "pi";
@@ -162,6 +163,7 @@ export async function showStartupSelector<T>(
 			settled = true;
 			await clearStartupTui(ui);
 			ui.stop();
+			await flushStdout();
 			resolve(result);
 		};
 
@@ -189,32 +191,22 @@ export async function showFirstTimeSetup(settingsManager: SettingsManager): Prom
 			}
 			settled = true;
 			if (result) {
-				settingsManager.setTheme(result.theme);
 				settingsManager.setEnableAnalytics(result.shareAnalytics);
 				await settingsManager.flush();
 			}
 			await clearStartupTui(ui);
 			ui.stop();
+			await flushStdout();
 			resolve();
 		};
 
-		ui.start();
-		let previewTheme = SYSTEM_THEME_NAME;
-		setTheme(previewTheme);
 		const component = new FirstTimeSetupComponent({
-			onThemePreview: (themeName) => {
-				previewTheme = themeName;
-				setTheme(themeName);
-				ui.requestRender();
-			},
 			onSubmit: (result) => void finish(result),
 			onCancel: () => void finish(undefined),
 		});
 		ui.addChild(component);
 		ui.setFocus(component);
-		ui.requestRender();
-		// The terminal's colors regenerate the system theme; re-rendering rebuilds the dialog with it.
-		queryStartupTerminalColors(ui, () => setTheme(previewTheme));
+		startStartupTui(ui, settingsManager);
 	});
 }
 
@@ -234,6 +226,7 @@ export async function showStartupInput(
 			input.dispose();
 			await clearStartupTui(ui);
 			ui.stop();
+			await flushStdout();
 			resolve(result);
 		};
 

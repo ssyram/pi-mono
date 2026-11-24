@@ -34,6 +34,9 @@ final class ServerController {
 	private var launched: Process?
 	private let pidFile: URL
 	private var startedAt: Date?
+	/// `start` is between its first line and the launch (reading the login environment): no second start, and no poll
+	/// may report the not yet launched server as stopped.
+	private var launching = false
 	private var restartAfterExit = false
 	private var restartingExternal = false
 	private var polling = false
@@ -52,7 +55,7 @@ final class ServerController {
 	}
 
 	var canStart: Bool {
-		config.source == .own && config.checkout != nil && child == nil && ownership != .external
+		config.source == .own && config.checkout != nil && child == nil && !launching && ownership != .external
 			&& (phase == .stopped || phase == .checking || isFailed)
 	}
 
@@ -88,9 +91,12 @@ final class ServerController {
 		update(healthy: healthy)
 	}
 
-	/// Runs the configured checkout's server as a child process.
+	/// Runs the configured checkout's server as a child process. The app's own copy first backs up the data directory
+	/// when its build changed (DataBackup).
 	func start() async {
-		guard config.source == .own, child == nil, ownership != .external, let checkout = config.checkout else { return }
+		guard config.source == .own, child == nil, !launching, ownership != .external, let checkout = config.checkout else { return }
+		launching = true
+		defer { launching = false }
 		set(.starting, .managed)
 		if environment == nil { environment = await LoginEnvironment.capture() }
 		var environment = environment ?? [:]
@@ -100,6 +106,7 @@ final class ServerController {
 		guard let node = config.node ?? LoginEnvironment.which("node", path: environment["PATH"]) else {
 			return set(.failed("No node on the login shell's PATH"), .none)
 		}
+		let backup = config.runsBundled ? await DataBackup.beforeUpgrade(dataDir: config.dataDir) : nil
 		let process = Process()
 		process.executableURL = URL(fileURLWithPath: node)
 		process.arguments = ["--import", "./src/source.ts", config.mode == .dev ? "scripts/dev.mjs" : "src/hosts/server.ts"]
@@ -108,12 +115,15 @@ final class ServerController {
 		process.standardInput = FileHandle.nullDevice
 		do {
 			let log = try openLog()
+			if let backup { log.write(Data("\n--- \(Date()) \(backup)\n".utf8)) }
 			log.write(Data("\n--- \(Date()) starting \(node) \(process.arguments!.joined(separator: " ")) in \(checkout.path)\n".utf8))
 			process.standardOutput = log
 			process.standardError = log
 			process.terminationHandler = { [weak self] ended in
 				let status = ended.terminationStatus
-				Task { @MainActor in self?.exited(status: status) }
+				let pid = ended.processIdentifier
+				// Only the current server's exit: a stale handler must not forget a server started after it.
+				Task { @MainActor in if self?.child == pid { self?.exited(status: status) } }
 			}
 			try process.run()
 		} catch {
@@ -172,6 +182,7 @@ final class ServerController {
 	}
 
 	private func update(healthy: Bool) {
+		if launching { return }
 		// A server found through the pid file has no termination handler: notice its exit here.
 		if launched == nil, child != nil, !childRunning { return exited(status: 0) }
 		if childRunning {

@@ -81,7 +81,7 @@ Every async call takes a Chord `Context`, which carries cancellation and its cur
 
 `HarnessOptions.telemetry` accepts a host-owned `TelemetryContext` from `@earendil-works/pi-telemetry`, with optional `propagation` and `metrics` capabilities; omitted, it is a no-op. `DURABLE_TELEMETRY_SCHEMA`, exported from the package root, documents its typed spans, events, and metrics. Attributes contain IDs and control metadata, never messages, arguments, or results; IDs point to the transcript.
 
-- `pi.durable.submit` covers the public submit call and its commit; for `submit(tx, draft)` it covers the admission only, its `result` is provisional until your commit is stored, and the commit's events go to your commit's context. Each input starts a new root trace with a link to its caller's current span; a write is a child of its caller. Duplicate `requestId` preserves the original submission and carrier. Internal admissions, such as compaction writes, emit events on their phase span without a submit span.
+- `pi.durable.submit` covers the public submit call and its commit; for `admit(tx, draft)` it covers the admission only, its `result` is provisional until your commit is stored, and the commit's events go to your commit's context. Each input starts a new root trace with a link to its caller's current span; a write is a child of its caller. Duplicate `requestId` preserves the original submission and carrier. Internal admissions, such as compaction writes, emit events on their phase span without a submit span.
 - `pi.durable.phase` covers one run or abort phase of every task, including its decision commit, never the next phase, a durable wait, or a restart. Its attributes identify the task, phase, attempt when present, `resumed`, and outcome. Tool phases also identify the tool and call. Nested tasks and background compactions inherit the creating phase; model requests receive that phase context. Hooks add no spans.
 - Failed phase outcomes set error status with a fixed category (`task_faulted`, `task_failed`, or `task_orphaned`) and the outcome's diagnostic message, truncated to 500 characters (the reason for an orphaned task). Diagnostics can contain caller content; no error detail or exception name is recorded. An `aborted` outcome keeps status `ok`, including interruption by close or cancellation.
 - Every `onReport` report also emits a `pi.durable.report` event on its current span. Without a span, the NOOP span drops the event; no root report span is created. Only `type` (the report's `kind`), optional fixed `reason`, `extension`, and `task.id` are recorded; no error payload is included. `pi.durable.reports` counts all reports by `type` only, including those without a span. Clock failures report without a phase context. The `onReport` callback is unchanged.
@@ -240,8 +240,8 @@ const AskPerson = defineTask<{ question: string }, { phase: "ask" } | { phase: "
 			),
 		answered: async (task, runtime, context) => {
 			// task.state.wake says why: { reason: "signal", signal, key } or { reason: "expired" }.
-			const state = await runtime.readSignal(Answer, "answer", context); // { value }, { expired: true }, or undefined
-			const text = state !== undefined && "value" in state ? state.value.text : null;
+			const state = await runtime.readSignal(Answer, "answer", context); // { kind: "value", value }, { kind: "expired" }, or undefined
+			const text = state?.kind === "value" ? state.value.text : null;
 			await runtime.commit(() => ({ status: "terminal", outcome: { status: "completed", result: text } }), context);
 		},
 	},
@@ -304,7 +304,17 @@ import { createCodingTools } from "@earendil-works/pi-durable/tools";
 registry.install(createCodingTools({ images: await createNodePhotonImages() }));
 ```
 
-A model without image input sees a placeholder instead of the image, and `read` says so in a diagnostic. `/images/node` prepares images in a worker thread, so a large photo (a second or two of work) never blocks the event loop; the worker exits after 30 s without images, freeing Photon's WebAssembly memory (`createNodePhotonImages({ worker: false, idleMs })`). Elsewhere, `createPhotonImages()` and `/images/cloudflare` work on the calling thread, and decoding takes the image's full size in WebAssembly memory, which does not shrink again; leave the processor out on memory-constrained hosts such as Cloudflare Workers unless images stay small.
+Images also reach the model through other tools' results (an MCP tool, code mode's `image()`) and through a host's input. `@earendil-works/pi-durable/images/fit` fits those to the conversation model's limits with any processor, before they are stored, so the transcript, and the provider's prompt cache, never changes later. `createFitImagesExtension(images)` is an `afterTool` hook for every result the model gets, and says what changed in an `info` diagnostic; `fitImage(bytes, mimeType, imageLimits(model), images)` fits an attachment before the host submits it, and returns notes for the model. Every image is decoded, as the coding agent does, so a damaged one never reaches the transcript; one that cannot be prepared is left out with a note.
+
+```typescript
+import { createFitImagesExtension } from "@earendil-works/pi-durable/images/fit";
+
+const images = await createNodePhotonImages();
+registry.install(createCodingTools({ images }));
+registry.install(createFitImagesExtension(images));
+```
+
+A model without image input sees a placeholder instead of the image, decided per request, so an image read under such a model still reaches a vision model the conversation switches to; `read` names such a model in `details.imageUnsupportedByModel` for UIs. `/images/node` prepares images in a worker thread, so a large photo (a second or two of work) never blocks the event loop; the worker exits after 30 s without images, freeing Photon's WebAssembly memory (`createNodePhotonImages({ worker: false, idleMs })`). Elsewhere, `createPhotonImages()` and `/images/cloudflare` work on the calling thread, and decoding takes the image's full size in WebAssembly memory, which does not shrink again; leave the processor out on memory-constrained hosts such as Cloudflare Workers unless images stay small.
 
 Define your own tool with a JSON Schema, built here with `@earendil-works/pi-schema`. `defineTool()` types `args` from `parameters` (through pi-schema's `Static`; other JSON Schema gives `unknown`), which the Harness coerces and validates before `execute()`. `api.output()` streams running output, which becomes the result when `execute()` returns no `output`:
 
@@ -381,7 +391,7 @@ const testsPass = defineTool({
 
 ### Tools that park
 
-A tool that waits for the outside world (a CI webhook, a person, a slow job) returns a park instead of a result: `{ sleep: { signals?, until?, checkpoint? } }` or `{ wait: { on, policy, checkpoint? } }` for tasks the call owns. The call then holds no process. Once woken, `execute()` runs again with the same arguments, `api.wake` saying why and `api.checkpoint` holding what it parked with; on a fresh call both are `undefined`. `cancel` cleans up external work when the call is stopped while parked:
+A tool that waits for the outside world (a CI webhook, a person, a slow job) returns a park instead of a result: `{ kind: "sleep", signals?, until?, checkpoint? }` or `{ kind: "wait", on, policy, checkpoint? }` for tasks the call owns. The call then holds no process. Once woken, `execute()` runs again with the same arguments, `api.wake` saying why and `api.checkpoint` holding what it parked with; on a fresh call both are `undefined`. `cancel` cleans up external work when the call is stopped while parked:
 
 ```typescript
 const HOUR = 60 * 60 * 1000;
@@ -395,7 +405,7 @@ const runCi = defineTool<typeof CiParameters, JsonValue, { buildId: string }>({
 	replay: "safe",
 	async execute({ ref }, api, context) {
 		const state = await api.readSignal(CiResult, "done", context);
-		if (state !== undefined && "value" in state) {
+		if (state?.kind === "value") {
 			return { output: [{ type: "text", text: `CI ${state.value.status}: ${state.value.logUrl}` }], isError: state.value.status !== "passed" };
 		}
 		if (state !== undefined) return { output: [{ type: "text", text: "CI never reported" }], isError: true };
@@ -403,7 +413,7 @@ const runCi = defineTool<typeof CiParameters, JsonValue, { buildId: string }>({
 		const runId = await api.memo("ci.run", crypto.randomUUID(), context);
 		await webhooks.expect(runId, api.taskId, CiResult, "done", context); // your registry: the webhook signals this task
 		const build = await ci.trigger({ ref, idempotencyKey: runId }, context);
-		return { sleep: { checkpoint: { buildId: build.id }, signals: [CiResult.key("done")], until: api.now() + 2 * HOUR } };
+		return { kind: "sleep", checkpoint: { buildId: build.id }, signals: [CiResult.key("done")], until: api.now() + 2 * HOUR };
 	},
 	// Runs when the call is stopped while parked; may run more than once.
 	async cancel(_args, api, context) {
@@ -454,7 +464,7 @@ import { createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
 registry.install(createCodemodeExtension({ sandbox: new CodemodeSandbox({ memoryLimitBytes: 256 * 1024 * 1024 }) }));
 ```
 
-The extension also adds a `codemode` prompt section listing the tools scripts can call, as TypeScript declarations within a token budget; scripts find the others with `searchTools()`, `describeTool()`, and `describeNamespace()`. Group tools by name prefix with `namespaces: [{ name, description, prefix }]`, for example an MCP server's `mcp__github__`. The result reads like the coding agent's: a header, the script's output, and on failure the calls already made; text past `max_output_tokens` is cut, with the full text in a temp file. Scripts also get `models.*`: the model catalog, `models.classify()`, and `models.generateImages()`, which run as nested calls of internal tools (`models: false` turns them off). On Cloudflare, pass a `RemoteCodemodeSandbox` instead. Closing the sandbox while a script runs (for example when shutting down) is not an outcome: the script resumes with the next process's sandbox. A failed nested call rejects in the script with its error text, unless the tool declares a schema and returned its own value with the error: `tools.bash` resolves with `{ output, exitCode, ... }` also for a nonzero exit, so scripts check `exitCode`. `store(key, value)` and `load(key)` keep JSON values per conversation; a fork sees them as they were at its entry.
+The extension also adds a `codemode` prompt section listing the tools scripts can call, as TypeScript declarations within a token budget; scripts find the others with `searchTools()`, `describeTool()`, and `describeNamespace()`. Group tools into namespaces by declaring one on the extension that brings them, `namespace: { name, description, instructions? }`, for example one extension per MCP server: the section lists every selected extension's namespace with its one-line description (also before it has tools), and `describeNamespace()` returns its instructions. The result reads like the coding agent's: a header, the script's output, and on failure the calls already made; text past `max_output_tokens` is cut, with the full text in a temp file. Scripts also get `models.*`: the model catalog, `models.classify()`, and `models.generateImages()`, which run as nested calls of internal tools (`models: false` turns them off). On Cloudflare, pass a `RemoteCodemodeSandbox` instead. Closing the sandbox while a script runs (for example when shutting down) is not an outcome: the script resumes with the next process's sandbox. A failed nested call rejects in the script with its error text, unless the tool declares a schema and returned its own value with the error: `tools.bash` resolves with `{ output, exitCode, ... }` also for a nonzero exit, so scripts check `exitCode`. `store(key, value)` and `load(key)` keep JSON values per conversation; a fork sees them as they were at its entry.
 
 How it survives a restart: the sandbox runs the script deterministically (a virtual clock, seeded randomness, UTC), and the tool writes each result the script gets to a journal before handing it over. After a restart, the tool runs the script again and hands it the journaled results in the same order, so it makes the same calls with the same arguments; these reattach to their nested calls by key, and then the script continues. A rerun ends the call with an error instead when the script takes another path than before, when the sandbox's fingerprint or the code mode version changed, or when its `timeout_ms` passed meanwhile. A nested call running at the restart follows its own replay policy.
 
@@ -632,13 +642,13 @@ await root.submit({ type: "write", entry: { kind: "app.note", data: "user opened
 - **Steers** are placed after the current tool round and join the running work.
 - **Follow-ups** are placed when the run answers, and start the next run.
 - **`whenIdle: "reject"`** refuses an input when no run is working, so it never starts a run of its own. With `whenBusy: "steer"`, it steers the current run or throws `ConversationIdle`. A run that answered and waits for its [after-run tasks](#work-at-the-end-of-a-run) is still working, so such an input queues and starts the next run.
-- **`submit(tx, draft)`** admits inside your own commit, with the same rules, and returns the submission's ID. Your checks, the admission, and your writes are stored together or not at all:
+- **`admit(tx, draft)`** admits inside your own commit, with the same rules, and returns the submission's ID. Your checks, the admission, and your writes are stored together or not at all:
 
   ```typescript
   const id = await harness.commit(async (tx) => {
     const chat = await tx.doc(MyChat, root.id); // your own conversation document
     if (chat.muted.includes(userId)) throw new Error("Muted");
-    const id = await root.submit(tx, { type: "input", content: text, whenBusy: "steer", whenIdle: "reject" });
+    const id = await root.admit(tx, { type: "input", content: text, whenBusy: "steer", whenIdle: "reject" });
     chat.sent.push({ id, userId }); // your own state, same commit
     return id;
   }, context);
@@ -758,7 +768,7 @@ const Guard = defineExtension({
 	name: "guard",
 	hooks: [
 		hook(ToolTask, { beforeTool: (call) => (call.name === "bash" ? { block: "bash is disabled here" } : undefined) }),
-		hook(GenerationTask, { onYield: (answer) => (needsMoreWork(answer) ? { continue: "Keep going." } : undefined) }),
+		hook(GenerationTask, { onYield: (answer) => (needsMoreWork(answer) ? { kind: "continue", continue: "Keep going." } : undefined) }),
 	],
 });
 ```
@@ -789,7 +799,7 @@ const Approvals = defineExtension({
 				// One deadline per question: later passes reuse the memoized one.
 				const until = await api.memo(`approvals.until.${key}`, api.now() + DAY, context);
 				if (state === undefined) return { sleep: { signals: [Approval.key(key)], until } };
-				if ("expired" in state) return { block: "No approval within a day" };
+				if (state.kind === "expired") return { block: "No approval within a day" };
 				return state.value.allow ? undefined : { block: "Not approved" };
 			},
 		}),
@@ -834,7 +844,7 @@ const TestsAfterEdits = defineExtension({
 - **The answer first:** the answer is committed and the run's inputs settle `done` before the hooks are asked, so `Submission.wait()` resolves at the answer.
 - **Busy until done:** `pi.live.run` stays, with `run.afterRun` listing the tasks, so the conversation is busy and `waitForIdle()` includes them; Stop aborts them; a crash resumes them. A crash before they exist asks the hooks again, never twice once they do.
 - **Input meanwhile:** steers and follow-ups queue and start the next run once the tasks are done; `whenBusy: "reject"` and a continue throw `ConversationBusy`.
-- **Results for the model:** a task gets its conversation's handle before its commit, `const handle = (await runtime.conversation(runtime.conversationId, context))!`, and admits a write or a follow-up (say "the tests failed: ...") inside it with `handle.submit(tx, draft)`, before its own table writes. Both are placed when the run ends: a write before any queued user input, a follow-up in queue order with the rest. A follow-up starts a fix run, which asks `afterRun` again with a fresh turn budget, so cap such loops in your extension.
+- **Results for the model:** a task gets its conversation's handle before its commit, `const handle = (await runtime.conversation(runtime.conversationId, context))!`, and admits a write or a follow-up (say "the tests failed: ...") inside it with `handle.admit(tx, draft)`, before its own table writes. Both are placed when the run ends: a write before any queued user input, a follow-up in queue order with the rest. A follow-up starts a fix run, which asks `afterRun` again with a fresh turn budget, so cap such loops in your extension.
 - **Broken requests** (an uninstalled or built-in task, a non-JSON input, a throwing `initial()`) are reported through `onReport` against the hook's extension and skipped; the run still ends.
 
 ### Work before an answer stands, and after a round
@@ -1115,7 +1125,7 @@ node --conditions=source --experimental-strip-types test/examples/13-chat.ts
 | [31-transcript](test/examples/31-transcript.ts) | A client's transcript over the windowed view: live appends, a stall with a gap, loading it and earlier pages, and resuming with `from` |
 | [32-tests-after-edits](test/examples/32-tests-after-edits.ts) | An `afterRun` hook that runs the tests after every run that edited files, a fix run when they fail, and input waiting for them |
 | [33-turn-limit-and-continue](test/examples/33-turn-limit-and-continue.ts) | A per-conversation turn limit, `runFailure`, and continuing without a user message |
-| [34-submit-in-commit](test/examples/34-submit-in-commit.ts) | Admitting a visitor's steer inside the host's own commit with `submit(tx, draft)` and `whenIdle: "reject"` |
+| [34-submit-in-commit](test/examples/34-submit-in-commit.ts) | Admitting a visitor's steer inside the host's own commit with `admit(tx, draft)` and `whenIdle: "reject"` |
 | [35-durable-on-the-store](test/examples/35-durable-on-the-store.ts) | A Harness on `StoreStorage` in a Chord host's store, next to a Chord object's own table: one commit queue, one id allocator, one export |
 | [36-durable-views](test/examples/36-durable-views.ts) | A Chord object following a Durable view with `self.follow`: its frames and a member reading the followed value |
 | [37-harness-registry](test/examples/37-harness-registry.ts) | A Harness in Chord objects: extensions contributed through a Chord registry, and a follower that moves to the next Harness when one closes |
@@ -1128,6 +1138,7 @@ node --conditions=source --experimental-strip-types test/examples/13-chat.ts
 | [44-approval-gate](test/examples/44-approval-gate.ts) | A `beforeTool` approval gate keyed by the arguments with a memoized deadline, a second gate asked on every wake, denial and expiry |
 | [45-review-on-yield](test/examples/45-review-on-yield.ts) | An `onYield` review task whose `{ continue }` sends the agent back, and a queued user message winning over it |
 | [46-after-tools-terminate](test/examples/46-after-tools-terminate.ts) | An `afterTools` task asking a person whether to go on: a steer, then `{ terminate: true }` |
+| [47-fit-images](test/examples/47-fit-images.ts) | Images fitted to the model's limits before they are stored: an attached photo with `fitImage`, a tool's screenshot with the `fit-images` extension |
 | [00](test/examples/00-conversation.ts)–[12](test/examples/12-recovery.ts) | The layers underneath: sessions, documents, forks, watches, the Harness, agent configuration, reload, extension state, tasks, recovery |
 
 Examples that call OpenAI need `OPENAI_API_KEY`; most use the faux provider otherwise.

@@ -42,7 +42,7 @@ import { EnvManagers, EnvService } from "../envs/contract.ts";
 import { Catalog, type Session, SessionLocks } from "../sessions/contract.ts";
 import { type Child, ChildStore } from "../subagents/contract.ts";
 import { type OwnerConfig, OwnerConfigFile, type OwnerConfigState, type OwnerServer } from "./config.ts";
-import { type Instance, InstanceSchema, Mcp, McpManager, type ProjectFile } from "./contract.ts";
+import { type Instance, InstanceSchema, MCP_ACCEPTS, Mcp, McpManager, type ProjectFile } from "./contract.ts";
 import { McpCredentials } from "./credentials.ts";
 import type { ConnectEnv } from "./environments.ts";
 import { type ClientInfo, Instances, RECONNECT } from "./instances.ts";
@@ -83,7 +83,7 @@ export default mcpServerFacet(VIEW_LINGER_MS, sshEnvironments);
 export function mcpServerFacet(viewLingerMs: number, connector: EnvConnector): Facet {
 	return defineFacet((host) => {
 		host.serve(McpManager, managerFactory(connector));
-		host.serve(Mcp, view, { linger: viewLingerMs });
+		host.serve(Mcp, view, { linger: viewLingerMs, accepts: MCP_ACCEPTS });
 		contribute(host, "p2.mcp-routes", signInRoutes);
 	});
 }
@@ -239,7 +239,7 @@ function managerFactory(connector: EnvConnector): Factory<typeof McpManager> {
 
 /**
  * Keeps the memento a restarted manager's natives start from: the servers of each valid read, and the instances once
- * one of them lists other tools (instances closing change no tools, so a manager ending writes nothing).
+ * one of them lists other tools or instructions (instances closing change neither, so a manager ending writes nothing).
  */
 function keepMemento(
 	self: Self,
@@ -251,14 +251,15 @@ function keepMemento(
 		if (failure === null) await memento.change((draft) => Object.assign(draft, { servers, errors }), ctx);
 	});
 	self.on(listed, async ({ value: { instances } }, ctx) => {
-		const remembered = new Map(memento.value.instances.map((instance) => [instance.id, toolNames(instance)]));
-		if (instances.some((instance) => remembered.get(instance.id) !== toolNames(instance)))
+		const remembered = new Map(memento.value.instances.map((instance) => [instance.id, listing(instance)]));
+		if (instances.some((instance) => remembered.get(instance.id) !== listing(instance)))
 			await memento.change((draft) => Object.assign(draft, { instances }), ctx);
 	});
 }
 
-/** The names of the tools `instance` lists, as one string. */
-const toolNames = (instance: Instance): string => instance.tools.map((tool) => tool.name).join("\n");
+/** The names of the tools `instance` lists and its instructions, as one string. */
+const listing = (instance: Instance): string =>
+	JSON.stringify([instance.tools.map((tool) => tool.name), instance.instructions ?? null]);
 
 /** The environments each session's conversations work on, as the catalog and the subagent store record them. */
 function workEnvironments(
@@ -352,8 +353,8 @@ function signInMethods(configured: Watchable<OwnerConfigState>, signIns: () => S
 		completeSignIn: ({ state, code, iss, error }: { state: string; code?: string; iss?: string; error?: string }) =>
 			signIns().complete(
 				error !== undefined || code === undefined
-					? { state, error: error ?? "The authorization response has no code" }
-					: { state, code, ...(iss === undefined ? {} : { iss }) },
+					? { kind: "error", state, error: error ?? "The authorization response has no code" }
+					: { kind: "code", state, code, ...(iss === undefined ? {} : { iss }) },
 			),
 		pasteSignIn: async ({ id, redirectUrl }: { id: string; redirectUrl: string }) => {
 			await signIns().paste(id, redirectUrl);
@@ -385,6 +386,7 @@ async function asPluginError<T>(promise: Promise<T>): Promise<T> {
 function projectAt(location: Location, projects: readonly ProjectFile[]): ProjectSource {
 	const file = projects.find((candidate) => sameLocation(candidate.location, location));
 	if (file === undefined) return { kind: "none" };
+	// `ProjectFile` is the `Mcp` contract's wire form, untagged: tagging it would change the contract.
 	return "text" in file ? { kind: "file", text: file.text } : { kind: "unreadable", error: file.error };
 }
 
@@ -413,7 +415,10 @@ const view: Factory<typeof Mcp> = (_params, principal, self) => {
 	return { variant: "worker", members: workerView(principal, manager, self) };
 };
 
-/** A session worker's view: its session's servers (without the owner's errors), its locations and calls. */
+/**
+ * A session worker's view: its session's servers (without the owner's errors), which of them each of its leases uses,
+ * its locations and calls.
+ */
 function workerView(principal: WorkerPrincipal, manager: Ref<typeof McpManager>, self: Self) {
 	const { session, generation } = principal;
 	const current = currentWorker(self.get(Hosts, {}), principal);
@@ -430,6 +435,11 @@ function workerView(principal: WorkerPrincipal, manager: Ref<typeof McpManager>,
 			const used = new Set(leases.filter((lease) => lease.session === session).flatMap((lease) => lease.instances));
 			return instances.filter((instance) => used.has(instance.id)).map(({ error: _error, ...instance }) => instance);
 		}),
+		leases: deriveTyped(self, [manager.leases], ([leases]) =>
+			leases
+				.filter((lease) => lease.session === session)
+				.map(({ location, instances }) => ({ location, instances })),
+		),
 		errors: deriveTyped(self, [manager.leases], ([leases]) =>
 			leases.filter((lease) => lease.session === session).flatMap((lease) => lease.errors),
 		),

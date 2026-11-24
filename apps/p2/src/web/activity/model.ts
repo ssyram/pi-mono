@@ -92,6 +92,13 @@ export type ChatItem =
 const toolStatus = (tool: ToolView): StepStatus =>
 	tool.status === "error" || tool.status === "interrupted" ? "error" : tool.status === "done" ? "done" : "running";
 
+/** The entry a chat item shows, for the kinds that show one. */
+export function chatItemEntryId(item: ChatItem): number | undefined {
+	return item.type === "user" || item.type === "thought" || item.type === "text" || item.type === "answer"
+		? item.entryId
+		: undefined;
+}
+
 type Response = Extract<Item, { type: "assistant" }>;
 /** A run of consecutive tool calls, with the responses that made them (for its time). */
 type Calls = { type: "calls"; key: string; steps: Step[]; from: Response[]; entries?: WheelEntry[] };
@@ -155,8 +162,8 @@ function partsOf(run: readonly Item[], live: boolean, after: string, tools: Tool
 	const call = (key: string, tool: ToolView, from?: Response) => {
 		const step = stepOf(tool, tools);
 		calls(key, from).steps.push(step);
-		if (placement(step.tool, tools) === "inline")
-			parts.push({ type: "results", key: `results:${tool.id}`, tools: [step.tool] });
+		const inline = withResults(step.tool).filter((each) => placement(each, tools) === "inline");
+		if (inline.length) parts.push({ type: "results", key: `results:${tool.id}`, tools: inline });
 	};
 	for (const item of run) {
 		if (item.type === "tool") {
@@ -283,10 +290,12 @@ function runItems(
 		});
 	const results = parts.flatMap((part) =>
 		part.type === "calls"
-			? part.steps.flatMap((step) => {
-					const where = placement(step.tool, tools);
-					return where === "after" || (where === "inline" && detail === 1) ? [step.tool] : [];
-				})
+			? part.steps.flatMap((step) =>
+					withResults(step.tool).filter((each) => {
+						const where = placement(each, tools);
+						return where === "after" || (where === "inline" && detail === 1);
+					}),
+				)
 			: [],
 	);
 	if (results.length) items.push({ type: "results", key: `results:${first.key}`, tools: results });
@@ -387,6 +396,7 @@ const sameValue = (one: unknown, other: unknown): boolean =>
 			const that: unknown = other[index];
 			if (value === that) return true;
 			if (!value || !that || typeof value !== "object" || typeof that !== "object") return false;
+			// Any list of a chat item: its members are told apart by the fields they have.
 			// An entry on a wheel (detail 1 and 2).
 			if ("kind" in value && "kind" in that) return sameEntry(value as WheelEntry, that as WheelEntry);
 			// A step: the same call in the same state.
@@ -551,6 +561,11 @@ export type ToolActivity = {
 	describe?: (step: Step) => Described;
 	/** Its words while it runs ("Running npm test"); without it, `describe`'s. */
 	running?: (step: Step) => Label;
+	/**
+	 * One or two words for a call while it runs, where there is room for no more and its arguments are not known (a
+	 * subagent's row in the sidebar: "Reading"); without it, the tool's name.
+	 */
+	brief?: string;
 	/** Its main argument for its row in the sheet (`cwd`: the session's working directory, for relative paths). */
 	argument?: (tool: ToolView, cwd: string | undefined) => string;
 	/** How a failed call's row says it failed ("exit 1"); without it, "failed". */
@@ -629,6 +644,33 @@ export function live(step: Step, tools: ToolActivityTable): Label {
 export function argumentOf(tool: ToolView, tools: ToolActivityTable, cwd: string | undefined): string {
 	const own = tools.get(tool.name)?.argument;
 	return own ? own(tool, cwd) : shortArgument(tool);
+}
+
+/** Nested calls as calls of their own, by call: the same nested call keeps its object. */
+const nestedViews = new WeakMap<NestedCall, ToolView>();
+
+/**
+ * A call and the calls it made (a script's), each a call whose result may show for the person: a nested call's tool
+ * places its result as a top-level call's would (`hasResult`), from its arguments and status (it has no result).
+ */
+function withResults(tool: ToolView): ToolView[] {
+	const nested = (tool.calls ?? []).flatMap((call) => {
+		if (typeof call.args === "string") return [];
+		let view = nestedViews.get(call);
+		if (!view) {
+			view = {
+				id: call.id,
+				name: call.name,
+				args: call.args,
+				status: call.status,
+				output: call.output ?? "",
+				images: [],
+			};
+			nestedViews.set(call, view);
+		}
+		return [view];
+	});
+	return [tool, ...nested];
 }
 
 /** Where a call's result for the person shows, if it made one. */
