@@ -1,4 +1,5 @@
 node_modules/
+.local/
 dist/
 .artifacts/
 *.log
@@ -42,5 +43,26 @@ plans/
 .pi/hf-sessions/
 .pi/hf-sessions-backup/
 .pi/settings.json
+.pi/scheduled-wakeup/
 collect.sh
 packages/agent/docs/extensions/pi-server-artifact/index.md
+
+# Plugin-local scratch: session artifacts, agent runtimes, build output
+.pi-subagents/
+my-plugins/.runtime/
+my-plugins/*/.runtime/
+my-plugins/*/.build/
+my-plugins/*/fleet-tmux-*/
+my-plugins/*/_cca_analysis*/
+my-plugins/*/.pi/*
+!my-plugins/*/.pi/AI-learning.md
+!my-plugins/*/.pi/.gitignore
+!my-plugins/*/.pi/cca-counterexamples.ts
+# Root project scratch (runtime artifacts of pi, impression, boulder, sisyphus)
+.pi/impression-cache/
+.pi/impression-debug/
+.pi/tui-snapshots/
+.pi/subagent-outputs/
+.pi/task.json
+.pi/boulder-inhibition-*/
+.sisyphus/
