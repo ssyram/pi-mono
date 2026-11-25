@@ -66,3 +66,5 @@ my-plugins/*/.pi/*
 .pi/task.json
 .pi/boulder-inhibition-*/
 .sisyphus/
+# hc-fsm-reference bundle is local-only (see 2026-11-24 cleanup)
+my-plugins/_deprecated-plugins/hc-fsm-reference/
