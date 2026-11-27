@@ -21,11 +21,14 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { findExact, findExactIgnoringCase, findFuzzy, normalizeQuery } from "./match.js";
+import type { EntryStore } from "./entry-store.js";
 import type { SkillRefEntry } from "./registry.js";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 const MAX_NAME_LISTING = 100;
+/** How long the tool waits for a background rescan before answering from the current list. */
+const TOOL_REFRESH_TIMEOUT_MS = 500;
 
 const PARAMS = Type.Object({
 	query: Type.String({
@@ -206,7 +209,7 @@ export function resolveQuery(
 	};
 }
 
-export function registerTryLoadTool(pi: ExtensionAPI, getEntries: () => SkillRefEntry[]): void {
+export function registerTryLoadTool(pi: ExtensionAPI, store: EntryStore): void {
 	pi.registerTool({
 		name: "try_load_skill_or_prompt",
 		label: "Load Skill/Prompt",
@@ -220,7 +223,7 @@ export function registerTryLoadTool(pi: ExtensionAPI, getEntries: () => SkillRef
 		],
 		parameters: PARAMS,
 		async execute(_toolCallId, params) {
-			const { text, details } = resolveQuery(getEntries(), params);
+			const { text, details } = resolveQuery(await store.refreshed(TOOL_REFRESH_TIMEOUT_MS), params);
 			return { content: [{ type: "text", text }], details };
 		},
 		renderResult(result, { expanded }) {

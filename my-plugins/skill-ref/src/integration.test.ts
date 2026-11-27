@@ -33,21 +33,26 @@ function loadExtension(commands: CommandLike[]): Captured {
 }
 
 function registerProvider(captured: Captured): void {
-	(captured.handlers.session_start as (event: undefined, ctx: unknown) => void)(undefined, {
-		ui: {
-			addAutocompleteProvider: (factory: (current: AutocompleteProvider) => AutocompleteProvider) => {
-				const base: AutocompleteProvider = {
-					async getSuggestions() {
-						return null;
-					},
-					applyCompletion(lines, cursorLine, cursorCol) {
-						return { lines, cursorLine, cursorCol };
-					},
-				};
-				captured.provider = factory(base);
+	(captured.handlers.session_start as (event: { reason: "startup" }, ctx: unknown) => void)(
+		{ reason: "startup" },
+		{
+			ui: {
+				notify: () => {},
+				setWidget: () => {},
+				addAutocompleteProvider: (factory: (current: AutocompleteProvider) => AutocompleteProvider) => {
+					const base: AutocompleteProvider = {
+						async getSuggestions() {
+							return null;
+						},
+						applyCompletion(lines, cursorLine, cursorCol) {
+							return { lines, cursorLine, cursorCol };
+						},
+					};
+					captured.provider = factory(base);
+				},
 			},
 		},
-	});
+	);
 }
 
 const sendInput = (captured: Captured, text: string): unknown =>
@@ -56,6 +61,8 @@ const sendInput = (captured: Captured, text: string): unknown =>
 describe("skill-ref integration", () => {
 	let directory!: string;
 	let captured!: Captured;
+	let originalCwd!: string;
+	let originalAgentDir: string | undefined;
 
 	before(() => {
 		const parent = resolve("my-plugins", "skill-ref", ".pi");
@@ -63,6 +70,12 @@ describe("skill-ref integration", () => {
 		directory = mkdtempSync(join(parent, "integration-"));
 		writeFileSync(join(directory, "alpha.md"), CONTENT_ALPHA);
 		writeFileSync(join(directory, "bravo.md"), CONTENT_BRAVO);
+		// The background rescan reads cwd and the agent dir; keep both empty so it
+		// neither touches the real ones nor trusts its result over the fixtures.
+		originalCwd = process.cwd();
+		originalAgentDir = process.env.PI_CODING_AGENT_DIR;
+		process.chdir(directory);
+		process.env.PI_CODING_AGENT_DIR = join(directory, "agent");
 		const commands: CommandLike[] = [
 			{
 				name: "skill:alpha",
@@ -82,6 +95,9 @@ describe("skill-ref integration", () => {
 	});
 
 	after(() => {
+		process.chdir(originalCwd);
+		if (originalAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+		else process.env.PI_CODING_AGENT_DIR = originalAgentDir;
 		rmSync(directory, { recursive: true, force: true });
 	});
 

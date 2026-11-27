@@ -2,11 +2,12 @@
 
 A [pi](https://github.com/badlogic/pi-mono) extension for referring to skills and prompts **in the middle of a sentence**.
 
-Three parts of one idea:
+Three parts of one idea, plus a fourth that keeps the list honest:
 
 1. **Mid-sentence `/` + Tab completes skills and prompts** instead of listing filesystem paths.
 2. **`try_load_skill_or_prompt`** turns such a reference into the resource's own text, so the model can actually act on it.
 3. **`:print` / `:path` modifiers** cash a reference in when the message is sent.
+4. **The list follows the disk**: a skill or prompt added while pi is running shows up on the next keystroke, with a small `Skill list changed` notice — no `/reload` needed.
 
 The second half exists because pi only expands a slash command when it is the *first* thing in a message. A `/qpdi` written mid-sentence is plain text; this tool is how it gets cashed in.
 
@@ -67,7 +68,11 @@ pi install <path-to-this-directory>
 
 ## Where the resources come from
 
-Whatever pi itself considers a skill or a prompt — `pi.getCommands()` is the only source. That covers `~/.pi/agent/skills`, `<project>/.pi/skills`, the prompt equivalents, and anything contributed by packages or other extensions, and it follows `/reload` with no cache to invalidate.
+Whatever pi itself considers a skill or a prompt — `pi.getCommands()` is the source. That covers `~/.pi/agent/skills`, `<project>/.pi/skills`, the prompt equivalents, and anything contributed by packages or other extensions, and it follows `/reload` with no cache to invalidate.
+
+On top of that, the list is rescanned in the background through pi's own `DefaultResourceLoader` (a throwaway instance, skills and prompts only) whenever the last scan is older than 30 s and something reads the list. A rescan that changes the list swaps it in and announces it — a notification toast, or a flash when pi runs fullscreen — as `Skill list changed: +A/-R skill(s)`, or just `Skill list changed` when as many names appeared as disappeared; an unchanged list stays silent. `try_load_skill_or_prompt` waits up to 500 ms for such a rescan before answering from the current list.
+
+The throwaway loader is only trusted after it has reproduced pi's own list once, at a session start right after pi read the disk. Where it cannot, the extension keeps serving pi's list exactly as before. Two kinds of resource only pi can see — paths handed to it on its command line, and skills bundled inside a loaded extension's directory — are taken from pi's list rather than rescanned. Nothing is held between calls — no timer, watcher or child process — so `pi -p` still exits cleanly; installing a package newly added to settings happens only as `/reload` would do it, quietly.
 
 ## Tests
 
@@ -82,3 +87,4 @@ node --import tsx --test my-plugins/skill-ref/src/*.test.ts
 - `docs/design/principles.md` — what this is for, and the source-level assumptions it rests on
 - `docs/design/research.md` — the survey behind it, plus the decisions that were escalated
 - `docs/design/architecture.md` — module contracts, correctness argument, accepted trade-offs, test plan
+- `docs/design/dynamic-loading.md` — why `/models`-style refresh could not be copied, and what was built instead

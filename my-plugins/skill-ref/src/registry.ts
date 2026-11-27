@@ -26,7 +26,7 @@ export interface CommandLike {
 	name: string;
 	description?: string;
 	source: string;
-	sourceInfo?: { path?: string; baseDir?: string };
+	sourceInfo?: { path?: string; baseDir?: string; source?: string };
 }
 
 const SKILL_PREFIX = "skill:";

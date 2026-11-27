@@ -19,6 +19,10 @@
 		"src/autocomplete-result*.ts",
 		"src/registry.ts",
 		"src/registry.test.ts",
+		"src/entry-store*.ts",
+		"src/entry-diff*.ts",
+		"src/rescan-resources*.ts",
+		"src/refresh-notice*.ts",
 		"src/integration.test.ts"
 	],
 }

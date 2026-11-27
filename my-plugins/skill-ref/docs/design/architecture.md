@@ -249,6 +249,31 @@ renderResult 必须先运行时校验 details 形状；校验失败时退化为�
 副作用：只读资源文件（请求内缓存）；无跨会话状态、无 watcher/timer/子进程
 ```
 
+### M6 动态刷新（2026-11-26 实现；调研与方案见 `docs/design/dynamic-loading.md`）
+
+```
+模块：entry-store / rescan-resources / entry-diff / refresh-notice
+
+功能描述：让清单跟随磁盘 —— 后台用 pi 自己的 DefaultResourceLoader（一次性实例）重扫 skills/prompts，
+          变化时就地换入并通知（全屏 flash，否则 notify toast）；try_load 工具最多等 500ms 拿新鲜结果。
+
+关键后置条件：
+  - entries() 同步、不抛、不等待；TTL（30s）到期且有读才触发一次重扫，单飞
+  - 重扫结果只在"校准"通过后才被信任：session_start(reason ∈ {startup, reload}) 时重扫一次，
+    与 pi 的 getCommands() 投影逐对 (qualifiedName, path) 相等才信任；其它 reason 继承结论。
+    比对在重扫结算时刻才读 pi 侧——pi 在 session_start 之后才跑 resources_discover 扩展清单，
+    同步读会少掉 extension:* 来源的条目而校准必败（2026-11-26 真机复现）
+  - 未信任的会话里行为与 M1 原状完全一致（只读 getCommands()）
+  - 变化判定按 (qualifiedName, path)：仅路径变 → 静默换入；名字增减 → 通知
+  - 通知：added === removed > 0 → "Skill list changed"；否则 "Skill list changed: +A/-R skill(s)"；无变化不通知
+  - 仅 pi 可见的来源从 getCommands() 保留并同名胜出：命令行路径（source === "cli"）与扩展目录自带资源（source 以 "extension" 开头，如 extension:index）；其余一律以重扫为准，未知盲区由校准兜底
+  - 失败的重扫保留旧清单、不通知；lastScanAt 在启动时打戳，失败不会在 TTL 内反复重试
+
+副作用：每次重扫 new 一个 loader（复用会在第二次 reload 时清全局扩展缓存）；不传 onMissing，
+        故 settings 新配且缺失的 package 会被安装（与 /reload 一致），输出 capture 不进 TUI；
+        工具侧每次调用一个 setTimeout，finally 中清除；两次调用之间不持有任何句柄（I3）
+```
+
 ### `index.ts`
 
 ```
@@ -256,12 +281,15 @@ export default function (pi: ExtensionAPI): void
   pi.registerTool(try_load_skill_or_prompt ...)                       [M4]
   pi.on("input", e => { const t = transformReferences(e.text, getEntries());
                         return t === e.text ? undefined : { action: "transform", text: t }); });   [M5]
-  pi.on("session_start", (_e, ctx) => ctx.ui.addAutocompleteProvider((current) =>
+  pi.on("session_start", (e, ctx) => { store.begin(e.reason, createRefreshNotice(ctx.ui));
+                                   ctx.ui.addAutocompleteProvider((current) =>
     createModifierProvider(createSkillRefProvider(current, getEntries, theme), getEntries)));  [M5∘M3]
 ```
 
 - wrapper 必须在 `session_start` 内注册（H5：`/reload` 会清空 wrapper 数组）。
-- `getEntries` 是惰性 thunk，每次调用现取 —— 无缓存即无过期，也不持有句柄（E1）。
+- M1 仍是唯一口径：`getEntries = () => store.entries()`，store 内部每次都从 `getCommands()` 读；M6 只在其上叠加 TTL 重扫，未校准的会话与无 M6 时逐字节相同（E1）。
+- `store.entries()` 是所有读路径的唯一入口（补全、修饰符、发送兑现、工具）；TTL 门控 + 单飞让它在任何读路径上触发都无害。
+- 清单是工作目录的属性而非会话的，故校准结论跨会话继承；pi 重新读盘时（startup / reload）重新校准并重新锚定。
 
 ---
 
@@ -315,6 +343,7 @@ export default function (pi: ExtensionAPI): void
 ### 关键假设
 
 - H1–H6：见 `principles.md` §2（均已在源码中定位到行号）。
+- H12：`resources_discover` 完成之后、下一次 reload 之前，`getCommands()` 输出不可变（`_resourceLoader.reload()` 全仓唯一调用点 `agent-session.ts:3854`；skills 只在 `updateSkillsFromPaths` 整体赋值；`promptTemplates` 是只读 getter）。例外窗口：`bindExtensions` 先 `emit(session_start)` 再 `extendResourcesFromExtensions`（`agent-session.ts:3450-3452`），扩展通过 `resources_discover` 注册的资源在 session_start 时还不在清单里。证据与推论见 `dynamic-loading.md` §1.1；待用户确认后补入 `principles.md` §2。
 - **H7**：`pi.getCommands()` 只在 `session_start` 之后被调用（补全与工具执行都晚于会话建立），此时 `bindCore` 已完成绑定（`agent-session.ts:2340`）。违反即抛异常 → 被 M1 内吞为 `[]`（降级为"无候选"，不崩）。
 - **H8**：`SlashCommandInfo.sourceInfo.path` 对 skill 指向 `SKILL.md` 本体、对 prompt 指向模板文件本体（`skills.ts:315` / `prompt-templates.ts:17`）。若上游改为指向目录，E1 分支读文件会失败 → 走 isError，不静默给错内容。
 
@@ -333,10 +362,12 @@ export default function (pi: ExtensionAPI): void
 |---|---|---|---|
 | TR-1 | 句中 Tab 不再能补全文件路径（0 命中即空菜单） | 用户裁决 D1 | 用户反馈句中补路径的需求回潮 |
 | TR-2 | `/reload` 恰好发生在"补全插入"与"工具调用"之间时，I1 可能失效（工具落到 E3/E4 分支给候选） | 无缓存设计的固有窗口 | 出现实际误导案例 |
-| TR-3 | 每次 Tab 都重新调用 `getCommands()`（无缓存） | 规模在数十条量级，纯内存映射 | 资源数量级增长到数千条 |
+| TR-3 | 每次 Tab 都重新调用 `getCommands()`（M1 无缓存）；M6 在其上叠加 TTL 重扫，未校准的会话仍是纯现算 | 两次 session_start 之间 `getCommands()` 不可变（H12，见 `dynamic-loading.md` §1.1） | 资源数量级增长到数千条 |
 | AR-1 | skill 与 prompt 同名时，补全插入的 `/foo` 本身有歧义，需工具多一轮交互消歧 | 裁决 D2 的直接后果 | 若实际使用中频繁撞名 |
 | TR-5 | 被 pi 的 first-wins 去重屏蔽掉的同名资源（如项目级同名 skill）本插件也加载不了 | P3 口径一致：只认 `getCommands()` | 上游改为暴露被屏蔽资源 |
 | TR-6 | 候选列表不给文件路径，模型无法直接 read 绕过本工具 | 裁决 D6（保持加载链路可按工具名识别） | 出现确需路径的场景 |
+| TR-7 | 菜单开着不动时不会当场刷新，下一次按键才出新列表 | 编辑器补全是拉模型，无推送口（P2 不改上游） | 上游给编辑器加 refreshAutocomplete |
+| TR-8 | 未校准的会话（项目未受信任、命令行资源与磁盘同名等）没有动态刷新，退回 M1 原状 | 校准守卫的取舍：宁可不少刷，不可与 pi 口径不一致 | 出现实际被禁用的常见场景 |
 | AR-2 | 选中行中被本插件着色的一小段之后，前景色恢复终端默认而非 accent（§7.1） | SelectList 整行包裹式着色的固有限制 | 上游给 SelectList 加分段着色能力 |
 | TR-4 | 输入框正文不着色（§7.2） | A4 的"不付高耦合代价"约束 | 用户明确要求，且接受编辑器组件互斥 |
 
